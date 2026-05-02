@@ -21,7 +21,7 @@ export interface Category {
     id?: string;
     name: string;
     unit: UnitType;
-    isActive: boolean;
-    createdAt: string;         // ISO
-    updatedAt: string;
+    isActive?: boolean;
+    createdAt?: string;         // ISO
+    updatedAt?: string;
 }

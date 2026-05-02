@@ -1,6 +1,3 @@
-
-
-
 // domain/entities/PurchaseOrderStatus.ts
 export const PurchaseOrderStatus = {
     DRAFT: 'draft',
@@ -31,19 +28,6 @@ export interface PurchaseOrder {
     totalAmount: number;             // جمع کل فاکتور (محاسبه شده از جزییات)
     invoiceNumber: string | null;    // شماره فاکتور مرجع از طرف تأمین‌کننده
     notes: string | null;            // توضیحات اضافی
-    createdAt: string;
-    updatedAt: string;
-}
-
-
-// domain/entities/PurchaseOrderItem.ts
-export interface PurchaseOrderItem {
-    id: string;
-    purchaseOrderId: string;         // ارجاع به سر فاکتور
-    ingredientId: string;            // کدام ماده اولیه خریداری شده
-    quantity: number;                // مقدار خریداری شده (بر حسب واحد ماده)
-    unitPrice: number;               // قیمت واحد (به ازای هر واحد ماده)
-    totalPrice: number;              //= quantity * unitPrice
     createdAt: string;
     updatedAt: string;
 }

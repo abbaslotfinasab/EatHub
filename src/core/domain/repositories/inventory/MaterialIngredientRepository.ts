@@ -14,6 +14,12 @@ export interface MaterialIngredientRepository {
     findById(id: string): Promise<Material | null>;
     findByMaterialId(materialId: string): Promise<MaterialIngredient[]>; // 👈 جدید
     findAll(filters?: MaterialFilters): Promise<MaterialIngredient[]>;
-    update(id: string, data: Partial<MaterialIngredient>): Promise<MaterialIngredient>;
+    updateWithIngredients(
+        id: string,
+        data: {
+            materialData?: Partial<Omit<Material, 'id'>>;
+            ingredients?: Array<{ ingredientId: string; quantity: number; unit?: string }>;
+        }
+    ): Promise<void>;
     delete(id: string): Promise<void>;
 }

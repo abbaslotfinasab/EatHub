@@ -11,16 +11,16 @@ export const PaymentTerms = {
 export type PaymentTermsType = typeof PaymentTerms[keyof typeof PaymentTerms];
 
 export interface Supplier {
-    id: string;
+    id?: string;
     name: string;                    // نام تأمین‌کننده
-    contactPerson: string | null;    // شخص تماس
+    contactPerson?: string | null;    // شخص تماس
     phone: string;                   // تلفن
-    email: string | null;            // ایمیل
-    address: string | null;          // آدرس
-    taxNumber: string | null;        // شماره مالیاتی
-    paymentTerms: PaymentTermsType;  // شرایط پرداخت
-    notes: string | null;            // توضیحات اضافی
+    email?: string | null;            // ایمیل
+    address?: string | null;          // آدرس
+    taxNumber?: string | null;        // شماره مالیاتی
+    paymentTerms?: PaymentTermsType;  // شرایط پرداخت
+    notes?: string | null;            // توضیحات اضافی
     isActive: boolean;               // فعال/غیرفعال
-    createdAt: string;               // ISO
-    updatedAt: string;
+    createdAt?: string;               // ISO
+    updatedAt?: string;
 }
