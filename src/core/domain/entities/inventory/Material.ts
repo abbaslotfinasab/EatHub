@@ -24,6 +24,7 @@ export const UnitLabel: Record<UnitType, string> = {
 export interface Material {
     id?: string;
     name: string;
+    categoryId?: string | null;
     description?: string | null;
     currentStock: number;
     reorderLevel: number;      // هشدار موجودی

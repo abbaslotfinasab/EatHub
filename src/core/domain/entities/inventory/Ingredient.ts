@@ -32,7 +32,6 @@ export interface Ingredient {
     sku?: string | null;        // کد انبار (اختیاری)
     isActive: boolean;
     categoryId?: string | null;
-    supplierId?: string | null;
     complete: boolean;         // آماده با نبمه آماده
     createdAt?: string;         // ISO
     updatedAt?: string;
