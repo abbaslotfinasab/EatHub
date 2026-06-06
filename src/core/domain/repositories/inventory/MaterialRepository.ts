@@ -1,19 +1,23 @@
 // core/domain/repositories/MaterialRepository.ts
-import type {Material, UnitType} from '../../entities/inventory/Material';
+import type {Material} from '../../entities/inventory/Material';
+import type {MaterialIngredient} from "../../entities/inventory/MaterialIngredient.ts";
+import type {MaterialResult} from "../../entities/inventory/MaterialResult.ts";
+import type {MaterialFilters} from "./MaterialIngredientRepository.ts";
 
-export interface MaterialFilters {
-    search?: string;         // جستجو در name, description
-    unit?: UnitType;
-    lowStock?: boolean;      // currentStock <= reorderLevel
-    isActive?: boolean;      // اگر فیلد isActive دارید (در مدل شما نیست، می‌توانید اضافه کنید)
-}
+
 
 export interface MaterialRepository {
-    create(material: Material): Promise<Material>;
-    findById(id: string): Promise<Material | null>;
-    findAll(filters?: MaterialFilters): Promise<Material[]>;
-    update(id: string, data: Partial<Material>): Promise<Material>;
+    creat(
+        materialData: Omit<Material, 'id' | 'createdAt' | 'updatedAt'>,
+        ingredientsData: Omit<MaterialIngredient, 'id' | 'createdAt' | 'updatedAt' | 'materialId'>[]
+    ): Promise<MaterialResult>;
+    findById(id: string): Promise<MaterialResult | null>;
+    findAll(filters?: MaterialFilters): Promise<MaterialResult[]>;
+    update(
+        materialId: string,
+        materialData: Partial<Omit<Material, 'id' | 'createdAt' | 'updatedAt'>>,
+        ingredients?: Omit<MaterialIngredient, 'id' | 'createdAt' | 'updatedAt' | 'materialId'>[]
+    ): Promise<MaterialResult>;
     delete(id: string): Promise<void>;
-    updateStock(id: string, newStock: number): Promise<void>;
 }
 

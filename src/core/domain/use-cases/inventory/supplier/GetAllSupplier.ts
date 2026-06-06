@@ -1,6 +1,7 @@
 // core/application/use-cases/supplier/GetAllSuppliers.ts
-import type { SupplierRepository, SupplierFilters } from '../../../repositories/inventory/SupplierRepository';
+import type { SupplierRepository} from '../../../repositories/inventory/SupplierRepository';
 import type {Supplier} from "../../../entities/inventory/Supplier.ts";
+import type {SupplierFilters} from "../../../objects/filters/SupplierFilters.ts";
 
 export class GetAllSuppliers {
     constructor(private readonly supplierRepository: SupplierRepository) {}

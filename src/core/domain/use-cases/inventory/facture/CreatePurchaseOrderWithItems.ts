@@ -4,14 +4,14 @@ import type { PurchaseOrderRepository } from '../../../repositories/inventory/Pu
 
 
 // شِمای هر آیتم از فاکتور
-const PurchaseOrderItemSchema = z.object({
+export const PurchaseOrderItemSchema = z.object({
     ingredientId: z.string().min(1, 'شناسه ماده اولیه الزامی است'),
     quantity: z.number().positive('مقدار باید مثبت باشد'),
     unitPrice: z.number().positive('قیمت واحد باید مثبت باشد'),
 });
 
 // شِمای اصلی
-const CreatePurchaseOrderWithItemsSchema = z.object({
+export const CreatePurchaseOrderWithItemsSchema = z.object({
     supplierId: z.string().min(1, 'شناسه تأمین‌کننده الزامی است'),
     expectedDeliveryDate: z.string().nullable().optional(),
     invoiceNumber: z.string().nullable().optional(),

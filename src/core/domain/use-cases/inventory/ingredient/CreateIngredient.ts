@@ -3,17 +3,16 @@ import { z } from 'zod';
 import { Unit } from '../../../entities/inventory/Ingredient.ts';
 import type { IngredientRepository } from '../../../repositories/inventory/IngredientRepository.ts';
 
-const CreateIngredientSchema = z.object({
+export const CreateIngredientSchema = z.object({
     name: z.string().min(2, 'نام ماده حداقل ۲ کاراکتر است').trim(),
-    unit: z.enum(Unit, { message: 'واحد معتبر نیست' }),
-    currentStock: z.number().min(0).optional().default(0),
+    unit: z.nativeEnum(Unit, { message: 'واحد معتبر نیست' }),
+    currentStock: z.number().min(0),          // حذف .optional()
     reorderLevel: z.number().min(0),
     reorderQuantity: z.number().positive(),
-    costPrice: z.number().positive(),
-    isActive: z.boolean().optional().default(true),
-    categoryId: z.string().nullable().optional(),
-    supplierId: z.string().nullable().optional(),
-    complete: z.boolean().optional().default(false),
+    costPrice: z.number().positive().optional(),
+    isActive: z.boolean(),                 // حذف .optional()
+    categoryId: z.string(),    // nullable با default(null)
+    complete: z.boolean(),                // حذف .optional()
     sku: z.string().nullable().optional(),
 });
 

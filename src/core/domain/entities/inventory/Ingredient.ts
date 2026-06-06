@@ -28,10 +28,10 @@ export interface Ingredient {
     currentStock: number;
     reorderLevel: number;      // هشدار موجودی
     reorderQuantity?: number;   // مقدار پیشنهادی برای خرید مجدد
-    costPrice: number;         // قیمت تمام‌شده فعلی (به ازای هر واحد)
+    costPrice?: number;         // قیمت تمام‌شده فعلی (به ازای هر واحد)
     sku?: string | null;        // کد انبار (اختیاری)
     isActive: boolean;
-    categoryId?: string | null;
+    categoryId: string;
     complete: boolean;         // آماده با نبمه آماده
     createdAt?: string;         // ISO
     updatedAt?: string;

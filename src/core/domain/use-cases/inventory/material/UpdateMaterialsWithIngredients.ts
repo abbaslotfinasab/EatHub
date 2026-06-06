@@ -1,37 +1,42 @@
-// application/use-cases/material/UpdateMaterialWithIngredients.ts
+// core/application/use-cases/material/UpdateMaterialWithIngredients.ts
+import { z } from 'zod';
 import type { MaterialRepository } from '../../../repositories/inventory/MaterialRepository';
-import type { Material } from '../../../entities/inventory/Material';
-import type {MaterialIngredientRepository} from "../../../repositories/inventory/MaterialIngredientRepository.ts";
 
-export interface MaterialIngredientInput {
-    ingredientId: string;
-    quantity: number;
-    unit?: string;
-}
+// شِمای هر آیتم مصرفی (برای جایگزینی کامل)
+const MaterialIngredientUpdateSchema = z.object({
+    ingredientId: z.string().min(1, 'شناسه ماده اولیه مصرفی الزامی است'),
+    quantity: z.number().positive('مقدار مصرف باید مثبت باشد'),
+    unit: z.string(),
+    substituteMaterialId: z.string().nullable().optional(),
+});
 
-export interface UpdateMaterialWithIngredientsCommand {
-    materialId: string;
-    materialData: Partial<Omit<Material, 'id'>>;
-    ingredients: MaterialIngredientInput[];
-}
+// شمای اصلی ورودی
+const UpdateMaterialWithIngredientsSchema = z.object({
+    materialData: z.object({
+        name: z.string().min(2).trim().optional(),
+        description: z.string().nullable().optional(),
+        unit: z.string(),
+        currentStock: z.number().min(0).optional(),
+        reorderLevel: z.number().min(0).optional(),
+        reorderQuantity: z.number().positive().optional(),
+        costPrice: z.number().positive().optional(),
+    }),
+    ingredients: z.array(MaterialIngredientUpdateSchema).optional(), // در صورت ارسال، جایگزین کامل آیتم‌های قبلی می‌شود
+});
+
+export type UpdateMaterialWithIngredientsInput = z.infer<typeof UpdateMaterialWithIngredientsSchema>;
 
 export class UpdateMaterialWithIngredients {
-    constructor(
-        private readonly materialIngredientRepository: MaterialIngredientRepository,
-        private readonly materialRepository: MaterialRepository
-    ) {}
+    constructor(private materialRepository: MaterialRepository) {}
 
-    async execute(command: UpdateMaterialWithIngredientsCommand): Promise<void> {
-        const { materialId, materialData, ingredients } = command;
+    async execute(materialId: string, input: UpdateMaterialWithIngredientsInput) {
+        if (!materialId) throw new Error('شناسه ماده معتبر نیست');
+        const validated = UpdateMaterialWithIngredientsSchema.parse(input);
 
-        // اعتبارسنجی سطحی (وجود ماده)
-        const existing = await this.materialRepository.findById(materialId);
-        if (!existing) throw new Error(`Material with ID "${materialId}" not found`);
+        // استخراج data و ingredients
+        const { materialData, ingredients } = validated;
 
-        // ارسال یک درخواست PUT یا PATCH به endpoint ترکیبی
-        await this.materialIngredientRepository.updateWithIngredients(materialId, {
-            ...materialData,
-            ingredients,
-        });
+        // ارسال به ریپازیتوری (بک‌اند اعتبارسنجی و جایگزینی آیتم‌ها را انجام می‌دهد)
+        return await this.materialRepository.update(materialId, materialData, ingredients);
     }
 }

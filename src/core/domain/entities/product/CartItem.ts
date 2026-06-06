@@ -6,7 +6,7 @@ export interface CartItem {
     quantity: number;           // تعداد
     unitPrice: number;          // قیمت واحد در زمان اضافه شدن (قفل شود)
     totalPrice: number;         // = quantity * unitPrice
-    notes?: string;             // توضیحات اضافی (مثل "بدون پیاز")
+    notes?: string | null;             // توضیحات اضافی (مثل "بدون پیاز")
     createdAt: string;
     updatedAt: string;
 }
