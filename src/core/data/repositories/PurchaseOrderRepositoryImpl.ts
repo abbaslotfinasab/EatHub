@@ -1,5 +1,5 @@
 // core/data/repositories/PurchaseOrderRepositoryImpl.ts
-import { apiClient } from '../api/http-client';
+import { apiClient } from '../http/http-client';
 import { isAxiosError } from 'axios';
 import type {
     PurchaseOrderFilters,

@@ -1,38 +1,61 @@
-// src/presentation/routes/AppRoutes.tsx
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { CreateRecipePage } from '../pages/CreateRecipePage';
-import { Layout } from "../components/layout/Layout";
-import {CreateIngredientPage} from "../pages/CreateIngredientPage.tsx";
-import {CreateMaterialPage} from "../pages/CreateMaterialPage.tsx";
-import {CreatePurchaseOrderPage} from "../pages/CreatePurchaseOrderPage.tsx";
-import {CreateMenuPage} from "../pages/CreateMenuPage.tsx";
-import {IngredientsListPage} from "../pages/IngredientsListPage.tsx";
-import {MaterialsListPage} from "../pages/MaterialsListPage.tsx";
-import {RecipeListPage} from "../pages/RecipeListPage.tsx";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import { AppLayout } from "../components/layout/AppLayout";
+import { DashboardLayout } from "../components/layout/DashboardLayout";
+
+
+import { HomePage } from "../pages/HomePage";
+import { LoginPage } from "../pages/LoginPage";
+import { RegisterPage } from "../pages/RegisterPage";
+
 import { ManagerDashboard } from "../pages/ManagerDashboard";
+import { IngredientsListPage } from "../pages/IngredientsListPage";
+import { MaterialsListPage } from "../pages/MaterialsListPage";
+import { RecipeListPage } from "../pages/RecipeListPage";
+
+import { CreateIngredientPage } from "../pages/CreateIngredientPage";
+import { CreateMaterialPage } from "../pages/CreateMaterialPage";
+import { CreateRecipePage } from "../pages/CreateRecipePage";
+import { CreatePurchaseOrderPage } from "../pages/CreatePurchaseOrderPage";
+import { CreateMenuPage } from "../pages/CreateMenuPage";
+import {ProtectedRoute} from "./ProtectedRoute.tsx";
+import {PublicRoute} from "./PublicRoute.tsx";
 
 export const AppRoutes = () => {
     return (
         <BrowserRouter>
-            <Routes>   {/* ✅ اضافه کردن Routes */}
-                <Route path="/" element={<Layout />}>
-                    <Route path="ingredients/create" element={<CreateIngredientPage />} />
-                    <Route path="materials/create" element={<CreateMaterialPage />} />
-                    <Route path="recipes/create" element={<CreateRecipePage />} />
-                    <Route path="factor/create" element={<CreatePurchaseOrderPage />} />
-                    <Route path="menus/create" element={<CreateMenuPage />} />
-                    <Route path="ingredients" element={<IngredientsListPage />} />
-                    <Route path="materials" element={<MaterialsListPage />} />
-                    <Route path="recipes" element={<RecipeListPage />} />
-                    <Route path="dashboard" element={<ManagerDashboard />} />
+            <Routes>
+
+                {/* PUBLIC */}
+                <Route element={<PublicRoute />}>
+                    <Route element={<AppLayout />}>
+
+                        <Route path="/home" element={<HomePage />} />
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/register" element={<RegisterPage />} />
 
 
-
-
-
-
-                    {/* مسیرهای دیگر */}
+                    </Route>
                 </Route>
+
+                {/* PROTECTED */}
+                <Route element={<ProtectedRoute />}>
+                    <Route element={<DashboardLayout />}>
+
+                        <Route path="/dashboard" element={<ManagerDashboard />} />
+                        <Route path="/ingredients" element={<IngredientsListPage />} />
+                        <Route path="/materials" element={<MaterialsListPage />} />
+                        <Route path="/recipes" element={<RecipeListPage />} />
+
+                        <Route path="/ingredients/create" element={<CreateIngredientPage />} />
+                        <Route path="/materials/create" element={<CreateMaterialPage />} />
+                        <Route path="/recipes/create" element={<CreateRecipePage />} />
+                        <Route path="/factor/create" element={<CreatePurchaseOrderPage />} />
+                        <Route path="/menus/create" element={<CreateMenuPage />} />
+
+                    </Route>
+                </Route>
+
             </Routes>
         </BrowserRouter>
     );

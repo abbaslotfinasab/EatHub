@@ -1,8 +1,6 @@
 import { Box, Grid, Stack } from "@mui/material";
 
-import { DashboardHeader } from "../components/dashboard/DashboardHeader.tsx";
 import { DashboardStats } from "../components/dashboard/DashboardStats";
-import { RestaurantHealth } from "../components/dashboard/RestaurantHealth";
 import { SalesChart } from "../components/dashboard/SalesChart";
 import { OrdersTable } from "../components/dashboard/OrdersTable";
 import { InventoryAlerts } from "../components/dashboard/InventoryAlerts";
@@ -30,14 +28,9 @@ export const ManagerDashboard = () => {
             }}
         >
             <Stack spacing={3}>
-                {/* Header */}
-                <DashboardHeader />
 
                 {/* KPI Cards */}
                 <DashboardStats/>
-
-                {/* Health Overview */}
-                <RestaurantHealth/>
 
                 {/* Sales Chart */}
                 <SalesChart data={salesData} />

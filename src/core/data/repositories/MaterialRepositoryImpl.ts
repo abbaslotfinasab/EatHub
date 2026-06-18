@@ -2,7 +2,7 @@
 import type {MaterialRepository} from '../../domain/repositories/inventory/MaterialRepository';
 import type {Material} from '../../domain/entities/inventory/Material';
 import type {MaterialIngredient} from '../../domain/entities/inventory/MaterialIngredient';
-import {apiClient} from '../api/http-client';
+import {apiClient} from '../http/http-client';
 import {isAxiosError} from 'axios';
 import type {MaterialResult} from "../../domain/entities/inventory/MaterialResult.ts";
 import type {MaterialFilters} from "../../domain/objects/filters/MaterialFilters.ts";

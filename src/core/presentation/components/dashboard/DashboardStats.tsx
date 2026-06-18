@@ -11,7 +11,7 @@ export const DashboardStats = () => {
     const stats = [
         {
             title: "فروش امروز",
-            value: "۱۲,۵۰۰,۰۰۰",
+            value: "12,000,000",
             subtitle: "تومان",
             growth: 12,
             icon: <SellRoundedIcon />,
@@ -20,6 +20,7 @@ export const DashboardStats = () => {
         {
             title: "سفارشات فعال",
             value: "34",
+            subtitle: "سفارش",
             growth: 8,
             icon: <ReceiptLongRoundedIcon />,
             color: "#2563EB",
@@ -27,6 +28,7 @@ export const DashboardStats = () => {
         {
             title: "رزروهای امروز",
             value: "12",
+            subtitle: "رزرو",
             growth: 4,
             icon: <EventSeatRoundedIcon />,
             color: "#9333EA",
@@ -34,6 +36,7 @@ export const DashboardStats = () => {
         {
             title: "هشدارهای انبار",
             value: "5",
+            subtitle: "قلم کالا",
             growth: -2,
             icon: <WarningAmberRoundedIcon />,
             color: "#EA580C",

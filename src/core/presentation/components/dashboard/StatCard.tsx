@@ -55,13 +55,22 @@ export const StatCard = ({
                     <Typography
                         variant="body2"
                         color="text.secondary"
+                        sx={{
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: "text.secondary",
+                        }}
                     >
                         {title}
                     </Typography>
 
                     <Typography
                         variant="h4"
-                        fontWeight={700}
+                        sx={{
+                            fontSize: 20,
+                            fontWeight: 500,
+                        }}
+
                         mt={1}
                     >
                         {value}

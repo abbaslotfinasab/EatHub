@@ -5,7 +5,7 @@ import type { Recipe } from "../../domain/entities/product/Recipe";
 import type { RecipeComponents } from "../../domain/entities/product/RecipeComponents";
 import type { RecipeResult } from "../../domain/entities/product/RecipeResult";
 import type { RecipeFilters } from "../../domain/objects/filters/RecipeFilters";
-import { apiClient } from "../api/http-client";
+import { apiClient } from "../http/http-client";
 import {isAxiosError} from "axios";
 import {mockIngredients, mockRecipes} from "../dtos/recipe.ts";
 

@@ -1,5 +1,5 @@
 // core/data/repositories/MenuRepositoryImpl.ts
-import { apiClient } from '../api/http-client';
+import { apiClient } from '../http/http-client';
 import { isAxiosError } from 'axios';
 import type {MenuRepository} from "../../domain/repositories/product/MenuRepository.ts";
 import type {Menu} from "../../domain/entities/product/Menu.ts";

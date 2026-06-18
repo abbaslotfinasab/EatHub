@@ -1,7 +1,7 @@
 // core/data/repositories/IngredientRepositoryImpl.ts
 import type { IngredientRepository, IngredientFilters } from '../../domain/repositories/inventory/IngredientRepository';
 import type { Ingredient } from '../../domain/entities/inventory/Ingredient';
-import { apiClient } from '../api/http-client';
+import { apiClient } from '../http/http-client';
 import { isAxiosError } from 'axios';
 import {mockIngredients} from "../dtos/ingredients.ts";
 
