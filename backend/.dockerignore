@@ -1,0 +1,8 @@
+__pycache__/
+*.pyo
+../deployment/.env
+venv/
+.venv/
+db.sqlite3
+.git
+.idea/
