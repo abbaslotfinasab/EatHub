@@ -10,13 +10,11 @@ COPY . .
 
 RUN npm run build
 
-
-# Production stage (Nginx)
+# Production stage
 FROM nginx:alpine
 
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
-# اگر Vite داری → dist
-# اگر CRA داری → build
 
 EXPOSE 80
 
