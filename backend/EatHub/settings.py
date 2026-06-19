@@ -39,7 +39,7 @@ ALLOWED_HOSTS = [
     'localhost',
     "http://localhost:3000",
     '127.0.0.1',
-    "http://eathub.ir"
+    "eathub.ir"
 
 ]
 
