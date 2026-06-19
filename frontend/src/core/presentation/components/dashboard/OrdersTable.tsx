@@ -15,6 +15,7 @@ import {
 import { useMemo } from "react";
 
 import { OrderStatusChip } from "./OrderStatusChip";
+import type {OrderTableItem} from "../../../domain/entities/product/OrderTableItem.ts";
 
 export const OrdersTable = () => {
     const data = [
@@ -37,61 +38,63 @@ export const OrdersTable = () => {
         },
     ];
 
-    const columns =
-        useMemo<MRT_ColumnDef<any>[]>(
-            () => [
-                {
-                    accessorKey: "id",
-                    header: "سفارش",
-                },
+   const columns = useMemo<
+    MRT_ColumnDef<OrderTableItem>[]
+>(
+    () => [
+        {
+            accessorKey: "id",
+            header: "سفارش",
+        },
 
-                {
-                    accessorKey: "tableNumber",
-                    header: "میز",
-                },
+        {
+            accessorKey: "tableNumber",
+            header: "میز",
+        },
 
-                {
-                    accessorKey: "itemsCount",
-                    header: "آیتم",
-                },
+        {
+            accessorKey: "itemsCount",
+            header: "آیتم",
+        },
 
-                {
-                    accessorKey: "totalPrice",
-                    header: "مبلغ",
-                    Cell: ({ cell }) =>
-                        `${cell.getValue<number>().toLocaleString()} تومان`,
-                },
+        {
+            accessorKey: "totalPrice",
+            header: "مبلغ",
 
-                {
-                    accessorKey: "status",
-                    header: "وضعیت",
+            Cell: ({ cell }) =>
+                `${cell.getValue<number>().toLocaleString()} تومان`,
+        },
 
-                    Cell: ({ cell }) => (
-                        <OrderStatusChip
-                            status={cell.getValue<string>()}
-                        />
-                    ),
-                },
+        {
+            accessorKey: "status",
+            header: "وضعیت",
 
-                {
-                    accessorKey: "createdAt",
-                    header: "زمان",
-                },
+            Cell: ({ cell }) => (
+                <OrderStatusChip
+                    status={cell.getValue<string>()}
+                />
+            ),
+        },
 
-                {
-                    id: "actions",
-                    header: "",
+        {
+            accessorKey: "createdAt",
+            header: "زمان",
+        },
 
-                    Cell: () => (
-                        <IconButton>
-                            <MoreVertIcon />
-                        </IconButton>
-                    ),
-                },
-            ],
-            []
-        );
+        {
+            id: "actions",
 
+            header: "",
+
+            Cell: () => (
+                <IconButton>
+                    <MoreVertIcon />
+                </IconButton>
+            ),
+        },
+    ],
+    []
+);
     return (
         <Card
             elevation={0}

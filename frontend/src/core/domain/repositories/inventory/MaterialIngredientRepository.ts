@@ -1,13 +1,9 @@
 // core/domain/repositories/MaterialIngredientRepository.ts
-import type {Material, UnitType} from '../../entities/inventory/Material';
+import type {Material} from '../../entities/inventory/Material';
 import type {MaterialIngredient} from '../../entities/inventory/MaterialIngredient';
+import type {MaterialFilters} from "../../objects/filters/MaterialFilters.ts";
 
-export interface MaterialFilters {
-    search?: string;         // جستجو در name, description
-    unit?: UnitType;
-    lowStock?: boolean;      // currentStock <= reorderLevel
-    isActive?: boolean;      // اگر فیلد isActive دارید (در مدل شما نیست، می‌توانید اضافه کنید)
-}
+
 
 export interface MaterialIngredientRepository {
     create(materialIngredient: MaterialIngredient): Promise<MaterialIngredient>;

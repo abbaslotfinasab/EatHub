@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetAllIngredients } from '../hooks/useGetAllIngredients';
-import { useDeleteIngredient } from '../hooks/useDeleteIngredient';
 import { useNavbar } from '../hooks/useNavbar';
 import {Plus, Search, Edit, Trash2, ArrowBigLeft} from 'lucide-react';
 
@@ -20,7 +19,6 @@ export const IngredientsListPage = () => {
     };
 
     const { data: ingredients = [], isLoading, error } = useGetAllIngredients(filters);
-    const { mutate: deleteIngredient } = useDeleteIngredient();
 
     // تنظیم Navbar
     useEffect(() => {
@@ -40,11 +38,7 @@ export const IngredientsListPage = () => {
         };
     }, [setRightElement, setShowMenu]);
 
-    const handleDelete = (id: string, name: string) => {
-        if (window.confirm(`آیا از حذف ماده "${name}" اطمینان دارید؟`)) {
-            deleteIngredient(id);
-        }
-    };
+
 
 
     if (isLoading) return <div className="p-8 text-center">در حال بارگذاری...</div>;
@@ -172,7 +166,6 @@ export const IngredientsListPage = () => {
                                                 <Edit className="h-5 w-5" />
                                             </Link>
                                             <button
-                                                onClick={() => handleDelete(ing.id, ing.name)}
                                                 className="rounded p-1 text-red-600 hover:bg-red-50"
                                                 title="حذف"
                                             >

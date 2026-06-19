@@ -2,7 +2,7 @@
 import type {Material} from '../../entities/inventory/Material';
 import type {MaterialIngredient} from "../../entities/inventory/MaterialIngredient.ts";
 import type {MaterialResult} from "../../entities/inventory/MaterialResult.ts";
-import type {MaterialFilters} from "./MaterialIngredientRepository.ts";
+import type {MaterialFilters} from "../../objects/filters/MaterialFilters.ts";
 
 
 
