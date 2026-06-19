@@ -7,38 +7,36 @@ import {
 
 import ReportProblemIcon from "@mui/icons-material/ReportProblem";
 
-import { InventoryAlertItem }
-    from "./InventoryAlertItem";
 
 export const InventoryAlerts = () => {
-    const alerts = [
-        {
-            id: "1",
-            ingredientName: "پنیر پیتزا",
-            currentStock: 2,
-            minimumStock: 10,
-            unit: "کیلو",
-            severity: "critical",
-        },
-
-        {
-            id: "2",
-            ingredientName: "قارچ",
-            currentStock: 5,
-            minimumStock: 8,
-            unit: "کیلو",
-            severity: "warning",
-        },
-
-        {
-            id: "3",
-            ingredientName: "روغن",
-            currentStock: 10,
-            minimumStock: 12,
-            unit: "لیتر",
-            severity: "low",
-        },
-    ];
+    // const alerts = [
+    //     {
+    //         id: "1",
+    //         ingredientName: "پنیر پیتزا",
+    //         currentStock: 2,
+    //         minimumStock: 10,
+    //         unit: "کیلو",
+    //         severity: "critical",
+    //     },
+    //
+    //     {
+    //         id: "2",
+    //         ingredientName: "قارچ",
+    //         currentStock: 5,
+    //         minimumStock: 8,
+    //         unit: "کیلو",
+    //         severity: "warning",
+    //     },
+    //
+    //     {
+    //         id: "3",
+    //         ingredientName: "روغن",
+    //         currentStock: 10,
+    //         minimumStock: 12,
+    //         unit: "لیتر",
+    //         severity: "low",
+    //     },
+    // ];
 
     return (
         <Card
@@ -69,12 +67,12 @@ export const InventoryAlerts = () => {
                         </Typography>
                     </Stack>
 
-                    {alerts.map((alert) => (
-                        <InventoryAlertItem
-                            key={alert.id}
-                            {...alert}
-                        />
-                    ))}
+                    {/*{alerts.map((alert) => (*/}
+                    {/*    <InventoryAlertItem*/}
+                    {/*        key={alert.id}*/}
+                    {/*        {...alert}*/}
+                    {/*    />*/}
+                    {/*))}*/}
                 </Stack>
             </CardContent>
         </Card>

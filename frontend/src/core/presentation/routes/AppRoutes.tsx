@@ -10,8 +10,6 @@ import { RegisterPage } from "../pages/RegisterPage";
 
 import { ManagerDashboard } from "../pages/ManagerDashboard";
 import { IngredientsListPage } from "../pages/IngredientsListPage";
-import { MaterialsListPage } from "../pages/MaterialsListPage";
-import { RecipeListPage } from "../pages/RecipeListPage";
 
 import { CreateIngredientPage } from "../pages/CreateIngredientPage";
 import { CreateMaterialPage } from "../pages/CreateMaterialPage";
@@ -44,8 +42,6 @@ export const AppRoutes = () => {
 
                         <Route path="/dashboard" element={<ManagerDashboard />} />
                         <Route path="/ingredients" element={<IngredientsListPage />} />
-                        <Route path="/materials" element={<MaterialsListPage />} />
-                        <Route path="/recipes" element={<RecipeListPage />} />
 
                         <Route path="/ingredients/create" element={<CreateIngredientPage />} />
                         <Route path="/materials/create" element={<CreateMaterialPage />} />

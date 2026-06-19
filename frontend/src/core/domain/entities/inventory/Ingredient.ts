@@ -31,7 +31,7 @@ export interface Ingredient {
     costPrice?: number;         // قیمت تمام‌شده فعلی (به ازای هر واحد)
     sku?: string | null;        // کد انبار (اختیاری)
     isActive: boolean;
-    categoryId: string;
+    categoryId?: string | null ;
     complete: boolean;         // آماده با نبمه آماده
     createdAt?: string;         // ISO
     updatedAt?: string;

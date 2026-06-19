@@ -2,7 +2,6 @@
 
 import { Box } from "@mui/material";
 
-import { PhoneField } from "./PhoneField";
 import { SendCodeButton } from "./SendCodeButton";
 import { LoginLink } from "./LoginLink";
 
@@ -16,7 +15,7 @@ export const ForgotPasswordForm = () => {
                 gap: 3,
             }}
         >
-            <PhoneField />
+            {/*<PhoneField />*/}
 
             <SendCodeButton />
 

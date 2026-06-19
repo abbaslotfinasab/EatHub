@@ -2,8 +2,6 @@
 
 import { Box } from "@mui/material";
 
-import { PasswordField } from "./PasswordField";
-import { ConfirmPasswordField } from "./ConfirmPasswordField";
 import { SavePasswordButton } from "./SavePasswordButton";
 import { LoginLink } from "./LoginLink";
 
@@ -17,9 +15,9 @@ export const ResetPasswordForm = () => {
                 gap: 3,
             }}
         >
-            <PasswordField />
+            {/*<PasswordField />*/}
 
-            <ConfirmPasswordField />
+            {/*<ConfirmPasswordField />*/}
 
             <SavePasswordButton />
 

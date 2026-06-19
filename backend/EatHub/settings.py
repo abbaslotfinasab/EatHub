@@ -21,7 +21,7 @@ load_dotenv(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-7=a+vu%555evp8@5$^843tllf%ks2cy_ri9&w9zk8^s$i0g(-!'
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False")
@@ -31,12 +31,15 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://eathub.ir"
+
 ]
 
 ALLOWED_HOSTS = [
     'localhost',
     "http://localhost:3000",
-    '127.0.0.1'
+    '127.0.0.1',
+    "http://eathub.ir"
 
 ]
 
