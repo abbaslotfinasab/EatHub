@@ -52,6 +52,8 @@ class LoginAPIView(APIView):
         return Response({
             "user": {
                 "id": user.id,
+                "name" : user.name,
+                "number": user.number,
                 "email": user.email,
             },
             "access": str(refresh.access_token),

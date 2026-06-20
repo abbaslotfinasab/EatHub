@@ -5,6 +5,11 @@ export const useLogin = () => {
     const { loginUseCase} =
         container.authContainer;
 
+    const { getMeUseCase } = container.authContainer;
+
+    const setMe = useAuthStore((s) => s.setMe);
+
+
     const setTokens = useAuthStore((s) => s.setTokens);
 
     return async (email: string, password: string) => {
@@ -16,6 +21,11 @@ export const useLogin = () => {
 
             // ✅ single source of truth
             setTokens(auth.accessToken, auth.refreshToken);
+
+            const me = await getMeUseCase.execute();
+
+            setMe(me);
+
 
         } catch (err) {
             console.error("LOGIN FAILED:", err);
