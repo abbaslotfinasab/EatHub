@@ -17,7 +17,7 @@ import {useAuthStore} from "../../../store/auth.store.ts";
 export const RestaurantSwitcher = () => {
     const me = useAuthStore((s) => s.me);
 
-    const [selectedRestaurantId, setSelectedRestaurantId] =
+    const [selectedRestaurantId] =
         useState("1");
 
 
@@ -35,7 +35,7 @@ export const RestaurantSwitcher = () => {
                 spacing={1}
                 justifyContent="center"
             >
-                {me.memberships.map((restaurant) => {
+                {me?.memberships.map((restaurant) => {
                     const isSelected =
                         restaurant.business_name ===
                         selectedRestaurantId;
