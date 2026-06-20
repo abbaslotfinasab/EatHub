@@ -48,7 +48,6 @@ export const useRegister = () => {
 
             setMe(me);
 
-            return me;
         } catch (err: unknown) {
             console.error("REGISTER FAILED:", err);
 

@@ -35,7 +35,7 @@ export const RegisterForm = () => {
         try {
             await register(email, password, name, number);
 
-            navigate("/dashboard"); // ✅ اینجا حالا درست کار می‌کنه
+            navigate("/business"); // ✅ اینجا حالا درست کار می‌کنه
         } catch (err) {
             console.error("REGISTER FAILED:", err);
         }
