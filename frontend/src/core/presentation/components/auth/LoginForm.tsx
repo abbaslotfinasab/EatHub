@@ -10,6 +10,7 @@ import { RegisterLink } from "./RegisterLink";
 import { useLogin } from "../../hooks/useLogin";
 
 import { useNavigate } from "react-router-dom";
+import {useAuthStore} from "../../../store/auth.store.ts";
 
 
 export const LoginForm = () => {
@@ -24,6 +25,8 @@ export const LoginForm = () => {
 
         try {
             await login(email, password);
+
+            console.log("AFTER LOGIN", useAuthStore.getState());
 
             navigate("/dashboard"); // ✅ اینجا حالا درست کار می‌کنه
         } catch (err) {
