@@ -64,7 +64,7 @@ class Business(BaseModel):
         null=True
     )
 
-    phone_number = models.CharField(
+    number = models.CharField(
         max_length=20,
         blank=True
     )

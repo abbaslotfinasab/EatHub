@@ -18,6 +18,7 @@ import { CreatePurchaseOrderPage } from "../pages/CreatePurchaseOrderPage";
 import { CreateMenuPage } from "../pages/CreateMenuPage";
 import {ProtectedRoute} from "./ProtectedRoute.tsx";
 import {PublicRoute} from "./PublicRoute.tsx";
+import {CreateBusinessPage} from "../pages/CreateBusinessPage.tsx";
 
 export const AppRoutes = () => {
     return (
@@ -31,6 +32,7 @@ export const AppRoutes = () => {
                         <Route path="/home" element={<HomePage />} />
                         <Route path="/login" element={<LoginPage />} />
                         <Route path="/register" element={<RegisterPage />} />
+                        <Route path="/business" element={<CreateBusinessPage />} />
 
 
                     </Route>
@@ -39,6 +41,7 @@ export const AppRoutes = () => {
                 {/* PROTECTED */}
                 <Route element={<ProtectedRoute />}>
                     <Route element={<DashboardLayout />}>
+
 
                         <Route path="/dashboard" element={<ManagerDashboard />} />
                         <Route path="/ingredients" element={<IngredientsListPage />} />

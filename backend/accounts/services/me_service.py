@@ -13,13 +13,22 @@ class MeService:
 
         active_business = None
 
-        # از middleware می‌گیریم (enterprise pattern)
-        if request and getattr(request, "business", None):
+        active_membership = memberships.select_related("business", "role").first()
+
+        if active_membership:
             active_business = {
-                "id": request.business.id,
-                "name": request.business.name,
-                "role": request.role.code,
+                "id": active_membership.business.id,
+                "name": active_membership.business.name,
+                "role": active_membership.role.code,
             }
+        #
+        # # از middleware می‌گیریم (enterprise pattern)
+        # if request and getattr(request, "business", None):
+        #     active_business = {
+        #         "id": request.business.id,
+        #         "name": request.business.name,
+        #         "role": request.role.code,
+        #     }
 
         return {
             "user": user,

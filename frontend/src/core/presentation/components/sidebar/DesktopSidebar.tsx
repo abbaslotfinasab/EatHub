@@ -20,9 +20,20 @@ import {
     SIDEBAR_WIDTH,
     SIDEBAR_COLLAPSED_WIDTH,
 } from "../../../../config/constants";
+import {useAuthStore} from "../../../store/auth.store.ts";
 
 export const DesktopSidebar = () => {
     const { isCollapsed } = useSidebar();
+
+    const me = useAuthStore((s) => s.me);
+
+    const restaurants =
+  me?.memberships?.map((m) => ({
+    id: String(m.business_id),
+    name: m.business_name,
+    logo: "🏪",
+  })) ?? [];
+
 
     const [restaurantMenuOpen, setRestaurantMenuOpen] =
         useState(false);
@@ -33,33 +44,6 @@ export const DesktopSidebar = () => {
     const [selectedRestaurantId, setSelectedRestaurantId] =
         useState("1");
 
-    const restaurants = [
-        {
-            id: "1",
-            name: "پیتزا هاب",
-            emoji: "🍕",
-        },
-        {
-            id: "2",
-            name: "برگر هاب",
-            emoji: "🍔",
-        },
-        {
-            id: "3",
-            name: "کافه هاب",
-            emoji: "☕",
-        },
-        {
-            id: "4",
-            name: "کافه مرکزی",
-            emoji: "🥗",
-        },
-    ];
-
-    const selectedRestaurant =
-        restaurants.find(
-            (r) => r.id === selectedRestaurantId
-        ) ?? restaurants[0];
 
     const handleHeaderClick = (
         event: React.MouseEvent<HTMLElement>
@@ -108,9 +92,8 @@ export const DesktopSidebar = () => {
                 }}
             >
                 <SidebarHeader
-                    restaurantName={
-                        selectedRestaurant.name
-                    }
+                    restaurantName={me?.active_business?.name}
+                    restaurantRole={me?.active_business?.role}
                     isOpen={
                         restaurantMenuOpen
                     }
@@ -126,9 +109,7 @@ export const DesktopSidebar = () => {
                         }
                     >
                         <RestaurantList
-                            restaurants={
-                                restaurants
-                            }
+                            restaurants={restaurants}
                             selectedRestaurantId={
                                 selectedRestaurantId
                             }
@@ -196,7 +177,7 @@ export const DesktopSidebar = () => {
             >
                 <RestaurantSwitcherPopover
                     restaurants={
-                        restaurants
+                       restaurants
                     }
                     selectedRestaurantId={
                         selectedRestaurantId

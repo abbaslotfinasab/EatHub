@@ -99,6 +99,11 @@ class LoginResponseSerializer(serializers.Serializer):
 
 
 
+class ActiveBusinessSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    role = serializers.CharField()
+
 
 class UserMeSerializer(serializers.Serializer):
 
@@ -111,21 +116,11 @@ class UserMeSerializer(serializers.Serializer):
 
     memberships = MembershipSerializer(many=True)
 
-    active_business = serializers.SerializerMethodField()
+    active_business = ActiveBusinessSerializer(
+        allow_null=True
+    )
 
     meta = serializers.SerializerMethodField()
-
-    def get_active_business(self, obj):
-        request = self.context.get("request")
-
-        if not getattr(request, "business", None):
-            return None
-
-        return {
-            "id": request.business.id,
-            "name": request.business.name,
-            "role": request.role.code,
-        }
 
     def get_meta(self, obj):
         return obj.get("meta", {})

@@ -11,31 +11,17 @@ import {
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 
 import { useState } from "react";
+import {useAuthStore} from "../../../store/auth.store.ts";
 
-interface Restaurant {
-    id: string;
-    name: string;
-    logo?: string;
-}
 
 export const RestaurantSwitcher = () => {
+    const me = useAuthStore((s) => s.me);
+
     const [selectedRestaurantId, setSelectedRestaurantId] =
         useState("1");
 
-    const restaurants: Restaurant[] = [
-        {
-            id: "1",
-            name: "پیتزا میلان",
-        },
-        {
-            id: "2",
-            name: "برگر هاب",
-        },
-        {
-            id: "3",
-            name: "کافه روم",
-        },
-    ];
+
+
 
     return (
         <Box
@@ -49,24 +35,24 @@ export const RestaurantSwitcher = () => {
                 spacing={1}
                 justifyContent="center"
             >
-                {restaurants.map((restaurant) => {
+                {me.memberships.map((restaurant) => {
                     const isSelected =
-                        restaurant.id ===
+                        restaurant.business_name ===
                         selectedRestaurantId;
 
                     return (
                         <Tooltip
-                            key={restaurant.id}
-                            title={restaurant.name}
+                            key={me.id}
+                            title={restaurant.business_name}
                             arrow
                         >
                             <Avatar
-                                onClick={() =>
-                                    setSelectedRestaurantId(
-                                        restaurant.id
-                                    )
-                                }
-                                src={restaurant.logo}
+                                // onClick={() =>
+                                //     setSelectedRestaurantId(
+                                //         restaurant.id
+                                //     )
+                                // }
+                                // src={}
                                 sx={{
                                     width: 52,
                                     height: 52,
@@ -93,7 +79,7 @@ export const RestaurantSwitcher = () => {
                                     },
                                 }}
                             >
-                                {restaurant.name[0]}
+                                {restaurant.business_name}
                             </Avatar>
                         </Tooltip>
                     );

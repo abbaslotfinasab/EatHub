@@ -1,7 +1,7 @@
 from django.db import transaction
 
 from accounts.enums import RoleCode
-from accounts.models import Business, Role, Membership
+from accounts.models import Business, Membership, Role
 from accounts.services.rbac_initializer import RBACInitializer
 
 

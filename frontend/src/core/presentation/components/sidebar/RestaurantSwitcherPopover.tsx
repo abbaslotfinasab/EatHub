@@ -14,7 +14,7 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 interface Restaurant {
     id: string;
     name: string;
-    emoji: string;
+    logo: string;
 }
 
 interface Props {
@@ -55,7 +55,7 @@ export const RestaurantSwitcherPopover = ({
                                 fontSize: 22,
                             }}
                         >
-                            {restaurant.emoji}
+                            {restaurant.logo}
                         </ListItemIcon>
 
                         <ListItemText

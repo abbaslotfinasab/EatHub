@@ -10,7 +10,7 @@ from core.enums import PermissionCode
 
 ROLE_PERMISSIONS = {
 
-    RoleCode.OWNER: ALL_PERMISSIONS,
+    RoleCode.OWNER: list(PermissionCode),
 
     RoleCode.MANAGER: [
         PermissionCode.PRODUCTS_VIEW,

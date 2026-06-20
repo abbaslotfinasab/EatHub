@@ -25,6 +25,9 @@ export const useAuthHydrate = () => {
             try {
                 const me = await getMeUseCase.execute();
                 setMe(me);
+
+                console.log(JSON.stringify(me, null, 2));
+
             }  catch (err) {
             const error = err as AxiosError;
 

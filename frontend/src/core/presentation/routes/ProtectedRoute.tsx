@@ -13,5 +13,9 @@ export const ProtectedRoute = () => {
         return <Navigate to="/login" replace />;
     }
 
+     if (!me.has_business) {
+        return <Navigate to="/business" replace />;
+    }
+
     return <Outlet />;
 };

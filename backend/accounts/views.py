@@ -2,9 +2,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+from accounts.enums import RoleCode
+from accounts.models import Membership
 from accounts.serializers.auth_serializer import RegisterSerializer, UserMeSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.serializers.auth_serializer import LoginSerializer
+from accounts.serializers.business_serializer import BusinessCreateSerializer
+from accounts.services.business_service import BusinessService
 from accounts.services.me_service import MeService
 
 
@@ -106,6 +110,7 @@ class MeAPIView(APIView):
                 "name": context["user"].name,
                 "number": context["user"].number,
                 "has_business": context["has_business"],
+                "active_business": context["active_business"],
                 "memberships": context["memberships"],
                 "meta": context["meta"],
             },
@@ -113,3 +118,27 @@ class MeAPIView(APIView):
         )
 
         return Response(serializer.data)
+
+
+
+class BusinessCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = BusinessCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        business = BusinessService.create_business(
+            user=request.user,
+            name=serializer.validated_data["name"]
+        )
+
+        return Response({
+            "id": business.id,
+            "name": business.name,
+            "active_business": {
+                "id": business.id,
+                "name": business.name,
+                "role": "owner"
+            }
+        })

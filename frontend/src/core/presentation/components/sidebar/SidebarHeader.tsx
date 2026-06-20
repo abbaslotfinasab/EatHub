@@ -16,7 +16,8 @@ import KeyboardArrowDownRoundedIcon
 import { useSidebar } from "../../hooks/useSidebar";
 
 interface SidebarHeaderProps {
-    restaurantName: string;
+    restaurantName?: string;
+    restaurantRole?: string;
     restaurantLogo?: string;
     isOpen: boolean;
 
@@ -28,10 +29,14 @@ interface SidebarHeaderProps {
 export const SidebarHeader = ({
                                   restaurantName,
                                   restaurantLogo,
+                                  restaurantRole,
                                   isOpen,
                                   onToggle,
                               }: SidebarHeaderProps) => {
     const { isCollapsed } = useSidebar();
+    const name = restaurantName ?? "Business";
+    const role = restaurantRole ?? "";
+    const initial = name.charAt(0);
 
     return (
         <Tooltip
@@ -91,9 +96,9 @@ export const SidebarHeader = ({
                             flexShrink: 0,
                         }}
                     >
-                        {!restaurantLogo &&
-                            restaurantName
-                                .charAt(0)}
+                          {!restaurantLogo && initial}
+
+
                     </Avatar>
 
                     {/* Expanded Mode */}
@@ -127,7 +132,7 @@ export const SidebarHeader = ({
                                             "nowrap",
                                     }}
                                 >
-                                    {restaurantName}
+                                    {name}
                                 </Typography>
 
                                 <Typography
@@ -139,8 +144,7 @@ export const SidebarHeader = ({
                                             12,
                                     }}
                                 >
-                                    انتخاب
-                                    رستوران
+                                    {role}
                                 </Typography>
                             </Box>
 

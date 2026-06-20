@@ -18,7 +18,7 @@ interface Restaurant {
 }
 
 interface RestaurantListProps {
-    restaurants: Restaurant[];
+    restaurants?: Restaurant[];
     selectedRestaurantId: string;
     onSelect: (restaurantId: string) => void;
     onAddRestaurant: () => void;
@@ -33,7 +33,7 @@ export const RestaurantList = ({
     return (
         <Box>
             <List disablePadding>
-                {restaurants.map((restaurant) => {
+                {restaurants!.map((restaurant) => {
                     const isSelected =
                         restaurant.id === selectedRestaurantId;
 
