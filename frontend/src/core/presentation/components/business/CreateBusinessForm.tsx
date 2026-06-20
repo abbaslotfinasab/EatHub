@@ -7,6 +7,7 @@ import { BusinessPhoneField } from "./BusinessPhoneField";
 import { BusinessAddressField } from "./BusinessAddressField";
 import { CreateBusinessButton } from "./CreateBusinessButton";
 import {useCreateBusiness} from "../../hooks/useCreateBusiness.ts";
+import {useNavigate} from "react-router-dom";
 
 
 export interface CreateBusinessFormValues {
@@ -19,6 +20,7 @@ export interface CreateBusinessFormValues {
 
 export const CreateBusinessForm = () => {
   const { mutateAsync: createBusiness, isPending } = useCreateBusiness();
+  const navigate = useNavigate();
 
   const [values, setValues] = useState<CreateBusinessFormValues>({
     logo: null,
@@ -42,11 +44,16 @@ export const CreateBusinessForm = () => {
     values.name.trim().length > 2 &&
     values.phone.trim().length > 8;
 
-  const handleSubmit = async () => {
+   const handleSubmit = async () => {
     if (!isValid) return;
 
-    await createBusiness(values);
-  };
+    try {
+      await createBusiness(values);
+      navigate("/dashboard"); // 👈 اینجا
+    } catch (e) {
+      console.error(e);
+    }
+   };
 
   return (
     <Paper
