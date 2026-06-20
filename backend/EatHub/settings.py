@@ -39,7 +39,8 @@ ALLOWED_HOSTS = [
     'localhost',
     "http://localhost:3000",
     '127.0.0.1',
-    "eathub.ir"
+    "eathub.ir",
+    'backend:8000'
 
 ]
 
