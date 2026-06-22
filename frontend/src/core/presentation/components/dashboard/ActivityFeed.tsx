@@ -8,7 +8,7 @@ import {
 
 import HomeIcon from "@mui/icons-material/Home";
 
-import { ActivityItem }
+import {ActivityItem}
     from "./ActivityItem";
 
 export const ActivityFeed = () => {
@@ -59,15 +59,18 @@ export const ActivityFeed = () => {
             <CardContent>
                 <Stack spacing={3}>
                     <Stack
-                        direction="row"
-                        spacing={1}
-                        alignItems="center"
+                        sx={{
+                            display: "flex",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 1,
+                        }}
                     >
-                        <HomeIcon />
+                        <HomeIcon/>
 
                         <Typography
                             variant="h6"
-                            sx={{ fontWeight: 700 }}
+                            sx={{fontWeight: 700}}
                         >
                             فعالیت‌های اخیر
                         </Typography>
@@ -86,7 +89,7 @@ export const ActivityFeed = () => {
                                 {index !==
                                     activities.length -
                                     1 && (
-                                        <Divider />
+                                        <Divider/>
                                     )}
                             </Stack>
                         )
