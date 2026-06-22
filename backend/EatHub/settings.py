@@ -36,13 +36,12 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 ALLOWED_HOSTS = [
-    'localhost',
-    "http://localhost:3000",
-    '127.0.0.1',
-    "eathub.ir",
+    "localhost",
+    "127.0.0.1",
+    "eathub_backend",
     "backend",
-    "backend:8000",
-
+    "nginx",
+    "eathub.ir",
 ]
 
 
