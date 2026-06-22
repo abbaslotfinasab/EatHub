@@ -20,12 +20,10 @@ export const PhoneField = ({
             autoComplete="tel"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            inputProps={{
-                dir: "ltr",
-            }}
             sx={{
                 "& .MuiOutlinedInput-root": {
                     height: 56,
+                    dir: "ltr",
                     borderRadius: 3,
                     bgcolor: "#FFFFFF",
 

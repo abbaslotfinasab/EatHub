@@ -14,9 +14,9 @@ type MenuSearchProps = {
 };
 
 export const MenuSearch = ({
-    value,
-    onChange,
-}: MenuSearchProps) => {
+                               value,
+                               onChange,
+                           }: MenuSearchProps) => {
     return (
         <Paper
             elevation={0}
@@ -43,27 +43,25 @@ export const MenuSearch = ({
                 }
                 variant="outlined"
                 size="small"
-                InputProps={{
-                    startAdornment: (
-                        <InputAdornment position="start">
-                            <SearchIcon />
-                        </InputAdornment>
-                    ),
+                slotProps={{
+                    input: {
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon/>
+                            </InputAdornment>
+                        ),
 
-                    endAdornment: value ? (
-                        <InputAdornment position="end">
-                            <IconButton
-                                size="small"
-                                onClick={() =>
-                                    onChange("")
-                                }
-                            >
-                                <CloseIcon
-                                    fontSize="small"
-                                />
-                            </IconButton>
-                        </InputAdornment>
-                    ) : null,
+                        endAdornment: value ? (
+                            <InputAdornment position="end">
+                                <IconButton
+                                    size="small"
+                                    onClick={() => onChange("")}
+                                >
+                                    <CloseIcon fontSize="small"/>
+                                </IconButton>
+                            </InputAdornment>
+                        ) : undefined,
+                    },
                 }}
                 sx={{
                     "& .MuiOutlinedInput-root": {

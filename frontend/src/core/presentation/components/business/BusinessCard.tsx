@@ -1,15 +1,15 @@
 // src/features/business/presentation/components/BusinessCard.tsx
 
-import { Box, Paper, Typography } from "@mui/material";
-import type { ReactNode } from "react";
+import {Box, Paper, Typography} from "@mui/material";
+import type {ReactNode} from "react";
 
 interface Props {
     children: ReactNode;
 }
 
 export const BusinessCard = ({
-    children,
-}: Props) => {
+                                 children,
+                             }: Props) => {
     return (
         <Box
             sx={{
@@ -27,8 +27,10 @@ export const BusinessCard = ({
             >
                 <Typography
                     variant="h4"
-                    fontWeight={800}
                     gutterBottom
+                    sx={{
+                        fontWeight: 700,
+                    }}
                 >
                     ایجاد کسب‌وکار جدید
                 </Typography>
@@ -69,18 +71,6 @@ export const BusinessCard = ({
                 {children}
             </Paper>
 
-            {/* Footer */}
-            <Typography
-                variant="body2"
-                color="text.secondary"
-                textAlign="center"
-                sx={{
-                    mt: 3,
-                }}
-            >
-                بعداً می‌توانید تمام این اطلاعات را
-                از بخش تنظیمات تغییر دهید.
-            </Typography>
         </Box>
     );
 };

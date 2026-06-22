@@ -1,6 +1,6 @@
 // src/features/auth/presentation/components/PasswordField.tsx
 
-import { useState } from "react";
+import {useState} from "react";
 
 import {
     TextField,
@@ -20,7 +20,7 @@ type Props = {
 };
 
 
-export const PasswordField = ({ value, onChange }: Props) => {
+export const PasswordField = ({value, onChange}: Props) => {
 
     const [showPassword, setShowPassword] =
         useState(false);
@@ -38,28 +38,25 @@ export const PasswordField = ({ value, onChange }: Props) => {
                     : "password"
             }
             autoComplete="current-password"
-            InputProps={{
-                endAdornment: (
-                    <InputAdornment
-                        position="end"
-                    >
-                        <IconButton
-                            edge="end"
-                            onClick={() =>
-                                setShowPassword(
-                                    (prev) =>
-                                        !prev
-                                )
-                            }
-                        >
-                            {showPassword ? (
-                                <VisibilityOffRoundedIcon />
-                            ) : (
-                                <VisibilityRoundedIcon />
-                            )}
-                        </IconButton>
-                    </InputAdornment>
-                ),
+            slotProps={{
+                input: {
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <IconButton
+                                edge="end"
+                                onClick={() =>
+                                    setShowPassword((prev) => !prev)
+                                }
+                            >
+                                {showPassword ? (
+                                    <VisibilityOffRoundedIcon/>
+                                ) : (
+                                    <VisibilityRoundedIcon/>
+                                )}
+                            </IconButton>
+                        </InputAdornment>
+                    ),
+                },
             }}
             sx={{
                 "& .MuiOutlinedInput-root": {

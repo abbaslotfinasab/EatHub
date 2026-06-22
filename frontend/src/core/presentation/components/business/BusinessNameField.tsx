@@ -18,7 +18,9 @@ export const BusinessNameField = ({
     return (
         <Stack spacing={1}>
             <Typography
-                fontWeight={700}
+                sx={{
+                    fontWeight:400
+                }}
             >
                 نام کسب‌وکار
             </Typography>

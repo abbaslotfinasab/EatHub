@@ -1,7 +1,7 @@
 // src/features/auth/presentation/components/OtpField.tsx
 
-import { Box, TextField } from "@mui/material";
-import { useState } from "react";
+import {Box, TextField} from "@mui/material";
+import {useState} from "react";
 
 export const OtpField = () => {
     const [otp, setOtp] = useState([
@@ -53,18 +53,15 @@ export const OtpField = () => {
                     key={index}
                     id={`otp-${index}`}
                     value={digit}
-                    onChange={(e) =>
-                        handleChange(
-                            e.target.value,
-                            index
-                        )
-                    }
-                    inputProps={{
-                        maxLength: 1,
-                        style: {
-                            textAlign: "center",
-                            fontSize: "22px",
-                            fontWeight: 700,
+                    onChange={(e) => handleChange(e.target.value, index)}
+                    slotProps={{
+                        htmlInput: {
+                            maxLength: 1,
+                            style: {
+                                textAlign: "center",
+                                fontSize: "22px",
+                                fontWeight: 700,
+                            },
                         },
                     }}
                     sx={{
@@ -72,19 +69,15 @@ export const OtpField = () => {
 
                         "& .MuiOutlinedInput-root": {
                             height: 56,
-
                             borderRadius: 3,
-
                             bgcolor: "#FFFFFF",
 
                             "& fieldset": {
-                                borderColor:
-                                    "#E5E7EB",
+                                borderColor: "#E5E7EB",
                             },
 
                             "&.Mui-focused fieldset": {
-                                borderColor:
-                                    "#10281A",
+                                borderColor: "#10281A",
                                 borderWidth: 2,
                             },
                         },

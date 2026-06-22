@@ -10,7 +10,7 @@ import {
 
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 
-import { useState } from "react";
+import {useState} from "react";
 import {useAuthStore} from "../../../store/auth.store.ts";
 
 
@@ -19,8 +19,6 @@ export const RestaurantSwitcher = () => {
 
     const [selectedRestaurantId] =
         useState("1");
-
-
 
 
     return (
@@ -33,7 +31,9 @@ export const RestaurantSwitcher = () => {
             <Stack
                 direction="row"
                 spacing={1}
-                justifyContent="center"
+                sx={{
+                    justifyContent: "center",
+                }}
             >
                 {me?.memberships.map((restaurant) => {
                     const isSelected =
@@ -42,8 +42,8 @@ export const RestaurantSwitcher = () => {
 
                     return (
                         <Tooltip
-                            key={me.id}
-                            title={restaurant.business_name}
+                            key={me?.id}
+                            title={restaurant?.business_name ?? " "}
                             arrow
                         >
                             <Avatar
@@ -105,7 +105,7 @@ export const RestaurantSwitcher = () => {
                             },
                         }}
                     >
-                        <AddRoundedIcon />
+                        <AddRoundedIcon/>
                     </IconButton>
                 </Tooltip>
             </Stack>

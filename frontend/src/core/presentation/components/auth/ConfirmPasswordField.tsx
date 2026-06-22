@@ -1,6 +1,6 @@
 // src/features/auth/presentation/components/ConfirmPasswordField.tsx
 
-import { useState } from "react";
+import {useState} from "react";
 
 import {
     TextField,
@@ -41,25 +41,25 @@ export const ConfirmPasswordField = ({
                     : "password"
             }
             autoComplete="new-password"
-            InputProps={{
-                endAdornment: (
-                    <InputAdornment position="end">
-                        <IconButton
-                            edge="end"
-                            onClick={() =>
-                                setShowPassword(
-                                    (prev) => !prev
-                                )
-                            }
-                        >
-                            {showPassword ? (
-                                <VisibilityOffRoundedIcon />
-                            ) : (
-                                <VisibilityRoundedIcon />
-                            )}
-                        </IconButton>
-                    </InputAdornment>
-                ),
+            slotProps={{
+                input: {
+                    endAdornment: (
+                        <InputAdornment position="end">
+                            <IconButton
+                                edge="end"
+                                onClick={() =>
+                                    setShowPassword((prev) => !prev)
+                                }
+                            >
+                                {showPassword ? (
+                                    <VisibilityOffRoundedIcon/>
+                                ) : (
+                                    <VisibilityRoundedIcon/>
+                                )}
+                            </IconButton>
+                        </InputAdornment>
+                    ),
+                },
             }}
             sx={{
                 "& .MuiOutlinedInput-root": {

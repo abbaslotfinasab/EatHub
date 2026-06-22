@@ -16,13 +16,15 @@ interface Props {
 }
 
 export const BusinessAddressField = ({
-    value,
-    onChange,
-}: Props) => {
+                                         value,
+                                         onChange,
+                                     }: Props) => {
     return (
         <Stack spacing={1}>
             <Typography
-                fontWeight={700}
+                sx={{
+                    fontWeight: 700,
+                }}
             >
                 آدرس
             </Typography>

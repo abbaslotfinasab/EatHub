@@ -16,23 +16,36 @@ import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 
 import { MenuGrid } from "./MenuGrid";
 
+import type { Menu } from "../../../domain/entities/product/Menu";
+import type { MenuItem } from "../../../domain/entities/product/MenuItem";
+
+type MenuGroup = {
+    menu: Menu;
+    items: MenuItem[];
+};
+
+type MenuSectionProps = {
+    group: MenuGroup;
+    search: string;
+    onEdit?: (menu: Menu) => void;
+    onDelete?: (menu: Menu) => void;
+};
+
 export const MenuSection = ({
     group,
     search,
     onEdit,
     onDelete,
-}) => {
+}: MenuSectionProps) => {
+
     const filteredItems = group.items.filter(
-        (item) =>
+        (item: MenuItem) =>
             item.name
                 .toLowerCase()
                 .includes(search.toLowerCase())
     );
 
-    if (
-        search &&
-        filteredItems.length === 0
-    ) {
+    if (search && filteredItems.length === 0) {
         return null;
     }
 
@@ -43,10 +56,8 @@ export const MenuSection = ({
             defaultExpanded
             sx={{
                 overflow: "hidden",
-                borderRadius:
-                    "24px !important",
-                border:
-                    "1px solid #E5E7EB",
+                borderRadius: "24px !important",
+                border: "1px solid #E5E7EB",
                 bgcolor: "#fff",
                 transition: ".25s",
 
@@ -55,48 +66,36 @@ export const MenuSection = ({
                 },
 
                 "&:hover": {
-                    borderColor:
-                        "#CBD5E1",
-
-                    boxShadow:
-                        "0 10px 30px rgba(15,23,42,.05)",
+                    borderColor: "#CBD5E1",
+                    boxShadow: "0 10px 30px rgba(15,23,42,.05)",
                 },
             }}
         >
             <AccordionSummary
-                expandIcon={
-                    <ExpandMoreIcon />
-                }
+                expandIcon={<ExpandMoreIcon />}
                 sx={{
                     px: 3,
                     py: 1.5,
 
-                    "& .MuiAccordionSummary-content":
-                        {
-                            margin: 0,
-                        },
+                    "& .MuiAccordionSummary-content": {
+                        margin: 0,
+                    },
                 }}
             >
                 <Box
                     sx={{
                         width: "100%",
-
                         display: "flex",
-
-                        justifyContent:
-                            "space-between",
-
-                        alignItems:
-                            "center",
-
+                        justifyContent: "space-between",
+                        alignItems: "center",
                         gap: 2,
                     }}
                 >
+                    {/* اطلاعات منو */}
                     <Box
                         sx={{
                             display: "flex",
-                            alignItems:
-                                "center",
+                            alignItems: "center",
                             gap: 2,
                         }}
                     >
@@ -104,22 +103,12 @@ export const MenuSection = ({
                             sx={{
                                 width: 52,
                                 height: 52,
-
                                 borderRadius: 3,
-
-                                bgcolor:
-                                    "#F1F5F9",
-
+                                bgcolor: "#F1F5F9",
                                 display: "flex",
-
-                                alignItems:
-                                    "center",
-
-                                justifyContent:
-                                    "center",
-
-                                color:
-                                    "#10281A",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "#10281A",
                             }}
                         >
                             <RestaurantMenuIcon />
@@ -132,32 +121,25 @@ export const MenuSection = ({
                                     fontSize: 18,
                                 }}
                             >
-                                {
-                                    group.menu
-                                        .name
-                                }
+                                {group.menu.name}
                             </Typography>
 
                             <Typography
                                 sx={{
-                                    color:
-                                        "#64748B",
+                                    color: "#64748B",
                                     fontSize: 13,
                                 }}
                             >
-                                {
-                                    group.menu
-                                        .description
-                                }
+                                {group.menu.description}
                             </Typography>
                         </Box>
                     </Box>
 
+                    {/* اکشن‌ها */}
                     <Box
                         sx={{
                             display: "flex",
-                            alignItems:
-                                "center",
+                            alignItems: "center",
                             gap: 1,
                         }}
                     >
@@ -165,13 +147,8 @@ export const MenuSection = ({
                             label={`${filteredItems.length} آیتم`}
                             sx={{
                                 fontWeight: 700,
-
-                                bgcolor:
-                                    "#ECFDF5",
-
-                                color:
-                                    "#166534",
-
+                                bgcolor: "#ECFDF5",
+                                color: "#166534",
                                 borderRadius: 999,
                             }}
                         />
@@ -179,22 +156,16 @@ export const MenuSection = ({
                         <Tooltip title="ویرایش منو">
                             <IconButton
                                 size="small"
-                                onClick={(
-                                    e
-                                ) => {
+                                onClick={(e) => {
                                     e.stopPropagation();
-
-
+                                    onEdit?.(group.menu);
                                 }}
                                 sx={{
-                                    bgcolor:
-                                        "#F8FAFC",
+                                    bgcolor: "#F8FAFC",
 
-                                    "&:hover":
-                                        {
-                                            bgcolor:
-                                                "#E2E8F0",
-                                        },
+                                    "&:hover": {
+                                        bgcolor: "#E2E8F0",
+                                    },
                                 }}
                             >
                                 <EditRoundedIcon fontSize="small" />
@@ -204,27 +175,17 @@ export const MenuSection = ({
                         <Tooltip title="حذف منو">
                             <IconButton
                                 size="small"
-                                onClick={(
-                                    e
-                                ) => {
+                                onClick={(e) => {
                                     e.stopPropagation();
-
-                                    onDelete?.(
-                                        group.menu
-                                    );
+                                    onDelete?.(group.menu);
                                 }}
                                 sx={{
-                                    bgcolor:
-                                        "#FEF2F2",
+                                    bgcolor: "#FEF2F2",
+                                    color: "#DC2626",
 
-                                    color:
-                                        "#DC2626",
-
-                                    "&:hover":
-                                        {
-                                            bgcolor:
-                                                "#FEE2E2",
-                                        },
+                                    "&:hover": {
+                                        bgcolor: "#FEE2E2",
+                                    },
                                 }}
                             >
                                 <DeleteRoundedIcon fontSize="small" />
@@ -244,17 +205,12 @@ export const MenuSection = ({
                 <Box
                     sx={{
                         height: 1,
-                        bgcolor:
-                            "#F1F5F9",
+                        bgcolor: "#F1F5F9",
                         mb: 3,
                     }}
                 />
 
-                <MenuGrid
-                    items={
-                        filteredItems
-                    }
-                />
+                <MenuGrid items={filteredItems} />
             </AccordionDetails>
         </Accordion>
     );
