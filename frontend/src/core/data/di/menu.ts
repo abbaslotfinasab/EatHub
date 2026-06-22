@@ -1,7 +1,9 @@
-// core/data/di/menu.ts
-import { MenuRepositoryImpl } from '../repositories/MenuRepositoryImpl';
-import {CreateMenuWithItems} from "../../domain/use-cases/product/menu/CreateMenuWithItems.ts";
+import { createMenuContainer } from "./menu.container";
 
-const menuRepository = new MenuRepositoryImpl();
+const container = createMenuContainer();
 
-export const createMenuWithItemsUseCase = new CreateMenuWithItems(menuRepository);
+export const createMenuWithItemsUseCase =
+    container.createMenuWithItemsUseCase;
+
+export const getAllMenusUseCase =
+    container.getAllMenusUseCase;

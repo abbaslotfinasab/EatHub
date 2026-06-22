@@ -103,6 +103,8 @@ class ActiveBusinessSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
     role = serializers.CharField()
+    qr = serializers.CharField()
+
 
 
 class UserMeSerializer(serializers.Serializer):

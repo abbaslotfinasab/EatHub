@@ -77,7 +77,7 @@ export const sidebarSections: SidebarSectionConfig[] = [
             },
 
             {
-                title: "فروش",
+                title: "فاکتورها",
                 path: "/sales",
                 icon: PointOfSaleRoundedIcon,
             },
@@ -95,13 +95,13 @@ export const sidebarSections: SidebarSectionConfig[] = [
             },
 
             {
-                title: "انبارها",
+                title: "مواد مرکب",
                 path: "/warehouses",
                 icon: WarehouseRoundedIcon,
             },
 
             {
-                title: "خریدها",
+                title: "رسپی ها",
                 path: "/purchases",
                 icon: ShoppingCartRoundedIcon,
             },

@@ -6,8 +6,8 @@ import type {MenuRepository} from '../../../repositories/product/MenuRepository'
 export const MenuItemSchema = z.object({
     name: z.string().min(2),
     description: z.string().nullable(),
-    price: z.number().positive(),
-    imageUrl: z.string().url().nullable(),
+    price: z.coerce.number().int().positive(),
+    imageFile: z.instanceof(File).nullable(),
     isAvailable: z.boolean(),
     recipeId: z.string(),
     // در صورت نیاز فیلدهای دیگر
@@ -18,12 +18,12 @@ export const CreateMenuWithItemsSchema = z.object({
     name: z.string().min(2).trim(),
     category: z.string().min(1),
     description: z.string().nullable(),
-    sortOrder: z.number().int(),
+    sortOrder: z.coerce.number().int(),
     isActive: z.boolean(),
     items: z.array(MenuItemSchema).min(1, 'حداقل یک آیتم برای منو الزامی است'),
 });
 
-export type CreateMenuWithItemsInput = z.infer<typeof CreateMenuWithItemsSchema>;
+export type CreateMenuWithItemsInput = z.input<typeof CreateMenuWithItemsSchema>;
 
 export class CreateMenuWithItems {
     constructor(private menuRepository: MenuRepository) {}

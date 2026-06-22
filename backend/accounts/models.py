@@ -2,11 +2,12 @@ import uuid
 
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
+from slugify import slugify as smart_slugify
+
 
 from accounts.enums import InvitationStatus
 from accounts.managers import UserManager
 from core.models import BaseModel
-
 
 class User(AbstractBaseUser, PermissionsMixin, BaseModel):
 
@@ -23,7 +24,11 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
         max_length=200
     )
 
-
+    qr_code = models.ImageField(
+        upload_to="businesses/qrcodes/",
+        blank=True,
+        null=True
+    )
 
     avatar = models.ImageField(
         upload_to="avatars/",
@@ -64,6 +69,12 @@ class Business(BaseModel):
         null=True
     )
 
+    qr_code = models.ImageField(
+        upload_to="businesses/qrcodes/",
+        blank=True,
+        null=True
+    )
+
     number = models.CharField(
         max_length=20,
         blank=True
@@ -80,6 +91,27 @@ class Business(BaseModel):
     def __str__(self):
         return self.name
 
+    def generate_unique_slug(instance, base_value, field_name="slug"):
+        base_slug = smart_slugify(base_value, allow_unicode=True)
+
+        slug = base_slug
+        counter = 1
+
+        ModelClass = instance.__class__
+
+        while ModelClass.objects.filter(
+                **{field_name: slug}
+        ).exclude(pk=instance.pk).exists():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        return slug
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = self.generate_unique_slug(self, self.name)
+
+        super().save(*args, **kwargs)
 
 
 class Role(BaseModel):

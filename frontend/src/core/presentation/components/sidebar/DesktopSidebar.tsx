@@ -1,6 +1,6 @@
 // src/core/presentation/components/sidebar/DesktopSidebar.tsx
 
-import { useState } from "react";
+import {useState} from "react";
 
 import {
     Box,
@@ -9,12 +9,12 @@ import {
     Popover,
 } from "@mui/material";
 
-import { SidebarHeader } from "./SidebarHeader";
-import { SidebarMenu } from "./SidebarMenu";
-import { RestaurantList } from "./RestaurantList";
-import { RestaurantSwitcherPopover } from "./RestaurantSwitcherPopover";
+import {SidebarHeader} from "./SidebarHeader";
+import {SidebarMenu} from "./SidebarMenu";
+import {RestaurantList} from "./RestaurantList";
+import {RestaurantSwitcherPopover} from "./RestaurantSwitcherPopover";
 
-import { useSidebar } from "../../hooks/useSidebar";
+import {useSidebar} from "../../hooks/useSidebar";
 
 import {
     SIDEBAR_WIDTH,
@@ -23,16 +23,16 @@ import {
 import {useAuthStore} from "../../../store/auth.store.ts";
 
 export const DesktopSidebar = () => {
-    const { isCollapsed } = useSidebar();
+    const {isCollapsed} = useSidebar();
 
     const me = useAuthStore((s) => s.me);
 
     const restaurants =
-  me?.memberships?.map((m) => ({
-    id: String(m.business_id),
-    name: m.business_name,
-    logo: "🏪",
-  })) ?? [];
+        me?.memberships?.map((m) => ({
+            id: String(m.business_id),
+            name: m.business_name,
+            logo: "🏪",
+        })) ?? [];
 
 
     const [restaurantMenuOpen, setRestaurantMenuOpen] =
@@ -148,7 +148,7 @@ export const DesktopSidebar = () => {
                         py: 1,
                     }}
                 >
-                    <SidebarMenu />
+                    <SidebarMenu/>
                 </Box>
             </Box>
 
@@ -168,16 +168,20 @@ export const DesktopSidebar = () => {
                     vertical: "center",
                     horizontal: "right",
                 }}
-                PaperProps={{
-                    sx: {
-                        bgcolor: "transparent",
-                        boxShadow: "none",
+
+                slotProps={{
+                    paper: {
+                        sx: {
+                            bgcolor: "transparent",
+                            boxShadow: "none",
+                        },
                     },
                 }}
+
             >
                 <RestaurantSwitcherPopover
                     restaurants={
-                       restaurants
+                        restaurants
                     }
                     selectedRestaurantId={
                         selectedRestaurantId

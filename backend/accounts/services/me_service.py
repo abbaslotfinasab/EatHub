@@ -20,6 +20,11 @@ class MeService:
                 "id": active_membership.business.id,
                 "name": active_membership.business.name,
                 "role": active_membership.role.code,
+                "qr": (
+                    request.build_absolute_uri(active_membership.business.qr_code.url)
+                    if active_membership.business.qr_code and request
+                    else None
+                ),
             }
         #
         # # از middleware می‌گیریم (enterprise pattern)

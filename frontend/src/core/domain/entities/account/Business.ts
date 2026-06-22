@@ -8,6 +8,8 @@ export interface Business {
   phone: string;
   address?: string;
 
+  logoUrl?: string ;
+
   logo?: File | null; // 👈 این فایل واقعیه
 
 }
