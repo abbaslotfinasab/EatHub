@@ -42,6 +42,8 @@ ALLOWED_HOSTS = [
     "backend",
     "nginx",
     "eathub.ir",
+    "*"
+
 ]
 
 
