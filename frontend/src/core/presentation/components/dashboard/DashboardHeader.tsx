@@ -33,16 +33,21 @@ export const DashboardHeader = () => {
             }}
         >
             <Stack
-                direction={{ xs: "column", lg: "row" }}
-                spacing={3}
-                justifyContent="space-between"
-                alignItems={{ xs: "stretch", lg: "center" }}
+                direction={{xs: "column", lg: "row"}}
+                spacing={2}
+                sx={{
+                    justifyContent: "space-between",
+                    alignItems: {
+                        xs: "stretch",
+                        lg: "center",
+                    },
+                }}
             >
                 {/* Welcome */}
                 <Box>
                     <Typography
                         variant="h5"
-                        sx={{ fontWeight: 700 }}
+                        sx={{fontWeight: 700}}
                         gutterBottom
                     >
                         سلام عباس 👋
@@ -69,12 +74,14 @@ export const DashboardHeader = () => {
                         fullWidth
                         size="small"
                         placeholder="جستجو در سفارشات، فاکتورها، مواد اولیه..."
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchRoundedIcon />
-                                </InputAdornment>
-                            ),
+                        slotProps={{
+                            input: {
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchRoundedIcon/>
+                                    </InputAdornment>
+                                ),
+                            },
                         }}
                     />
                 </Box>
@@ -83,21 +90,25 @@ export const DashboardHeader = () => {
                 <Stack
                     direction="row"
                     spacing={2}
-                    alignItems="center"
+                    sx={{
+                        alignItems: "center",
+                    }}
                 >
                     <IconButton>
                         <Badge
                             badgeContent={5}
                             color="error"
                         >
-                            <NotificationsIcon />
+                            <NotificationsIcon/>
                         </Badge>
                     </IconButton>
 
                     <Stack
                         direction="row"
                         spacing={1.5}
-                        alignItems="center"
+                        sx={{
+                            alignItems: "center",
+                        }}
                     >
                         <Avatar
                             sx={{
@@ -109,8 +120,7 @@ export const DashboardHeader = () => {
 
                         <Box>
                             <Typography
-                                variant="body2"
-                                fontWeight={600}
+                                sx={{fontWeight:600}}
                             >
                                 عباس لطفی نسب
                             </Typography>

@@ -24,11 +24,11 @@ interface Props {
 }
 
 const activityIcons = {
-    order: <ShoppingBagRoundedIcon />,
-    inventory: <Inventory2RoundedIcon />,
-    accounting: <ReceiptLongRoundedIcon />,
-    reservation: <EventSeatRoundedIcon />,
-    menu: <RestaurantMenuRoundedIcon />,
+    order: <ShoppingBagRoundedIcon/>,
+    inventory: <Inventory2RoundedIcon/>,
+    accounting: <ReceiptLongRoundedIcon/>,
+    reservation: <EventSeatRoundedIcon/>,
+    menu: <RestaurantMenuRoundedIcon/>,
 };
 
 export const ActivityItem = ({
@@ -40,41 +40,45 @@ export const ActivityItem = ({
     return (
         <Stack
             direction="row"
-    spacing={2}
-    alignItems="flex-start"
-    >
-    <Avatar
-        sx={{
-        bgcolor: "#10281A",
-            width: 42,
-            height: 42,
-    }}
->
-    {activityIcons[type]}
-    </Avatar>
-
-    <Box flex={1}>
-    <Typography
-        fontWeight={600}
-    variant="body2"
+            spacing={2}
+            component="div"
+            sx={{
+                alignItems: "flex-start",
+            }}
         >
-        {userName}
-        </Typography>
+            <Avatar
+                sx={{
+                    bgcolor: "#10281A",
+                    width: 42,
+                    height: 42,
+                }}
+            >
+                {activityIcons[type]}
+            </Avatar>
 
-        <Typography
-    variant="body2"
-    color="text.secondary"
-        >
-        {action}
-        </Typography>
+            <Box sx={{ flex: 1 }}>
+                <Typography
+                    sx={{
+                        fontWeight:700
+                    }}
+                >
+                    {userName}
+                </Typography>
 
-        <Typography
-    variant="caption"
-    color="text.disabled"
-        >
-        {timestamp}
-        </Typography>
-        </Box>
+                <Typography
+                    variant="body2"
+                    color="text.secondary"
+                >
+                    {action}
+                </Typography>
+
+                <Typography
+                    variant="caption"
+                    color="text.disabled"
+                >
+                    {timestamp}
+                </Typography>
+            </Box>
         </Stack>
-);
+    );
 };

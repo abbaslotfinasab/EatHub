@@ -72,15 +72,6 @@ export const RestaurantList = ({
 
                             <ListItemText
                                 primary={restaurant.name}
-                                primaryTypographyProps={{
-                                    sx: {
-                                        color: "#FFFFFF",
-                                        fontSize: 14,
-                                        fontWeight: isSelected
-                                            ? 700
-                                            : 500,
-                                    },
-                                }}
                             />
                         </ListItemButton>
                     );

@@ -1,6 +1,6 @@
 // src/core/presentation/components/navbar/notifications/NotificationButton.tsx
 
-import { useState } from "react";
+import {useState} from "react";
 
 import {
     Badge,
@@ -77,7 +77,7 @@ export const NotificationButton = () => {
                     }
                     color="error"
                 >
-                    <NotificationsRoundedIcon />
+                    <NotificationsRoundedIcon/>
                 </Badge>
             </IconButton>
 
@@ -93,15 +93,17 @@ export const NotificationButton = () => {
                     vertical: "top",
                     horizontal: "right",
                 }}
-                PaperProps={{
-                    sx: {
-                        width: 360,
-                        mt: 1,
-                        borderRadius: 3,
+                slotProps={{
+                    paper: {
+                        sx: {
+                            width: 360,
+                            mt: 1,
+                            borderRadius: 3,
+                        },
                     },
                 }}
             >
-                <Box p={2}>
+                <Box sx={{p: 2}}>
                     <Typography
                         variant="h6"
                         sx={{
@@ -112,7 +114,7 @@ export const NotificationButton = () => {
                         اعلان‌ها
                     </Typography>
 
-                    <Divider />
+                    <Divider/>
 
                     <List
                         sx={{
@@ -139,11 +141,11 @@ export const NotificationButton = () => {
                                                 <Typography
                                                     component="span"
                                                     variant="body2"
-                                                    display="block"
+                                                    sx={{
+                                                        display: "block",
+                                                    }}
                                                 >
-                                                    {
-                                                        notification.description
-                                                    }
+                                                    {notification.description}
                                                 </Typography>
 
                                                 <Typography

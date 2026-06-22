@@ -48,8 +48,10 @@ export const StatCard = ({
         >
             <Stack
                 direction="row"
-                justifyContent="space-between"
-                alignItems="flex-start"
+                sx={{
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                }}
             >
                 <Box>
                     <Typography
@@ -69,9 +71,8 @@ export const StatCard = ({
                         sx={{
                             fontSize: 20,
                             fontWeight: 500,
+                            mt:2
                         }}
-
-                        mt={1}
                     >
                         {value}
                     </Typography>
@@ -103,14 +104,14 @@ export const StatCard = ({
             </Stack>
 
             {growth !== undefined && (
-                <Box mt={3}>
+                <Box sx={{mt:1}}>
                     <Chip
                         size="small"
                         icon={
                             isPositive ? (
-                                <TrendingUpRoundedIcon />
+                                <TrendingUpRoundedIcon/>
                             ) : (
-                                <TrendingDownRoundedIcon />
+                                <TrendingDownRoundedIcon/>
                             )
                         }
                         label={`${Math.abs(growth)}%`}

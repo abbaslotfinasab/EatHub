@@ -38,7 +38,7 @@ export const SalesChart = ({
                 <Box>
                     <Typography
                         variant="h6"
-                        fontWeight={700}
+                        sx={{fontWeight:700}}
                     >
                         فروش ۷ روز اخیر
                     </Typography>
@@ -51,7 +51,7 @@ export const SalesChart = ({
                     </Typography>
                 </Box>
 
-                <Box height={320}>
+                <Box sx={{ height:320}}>
                     <ResponsiveContainer
                         width="100%"
                         height="100%"

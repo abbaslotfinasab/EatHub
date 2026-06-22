@@ -22,12 +22,15 @@ export const TopProductItem = ({
         <Stack spacing={1.5}>
             <Stack
                 direction="row"
-                justifyContent="space-between"
-                alignItems="center"
+                sx={{
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                }}
             >
                 <Box>
                     <Typography
-                        fontWeight={600}
+                        sx={{fontWeight: 700}}
+
                     >
                         {name}
                     </Typography>
@@ -42,7 +45,7 @@ export const TopProductItem = ({
 
                 <Typography
                     variant="body2"
-                    fontWeight={700}
+                    sx={{fontWeight:500}}
                     color="success.main"
                 >
                     {revenue.toLocaleString()} تومان

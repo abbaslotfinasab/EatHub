@@ -1,9 +1,16 @@
 import {Box, Typography} from "@mui/material";
 import {MenuItemTile} from "./MenuItemTile";
 import {useNavigate} from "react-router-dom";
+import type { MenuItem } from "../../../domain/entities/product/MenuItem";
 
-export const MenuGrid = ({items}) => {
-       const navigate = useNavigate();
+
+
+interface Props {
+    items: MenuItem[];
+}
+
+export const MenuGrid = ({ items }: Props) => {
+    const navigate = useNavigate();
 
     if (!items.length) {
         return (
@@ -15,7 +22,7 @@ export const MenuGrid = ({items}) => {
             >
                 <Typography
                     variant="h6"
-                    fontWeight={700}
+                    sx={{fontWeight:600}}
                     color="text.secondary"
                 >
                     آیتمی پیدا نشد
@@ -54,7 +61,7 @@ export const MenuGrid = ({items}) => {
                             `/products/${item.id}/edit`
                         );
                     }}
-                    onDelete={(item) => {
+                    onDelete={() => {
                         // setDeleteItem(item);
                     }}
                 />

@@ -8,7 +8,7 @@ import {
 
 import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
 
-import { TopProductItem }
+import {TopProductItem}
     from "./TopProductItem";
 
 export const TopProducts = () => {
@@ -50,8 +50,10 @@ export const TopProducts = () => {
                 <Stack spacing={3}>
                     <Stack
                         direction="row"
-                        spacing={1}
-                        alignItems="center"
+                        sx={{
+                            alignItems: "center",
+                            gap: 1,
+                        }}
                     >
                         <LocalFireDepartmentIcon
                             color="warning"
@@ -59,8 +61,9 @@ export const TopProducts = () => {
 
                         <Typography
                             variant="h6"
-                            fontWeight={700}
-                        >
+                            sx={{
+                                fontWeight:700
+                            }}>
                             پرفروش‌ترین غذاها
                         </Typography>
                     </Stack>
@@ -78,7 +81,7 @@ export const TopProducts = () => {
                                 {index !==
                                     products.length -
                                     1 && (
-                                        <Divider />
+                                        <Divider/>
                                     )}
                             </Stack>
                         )

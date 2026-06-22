@@ -1,6 +1,6 @@
 // src/features/business/presentation/components/BusinessLogoUploader.tsx
 
-import { useRef } from "react";
+import {useRef} from "react";
 
 import {
     Avatar,
@@ -20,9 +20,9 @@ interface Props {
 }
 
 export const BusinessLogoUploader = ({
-    previewUrl,
-    onChange,
-}: Props) => {
+                                         previewUrl,
+                                         onChange,
+                                     }: Props) => {
     const inputRef =
         useRef<HTMLInputElement>(null);
 
@@ -38,8 +38,10 @@ export const BusinessLogoUploader = ({
 
     return (
         <Stack
-            spacing={2}
-            alignItems="center"
+            sx={{
+                spacing: 2,
+                alignItems: "center",
+            }}
         >
             <Box
                 sx={{
@@ -85,7 +87,7 @@ export const BusinessLogoUploader = ({
                         },
                     }}
                 >
-                    <PhotoCameraRoundedIcon />
+                    <PhotoCameraRoundedIcon/>
                 </IconButton>
 
                 <input
@@ -97,9 +99,13 @@ export const BusinessLogoUploader = ({
                 />
             </Box>
 
-            <Box textAlign="center">
+            <Box sx={{
+                textAlign: "center",
+            }}>
                 <Typography
-                    fontWeight={600}
+                    sx={{
+                        fontWeight: 600
+                    }}
                 >
                     لوگوی کسب‌وکار
                 </Typography>

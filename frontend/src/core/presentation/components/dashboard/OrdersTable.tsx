@@ -107,8 +107,10 @@ export const OrdersTable = () => {
             <CardContent>
                 <Typography
                     variant="h6"
-                    fontWeight={700}
-                    mb={2}
+                    sx={{
+                        fontWeight:600,
+                        mb:2
+                }}
                 >
                     آخرین سفارشات
                 </Typography>

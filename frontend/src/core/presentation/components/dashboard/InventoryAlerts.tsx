@@ -53,7 +53,9 @@ export const InventoryAlerts = () => {
                     <Stack
                         direction="row"
                         spacing={1}
-                        alignItems="center"
+                        sx={{
+                            alignItems: "center",
+                        }}
                     >
                         <ReportProblemIcon
                             color="warning"
@@ -61,7 +63,9 @@ export const InventoryAlerts = () => {
 
                         <Typography
                             variant="h6"
-                            fontWeight={700}
+                            sx={{
+                                fontWeight:600
+                            }}
                         >
                             هشدارهای انبار
                         </Typography>

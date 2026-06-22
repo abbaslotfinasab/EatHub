@@ -8,12 +8,20 @@ import {
 
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
+import type {MenuItem} from "../../../domain/entities/product/MenuItem.ts";
+
+
+interface Props {
+    item: MenuItem;
+    onEdit?: (item: MenuItem) => void;
+    onDelete?: (item: MenuItem) => void;
+}
 
 export const MenuItemTile = ({
-    item,
-    onEdit,
-    onDelete,
-}) => {
+                                 item,
+                                 onEdit,
+                                 onDelete,
+                             }: Props) => {
     return (
         <Box
             sx={{
@@ -50,15 +58,13 @@ export const MenuItemTile = ({
                     height: 220,
                 }}
             >
-                <Box
-                    component="img"
-                    src={item.imageUrl}
+                <img
+                    src={item.imageUrl??""}
                     alt={item.name}
-                    sx={{
+                    style={{
                         width: "100%",
                         height: "100%",
-                        objectFit:
-                            "cover",
+                        objectFit: "cover",
                     }}
                 />
 
@@ -245,7 +251,7 @@ export const MenuItemTile = ({
                             قیمت
                         </Typography>
 
-                       <Typography
+                        <Typography
                             sx={{
                                 fontSize: 20,
 

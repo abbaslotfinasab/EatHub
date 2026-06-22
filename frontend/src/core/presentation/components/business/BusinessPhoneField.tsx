@@ -22,7 +22,9 @@ export const BusinessPhoneField = ({
     return (
         <Stack spacing={1}>
             <Typography
-                fontWeight={700}
+                sx={{
+                    fontWeight:700
+                }}
             >
                 شماره تماس
             </Typography>

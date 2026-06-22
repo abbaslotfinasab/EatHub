@@ -18,7 +18,7 @@ export const RestaurantMenuPage = () => {
     const {restaurantSlug} = useParams();
 
     const [search, setSearch] = useState("");
-        useState("all");
+    useState("all");
 
     const {
         data,
@@ -221,109 +221,103 @@ export const RestaurantMenuPage = () => {
                     </Box>
 
 
-                        <Paper
-                            elevation={0}
-                            sx={{
-                                width: {
-                                    xs: 160,
-                                    md: 200,
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            width: {
+                                xs: 160,
+                                md: 200,
+                            },
+
+                            height: {
+                                xs: 160,
+                                md: 200,
+                            },
+
+                            p: 2,
+
+                            bgcolor:
+                                "#fff",
+
+                            borderRadius: 5,
+
+                            cursor:
+                                "pointer",
+
+                            transition:
+                                ".25s",
+
+                            display:
+                                "flex",
+
+                            alignItems:
+                                "center",
+
+                            justifyContent:
+                                "center",
+
+                            "&:hover":
+                                {
+                                    transform:
+                                        "translateY(-4px)",
+
+                                    boxShadow:
+                                        "0 20px 40px rgba(0,0,0,.2)",
                                 },
-
-                                height: {
-                                    xs: 160,
-                                    md: 200,
-                                },
-
-                                p: 2,
-
-                                bgcolor:
-                                    "#fff",
-
-                                borderRadius: 5,
-
-                                cursor:
-                                    "pointer",
-
-                                transition:
-                                    ".25s",
-
-                                display:
-                                    "flex",
-
-                                alignItems:
-                                    "center",
-
-                                justifyContent:
-                                    "center",
-
-                                "&:hover":
-                                    {
-                                        transform:
-                                            "translateY(-4px)",
-
-                                        boxShadow:
-                                            "0 20px 40px rgba(0,0,0,.2)",
-                                    },
+                        }}
+                    >
+                        <img
+                            src={restaurant.logoUrl??""}
+                            alt={restaurant.name}
+                            style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
                             }}
-                        >
-                            <Box
-                                component="img"
-                                src={restaurant.logoUrl}
-                                alt="logo"
-                                sx={{
-                                    width:
-                                        "100%",
-
-                                    height:
-                                        "100%",
-
-                                    objectFit:
-                                        "contain",
-                                }}
-                            />
-                        </Paper>
+                        />
+                    </Paper>
                 </Box>
             </Paper>
 
             <TextField
-    fullWidth
-    placeholder="جستجو در آیتم‌های منو..."
-    value={search}
-    onChange={(e) =>
-        setSearch(e.target.value)
-    }
-    sx={{
-        mb: 4,
+                fullWidth
+                placeholder="جستجو در آیتم‌های منو..."
+                value={search}
+                onChange={(e) =>
+                    setSearch(e.target.value)
+                }
+                sx={{
+                    mb: 4,
 
-        "& .MuiOutlinedInput-root": {
-            height: 58,
-            borderRadius: 4,
-            bgcolor: "#fff",
+                    "& .MuiOutlinedInput-root": {
+                        height: 58,
+                        borderRadius: 4,
+                        bgcolor: "#fff",
 
-            "& fieldset": {
-                borderColor: "#E2E8F0",
-            },
+                        "& fieldset": {
+                            borderColor: "#E2E8F0",
+                        },
 
-            "&:hover fieldset": {
-                borderColor: "#1F4A33",
-            },
+                        "&:hover fieldset": {
+                            borderColor: "#1F4A33",
+                        },
 
-            "&.Mui-focused fieldset": {
-                borderColor: "#10281A",
-                borderWidth: "2px",
-            },
-        },
-    }}
-    slotProps={{
-        input: {
-            startAdornment: (
-                <InputAdornment position="start">
-                    <SearchIcon />
-                </InputAdornment>
-            ),
-        },
-    }}
-/>
+                        "&.Mui-focused fieldset": {
+                            borderColor: "#10281A",
+                            borderWidth: "2px",
+                        },
+                    },
+                }}
+                slotProps={{
+                    input: {
+                        startAdornment: (
+                            <InputAdornment position="start">
+                                <SearchIcon/>
+                            </InputAdornment>
+                        ),
+                    },
+                }}
+            />
 
             <Box
                 sx={{

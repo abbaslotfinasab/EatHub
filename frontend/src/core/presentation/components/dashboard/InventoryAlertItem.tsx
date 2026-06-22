@@ -54,12 +54,14 @@ export const InventoryAlertItem = ({
         >
             <Stack
                 direction="row"
-                justifyContent="space-between"
-                alignItems="center"
-                mb={1}
+                sx={{
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 1,
+                }}
             >
                 <Typography
-                    fontWeight={600}
+                    sx={{fontWeight:600}}
                 >
                     {ingredientName}
                 </Typography>

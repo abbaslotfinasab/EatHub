@@ -1,6 +1,6 @@
 // src/core/presentation/components/navbar/user/UserMenu.tsx
 
-import { useState } from "react";
+import {useState} from "react";
 
 import {
     Avatar,
@@ -134,19 +134,24 @@ export const UserMenu = () => {
                     vertical: "top",
                     horizontal: "right",
                 }}
-                PaperProps={{
-                    sx: {
-                        minWidth: 260,
-                        borderRadius: 3,
-                        mt: 1,
-                    },
+                slotProps={{
+                    paper: {
+                        sx: {
+                            minWidth: 260,
+                            borderRadius: 3,
+                            mt: 1,
+                        },
+                    }
                 }}
             >
-                <Box px={2} py={1.5}>
+                <Box sx={{px: 2, py: 1.5}}>
                     <Stack
-                        direction="row"
-                        spacing={1.5}
-                        alignItems="center"
+                        sx={{
+                            display: "flex",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 1.5,
+                        }}
                     >
                         <Avatar
                             sx={{
@@ -158,7 +163,7 @@ export const UserMenu = () => {
 
                         <Box>
                             <Typography
-                                fontWeight={600}
+                               sx={{fontWeight:600}}
                             >
                                 {me?.name}
                             </Typography>
@@ -173,7 +178,7 @@ export const UserMenu = () => {
                     </Stack>
                 </Box>
 
-                <Divider />
+                <Divider/>
 
                 <MenuItem onClick={handleProfile}>
                     <PersonOutlineRoundedIcon
@@ -197,7 +202,7 @@ export const UserMenu = () => {
                     تنظیمات
                 </MenuItem>
 
-                <Divider />
+                <Divider/>
 
                 <MenuItem
                     onClick={handleLogout}

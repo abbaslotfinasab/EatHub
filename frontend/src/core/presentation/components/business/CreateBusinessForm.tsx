@@ -68,7 +68,11 @@ export const CreateBusinessForm = () => {
       }}
     >
       <Stack spacing={2}>
-        <Typography variant="h6" fontWeight={700}>
+        <Typography
+            sx={{
+                fontWeight:700
+            }}
+        >
           ساخت کسب‌وکار جدید
         </Typography>
 

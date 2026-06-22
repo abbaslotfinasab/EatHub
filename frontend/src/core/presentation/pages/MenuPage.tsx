@@ -352,7 +352,10 @@ export const MenuPage = () => {
                     <MenuSection
                         key={group.menu.id}
                         group={group}
-                        search={search} onEdit="" onDelete={() => {
+                        search={search}  onEdit={(menu) => {
+        // مثلا:
+        console.log(menu);
+    }} onDelete={() => {
                         // setDeleteItem(item);
                     }}
                     />
