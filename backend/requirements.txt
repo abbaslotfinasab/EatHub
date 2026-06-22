@@ -28,3 +28,4 @@ tzdata>=2026.2
 tzlocal>=5.4.3
 vine>=5.1.0
 wcwidth>=0.8.1
+python-slugify==8.0.4
