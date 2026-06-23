@@ -32,6 +32,7 @@ export const AppRoutes = () => {
                     <Route element={<AppLayout/>}>
 
                         <Route path="/" element={<HomePage/>}/>
+                        <Route path="/home" element={<Navigate to="/" replace />} />
                         <Route path="/login" element={<LoginPage/>}/>
                         <Route path="/register" element={<RegisterPage/>}/>
                         <Route path="/business" element={<CreateBusinessPage/>}/>
