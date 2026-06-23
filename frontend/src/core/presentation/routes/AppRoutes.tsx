@@ -1,4 +1,4 @@
-import {BrowserRouter, Routes, Route, Navigate} from "react-router-dom";
+import {BrowserRouter, Routes, Route} from "react-router-dom";
 
 import {AppLayout} from "../components/layout/AppLayout";
 import {DashboardLayout} from "../components/layout/DashboardLayout";
@@ -16,38 +16,35 @@ import {CreateMaterialPage} from "../pages/CreateMaterialPage";
 import {CreateRecipePage} from "../pages/CreateRecipePage";
 import {CreatePurchaseOrderPage} from "../pages/CreatePurchaseOrderPage";
 import {CreateMenuPage} from "../pages/CreateMenuPage";
-import {ProtectedRoute} from "./ProtectedRoute.tsx";
-import {PublicRoute} from "./PublicRoute.tsx";
 import {CreateBusinessPage} from "../pages/CreateBusinessPage.tsx";
 import {MenuPage} from "../pages/MenuPage.tsx";
 import {RestaurantMenuPage} from "../pages/RestaurantMenuPage.tsx";
+import { AuthGuard } from "./AuthGuarad.tsx";
+import {GuestGuard} from "./GuestGuard.tsx";
 
 export const AppRoutes = () => {
     return (
         <BrowserRouter>
             <Routes>
 
+                {/* 🌍 PUBLIC (no auth) */}
                 <Route element={<AppLayout/>}>
-
                     <Route path="/" element={<HomePage/>}/>
-                    <Route path="/home" element={<Navigate to="/" replace/>}/>
-
-                    <Route path="/products/:restaurantSlug/menu" element={<RestaurantMenuPage/>}/>
-
+                    <Route path="/products/:slug/menu" element={<RestaurantMenuPage/>}/>
                 </Route>
 
-
-                {/* PUBLIC */}
-                <Route element={<PublicRoute/>}>
+                {/* 🔑 GUEST ONLY */}
+                <Route element={<GuestGuard/>}>
                     <Route element={<AppLayout/>}>
                         <Route path="/login" element={<LoginPage/>}/>
                         <Route path="/register" element={<RegisterPage/>}/>
                     </Route>
                 </Route>
 
-                {/* PROTECTED */}
-                <Route element={<ProtectedRoute/>}>
+                {/* 🔴 PROTECTED APP */}
+                <Route element={<AuthGuard/>}>
                     <Route element={<DashboardLayout/>}>
+
                         <Route path="/business" element={<CreateBusinessPage/>}/>
                         <Route path="/dashboard" element={<ManagerDashboard/>}/>
 
