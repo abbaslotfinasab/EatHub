@@ -11,13 +11,17 @@ services:
       - redis
     volumes:
       - ../backend/media:/app/media
+    networks:
+      - eathub
 
   frontend:
     build: ../frontend
     container_name: eathub_frontend
     expose:
       - "80"
-
+    networks:
+      - eathub
+      -
   db:
     image: postgres:16
     container_name: eathub_db
@@ -53,6 +57,8 @@ services:
     depends_on:
       - backend
       - frontend
+    networks:
+      - eathub
 
 volumes:
   postgres_data:
