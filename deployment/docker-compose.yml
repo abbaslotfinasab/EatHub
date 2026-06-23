@@ -21,7 +21,7 @@ services:
       - "80"
     networks:
       - eathub
-      -
+
   db:
     image: postgres:16
     container_name: eathub_db
@@ -31,10 +31,14 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - eathub
 
   redis:
     image: redis:7
     container_name: eathub_redis
+    networks:
+      - eathub
 
   celery:
     build: ../backend
@@ -43,6 +47,8 @@ services:
       - backend
       - redis
       - db
+    networks:
+      - eathub
 
   nginx:
     image: nginx:alpine
@@ -62,3 +68,8 @@ services:
 
 volumes:
   postgres_data:
+
+
+networks:
+  eathub:
+    driver: bridge
