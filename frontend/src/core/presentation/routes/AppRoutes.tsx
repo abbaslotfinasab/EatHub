@@ -19,8 +19,9 @@ import {CreateMenuPage} from "../pages/CreateMenuPage";
 import {CreateBusinessPage} from "../pages/CreateBusinessPage.tsx";
 import {MenuPage} from "../pages/MenuPage.tsx";
 import {RestaurantMenuPage} from "../pages/RestaurantMenuPage.tsx";
-import { AuthGuard } from "./AuthGuarad.tsx";
+import {AuthGuard} from "./AuthGuarad.tsx";
 import {GuestGuard} from "./GuestGuard.tsx";
+import {BusinessGuard} from "./BusinessGuard.tsx";
 
 export const AppRoutes = () => {
     return (
@@ -46,20 +47,25 @@ export const AppRoutes = () => {
                     <Route element={<DashboardLayout/>}>
 
                         <Route path="/business" element={<CreateBusinessPage/>}/>
-                        <Route path="/dashboard" element={<ManagerDashboard/>}/>
 
-                        <Route path="/ingredients" element={<IngredientsListPage/>}/>
-                        <Route path="/ingredients/create" element={<CreateIngredientPage/>}/>
+                        <Route element={<BusinessGuard/>}>
 
-                        <Route path="/menus" element={<MenuPage/>}/>
-                        <Route path="/menus/create" element={<CreateMenuPage/>}/>
 
-                        <Route path="/orders" element={<IngredientsListPage/>}/>
-                        <Route path="/orders/create" element={<IngredientsListPage/>}/>
+                            <Route path="/dashboard" element={<ManagerDashboard/>}/>
 
-                        <Route path="/materials/create" element={<CreateMaterialPage/>}/>
-                        <Route path="/recipes/create" element={<CreateRecipePage/>}/>
-                        <Route path="/factor/create" element={<CreatePurchaseOrderPage/>}/>
+                            <Route path="/ingredients" element={<IngredientsListPage/>}/>
+                            <Route path="/ingredients/create" element={<CreateIngredientPage/>}/>
+
+                            <Route path="/menus" element={<MenuPage/>}/>
+                            <Route path="/menus/create" element={<CreateMenuPage/>}/>
+
+                            <Route path="/orders" element={<IngredientsListPage/>}/>
+                            <Route path="/orders/create" element={<IngredientsListPage/>}/>
+
+                            <Route path="/materials/create" element={<CreateMaterialPage/>}/>
+                            <Route path="/recipes/create" element={<CreateRecipePage/>}/>
+                            <Route path="/factor/create" element={<CreatePurchaseOrderPage/>}/>
+                        </Route>
 
                     </Route>
                 </Route>
