@@ -27,29 +27,28 @@ export const AppRoutes = () => {
         <BrowserRouter>
             <Routes>
 
+                <Route element={<AppLayout/>}>
+
+                    <Route path="/" element={<HomePage/>}/>
+                    <Route path="/home" element={<Navigate to="/" replace/>}/>
+
+                    <Route path="/products/:restaurantSlug/menu" element={<RestaurantMenuPage/>}/>
+
+                </Route>
+
+
                 {/* PUBLIC */}
                 <Route element={<PublicRoute/>}>
                     <Route element={<AppLayout/>}>
-
-                        <Route path="/" element={<HomePage/>}/>
-                        <Route path="/home" element={<Navigate to="/" replace />} />
                         <Route path="/login" element={<LoginPage/>}/>
                         <Route path="/register" element={<RegisterPage/>}/>
-                        <Route path="/business" element={<CreateBusinessPage/>}/>
-                        <Route
-                            path="/products/:restaurantSlug/menu"
-                            element={<RestaurantMenuPage/>}
-                        />
-
-
                     </Route>
                 </Route>
 
                 {/* PROTECTED */}
                 <Route element={<ProtectedRoute/>}>
                     <Route element={<DashboardLayout/>}>
-
-
+                        <Route path="/business" element={<CreateBusinessPage/>}/>
                         <Route path="/dashboard" element={<ManagerDashboard/>}/>
 
                         <Route path="/ingredients" element={<IngredientsListPage/>}/>
