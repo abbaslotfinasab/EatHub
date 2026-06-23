@@ -20,10 +20,9 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-    path("api/", include("api.urls")),
     path('admin/', admin.site.urls),
-    path('accounts/', include('accounts.urls', namespace='accounts')),
-    path('products/', include('products.urls', namespace='products')),
+    path('api/accounts/', include('accounts.urls', namespace='accounts')),
+    path('api/products/', include('products.urls', namespace='products')),
 
 ]
 
