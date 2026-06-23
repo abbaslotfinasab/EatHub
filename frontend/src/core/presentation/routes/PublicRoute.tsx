@@ -1,15 +1,18 @@
-import { useAuthStore } from "../../store/auth.store.ts";
-import {Outlet} from "react-router-dom";
+import {Navigate, Outlet} from "react-router-dom";
+import {useAuthStore} from "../../store/auth.store.ts";
+import { FullPageLoader } from "../pages/FullPageLoader.tsx";
 
 export const PublicRoute = () => {
     const me = useAuthStore((s) => s.me);
     const isHydrating = useAuthStore((s) => s.isHydrating);
 
-    if (isHydrating) return null;
-
-    if (me) {
-        // return <Navigate to="/dashboard" replace />;
+    if (isHydrating) {
+        return <FullPageLoader/>;
     }
 
-    return <Outlet />;
+    if (me) {
+        return <Navigate to="/dashboard" replace/>;
+    }
+
+    return <Outlet/>;
 };
