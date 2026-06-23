@@ -55,6 +55,7 @@ services:
     container_name: eathub_nginx
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ../backend/media:/app/media
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
