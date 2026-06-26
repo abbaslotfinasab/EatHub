@@ -34,12 +34,12 @@ export class AuthRepositoryImpl implements AuthRepository {
         return meMapper(response);
     }
     async login(
-        email: string,
+        identifier: string,
         password: string
     ): Promise<Auth> {
 
         const dto: LoginRequestDto = {
-            email,
+            identifier,
             password,
         };
 

@@ -6,7 +6,7 @@ import type {Me} from "../../entities/account/Me.ts";
 
 export interface AuthRepository {
     login(
-        email: string,
+        identifier: string,
         password: string
     ): Promise<Auth>;
 

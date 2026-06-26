@@ -14,11 +14,11 @@ import AddIcon from "@mui/icons-material/Add";
 import {useNavigate} from "react-router-dom";
 import {useState} from "react";
 
-import {useGetMenus} from "../hooks/useGetMenus";
-import {MenuSection} from "../components/menu/MenuSection";
-import {StatCard} from "../components/menu/StatCard";
+import {useGetMenus} from "../../hooks/useGetMenus.ts";
+import {MenuSection} from "../../components/menu/MenuSection.tsx";
+import {StatCard} from "../../components/menu/StatCard.tsx";
 
-import {useAuthStore} from "../../store/auth.store";
+import {useAuthStore} from "../../../store/auth.store.ts";
 
 export const MenuPage = () => {
     const navigate = useNavigate();
@@ -65,11 +65,7 @@ export const MenuPage = () => {
         ) ?? 0;
 
     const publicMenuUrl =
-        me?.active_business?.name
-            ? `/products/${encodeURIComponent(
-                me.active_business.name
-            )}/menu`
-            : "/";
+        `${window.location.origin}/products/${me?.active_business?.slug}/menu`;
 
     return (
         <Box
@@ -352,12 +348,11 @@ export const MenuPage = () => {
                     <MenuSection
                         key={group.menu.id}
                         group={group}
-                        search={search}  onEdit={(menu) => {
-        // مثلا:
-        console.log(menu);
-    }} onDelete={() => {
-                        // setDeleteItem(item);
-                    }}
+                        search={search}
+                        onEdit={(menu) => navigate(`/menus/${menu.id}/edit`)}
+                        onDelete={() => {
+                            // setDeleteItem(item);
+                        }}
                     />
                 ))}
             </Box>

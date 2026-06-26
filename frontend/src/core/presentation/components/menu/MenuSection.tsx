@@ -16,8 +16,8 @@ import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 
 import { MenuGrid } from "./MenuGrid";
 
-import type { Menu } from "../../../domain/entities/product/Menu";
-import type { MenuItem } from "../../../domain/entities/product/MenuItem";
+import type { Menu } from "../../../domain/entities/product/menu/Menu.ts";
+import type { MenuItem } from "../../../domain/entities/product/menu/MenuItem.ts";
 
 type MenuGroup = {
     menu: Menu;

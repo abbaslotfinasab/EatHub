@@ -14,6 +14,7 @@ class TenantMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        print("TenantMiddleware called")
 
         path = request.path
 
@@ -42,6 +43,7 @@ class TenantMiddleware:
                 .first()
             )
 
+
             if not membership:
                 return self.get_response(request)
 
@@ -61,6 +63,11 @@ class TenantMiddleware:
         request.business = membership.business
         request.membership = membership
         request.role = membership.role
+
+        print("========== TenantMiddleware ==========")
+        print("User:", user)
+        print("Path:", path)
+        print("Business Header:", business_id)
 
         # 🔥 permissions attach (important for RBAC)
         request.permissions = list(

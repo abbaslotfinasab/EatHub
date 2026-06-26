@@ -1,55 +1,51 @@
 // core/data/repositories/MenuRepositoryImpl.ts
-import {apiClient} from '../http/http-client';
-import {isAxiosError} from 'axios';
-import type {MenuRepository} from "../../domain/repositories/product/MenuRepository.ts";
-import type {Menu} from "../../domain/entities/product/Menu.ts";
-import type {MenuItem} from "../../domain/entities/product/MenuItem.ts";
-import type {MenuResult} from "../../domain/entities/product/MenuResult.ts";
-import {MenuRemoteDataSource} from "../datasources/MenuRemoteDataSource.ts";
-import {menuMapper} from "../mappers/menu.mapper.ts";
-import {publicRestaurantMenuMapper} from "../mappers/publicRestaurantMenuMapper.ts";
-import type {PublicRestaurantMenu} from "../../domain/entities/product/PublicRestaurantMenu.ts";
+
+import type {MenuRepository} from "../../domain/repositories/product/MenuRepository";
+
+import type {MenuResult} from "../../domain/entities/product/menu/MenuResult";
+import type {MenuItem} from "../../domain/entities/product/menu/MenuItem";
+
+import type {MenuFormInput} from "../../domain/objects/forms/MenuFormInput";
+
+import {MenuRemoteDataSource} from "../datasources/MenuRemoteDataSource";
+
+import {menuMapper} from "../mappers/menu.mapper";
+
+import {publicRestaurantMenuMapper} from "../mappers/publicRestaurantMenuMapper";
+
+import type {PublicRestaurantMenu} from "../../domain/entities/product/PublicRestaurantMenu";
 
 export class MenuRepositoryImpl implements MenuRepository {
+
     constructor(
-        private remote: MenuRemoteDataSource
+        private remote: MenuRemoteDataSource,
     ) {
     }
 
-    async uploadImage(file: File): Promise<string> {
+    // ------------------------
+    // Images
+    // ------------------------
+
+    private async uploadImage(file: File): Promise<string> {
         const result = await this.remote.uploadImage(file);
         return result.url;
     }
 
-    async findMenuItemById(id: string): Promise<MenuItem | null> {
-        try {
-            const response = await apiClient.get(`/menus/${id}`);
-            return response.data;
-        } catch (error) {
-            if (isAxiosError(error) && error.response?.status === 404) {
-                return null;
-            }
-            throw error;
-        }
-    }
+    // ------------------------
+    // Create
+    // ------------------------
 
     async createWithItems(
-        menu: Omit<Menu, 'id' | 'createdAt' | 'updatedAt'>,
-        items: Omit<MenuItem, 'id' | 'createdAt' | 'updatedAt' | 'menuId'>[]
+        input: MenuFormInput,
     ): Promise<MenuResult> {
 
-        const mappedItems = await Promise.all(
-            items.map(async (item) => {
+        const items = await Promise.all(
+            input.items.map(async (item) => {
 
-                let imageUrl: string | null = null;
+                let imageUrl = item.imageUrl;
 
                 if (item.imageFile) {
-                    imageUrl = await this.uploadImage(
-                        item.imageFile
-                    );
-
-                    console.log("UPLOADED URL =>", imageUrl);
-
+                    imageUrl = await this.uploadImage(item.imageFile);
                 }
 
                 return {
@@ -57,64 +53,129 @@ export class MenuRepositoryImpl implements MenuRepository {
                     description: item.description,
                     price: item.price,
                     image_url: imageUrl,
+                    is_available: item.isAvailable,
                 };
-            })
+            }),
         );
 
-        return await this.remote.createMenu({
-            name: menu.name,
-            category: menu.category,
-            description: menu.description,
-            sort_order: menu.sortOrder,
-
-            items: mappedItems,
+        const dto = await this.remote.createMenu({
+            name: input.name,
+            category: input.category,
+            description: input.description,
+            sort_order: input.sortOrder,
+            items,
         });
+
+        return menuMapper.toDomain(dto);
     }
 
+    // ------------------------
+    // Find One
+    // ------------------------
 
-    // پیدا کردن یک منو با شناسه (بدون آیتم‌ها)
-    async findById(id: string): Promise<MenuResult | null> {
-        try {
-            const response = await apiClient.get(`/menus/${id}`);
-            return response.data;
-        } catch (error) {
-            if (isAxiosError(error) && error.response?.status === 404) {
-                return null;
-            }
-            throw error;
+    async findById(
+        id: string,
+    ): Promise<MenuResult | null> {
+
+        const dto = await this.remote.getMenuById(id);
+
+        if (!dto) {
+            return null;
         }
+
+        return menuMapper.toDomain(dto);
     }
 
-    // دریافت لیست منوها با قابلیت فیلتر
-    async findAll() {
+    // ------------------------
+    // Find All
+    // ------------------------
 
-        const menus = await this.remote.getMenus();
+    async findAll(): Promise<MenuResult[]> {
 
-        console.log("API RESPONSE =>", menus);
+        const dtos = await this.remote.getMenus();
 
-        return menus.map(menuMapper.toDomain);
+        return dtos.map(menuMapper.toDomain);
     }
+
+    // ------------------------
+    // Update
+    // ------------------------
+
+    async update(
+        id: string,
+        input: MenuFormInput,
+    ): Promise<MenuResult> {
+
+        const items = await Promise.all(
+            input.items.map(async (item) => {
+
+                let imageUrl = item.imageUrl;
+
+                if (item.imageFile) {
+                    imageUrl = await this.uploadImage(item.imageFile);
+                }
+
+                return {
+                    ...(item.id ? {id: item.id} : {}),
+                    name: item.name,
+                    description: item.description,
+                    price: item.price,
+                    image_url: imageUrl,
+                    is_active: item.isAvailable,
+                };
+            }),
+        );
+
+        const dto = await this.remote.updateMenu(id, {
+            name: input.name,
+            category: input.category,
+            description: input.description,
+            sort_order: input.sortOrder,
+            items,
+        });
+
+        return menuMapper.toDomain(dto);
+    }
+
+    // ------------------------
+    // Delete
+    // ------------------------
+
+    async delete(
+        id: string,
+    ): Promise<void> {
+
+        await this.remote.deleteMenu(id);
+    }
+
+    // ------------------------
+    // Public
+    // ------------------------
 
     async findPublicBySlug(
-        slug: string
+        slug: string,
     ): Promise<PublicRestaurantMenu> {
 
-        const dto =
-            await this.remote.getPublicMenus(slug);
+        const dto = await this.remote.getPublicMenus(slug);
 
         return publicRestaurantMenuMapper.toDomain(dto);
-
-
     }
 
-    // به‌روزرسانی جزئی منو
-    async update(id: string, data: Partial<Menu>): Promise<MenuResult> {
-        const response = await apiClient.patch(`/menus/${id}`, data);
-        return response.data;
+    // ------------------------
+    // Menu Item
+    // ------------------------
+
+    async findMenuItemById(
+        id: string,
+    ): Promise<MenuItem | null> {
+
+        const menu = await this.findById(id);
+
+        if (!menu) {
+            return null;
+        }
+
+        return menu.items.find(i => i.id === id) ?? null;
     }
 
-    // حذف منو (فقط منو – آیتم‌ها در بک‌اند با CASCADE حذف می‌شوند)
-    async delete(id: string): Promise<void> {
-        await apiClient.delete(`/menus/${id}`);
-    }
 }

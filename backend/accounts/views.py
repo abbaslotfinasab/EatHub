@@ -1,10 +1,11 @@
+from django.db import transaction
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from accounts.enums import RoleCode
-from accounts.models import Membership
-from accounts.serializers.auth_serializer import RegisterSerializer, UserMeSerializer
+from accounts.models import Membership, User
+from accounts.serializers.auth_serializer import RegisterSerializer, UserMeSerializer, UserListSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.serializers.auth_serializer import LoginSerializer
 from accounts.serializers.business_serializer import BusinessCreateSerializer
@@ -12,10 +13,36 @@ from accounts.services.business_service import BusinessService
 from accounts.services.me_service import MeService
 
 
+class TenantAPIView(APIView):
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+
+        membership = (
+            Membership.objects
+            .select_related("business", "role")
+            .filter(
+                user=request.user,
+                is_active=True,
+            )
+            .first()
+        )
+
+        if not membership:
+            raise PermissionDenied("No active business.")
+
+        request.business = membership.business
+        request.membership = membership
+        request.role = membership.role
+        request.permissions = list(
+            membership.role.role_permissions.select_related("permission")
+            .values_list("permission__code", flat=True)
+        )
+
+
 class RegisterAPIView(APIView):
 
     def post(self, request):
-
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -35,10 +62,10 @@ class RegisterAPIView(APIView):
             "refresh": str(refresh),
         })
 
+
 class LoginAPIView(APIView):
 
     def post(self, request):
-
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -52,7 +79,7 @@ class LoginAPIView(APIView):
         return Response({
             "user": {
                 "id": user.id,
-                "name" : user.name,
+                "name": user.name,
                 "number": user.number,
                 "email": user.email,
             },
@@ -72,32 +99,49 @@ class LoginAPIView(APIView):
 
 class SelectBusinessAPIView(APIView):
 
+    @transaction.atomic
     def post(self, request):
-
         business_id = request.data.get("business_id")
 
-        memberships = request.user.memberships.filter(
-            business_id=business_id,
+        if not business_id:
+            raise ValidationError({
+                "business_id": "This field is required."
+            })
+
+        # گرفتن membership هدف
+        try:
+            new_membership = Membership.objects.select_related(
+                "business",
+                "role",
+            ).get(
+                user=request.user,
+                business_id=business_id,
+            )
+        except Membership.DoesNotExist:
+            return Response(
+                {"detail": "Invalid business"},
+                status=400
+            )
+
+        # غیرفعال کردن قبلی‌ها
+        Membership.objects.filter(
+            user=request.user,
             is_active=True
-        ).select_related("business", "role")
+        ).update(is_active=False)
 
-        membership = memberships.first()
-
-        if not membership:
-            return Response({"detail": "Invalid business"}, status=400)
+        # فعال کردن جدید
+        new_membership.is_active = True
+        new_membership.save(update_fields=["is_active"])
 
         return Response({
             "business": {
-                "id": membership.business.id,
-                "name": membership.business.name,
+                "id": new_membership.business.id,
+                "name": new_membership.business.name,
             },
-            "role": membership.role.code
+            "role": new_membership.role.code
         })
-
-
 class MeAPIView(APIView):
     permission_classes = [IsAuthenticated]
-
 
     def get(self, request):
         context = MeService.get_user_context(
@@ -122,7 +166,6 @@ class MeAPIView(APIView):
         return Response(serializer.data)
 
 
-
 class BusinessCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -132,8 +175,10 @@ class BusinessCreateAPIView(APIView):
 
         business = BusinessService.create_business(
             user=request.user,
-            name=serializer.validated_data["name"]
+            name=serializer.validated_data["name"],
+            request=request
         )
+
 
         return Response({
             "id": business.id,
@@ -144,3 +189,16 @@ class BusinessCreateAPIView(APIView):
                 "role": "owner"
             }
         })
+
+
+class UserListAPIView(APIView):
+
+    def get(self, request):
+        users = User.objects.all().order_by("-id")
+
+        serializer = UserListSerializer(
+            users,
+            many=True
+        )
+
+        return Response(serializer.data)

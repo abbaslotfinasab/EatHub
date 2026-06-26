@@ -4,7 +4,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from accounts.views import (
     RegisterAPIView,
     LoginAPIView,
-    SelectBusinessAPIView, MeAPIView, BusinessCreateAPIView,
+    SelectBusinessAPIView, MeAPIView, BusinessCreateAPIView, UserListAPIView,
 )
 
 app_name = 'accounts'
@@ -22,5 +22,11 @@ urlpatterns = [
 
     path("create/business/", BusinessCreateAPIView.as_view()),
     path("auth/refresh/", TokenRefreshView.as_view()),
+
+    path(
+        "users/",
+        UserListAPIView.as_view(),
+        name="users"
+    ),
 
 ]

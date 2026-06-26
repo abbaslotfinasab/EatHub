@@ -10,9 +10,9 @@ export class LoginUseCase {
     ) {}
 
     async execute(
-        email: string,
+        identifier: string,
         password: string
     ): Promise<Auth> {
-        return this.repo.login(email, password);
+        return this.repo.login(identifier, password);
     }
 }

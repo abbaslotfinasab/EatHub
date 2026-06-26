@@ -2,7 +2,7 @@ import { Box } from "@mui/material";
 import { useState } from "react";
 
 import { FullNameField } from "./FullNameField";
-import { EmailField } from "./EmailField";
+import { EmailField } from "./EmailField.tsx";
 import { PhoneField } from "./PhoneField";
 import { PasswordField } from "./PasswordField";
 import { ConfirmPasswordField } from "./ConfirmPasswordField";

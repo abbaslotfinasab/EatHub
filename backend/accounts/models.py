@@ -2,32 +2,27 @@ import uuid
 
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
-from slugify import slugify as smart_slugify
-
+from django.db.models import Q
 
 from accounts.enums import InvitationStatus
 from accounts.managers import UserManager
+from accounts.utils import generate_english_slug
 from core.models import BaseModel
 
-class User(AbstractBaseUser, PermissionsMixin, BaseModel):
 
+class User(AbstractBaseUser, PermissionsMixin, BaseModel):
     email = models.EmailField(
         unique=True
     )
 
     number = models.CharField(
         max_length=20,
-        blank=True
+        blank=True,
+        unique=True
     )
 
     name = models.CharField(
         max_length=200
-    )
-
-    qr_code = models.ImageField(
-        upload_to="businesses/qrcodes/",
-        blank=True,
-        null=True
     )
 
     avatar = models.ImageField(
@@ -52,11 +47,14 @@ class User(AbstractBaseUser, PermissionsMixin, BaseModel):
         return self.email
 
 
-
 class Business(BaseModel):
-
     name = models.CharField(
         max_length=255
+    )
+
+    description = models.CharField(
+        blank=True,
+        null=True
     )
 
     slug = models.SlugField(
@@ -91,21 +89,26 @@ class Business(BaseModel):
     def __str__(self):
         return self.name
 
-    def generate_unique_slug(instance, base_value, field_name="slug"):
-        base_slug = smart_slugify(base_value, allow_unicode=True)
+    @staticmethod
+    def generate_unique_slug(
+            instance,
+            base_value,
+            field_name="slug"
+    ):
+        base_slug = generate_english_slug(base_value)
 
-        slug = base_slug
-        counter = 1
+        while True:
+            slug = f"{base_slug}-{uuid.uuid4().hex[:4]}"
 
-        ModelClass = instance.__class__
+            exists = (
+                instance.__class__.objects
+                .filter(**{field_name: slug})
+                .exclude(pk=instance.pk)
+                .exists()
+            )
 
-        while ModelClass.objects.filter(
-                **{field_name: slug}
-        ).exclude(pk=instance.pk).exists():
-            slug = f"{base_slug}-{counter}"
-            counter += 1
-
-        return slug
+            if not exists:
+                return slug
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -115,7 +118,6 @@ class Business(BaseModel):
 
 
 class Role(BaseModel):
-
     business = models.ForeignKey(
         Business,
         on_delete=models.CASCADE,
@@ -142,8 +144,8 @@ class Role(BaseModel):
             "code"
         )
 
-class Permission(BaseModel):
 
+class Permission(BaseModel):
     name = models.CharField(
         max_length=100
     )
@@ -162,7 +164,6 @@ class Permission(BaseModel):
 
 
 class RolePermission(BaseModel):
-
     role = models.ForeignKey(
         Role,
         on_delete=models.CASCADE,
@@ -179,7 +180,6 @@ class RolePermission(BaseModel):
 
 
 class Membership(BaseModel):
-
     user = models.ForeignKey(
         "User",
         on_delete=models.CASCADE,
@@ -202,14 +202,18 @@ class Membership(BaseModel):
     )
 
     class Meta:
-        unique_together = (
-            "user",
-            "business"
-        )
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=Q(is_active=True),
+                name="one_active_business_per_user"
+            )
+        ]
+
+
 
 
 class Invitation(BaseModel):
-
     business = models.ForeignKey(
         Business,
         on_delete=models.CASCADE,

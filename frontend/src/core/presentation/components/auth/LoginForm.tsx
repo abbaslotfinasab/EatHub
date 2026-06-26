@@ -1,7 +1,7 @@
 import { Box } from "@mui/material";
 import { useState } from "react";
 
-import { EmailField } from "./EmailField";
+import {IdentifierField} from "./IdentifierField.tsx";
 import { PasswordField } from "./PasswordField";
 import { ForgotPasswordLink } from "./ForgotPasswordLink";
 import { LoginButton } from "./LoginButton";
@@ -17,14 +17,14 @@ export const LoginForm = () => {
     const login = useLogin();
     const navigate = useNavigate();
 
-    const [email, setEmail] = useState("");
+    const [identifier, setidentifier] = useState("");
     const [password, setPassword] = useState("");
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         try {
-            await login(email, password);
+            await login(identifier, password);
 
             console.log("AFTER LOGIN", useAuthStore.getState());
 
@@ -44,7 +44,7 @@ export const LoginForm = () => {
                 gap: 3,
             }}
         >
-            <EmailField value={email} onChange={setEmail} />
+            <IdentifierField value={identifier} onChange={setidentifier} />
 
             <PasswordField value={password} onChange={setPassword} />
 

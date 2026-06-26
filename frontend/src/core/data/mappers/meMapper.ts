@@ -25,6 +25,7 @@ export const meMapper = (dto: MeResponseDto): Me => {
                 name: dto.active_business.name,
                 role: dto.active_business.role,
                 qr: dto.active_business.qr,
+                slug: dto.active_business.slug
 
             }
             : null,

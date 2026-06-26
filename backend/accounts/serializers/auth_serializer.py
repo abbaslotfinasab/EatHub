@@ -1,6 +1,7 @@
 from accounts.models import Membership
 from accounts.services.auth_service import AuthService
 from rest_framework import serializers
+from accounts.models import User
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -12,12 +13,19 @@ class RegisterSerializer(serializers.Serializer):
     number = serializers.CharField()
 
     def validate_email(self, value):
-        from accounts.models import User
 
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already exists")
 
         return value
+
+    def validate_number(self, value):
+
+        if User.objects.filter(number=value).exists():
+            raise serializers.ValidationError("Number already exists")
+
+        return value
+
 
     def create(self, validated_data):
 
@@ -31,14 +39,17 @@ class RegisterSerializer(serializers.Serializer):
 
 class LoginSerializer(serializers.Serializer):
 
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    identifier = serializers.CharField()
+
+    password = serializers.CharField(
+        write_only=True
+    )
 
     def validate(self, attrs):
 
         result = AuthService.login(
-            email=attrs["email"],
-            password=attrs["password"],
+            identifier=attrs["identifier"],
+            password=attrs["password"]
         )
 
         if not result:
@@ -47,7 +58,6 @@ class LoginSerializer(serializers.Serializer):
             )
 
         return result
-
 
 
 class MembershipBusinessSerializer(serializers.Serializer):
@@ -103,7 +113,8 @@ class ActiveBusinessSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
     role = serializers.CharField()
-    qr = serializers.CharField()
+    qr = serializers.URLField(allow_null=True, required=False)
+    slug = serializers.CharField()
 
 
 
@@ -134,3 +145,15 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField()
 
 
+
+class UserListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "name",
+            "email",
+            "number",
+            "avatar",
+            "created_at",
+        ]

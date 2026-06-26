@@ -3,4 +3,5 @@ export interface ActiveBusiness {
     name: string;
     role: string;
     qr? : string;
+    slug? : string
 }

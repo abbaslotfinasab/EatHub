@@ -1,9 +1,10 @@
-import json
 
 from django.core.files.storage import default_storage
 from django.shortcuts import get_object_or_404
+from rest_framework import status
 
 from accounts.models import Business
+from accounts.views import TenantAPIView
 from products.serializers.image_serializer import ImageUploadSerializer
 from products.serializers.order_serializer import *
 from products.services.order_service import *
@@ -11,58 +12,48 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, MenuSerializer, \
-    PublicRestaurantSerializer, PublicMenuSerializer
+    PublicRestaurantSerializer, PublicMenuSerializer, UpdateMenuSerializer, MenuItemSerializer, \
+    MenuItemCreateSerializer, MenuItemUpdateSerializer
 from products.services.menu_service import MenuService
 from products.models import Menu
 
 
-class MenuCreateAPIView(APIView):
+class MenuCreateAPIView(TenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
 
-        data = request.data.copy()
-
-
-        serializer = CreateMenuWithItemsSerializer(data=data)
+        serializer = CreateMenuWithItemsSerializer(data=request.data)
 
         if not serializer.is_valid():
-            print(serializer.errors)
             return Response(serializer.errors, status=400)
 
-        memberships = request.user.memberships.filter(
-            is_active=True
-        ).select_related("business", "role")
-
-        business = memberships.first()
-
         menu = MenuService.create_menu_with_items(
-            business=business.business,
+            business=request.business,
             validated_data=serializer.validated_data
         )
 
-        return Response(MenuSerializer(menu).data, status=201)
+        return Response(
+            MenuSerializer(menu).data,
+            status=status.HTTP_201_CREATED
+        )
 
 
-
-class MenuListAPIView(APIView):
+class MenuListAPIView(TenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        memberships = request.user.memberships.filter(
-            is_active=True
-        ).select_related("business", "role")
 
-        business = memberships.first()
-
-        menus = Menu.objects.filter(
-            business=business.business
-        ).order_by("sort_order")
+        menus = (
+            Menu.objects
+            .filter(business=request.business)
+            .prefetch_related("items")
+            .order_by("sort_order")
+        )
 
         return Response(MenuSerializer(menus, many=True).data)
-
 class PublicRestaurantMenuAPIView(APIView):
 
     permission_classes = [AllowAny]
@@ -100,15 +91,38 @@ class PublicRestaurantMenuAPIView(APIView):
                 ).data,
         })
 
-class MenuDetailAPIView(APIView):
+class MenuDetailAPIView(TenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-
-        menu = Menu.objects.get(
-            id=pk,
+        menu = get_object_or_404(
+            Menu.objects.prefetch_related("items"),
+            pk=pk,
             business=request.business
+        )
+
+        return Response(MenuSerializer(menu).data)
+
+
+
+class MenuUpdateAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        menu = get_object_or_404(Menu, id=pk)
+
+        serializer = UpdateMenuSerializer(
+            menu,
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+
+        menu = MenuService.update_menu(
+            menu,
+            serializer.validated_data
         )
 
         return Response(MenuSerializer(menu).data)
@@ -120,12 +134,90 @@ class MenuDeleteAPIView(APIView):
 
     def delete(self, request, pk):
 
-        Menu.objects.filter(
-            id=pk,
+        menu = get_object_or_404(
+            Menu,
+            pk=pk,
             business=request.business
-        ).delete()
+        )
 
-        return Response(status=204)
+        MenuService.delete_menu(menu)
+
+        return Response(
+            status=204
+        )
+
+class MenuItemCreateAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, menu_id):
+
+        menu = get_object_or_404(
+            Menu.objects.filter(
+                business=request.business
+            ),
+            pk=menu_id
+        )
+
+        serializer = MenuItemCreateSerializer(
+            data=request.data
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        item = MenuService.create_item(
+            business=request.business,
+            menu=menu,
+            data=serializer.validated_data
+        )
+
+        return Response(
+            MenuItemSerializer(item).data,
+            status=status.HTTP_201_CREATED
+        )
+
+class MenuItemUpdateAPIView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+
+        serializer = MenuItemUpdateSerializer(
+            data=request.data,
+            partial=True
+        )
+
+        serializer.is_valid(
+            raise_exception=True
+        )
+
+        item = MenuService.update_item(
+            serializer.validated_data
+        )
+
+        return Response(
+            MenuItemSerializer(item).data
+        )
+
+
+class MenuItemDeleteAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        item = get_object_or_404(
+            MenuItem.objects.select_related(
+                "menu"
+            ),
+            pk=pk,
+            menu__business=request.business
+        )
+
+        MenuService.delete_item(item)
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT
+        )
 
 class OrderCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]

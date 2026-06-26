@@ -36,8 +36,6 @@ class MenuItem(BaseModel):
     )
     is_available = models.BooleanField(default=True)
 
-    recipe_id = models.UUIDField(null=True, blank=True)
-
 
 class Order(BaseModel):
 

@@ -8,7 +8,7 @@ import {
 
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
-import type {MenuItem} from "../../../domain/entities/product/MenuItem.ts";
+import type {MenuItem} from "../../../domain/entities/product/menu/MenuItem.ts";
 
 
 interface Props {

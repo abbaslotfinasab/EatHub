@@ -12,10 +12,10 @@ export const useLogin = () => {
 
     const setTokens = useAuthStore((s) => s.setTokens);
 
-    return async (email: string, password: string) => {
+    return async (identifier: string, password: string) => {
         try {
             const auth = await loginUseCase.execute(
-                email,
+                identifier,
                 password
             );
 

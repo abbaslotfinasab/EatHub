@@ -37,11 +37,11 @@ class AuthService:
     # -------------------------
     # LOGIN
     # -------------------------
-    @staticmethod
-    def login(email: str, password: str):
 
+    @staticmethod
+    def login(identifier: str, password: str):
         user = authenticate(
-            username=email,
+            username=identifier,
             password=password
         )
 

@@ -1,6 +1,6 @@
 // core/application/use-cases/menu/GetAllMenus.ts
 import type { MenuRepository } from '../../../repositories/product/MenuRepository';
-import type {MenuResult} from "../../../entities/product/MenuResult.ts";
+import type {MenuResult} from "../../../entities/product/menu/MenuResult.ts";
 
 export interface MenuFilters {
     isActive?: boolean;

@@ -2,7 +2,6 @@ class MeService:
 
     @staticmethod
     def get_user_context(user, request=None):
-
         memberships = (
             user.memberships
             .select_related("business", "role")
@@ -25,6 +24,8 @@ class MeService:
                     if active_membership.business.qr_code and request
                     else None
                 ),
+                "slug": active_membership.business.slug,
+
             }
         #
         # # از middleware می‌گیریم (enterprise pattern)

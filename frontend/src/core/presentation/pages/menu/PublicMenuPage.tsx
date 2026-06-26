@@ -9,12 +9,12 @@ import {
     Typography, Paper, InputAdornment, TextField,
 } from "@mui/material";
 
-import {MenuSection} from "../components/menu/public/MenuSection";
-import {useGetPublicMenus} from "../hooks/useGetPublicMenu.tsx";
-import {StatCard} from "../components/menu/StatCard.tsx";
+import {MenuSection} from "../../components/menu/public/MenuSection.tsx";
+import {useGetPublicMenus} from "../../hooks/useGetPublicMenu.tsx";
+import {StatCard} from "../../components/menu/StatCard.tsx";
 import SearchIcon from "@mui/icons-material/Search";
 
-export const RestaurantMenuPage = () => {
+export const PublicMenuPage = () => {
     const {restaurantSlug} = useParams();
 
     const [search, setSearch] = useState("");

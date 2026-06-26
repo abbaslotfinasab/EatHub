@@ -1,7 +1,7 @@
 import {Box, Typography} from "@mui/material";
 import {MenuItemTile} from "./MenuItemTile";
 import {useNavigate} from "react-router-dom";
-import type { MenuItem } from "../../../domain/entities/product/MenuItem";
+import type { MenuItem } from "../../../domain/entities/product/menu/MenuItem.ts";
 
 
 

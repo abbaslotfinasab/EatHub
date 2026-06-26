@@ -15,13 +15,14 @@ import {CreateIngredientPage} from "../pages/CreateIngredientPage";
 import {CreateMaterialPage} from "../pages/CreateMaterialPage";
 import {CreateRecipePage} from "../pages/CreateRecipePage";
 import {CreatePurchaseOrderPage} from "../pages/CreatePurchaseOrderPage";
-import {CreateMenuPage} from "../pages/CreateMenuPage";
+import {CreateMenuPage} from "../pages/menu/CreateMenuPage.tsx";
 import {CreateBusinessPage} from "../pages/CreateBusinessPage.tsx";
-import {MenuPage} from "../pages/MenuPage.tsx";
-import {RestaurantMenuPage} from "../pages/RestaurantMenuPage.tsx";
+import {MenuPage} from "../pages/menu/MenuPage.tsx";
+import {PublicMenuPage} from "../pages/menu/PublicMenuPage.tsx";
 import {AuthGuard} from "./AuthGuarad.tsx";
 import {GuestGuard} from "./GuestGuard.tsx";
 import {BusinessGuard} from "./BusinessGuard.tsx";
+import {EditMenuPage} from "../pages/menu/EditMenuPage.tsx";
 
 export const AppRoutes = () => {
     return (
@@ -31,7 +32,7 @@ export const AppRoutes = () => {
                 {/* 🌍 PUBLIC (no auth) */}
                 <Route element={<AppLayout/>}>
                     <Route path="/" element={<HomePage/>}/>
-                    <Route path="/products/:slug/menu" element={<RestaurantMenuPage/>}/>
+                    <Route path="/products/:slug/menu" element={<PublicMenuPage/>}/>
                 </Route>
 
                 {/* 🔑 GUEST ONLY */}
@@ -58,6 +59,8 @@ export const AppRoutes = () => {
 
                             <Route path="/menus" element={<MenuPage/>}/>
                             <Route path="/menus/create" element={<CreateMenuPage/>}/>
+                            <Route path="/menus/:id/edit" element={<EditMenuPage/>}/>
+
 
                             <Route path="/orders" element={<IngredientsListPage/>}/>
                             <Route path="/orders/create" element={<IngredientsListPage/>}/>
