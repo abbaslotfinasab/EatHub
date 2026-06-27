@@ -261,7 +261,7 @@ export const MenuItemTile = ({
                                     "#10281A",
                             }}
                         >
-                            {Number(item.price).toLocaleString("fa-IR")} تومان
+                            {Number(item.price).toLocaleString("fa-IR")}
                             {" "}
                             تومان
                         </Typography>
