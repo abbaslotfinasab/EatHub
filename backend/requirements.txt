@@ -30,3 +30,4 @@ vine>=5.1.0
 wcwidth>=0.8.1
 python-slugify>=8.0.4
 qrcode>=8.2.0
+Unidecode>=1.4.0
