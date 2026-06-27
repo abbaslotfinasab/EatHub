@@ -106,7 +106,7 @@ class MenuDetailAPIView(TenantAPIView):
 
 
 
-class MenuUpdateAPIView(APIView):
+class MenuUpdateAPIView(TenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -128,7 +128,7 @@ class MenuUpdateAPIView(APIView):
         return Response(MenuSerializer(menu).data)
 
 
-class MenuDeleteAPIView(APIView):
+class MenuDeleteAPIView(TenantAPIView):
 
     permission_classes = [IsAuthenticated]
 

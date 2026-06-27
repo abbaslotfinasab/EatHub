@@ -4,22 +4,17 @@ import {
     CardActionArea,
     Typography,
 } from "@mui/material";
+import type {MenuItem} from "../../../../domain/entities/product/menu/MenuItem.ts";
 
 type FoodItemCardProps = {
-    item: {
-        id: number;
-        name: string;
-        description?: string;
-        price: number;
-        imageUrl?: string;
-    };
+    item: MenuItem
     onClick?: () => void;
 };
 
 export const FoodItemCard = ({
-    item,
-    onClick,
-}: FoodItemCardProps) => {
+                                 item,
+                                 onClick,
+                             }: FoodItemCardProps) => {
     return (
         <Card
             elevation={0}
@@ -93,8 +88,8 @@ export const FoodItemCard = ({
                                 color: "#10281A",
                             }}
                         >
-                            ₼{" "}
-                            {item.price.toLocaleString()}
+                            {Number(item.price).toLocaleString("fa-IR")} تومان
+                            {" "} تومان
                         </Typography>
                     </Box>
 

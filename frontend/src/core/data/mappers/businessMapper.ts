@@ -15,6 +15,8 @@ export const businessMapper = {
 
             name: dto.name,
 
+            description: dto.description,
+
             phone: dto.phone_number,
 
             address: dto.address,

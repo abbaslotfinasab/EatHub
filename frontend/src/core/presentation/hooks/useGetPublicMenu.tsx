@@ -8,6 +8,7 @@ export const useGetPublicMenus = (
         getPublicMenusUseCase,
     } = container.menuContainer;
 
+
     return useQuery({
         queryKey: [
             "public-menu",

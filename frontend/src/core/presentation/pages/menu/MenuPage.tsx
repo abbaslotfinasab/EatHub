@@ -6,6 +6,11 @@ import {
     Typography,
     TextField,
     InputAdornment,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    Button,
+    DialogActions,
 } from "@mui/material";
 
 import SearchIcon from "@mui/icons-material/Search";
@@ -19,6 +24,8 @@ import {MenuSection} from "../../components/menu/MenuSection.tsx";
 import {StatCard} from "../../components/menu/StatCard.tsx";
 
 import {useAuthStore} from "../../../store/auth.store.ts";
+import type {Menu} from "../../../domain/entities/product/menu/Menu.ts";
+import {useDeleteMenu} from "../../hooks/useDeleteMenu.tsx";
 
 export const MenuPage = () => {
     const navigate = useNavigate();
@@ -26,6 +33,12 @@ export const MenuPage = () => {
     const me = useAuthStore((s) => s.me);
 
     const [search, setSearch] = useState("");
+
+    const [deleteTarget, setDeleteTarget] = useState<Menu | null>(null);
+
+    const {
+    mutate: deleteMenu,
+} = useDeleteMenu();
 
     const {data, isLoading, isError} =
         useGetMenus();
@@ -350,9 +363,7 @@ export const MenuPage = () => {
                         group={group}
                         search={search}
                         onEdit={(menu) => navigate(`/menus/${menu.id}/edit`)}
-                        onDelete={() => {
-                            // setDeleteItem(item);
-                        }}
+                        onDelete={(menu) => setDeleteTarget(menu)}
                     />
                 ))}
             </Box>
@@ -385,6 +396,38 @@ export const MenuPage = () => {
                 <AddIcon/>
                 منو جدید
             </Fab>
+
+             <Dialog
+            open={!!deleteTarget}
+            onClose={() => setDeleteTarget(null)}
+        >
+            <DialogTitle>حذف منو</DialogTitle>
+
+            <DialogContent>
+                آیا مطمئنید میخواهید این منو حذف شود؟
+            </DialogContent>
+
+            <DialogActions>
+                <Button onClick={() => setDeleteTarget(null)}>
+                    لغو
+                </Button>
+
+                <Button
+                    color="error"
+                    onClick={() => {
+                if (!deleteTarget) return;
+
+                deleteMenu(deleteTarget.id);
+
+                setDeleteTarget(null);
+            }}
+                >
+                    حذف
+                </Button>
+            </DialogActions>
+        </Dialog>
+
         </Box>
     );
+
 };

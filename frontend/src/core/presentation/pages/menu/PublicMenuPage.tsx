@@ -15,7 +15,7 @@ import {StatCard} from "../../components/menu/StatCard.tsx";
 import SearchIcon from "@mui/icons-material/Search";
 
 export const PublicMenuPage = () => {
-    const {restaurantSlug} = useParams();
+    const { slug } = useParams();
 
     const [search, setSearch] = useState("");
     useState("all");
@@ -25,7 +25,7 @@ export const PublicMenuPage = () => {
         isLoading,
         isError,
     } = useGetPublicMenus(
-        restaurantSlug!
+        slug!
     );
 
     const restaurant = data?.restaurant;
@@ -181,8 +181,7 @@ export const PublicMenuPage = () => {
                                 mb: 4,
                             }}
                         >
-                            مدیریت منوها و
-                            آیتم‌های رستوران
+                            🍽️ {restaurant.description}
                         </Typography>
 
                         <Box
@@ -267,7 +266,7 @@ export const PublicMenuPage = () => {
                         }}
                     >
                         <img
-                            src={restaurant.logoUrl??""}
+                            src={restaurant.logoUrl ?? ""}
                             alt={restaurant.name}
                             style={{
                                 width: "100%",

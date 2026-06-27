@@ -46,7 +46,7 @@ export class MenuRemoteDataSource {
 
     async deleteMenu(id: string): Promise<void> {
         await apiClient.delete(
-            `/products/menus/${id}/`,
+            `/products/menus/${id}/delete/`,
         );
     }
 

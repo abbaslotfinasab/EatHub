@@ -5,6 +5,8 @@ export interface PublicRestaurantDto {
 
     name: string;
 
+    description: string;
+
     slug: string;
 
     logo: string | null;

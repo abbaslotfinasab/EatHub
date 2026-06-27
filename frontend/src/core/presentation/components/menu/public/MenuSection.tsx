@@ -1,16 +1,15 @@
 import { Box, Typography } from "@mui/material";
 import { FoodItemCard } from "./FoodItemCard";
+import type {MenuItem} from "../../../../domain/entities/product/menu/MenuItem.ts";
+import type {Menu} from "../../../../domain/entities/product/menu/Menu.ts";
 
 type MenuSectionProps = {
     group: {
-        menu: {
-            id: string;
-            name: string;
-        };
-        items: any[];
+        menu:Menu
+        items: MenuItem[];
     };
     search?: string;
-    onItemClick?: (item: any) => void;
+    onItemClick?: (item: MenuItem) => void;
 };
 
 export const MenuSection = ({
@@ -56,8 +55,8 @@ export const MenuSection = ({
                     variant="body2"
                     color="text.secondary"
                 >
-                    {filteredItems.length} item
-                    {filteredItems.length > 1 ? "s" : ""}
+                    {group.menu.description}
+
                 </Typography>
             </Box>
 

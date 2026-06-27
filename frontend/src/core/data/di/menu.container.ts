@@ -9,6 +9,7 @@ import {MenuRemoteDataSource} from "../datasources/MenuRemoteDataSource.ts";
 import {GetPublicMenus} from "../../domain/use-cases/product/menu/GetPublicMenus.ts";
 import {GetMenuById} from "../../domain/use-cases/product/menu/GetMenuById.ts";
 import {UpdateMenuWithItems} from "../../domain/use-cases/product/menu/UpdateMenuWithItems.ts";
+import {DeleteMenu} from "../../domain/use-cases/product/menu/DeleteMenu.ts";
 
 export const createMenuContainer = () => {
     const remote = new MenuRemoteDataSource();
@@ -20,6 +21,8 @@ export const createMenuContainer = () => {
         getMenuByIdUseCase: new GetMenuById(repository),
         getPublicMenusUseCase: new GetPublicMenus(repository),
         updateMenuWithItemsUseCase: new UpdateMenuWithItems(repository),
+        deleteMenuUseCase: new DeleteMenu(repository),
+
 
 
     };

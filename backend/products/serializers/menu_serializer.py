@@ -160,12 +160,7 @@ class PublicMenuSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Menu
-        fields = (
-            "id",
-            "name",
-            "sort_order",
-            "items",
-        )
+        fields = "__all__"
 
 class PublicRestaurantSerializer(serializers.ModelSerializer):
     class Meta:

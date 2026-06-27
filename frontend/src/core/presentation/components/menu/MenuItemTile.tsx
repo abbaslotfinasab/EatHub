@@ -59,7 +59,7 @@ export const MenuItemTile = ({
                 }}
             >
                 <img
-                    src={item.imageUrl??""}
+                    src={item.imageUrl ?? ""}
                     alt={item.name}
                     style={{
                         width: "100%",
@@ -261,9 +261,8 @@ export const MenuItemTile = ({
                                     "#10281A",
                             }}
                         >
-                            {item.price.toLocaleString(
-                                "fa-IR"
-                            )}{" "}
+                            {Number(item.price).toLocaleString("fa-IR")} تومان
+                            {" "}
                             تومان
                         </Typography>
                     </Box>
