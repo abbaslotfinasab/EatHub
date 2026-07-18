@@ -1,5 +1,5 @@
 export interface UpdateOrderItemDTO {
-    id?: string;
+    id?: number;
 
     menu_item_id: number;
 

@@ -1,6 +1,6 @@
 
 export interface OrderFilters {
-    customerId?: string;
+    customerId?: number;
     tableId?: string;
     statusId?: string;
     fromDate?: string;      // ISO date (YYYY-MM-DD)

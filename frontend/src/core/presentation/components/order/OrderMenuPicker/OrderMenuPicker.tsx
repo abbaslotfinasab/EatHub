@@ -1,6 +1,6 @@
 // presentation/components/order/OrderMenuPicker/OrderMenuPicker.tsx
 
-import { useMemo, useState } from "react";
+import {useMemo, useState} from "react";
 
 import {
     Box,
@@ -10,11 +10,11 @@ import {
     Typography,
 } from "@mui/material";
 
-import { useGetMenus } from "../../../hooks/menu/useGetMenus";
+import {useGetMenus} from "../../../hooks/menu/useGetMenus";
 
-import { MenuSearch } from "./MenuSearch";
-import { MenuCategoryTabs } from "./MenuCategoryTabs";
-import { MenuItemsList } from "./MenuItemsList";
+import {MenuSearch} from "./MenuSearch";
+import {MenuCategoryTabs} from "./MenuCategoryTabs";
+import {MenuItemsList} from "./MenuItemsList";
 
 export const OrderMenuPicker = () => {
 
@@ -122,7 +122,7 @@ export const OrderMenuPicker = () => {
                     }}
                 >
 
-                    <CircularProgress />
+                    <CircularProgress/>
 
                 </Box>
 
@@ -153,8 +153,10 @@ export const OrderMenuPicker = () => {
             >
 
                 <Stack
-                    spacing={1}
-                    alignItems="center"
+                    sx={{
+                        gap: 1,
+                        alignItems: "center",
+                    }}
                 >
 
                     <Typography

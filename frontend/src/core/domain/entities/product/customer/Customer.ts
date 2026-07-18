@@ -1,7 +1,7 @@
 // domain/entities/customer/Customer.ts
 
 export interface Customer {
-    id?: string;
+    id?: number;
 
     name: string;
 

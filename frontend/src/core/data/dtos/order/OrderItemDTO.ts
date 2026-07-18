@@ -1,7 +1,7 @@
 export interface OrderItemDTO {
-    id: string;
+    id: number;
 
-    order_id: string;
+    order_id: number;
 
     menu_item_id: number;
 

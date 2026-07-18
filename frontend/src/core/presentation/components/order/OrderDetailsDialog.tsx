@@ -26,9 +26,8 @@ import {
 } from "@mui/material";
 
 
-
-import { OrderStatusChip } from "./OrderStatusChip";
-import type { OrderWithItems } from "../../../domain/entities/product/order/OrderWithItems";
+import {OrderStatusChip} from "./OrderStatusChip";
+import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems";
 import {OrderStatus, type OrderStatusType} from "../../../domain/entities/product/order/Order.ts";
 
 interface OrderDetailsDialogProps {
@@ -73,12 +72,11 @@ const ORDER_STATUS_OPTIONS = [
 ];
 
 export const OrderDetailsDialog = ({
-    open,
-    order,
-    loading = false,
-    onClose,
-    onStatusChange,
-}: OrderDetailsDialogProps) => {
+                                       open,
+                                       order,
+                                       onClose,
+                                       onStatusChange,
+                                   }: OrderDetailsDialogProps) => {
 
     if (!order) {
         return null;
@@ -107,7 +105,9 @@ export const OrderDetailsDialog = ({
 
                     <Typography
                         variant="h6"
-                        fontWeight={700}
+                        sx={{
+                            fontWeight: 700,
+                        }}
                     >
                         سفارش #{data.id}
                     </Typography>
@@ -121,12 +121,12 @@ export const OrderDetailsDialog = ({
                 <IconButton
                     onClick={onClose}
                 >
-                    <CloseRoundedIcon />
+                    <CloseRoundedIcon/>
                 </IconButton>
 
             </DialogTitle>
 
-            <Divider />
+            <Divider/>
 
             <DialogContent>
 
@@ -137,28 +137,32 @@ export const OrderDetailsDialog = ({
 
                     {/* Customer */}
 
-                    <Grid size={{xs:12, md:6}}>
+                    <Grid size={{xs: 12, md: 6}}>
 
                         <Paper
                             variant="outlined"
                             sx={{
-                                p:3,
-                                height:"100%",
+                                p: 3,
+                                height: "100%",
                             }}
                         >
 
                             <Stack spacing={2}>
 
                                 <Stack
-                                    direction="row"
-                                    spacing={1}
-                                    alignItems="center"
+                                    sx={{
+                                        flexDirection: "row",
+                                        gap: 1,
+                                        alignItems: "center",
+                                    }}
                                 >
 
-                                    <PersonRoundedIcon />
+                                    <PersonRoundedIcon/>
 
                                     <Typography
-                                        fontWeight={700}
+                                        sx={{
+                                            fontWeight: 700,
+                                        }}
                                     >
                                         اطلاعات مشتری
                                     </Typography>
@@ -175,7 +179,9 @@ export const OrderDetailsDialog = ({
                                 </Typography>
 
                                 <Typography
-                                    fontWeight={600}
+                                    sx={{
+                                        fontWeight: 600,
+                                    }}
                                 >
                                     {data.customerName}
                                 </Typography>
@@ -199,32 +205,34 @@ export const OrderDetailsDialog = ({
 
                     {/* Order Info */}
 
-                    <Grid size={{xs:12, md:6}}>
+                    <Grid size={{xs: 12, md: 6}}>
 
                         <Paper
                             variant="outlined"
                             sx={{
-                                p:3,
-                                height:"100%",
+                                p: 3,
+                                height: "100%",
                             }}
                         >
 
                             <Stack spacing={2}>
 
                                 <Stack
-                                    direction="row"
-                                    spacing={1}
-                                    alignItems="center"
+                                    sx={{
+                                        flexDirection: "row",
+                                        gap: 1,
+                                        alignItems: "center",
+                                    }}
                                 >
-
-                                    <RestaurantRoundedIcon />
+                                    <RestaurantRoundedIcon/>
 
                                     <Typography
-                                        fontWeight={700}
+                                        sx={{
+                                            fontWeight: 700,
+                                        }}
                                     >
                                         اطلاعات سفارش
                                     </Typography>
-
                                 </Stack>
 
                                 <Divider/>
@@ -263,11 +271,12 @@ export const OrderDetailsDialog = ({
                                 >
                                     زمان ثبت
                                 </Typography>
-
                                 <Stack
-                                    direction="row"
-                                    spacing={1}
-                                    alignItems="center"
+                                    sx={{
+                                        flexDirection: "row",
+                                        gap: 1,
+                                        alignItems: "center",
+                                    }}
                                 >
 
                                     <AccessTimeRoundedIcon
@@ -286,14 +295,14 @@ export const OrderDetailsDialog = ({
                                     size="small"
                                     label="وضعیت سفارش"
                                     value={data.status}
-                                    onChange={(e)=>
+                                    onChange={(e) =>
                                         onStatusChange?.(
                                             e.target.value as OrderStatusType
                                         )
                                     }
                                 >
 
-                                    {ORDER_STATUS_OPTIONS.map((item)=>(
+                                    {ORDER_STATUS_OPTIONS.map((item) => (
                                         <MenuItem
                                             key={item.value}
                                             value={item.value}
@@ -309,11 +318,11 @@ export const OrderDetailsDialog = ({
                         </Paper>
 
                     </Grid>
-                            {/* ==========================
+                    {/* ==========================
                         Order Items
                     =========================== */}
 
-                    <Grid size={{ xs: 12 }}>
+                    <Grid size={{xs: 12}}>
                         <Paper
                             variant="outlined"
                             sx={{
@@ -323,20 +332,23 @@ export const OrderDetailsDialog = ({
                             <Stack spacing={2}>
 
                                 <Stack
-                                    direction="row"
-                                    spacing={1}
-                                    alignItems="center"
+                                    sx={{
+                                        flexDirection: "row",
+                                        gap: 1,
+                                        alignItems: "center",
+                                    }}
                                 >
-                                    <LocalDiningRoundedIcon />
+                                    <LocalDiningRoundedIcon/>
 
                                     <Typography
-                                        fontWeight={700}
+                                        sx={{
+                                            fontWeight: 700,
+                                        }}
                                     >
                                         اقلام سفارش
                                     </Typography>
                                 </Stack>
-
-                                <Divider />
+                                <Divider/>
 
                                 <TableContainer>
 
@@ -380,7 +392,9 @@ export const OrderDetailsDialog = ({
                                                         <Stack spacing={0.5}>
 
                                                             <Typography
-                                                                fontWeight={600}
+                                                                sx={{
+                                                                    fontWeight: 600,
+                                                                }}
                                                             >
                                                                 {item.menuItemName}
                                                             </Typography>
@@ -430,7 +444,7 @@ export const OrderDetailsDialog = ({
                         Notes
                     =========================== */}
 
-                    <Grid size={{ xs: 12, md: 6 }}>
+                    <Grid size={{xs: 12, md: 6}}>
 
                         <Paper
                             variant="outlined"
@@ -443,12 +457,13 @@ export const OrderDetailsDialog = ({
                             <Stack spacing={2}>
 
                                 <Typography
-                                    fontWeight={700}
+                                    sx={{
+                                        fontWeight: 700,
+                                    }}
                                 >
                                     توضیحات سفارش
                                 </Typography>
-
-                                <Divider />
+                                <Divider/>
 
                                 <Typography
                                     color="text.secondary"
@@ -466,7 +481,7 @@ export const OrderDetailsDialog = ({
                         Summary
                     =========================== */}
 
-                    <Grid size={{ xs: 12, md: 6 }}>
+                    <Grid size={{xs: 12, md: 6}}>
 
                         <Paper
                             variant="outlined"
@@ -479,29 +494,39 @@ export const OrderDetailsDialog = ({
                             <Stack spacing={2}>
 
                                 <Typography
-                                    fontWeight={700}
+                                    sx={{
+                                        fontWeight: 700,
+                                    }}
                                 >
                                     خلاصه مالی
                                 </Typography>
 
-                                <Divider />
+                                <Divider/>
 
                                 <Stack
-                                    direction="row"
-                                    justifyContent="space-between"
+                                    sx={{
+                                        flexDirection: "row",
+                                        justifyContent: "space-between",
+                                    }}
                                 >
                                     <Typography color="text.secondary">
                                         جمع اقلام
                                     </Typography>
 
-                                    <Typography fontWeight={600}>
+                                    <Typography
+                                        sx={{
+                                            fontWeight: 600,
+                                        }}
+                                    >
                                         {data.subtotal.toLocaleString()} تومان
                                     </Typography>
                                 </Stack>
 
                                 <Stack
-                                    direction="row"
-                                    justifyContent="space-between"
+                                    sx={{
+                                        flexDirection: "row",
+                                        justifyContent: "space-between",
+                                    }}
                                 >
                                     <Typography color="text.secondary">
                                         تخفیف
@@ -509,34 +534,45 @@ export const OrderDetailsDialog = ({
 
                                     <Typography
                                         color="success.main"
-                                        fontWeight={600}
+                                        sx={{
+                                            fontWeight: 600,
+                                        }}
                                     >
                                         {data.discount.toLocaleString()} تومان
                                     </Typography>
                                 </Stack>
-
                                 <Stack
-                                    direction="row"
-                                    justifyContent="space-between"
+                                    sx={{
+                                        flexDirection: "row",
+                                        justifyContent: "space-between",
+                                    }}
                                 >
                                     <Typography color="text.secondary">
                                         مالیات
                                     </Typography>
 
-                                    <Typography fontWeight={600}>
+                                    <Typography
+                                        sx={{
+                                            fontWeight: 600,
+                                        }}
+                                    >
                                         {data.tax.toLocaleString()} تومان
                                     </Typography>
                                 </Stack>
 
-                                <Divider />
+                                <Divider/>
 
                                 <Stack
-                                    direction="row"
-                                    justifyContent="space-between"
+                                    sx={{
+                                        flexDirection: "row",
+                                        justifyContent: "space-between",
+                                    }}
                                 >
                                     <Typography
                                         variant="h6"
-                                        fontWeight={700}
+                                        sx={{
+                                            fontWeight: 700,
+                                        }}
                                     >
                                         مبلغ نهایی
                                     </Typography>
@@ -544,7 +580,9 @@ export const OrderDetailsDialog = ({
                                     <Typography
                                         variant="h6"
                                         color="primary.main"
-                                        fontWeight={700}
+                                        sx={{
+                                            fontWeight: 700,
+                                        }}
                                     >
                                         {data.totalAmount.toLocaleString()} تومان
                                     </Typography>
@@ -556,11 +594,11 @@ export const OrderDetailsDialog = ({
 
                     </Grid>
 
-                        </Grid>
+                </Grid>
 
             </DialogContent>
 
-            <Divider />
+            <Divider/>
 
             <DialogActions
                 sx={{

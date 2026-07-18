@@ -50,9 +50,9 @@ export const OrderFormMapper = {
 
         const orderItems: OrderItem[] =
             input.orderItems.map((item) => ({
-                id: "",
+                id: -1,
 
-                orderId: "",
+                orderId: -1,
 
                 menuItemId: item.menuItemId,
 

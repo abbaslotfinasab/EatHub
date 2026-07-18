@@ -21,17 +21,17 @@ interface MenuItemQuantityProps {
 }
 
 export const MenuItemQuantity = ({
-    quantity,
-    onAdd,
-    onIncrease,
-    onDecrease,
-}: MenuItemQuantityProps) => {
+                                     quantity,
+                                     onAdd,
+                                     onIncrease,
+                                     onDecrease,
+                                 }: MenuItemQuantityProps) => {
 
     if (quantity === 0) {
         return (
             <Button
                 variant="contained"
-                startIcon={<AddRoundedIcon />}
+                startIcon={<AddRoundedIcon/>}
                 onClick={onAdd}
                 sx={{
                     minWidth: 120,
@@ -46,23 +46,22 @@ export const MenuItemQuantity = ({
 
     return (
         <Stack
-            direction="row"
-            spacing={1}
-            alignItems="center"
             sx={{
+                flexDirection: "row",
+                gap: 1,
+                alignItems: "center",
                 bgcolor: "grey.100",
                 borderRadius: 3,
                 px: 1,
                 py: 0.5,
             }}
         >
-
             <IconButton
                 color="primary"
                 size="small"
                 onClick={onDecrease}
             >
-                <RemoveRoundedIcon />
+                <RemoveRoundedIcon/>
             </IconButton>
 
             <Typography
@@ -81,7 +80,7 @@ export const MenuItemQuantity = ({
                 size="small"
                 onClick={onIncrease}
             >
-                <AddRoundedIcon />
+                <AddRoundedIcon/>
             </IconButton>
 
         </Stack>

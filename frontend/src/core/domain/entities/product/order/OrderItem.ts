@@ -1,7 +1,7 @@
 // core/domain/entities/sales/OrderItem.ts
 export interface OrderItem {
-    id: string;
-    orderId: string;
+    id?: number;
+    orderId: number;
     menuItemId: number;
     menuItemName?: string;        // نام آیتم منو (برای نمایش/ گزارش)
     quantity: number;

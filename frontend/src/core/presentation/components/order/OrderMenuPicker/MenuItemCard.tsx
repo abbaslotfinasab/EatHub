@@ -169,12 +169,12 @@ export const MenuItemCard = ({
                         }
                         onIncrease={() =>
                             increaseQuantity(
-                                item.id,
+                                item.id ?? -1,
                             )
                         }
                         onDecrease={() =>
                             decreaseQuantity(
-                                item.id,
+                                item.id ?? -1,
                             )
                         }
                     />

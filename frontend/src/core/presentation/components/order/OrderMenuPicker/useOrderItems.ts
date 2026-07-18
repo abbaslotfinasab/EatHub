@@ -1,10 +1,10 @@
 // presentation/components/order/OrderMenuPicker/useOrderItems.ts
 
-import { useCallback } from "react";
+import {useCallback} from "react";
 
-import type { MenuItem } from "../../../../domain/entities/product/menu/MenuItem";
+import type {MenuItem} from "../../../../domain/entities/product/menu/MenuItem";
 
-import { useOrderForm } from "../../../forms/order/useOrderForm";
+import {useOrderForm} from "../../../forms/order/useOrderForm";
 
 export const useOrderItems = () => {
 
@@ -39,8 +39,7 @@ export const useOrderItems = () => {
                 [
                     ...orderItems,
                     {
-                        menuItemId:
-                            item.id,
+                        menuItemId: item.id ?? -1,
                         quantity: 1,
                         notes: "",
                     },
@@ -65,7 +64,7 @@ export const useOrderItems = () => {
     const increaseQuantity =
         useCallback(
             (
-                menuItemId: string,
+                menuItemId: number,
             ) => {
 
                 setValue(
@@ -75,11 +74,11 @@ export const useOrderItems = () => {
                             item.menuItemId ===
                             menuItemId
                                 ? {
-                                      ...item,
-                                      quantity:
-                                          item.quantity +
-                                          1,
-                                  }
+                                    ...item,
+                                    quantity:
+                                        item.quantity +
+                                        1,
+                                }
                                 : item,
                     ),
                     {
@@ -101,7 +100,7 @@ export const useOrderItems = () => {
     const decreaseQuantity =
         useCallback(
             (
-                menuItemId: string,
+                menuItemId: number,
             ) => {
 
                 const updated =
@@ -111,11 +110,11 @@ export const useOrderItems = () => {
                                 item.menuItemId ===
                                 menuItemId
                                     ? {
-                                          ...item,
-                                          quantity:
-                                              item.quantity -
-                                              1,
-                                      }
+                                        ...item,
+                                        quantity:
+                                            item.quantity -
+                                            1,
+                                    }
                                     : item,
                         )
                         .filter(
@@ -146,7 +145,7 @@ export const useOrderItems = () => {
     const removeItem =
         useCallback(
             (
-                menuItemId: string,
+                menuItemId: number,
             ) => {
 
                 setValue(
@@ -175,7 +174,7 @@ export const useOrderItems = () => {
     const updateNotes =
         useCallback(
             (
-                menuItemId: string,
+                menuItemId: number,
                 notes: string,
             ) => {
 
@@ -186,9 +185,9 @@ export const useOrderItems = () => {
                             item.menuItemId ===
                             menuItemId
                                 ? {
-                                      ...item,
-                                      notes,
-                                  }
+                                    ...item,
+                                    notes,
+                                }
                                 : item,
                     ),
                     {

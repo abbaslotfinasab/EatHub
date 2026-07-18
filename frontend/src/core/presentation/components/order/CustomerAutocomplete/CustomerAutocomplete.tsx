@@ -67,16 +67,6 @@ export const CustomerAutocomplete = () => {
         customer.id,
     );
 
-    setValue(
-        "customerName",
-        customer.name,
-    );
-
-    setValue(
-        "customerPhone",
-        customer.phone,
-    );
-
     setKeyword(
         customer.name,
     );
@@ -143,16 +133,6 @@ export const CustomerAutocomplete = () => {
                             undefined,
                         );
 
-                        setValue(
-                            "customerName",
-                            "",
-                        );
-
-                        setValue(
-                            "customerPhone",
-                            "",
-                        );
-
                         return;
 
                     }
@@ -162,15 +142,6 @@ export const CustomerAutocomplete = () => {
                         customer.id,
                     );
 
-                    setValue(
-                        "customerName",
-                        customer.name,
-                    );
-
-                    setValue(
-                        "customerPhone",
-                        customer.phone,
-                    );
 
                 }}
 
