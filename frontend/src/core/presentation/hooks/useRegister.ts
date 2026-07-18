@@ -1,11 +1,11 @@
 // src/features/auth/presentation/hooks/useRegister.ts
 
-import { useState } from "react";
+import {useState} from "react";
 import {useAuthStore} from "../store/auth.store.ts";
 import {container} from "../../data/di/container.ts";
 
 export const useRegister = () => {
-    const { registerUseCase, getMeUseCase } =
+    const {registerUseCase, getMeUseCase} =
         container.authContainer;
 
     const setMe = useAuthStore((s) => s.setMe);
@@ -13,6 +13,8 @@ export const useRegister = () => {
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const setTokens = useAuthStore((s) => s.setTokens);
 
     const register = async (
         email: string,
@@ -32,16 +34,7 @@ export const useRegister = () => {
                 number
             );
 
-            // 2. save tokens
-            localStorage.setItem(
-                "accessToken",
-                auth.accessToken
-            );
-
-            localStorage.setItem(
-                "refreshToken",
-                auth.refreshToken
-            );
+            setTokens(auth.accessToken, auth.refreshToken);
 
             // 3. hydrate me (important: single source of truth)
             const me = await getMeUseCase.execute();

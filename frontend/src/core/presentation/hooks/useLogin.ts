@@ -9,7 +9,6 @@ export const useLogin = () => {
 
     const setMe = useAuthStore((s) => s.setMe);
 
-
     const setTokens = useAuthStore((s) => s.setTokens);
 
     return async (identifier: string, password: string) => {
