@@ -1,5 +1,5 @@
 export interface UpdateCustomerDTO {
-    id:string;
+    id:number;
     name?: string | null;
     phone?: string | null;
 

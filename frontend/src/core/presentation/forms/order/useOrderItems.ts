@@ -31,7 +31,7 @@ export const useOrderItems = () => {
     // =========================
 
     const exists = (
-        menuItemId: string,
+        menuItemId: number,
     ) => {
         return orderItems.some(
             item =>
@@ -65,7 +65,7 @@ export const useOrderItems = () => {
         }
 
         append({
-            menuItemId: menuItem.id,
+            menuItemId: menuItem.id ?? -1,
             quantity: 1,
             notes: null,
         });
@@ -76,7 +76,7 @@ export const useOrderItems = () => {
     // =========================
 
     const removeItem = (
-        menuItemId: string,
+        menuItemId: number,
     ) => {
 
         const index =
@@ -96,7 +96,7 @@ export const useOrderItems = () => {
     // =========================
 
     const increaseQuantity = (
-        menuItemId: string,
+        menuItemId: number,
     ) => {
 
         const index =
@@ -120,7 +120,7 @@ export const useOrderItems = () => {
     // =========================
 
     const decreaseQuantity = (
-        menuItemId: string,
+        menuItemId: number,
     ) => {
 
         const index =

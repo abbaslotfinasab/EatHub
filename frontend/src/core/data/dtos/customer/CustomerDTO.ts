@@ -1,5 +1,5 @@
 export interface CustomerDTO {
-    id: string;
+    id: number;
     business_id?: string;
 
     name: string;

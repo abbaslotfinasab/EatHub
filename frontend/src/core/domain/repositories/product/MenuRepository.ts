@@ -13,7 +13,7 @@ export interface MenuRepository {
 
     delete(id: string): Promise<void>;
 
-    findById(id: string): Promise<MenuWithItems | null>;
+    findById(id: number): Promise<MenuWithItems | null>;
 
     findAll(filters?: MenuFilters): Promise<MenuWithItems[]>;
 
@@ -21,7 +21,7 @@ export interface MenuRepository {
         slug: string
     ): Promise<PublicRestaurantMenu>;
 
-    findMenuItemById(id: string): Promise<MenuItem | null>;
+    findMenuItemById(id: number): Promise<MenuItem | null>;
 
     update(
         menu: MenuWithItems,

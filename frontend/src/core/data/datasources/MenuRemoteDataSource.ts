@@ -24,7 +24,7 @@ export class MenuRemoteDataSource {
         return data;
     }
 
-    async getMenuById(id: string): Promise<MenuDTO> {
+    async getMenuById(id: number): Promise<MenuDTO> {
         const { data } = await apiClient.get<MenuDTO>(
             `/products/menus/${id}/`,
         );

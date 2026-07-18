@@ -40,7 +40,7 @@ export class MenuRepositoryImpl implements MenuRepository {
     // ------------------------
 
     async findById(
-        id: string,
+        id: number,
     ): Promise<MenuWithItems | null> {
 
         const dto = await this.remote.getMenuById(id);
@@ -107,7 +107,7 @@ export class MenuRepositoryImpl implements MenuRepository {
     // ------------------------
 
     async findMenuItemById(
-        id: string,
+        id: number,
     ): Promise<MenuItem | null> {
 
         const menu = await this.findById(id);

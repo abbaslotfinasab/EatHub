@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import {useMemo} from "react";
 
 import {
     CircularProgress,
@@ -7,9 +7,8 @@ import {
 } from "@mui/material";
 
 
-
-import { SelectedOrderItemCard } from "./SelectedOrderItemCard.tsx";
-import { EmptySelectedItems } from "./EmptySelectedItems.tsx";
+import {SelectedOrderItemCard} from "./SelectedOrderItemCard.tsx";
+import {EmptySelectedItems} from "./EmptySelectedItems.tsx";
 import {useGetMenus} from "../../hooks/menu/useGetMenus.ts";
 import {useOrderItems} from "../../forms/order/useOrderItems.ts";
 
@@ -77,10 +76,12 @@ export const SelectedOrderItems = () => {
     if (isLoading) {
         return (
             <Stack
-                alignItems="center"
-                py={8}
+                sx={{
+                    alignItems: "center",
+                    py: 8,
+                }}
             >
-                <CircularProgress />
+                <CircularProgress/>
             </Stack>
         );
     }
@@ -88,7 +89,7 @@ export const SelectedOrderItems = () => {
     // ==========================
 
     if (items.length === 0) {
-        return <EmptySelectedItems />;
+        return <EmptySelectedItems/>;
     }
 
     // ==========================
@@ -117,17 +118,17 @@ export const SelectedOrderItems = () => {
                         item={data.item}
                         onIncrease={() =>
                             increaseQuantity(
-                                data.menuItem.id,
+                                data.menuItem.id ?? -1,
                             )
                         }
                         onDecrease={() =>
                             decreaseQuantity(
-                                data.menuItem.id,
+                                data.menuItem.id ?? -1,
                             )
                         }
                         onRemove={() =>
                             removeItem(
-                                data.menuItem.id,
+                                data.menuItem.id ?? -1,
                             )
                         }
                     />

@@ -1,5 +1,5 @@
 export interface MenuItem {
-    id: number | null;
+    id?: number | null;
     menuId?: string;
 
     name: string;

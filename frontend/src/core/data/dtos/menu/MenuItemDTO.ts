@@ -1,5 +1,5 @@
 export interface MenuItemDTO {
-    id: string;
+    id: number;
     menuId: string;
 
     name: string;
