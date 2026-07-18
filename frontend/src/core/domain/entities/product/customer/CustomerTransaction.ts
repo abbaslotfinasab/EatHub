@@ -12,7 +12,7 @@ export type CustomerTransactionType =
 export interface CustomerTransaction {
     id: string;
 
-    accountId: string;
+    accountId: number;
 
     orderId?: string | null;
 
