@@ -3,7 +3,7 @@ import type { MenuRepository } from '../../../repositories/product/MenuRepositor
 
 export class GetMenuById {
     constructor(private menuRepository: MenuRepository) {}
-    async execute(id: string) {
+    async execute(id: number) {
         if (!id) throw new Error('شناسه منو معتبر نیست');
         return this.menuRepository.findById(id);
     }

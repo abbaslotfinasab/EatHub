@@ -1,7 +1,7 @@
 import type {CustomerDTO} from "./CustomerDTO.ts";
 
 export interface CustomerAccountDTO {
-    id: string;
+    id: number;
 
     customer: CustomerDTO;
 

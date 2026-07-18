@@ -12,7 +12,7 @@ export const customerAccountMapper = {
 
         return {
 
-            id: dto.id,
+            id: dto.id.toString(),
 
             customerId: dto.customer.id,
 

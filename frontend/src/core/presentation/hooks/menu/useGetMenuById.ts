@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { container } from "../../../data/di/container.ts";
 
-export const useGetMenuById = (id: string) => {
+export const useGetMenuById = (id: number) => {
     const { getMenuByIdUseCase } = container.menuContainer;
 
     return useQuery({

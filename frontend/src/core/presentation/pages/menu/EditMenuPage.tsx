@@ -3,7 +3,7 @@ import {Alert, CircularProgress} from "@mui/material";
 import {MenuForm} from "../../components/menu/create/MenuForm";
 import {useGetMenuById} from "../../hooks/menu/useGetMenuById.ts";
 import {useUpdateMenuWithItems} from "../../hooks/menu/useUpdateMenuWithItems.ts";
-import {menuMapper} from "../../../data/mappers/menuMapper.ts";
+import {MenuFormMapper} from "../../forms/menu/MenuFormMapper.ts";
 
 export const EditMenuPage = () => {
     const navigate = useNavigate();
@@ -14,7 +14,7 @@ export const EditMenuPage = () => {
         throw new Error("Menu id is required.");
     }
 
-    const {data, isLoading} = useGetMenuById(id);
+    const {data, isLoading} = useGetMenuById(Number(id));
 
     const {mutate: updateMenu, isPending} = useUpdateMenuWithItems();
 
@@ -34,7 +34,7 @@ export const EditMenuPage = () => {
         <MenuForm
             mode="edit"
             loading={isPending}
-            initialData={data ? menuMapper.toFormInput(data) : undefined}
+            initialData={data ? MenuFormMapper.toFormInput(data) : undefined}
             onSubmit={(form) =>
                 updateMenu(
                     {

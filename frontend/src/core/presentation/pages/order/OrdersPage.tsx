@@ -109,7 +109,7 @@ export const OrdersPage = () => {
                 keyword.length === 0
                     ? true
                     : order.customerName
-                        .toLowerCase()
+                        ?.toLowerCase()
                         .includes(keyword) ||
 
                     order.customerPhone
