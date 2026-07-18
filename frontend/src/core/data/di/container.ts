@@ -2,12 +2,15 @@ import {createAuthContainer} from "./auth.container";
 import { createCustomerContainer } from "./customer.container.ts";
 import {createMenuContainer} from "./menu.container";
 import {createOrderContainer} from "./order.container.ts";
+import {createUploadContainer} from "./upload.container.ts";
 
 class Container {
     private _auth?: ReturnType<typeof createAuthContainer>;
     private _menu?: ReturnType<typeof createMenuContainer>;
     private _order?: ReturnType<typeof createOrderContainer>;
     private _customer?: ReturnType<typeof createCustomerContainer>;
+    private _upload?: ReturnType<typeof createUploadContainer>;
+
 
 
     get authContainer() {
@@ -46,6 +49,20 @@ class Container {
         return this._customer;
 
     }
+
+     get uploadContainer() {
+
+        if (!this._upload) {
+
+            this._upload =
+                createUploadContainer();
+
+        }
+
+        return this._upload;
+
+    }
+
 }
 
 export const container = new Container();
