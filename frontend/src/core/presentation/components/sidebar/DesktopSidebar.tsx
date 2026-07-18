@@ -20,7 +20,7 @@ import {
     SIDEBAR_WIDTH,
     SIDEBAR_COLLAPSED_WIDTH,
 } from "../../../../config/constants";
-import {useAuthStore} from "../../../store/auth.store.ts";
+import {useAuthStore} from "../../store/auth.store.ts";
 
 export const DesktopSidebar = () => {
     const {isCollapsed} = useSidebar();

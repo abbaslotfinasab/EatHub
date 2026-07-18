@@ -2,7 +2,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type {
     CreatePurchaseOrderWithItemsInput
-} from "../../domain/use-cases/inventory/facture/CreatePurchaseOrderWithItems.ts";
+} from "../../domain/use-cases/inventory/facture/CreatePurchaseOrder.ts";
 import {createPurchaseOrderUseCase} from "../../data/di/purchaseOrder.ts";
 
 export const useCreatePurchaseOrder = () => {

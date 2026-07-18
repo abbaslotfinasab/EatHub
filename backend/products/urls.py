@@ -1,24 +1,6 @@
 from django.urls import path
 
-from products.views import (
-    MenuCreateAPIView,
-    MenuListAPIView,
-    MenuDetailAPIView,
-    MenuUpdateAPIView,
-    MenuDeleteAPIView,
-
-    MenuItemCreateAPIView,
-    MenuItemUpdateAPIView,
-    MenuItemDeleteAPIView,
-
-    ImageUploadAPIView,
-    PublicRestaurantMenuAPIView,
-
-    OrderCreateAPIView,
-    OrderListAPIView,
-    OrderDetailAPIView,
-    OrderStatusUpdateAPIView,
-)
+from products.views import *
 
 app_name = "products"
 
@@ -30,15 +12,6 @@ urlpatterns = [
         "<slug:slug>/menu/",
         PublicRestaurantMenuAPIView.as_view(),
         name="public-menu",
-    ),
-
-    # ==========================
-    # Image
-    # ==========================
-    path(
-        "upload/image/",
-        ImageUploadAPIView.as_view(),
-        name="upload-image",
     ),
 
     # ==========================
@@ -112,4 +85,84 @@ urlpatterns = [
         OrderStatusUpdateAPIView.as_view(),
         name="order-status-update",
     ),
+
+    path(
+        "orders/<int:pk>/update/",
+        OrderUpdateAPIView.as_view(),
+        name="order-update",
+    ),
+
+    path(
+        "orders/<int:pk>/delete/",
+        OrderDeleteAPIView.as_view(),
+        name="order-delete",
+    ),
+
+    # ==========================
+    # Customers
+    # ==========================
+    path(
+        "customers/",
+        CustomerListAPIView.as_view(),
+        name="customer-list",
+    ),
+
+
+    path(
+        "customers/create",
+        CustomerCreateAPIView.as_view(),
+        name="customer-create",
+    ),
+
+    path(
+        "customers/<int:pk>/",
+        CustomerDetailAPIView.as_view(),
+        name="customer-detail",
+    ),
+
+    path(
+        "customers/<int:pk>/update/",
+        CustomerUpdateAPIView.as_view(),
+        name="customer-update",
+    ),
+
+    path(
+        "customers/<int:pk>/delete/",
+        CustomerDeleteAPIView.as_view(),
+        name="customer-delete",
+    ),
+
+    # ==========================
+    # Customer Account
+    # ==========================
+
+    path(
+        "customers/<int:customer_id>/account/",
+        CustomerAccountDetailAPIView.as_view(),
+        name="customer-account",
+    ),
+
+    path(
+        "customers/<int:customer_id>/account/credit/",
+        CustomerCreditAPIView.as_view(),
+        name="customer-credit",
+    ),
+
+    path(
+        "customers/<int:customer_id>/transactions/",
+        CustomerTransactionListAPIView.as_view(),
+        name="customer-transactions",
+    ),
+    path(
+        "customers/<int:customer_id>/debit/",
+        CustomerDebitAPIView.as_view(),
+        name="customer-debit",
+    ),
+
+    path(
+        "customers/<int:customer_id>/adjust/",
+        CustomerAdjustAPIView.as_view(),
+        name="customer-adjust",
+    ),
+
 ]

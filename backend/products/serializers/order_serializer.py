@@ -1,15 +1,22 @@
 from rest_framework import serializers
 
-
+from products.models import Customer
 
 
 class OrderItemCreateInputSerializer(serializers.Serializer):
     menu_item_id = serializers.IntegerField()
     quantity = serializers.IntegerField(min_value=1)
-    notes = serializers.CharField(required=False, allow_null=True)
+    notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+
 
 class OrderItemSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
+
+    order_id = serializers.IntegerField(read_only=True)
 
     menu_item_id = serializers.IntegerField()
     menu_item_name = serializers.CharField()
@@ -22,10 +29,14 @@ class OrderItemSerializer(serializers.Serializer):
 
 
 class CreateOrderInputSerializer(serializers.Serializer):
-    customer_name = serializers.CharField(required=False)
-    customer_phone = serializers.CharField(required=False, allow_blank=True)
-
-    table_id = serializers.CharField(required=False, allow_null=True)
+    customer_id = serializers.PrimaryKeyRelatedField(
+        queryset=Customer.objects.all(),
+        source="customer",
+        required=False,
+        allow_null=True,
+    )
+    table = serializers.IntegerField(required=False,
+                                     allow_null=True,)
 
     order_type = serializers.ChoiceField(
         choices=["dine_in", "takeaway", "delivery"]
@@ -35,11 +46,17 @@ class CreateOrderInputSerializer(serializers.Serializer):
 
     notes = serializers.CharField(required=False, allow_null=True)
 
+
 class OrderSerializer(serializers.Serializer):
     id = serializers.IntegerField()
 
-    customer_name = serializers.CharField()
-    customer_phone = serializers.CharField(allow_null=True)
+    customer_id = serializers.IntegerField(source="customer.id", read_only=True)
+
+    table = serializers.IntegerField(required=False,
+                                     allow_null=True, )
+
+    customer_name = serializers.CharField(source="customer.name", read_only=True)
+    customer_phone = serializers.CharField(source="customer.phone", read_only=True)
 
     order_type = serializers.CharField()
     status = serializers.CharField()
@@ -69,4 +86,42 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
     )
 
 
+from rest_framework import serializers
 
+
+class UpdateOrderInputSerializer(serializers.Serializer):
+    customer = serializers.PrimaryKeyRelatedField(
+        queryset=Customer.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
+    table_id = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+    )
+
+    order_type = serializers.ChoiceField(
+        choices=["dine_in", "takeaway", "delivery"],
+        required=False,
+    )
+
+    items = OrderItemCreateInputSerializer(
+        many=True,
+        required=False
+    )
+
+    notes = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+    )
+
+    def validate(self, attrs):
+        # جلوگیری از آپدیت خالی
+        if not attrs:
+            raise serializers.ValidationError(
+                "At least one field must be provided."
+            )
+        return attrs

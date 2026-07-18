@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { container } from "../../data/di/container";
-import { useAuthStore } from "../../store/auth.store.ts";
+import { useAuthStore } from "../store/auth.store.ts";
 import type {AxiosError} from "axios";
 
 export const useAuthHydrate = () => {

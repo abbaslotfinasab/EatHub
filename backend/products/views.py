@@ -1,11 +1,11 @@
-
-from django.core.files.storage import default_storage
-from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from rest_framework import status
 
 from accounts.models import Business
 from accounts.views import TenantAPIView
-from products.serializers.image_serializer import ImageUploadSerializer
+from products.serializers.customer_serializer import CustomerDetailSerializer, CustomerSerializer, \
+    CreateCustomerSerializer, UpdateCustomerSerializer, CustomerTransactionSerializer, CreditAccountSerializer, \
+    CustomerAccountSerializer, DebitAccountSerializer, AdjustAccountSerializer
 from products.serializers.order_serializer import *
 from products.services.order_service import *
 from rest_framework.views import APIView
@@ -15,7 +15,9 @@ from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, 
     PublicRestaurantSerializer, PublicMenuSerializer, UpdateMenuSerializer, MenuItemSerializer, \
     MenuItemCreateSerializer, MenuItemUpdateSerializer
 from products.services.menu_service import MenuService
-from products.models import Menu
+from products.models import Menu, Customer, CustomerAccount
+from inventory.services.facture_service import *
+from products.services.wallet_service import WalletService
 
 
 class MenuCreateAPIView(TenantAPIView):
@@ -54,42 +56,7 @@ class MenuListAPIView(TenantAPIView):
         )
 
         return Response(MenuSerializer(menus, many=True).data)
-class PublicRestaurantMenuAPIView(APIView):
 
-    permission_classes = [AllowAny]
-
-    def get(self, request, slug):
-        business = get_object_or_404(
-            Business,
-            slug=slug,
-            is_active=True,
-        )
-
-        menus = (
-            Menu.objects
-            .filter(
-                business=business
-            )
-            .prefetch_related(
-                "items"
-            )
-            .order_by(
-                "sort_order"
-            )
-        )
-
-        return Response({
-            "restaurant":
-                PublicRestaurantSerializer(
-                    business
-                ).data,
-
-            "menus":
-                PublicMenuSerializer(
-                    menus,
-                    many=True
-                ).data,
-        })
 
 class MenuDetailAPIView(TenantAPIView):
 
@@ -146,18 +113,57 @@ class MenuDeleteAPIView(TenantAPIView):
             status=204
         )
 
-class MenuItemCreateAPIView(APIView):
+
+
+class PublicRestaurantMenuAPIView(APIView):
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, slug):
+        business = get_object_or_404(
+            Business,
+            slug=slug,
+            is_active=True,
+        )
+
+        menus = (
+            Menu.objects
+            .filter(
+                business=business
+            )
+            .prefetch_related(
+                "items"
+            )
+            .order_by(
+                "sort_order"
+            )
+        )
+
+        return Response({
+            "restaurant":
+                PublicRestaurantSerializer(
+                    business
+                ).data,
+
+            "menus":
+                PublicMenuSerializer(
+                    menus,
+                    many=True
+                ).data,
+        })
+
+
+
+class MenuItemCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, menu_id):
 
         menu = get_object_or_404(
-            Menu.objects.filter(
-                business=request.business
-            ),
-            pk=menu_id
+            Menu,
+            pk=menu_id,
+            business=request.business,
         )
-
         serializer = MenuItemCreateSerializer(
             data=request.data
         )
@@ -201,16 +207,15 @@ class MenuItemUpdateAPIView(APIView):
         )
 
 
-class MenuItemDeleteAPIView(APIView):
+class MenuItemDeleteAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
+
         item = get_object_or_404(
-            MenuItem.objects.select_related(
-                "menu"
-            ),
+            MenuItem,
             pk=pk,
-            menu__business=request.business
+            menu__business=request.business,
         )
 
         MenuService.delete_item(item)
@@ -219,18 +224,22 @@ class MenuItemDeleteAPIView(APIView):
             status=status.HTTP_204_NO_CONTENT
         )
 
-class OrderCreateAPIView(APIView):
+class OrderCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def post(self, request):
 
         serializer = CreateOrderInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+
         order = OrderService.create_order(
             business=request.business,
             validated_data=serializer.validated_data
         )
+
+        # PurchaseOrderService.create_from_order(order=order)
 
         return Response(
             OrderSerializer(order).data,
@@ -238,7 +247,7 @@ class OrderCreateAPIView(APIView):
         )
 
 
-class OrderListAPIView(APIView):
+class OrderListAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -252,7 +261,7 @@ class OrderListAPIView(APIView):
         return Response(serializer.data)
 
 
-class OrderDetailAPIView(APIView):
+class OrderDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -265,40 +274,276 @@ class OrderDetailAPIView(APIView):
         return Response(OrderSerializer(order).data)
 
 
-class OrderStatusUpdateAPIView(APIView):
+class OrderStatusUpdateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
 
-        order = Order.objects.get(
+        order = get_object_or_404(
+            Order,
             id=pk,
             business=request.business
         )
 
         new_status = request.data.get("status")
 
+        if new_status not in Order.Status.values:
+            return Response(
+                {"error": "Invalid status"},
+                status=400
+            )
+
         order.status = new_status
-        order.save()
+        order.save(update_fields=["status"])
 
         return Response({"status": "updated"})
 
 
-class ImageUploadAPIView(APIView):
-    # permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        serializer = ImageUploadSerializer(data=request.data)
+class OrderUpdateAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        serializer = UpdateOrderInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        file = serializer.validated_data["file"]
-
-        path = default_storage.save(
-            f"menu-items/{file.name}",
-            file
+        order = OrderService.update_order(
+            business=request.business,
+            order_id=pk,
+            validated_data=serializer.validated_data,
         )
 
-        return Response({
-            "url": request.build_absolute_uri(
-                default_storage.url(path)
+        return Response(OrderSerializer(order).data)
+
+
+class OrderDeleteAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+
+        order = get_object_or_404(
+            Order,
+            pk=pk,
+            business=request.business,
+        )
+
+        OrderService.delete_order(order)
+
+        return Response(
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+
+
+
+class CustomerListAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        search = request.query_params.get("search", "").strip()
+
+        customers = Customer.objects.filter(
+            business=request.business,
+        )
+
+        if search:
+            customers = customers.filter(
+                Q(name__icontains=search) |
+                Q(phone__istartswith=search)
             )
-        })
+
+        customers = customers.order_by("name")[:20]
+
+        serializer = CustomerSerializer(
+            customers,
+            many=True,
+        )
+
+        return Response(serializer.data)
+
+
+class CustomerCreateAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+
+        serializer = CreateCustomerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        customer = CustomerService.create_customer(
+            business=request.business,
+            validated_data=serializer.validated_data
+        )
+
+        return Response(CustomerSerializer(customer).data, status=201)
+
+
+
+class CustomerDetailAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+
+        customer = get_object_or_404(
+            Customer,
+            id=pk,
+            business=request.business
+        )
+
+        return Response(CustomerDetailSerializer(customer).data)
+
+
+
+class CustomerUpdateAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+
+        customer = get_object_or_404(
+            Customer,
+            id=pk,
+            business=request.business
+        )
+
+        serializer = UpdateCustomerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        customer = CustomerService.update_customer(
+            customer=customer,
+            validated_data=serializer.validated_data
+        )
+
+        return Response(CustomerSerializer(customer).data)
+
+class CustomerDeleteAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+
+        customer = get_object_or_404(
+            Customer,
+            id=pk,
+            business=request.business
+        )
+
+        CustomerService.delete_customer(customer)
+
+        return Response(status=204)
+
+
+
+class CustomerAccountDetailAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, customer_id):
+
+        account = get_object_or_404(
+            CustomerAccount,
+            customer_id=customer_id,
+            business=request.business
+        )
+
+        return Response(CustomerAccountSerializer(account).data)
+
+
+
+class CustomerCreditAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, customer_id):
+
+        serializer = CreditAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        account = get_object_or_404(
+            CustomerAccount,
+            customer_id=customer_id,
+            business=request.business
+        )
+
+        WalletService.credit(
+            account=account,
+            amount=serializer.validated_data["amount"],
+            description=serializer.validated_data.get("description")
+        )
+
+        return Response({"status": "credited"})
+
+
+
+class CustomerTransactionListAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, customer_id):
+
+        account = get_object_or_404(
+            CustomerAccount,
+            customer_id=customer_id,
+            business=request.business
+        )
+
+        transactions = account.transactions.all().order_by("-id")
+
+        return Response(CustomerTransactionSerializer(transactions, many=True).data)
+
+
+
+class CustomerDebitAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, customer_id):
+
+        serializer = DebitAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        account = get_object_or_404(
+            CustomerAccount,
+            customer_id=customer_id,
+            business=request.business,
+        )
+
+        WalletService.debit(
+            account=account,
+            amount=serializer.validated_data["amount"],
+            description=serializer.validated_data.get(
+                "description",
+                "",
+            ),
+        )
+
+        return Response(
+            {
+                "status": "debited",
+            }
+        )
+
+
+class CustomerAdjustAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, customer_id):
+
+        serializer = AdjustAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        account = get_object_or_404(
+            CustomerAccount,
+            customer_id=customer_id,
+            business=request.business,
+        )
+
+        WalletService.adjust(
+            account=account,
+            amount=serializer.validated_data["amount"],
+            description=serializer.validated_data.get(
+                "description",
+                "",
+            ),
+        )
+
+        return Response(
+            {
+                "status": "adjusted",
+            }
+        )

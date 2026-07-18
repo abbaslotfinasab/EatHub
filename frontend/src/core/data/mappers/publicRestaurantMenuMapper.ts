@@ -1,9 +1,9 @@
 // core/data/mappers/publicRestaurantMenuMapper.ts
 
 import type { PublicRestaurantMenuDto }
-from "../dtos/PublicRestaurantMenuDto";
+from "../dtos/business/PublicRestaurantMenuDto.ts";
 import { businessMapper } from "./businessMapper";
-import {menuMapper} from "./menu.mapper.ts";
+import {menuMapper} from "./menuMapper.ts";
 import type {PublicRestaurantMenu} from "../../domain/entities/product/PublicRestaurantMenu.ts";
 
 

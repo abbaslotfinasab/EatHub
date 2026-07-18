@@ -1,4 +1,4 @@
-import {AuthRemoteDataSource} from "../datasources/auth.remote.ts";
+import {AuthRemoteDataSource} from "../datasources/AuthRemoteDataSource.ts";
 import {AuthRepositoryImpl} from "../repositories/AuthRepositoryImpl.ts";
 import {LoginUseCase} from "../../domain/use-cases/account/LoginUseCase.ts";
 import {GetMeUseCase} from "../../domain/use-cases/account/GetMeUseCase.ts";

@@ -1,9 +1,9 @@
 import { apiClient } from "../http/http-client";
 
-import type { MenuDTO } from "../dtos/MenuDto";
-import type { CreateMenuDTO } from "../dtos/CreateMenuDTO";
-import type { UploadImageResponse } from "../dtos/UploadImageResponse";
-import type { PublicRestaurantMenuDto } from "../dtos/PublicRestaurantMenuDto";
+import type { MenuDTO } from "../dtos/menu/MenuDto.ts";
+import type { CreateMenuDTO } from "../dtos/menu/CreateMenuDTO.ts";
+import type { UploadFileDTO } from "../dtos/upload/UploadFileDTO.ts";
+import type { PublicRestaurantMenuDto } from "../dtos/business/PublicRestaurantMenuDto.ts";
 
 export class MenuRemoteDataSource {
 
@@ -62,12 +62,12 @@ export class MenuRemoteDataSource {
 
     async uploadImage(
         file: File,
-    ): Promise<UploadImageResponse> {
+    ): Promise<UploadFileDTO> {
         const formData = new FormData();
 
         formData.append("file", file);
 
-        const { data } = await apiClient.post<UploadImageResponse>(
+        const { data } = await apiClient.post<UploadFileDTO>(
             "/products/upload/image/",
             formData,
             {

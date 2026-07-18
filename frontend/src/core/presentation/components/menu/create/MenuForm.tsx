@@ -17,7 +17,7 @@ import { MenuItemsSection } from "./MenuItemsSection";
 import {
     MenuFormSchema,
     type MenuFormInput,
-} from "../../../../domain/objects/forms/MenuFormInput";
+} from "../../../forms/menu/MenuFormInput.ts";
 
 interface MenuFormProps {
     mode: "create" | "edit";

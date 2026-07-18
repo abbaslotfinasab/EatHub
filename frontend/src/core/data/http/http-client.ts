@@ -1,7 +1,7 @@
 // src/core/data/http-client.ts
 import axios from "axios";
 import { API_BASE_URL } from "../../../config/constants";
-import { useAuthStore } from "../../store/auth.store";
+import { useAuthStore } from "../../presentation/store/auth.store";
 
 export const apiClient = axios.create({
     baseURL: API_BASE_URL,

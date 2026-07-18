@@ -9,7 +9,7 @@ import type {FieldArrayWithId, UseFieldArrayAppend, UseFieldArrayRemove} from "r
 import {MenuItemCard} from "./MenuItemCard";
 import {EmptyMenuItems} from "./EmptyMenuItems";
 import {RestaurantMenu} from "@mui/icons-material";
-import type { MenuFormInput } from "../../../../domain/objects/forms/MenuFormInput";
+import type { MenuFormInput } from "../../../forms/menu/MenuFormInput.ts";
 
 
 interface Props {

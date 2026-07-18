@@ -1,7 +1,7 @@
 // src/features/auth/presentation/hooks/useRegister.ts
 
 import { useState } from "react";
-import {useAuthStore} from "../../store/auth.store.ts";
+import {useAuthStore} from "../store/auth.store.ts";
 import {container} from "../../data/di/container.ts";
 
 export const useRegister = () => {

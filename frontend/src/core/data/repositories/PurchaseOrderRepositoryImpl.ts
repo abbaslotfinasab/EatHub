@@ -1,81 +1,87 @@
-// core/data/repositories/PurchaseOrderRepositoryImpl.ts
-import { apiClient } from '../http/http-client';
-import { isAxiosError } from 'axios';
-import type {
-    PurchaseOrderFilters,
-    PurchaseOrderRepository
-} from "../../domain/repositories/inventory/PurchaseOrderRepository.ts";
-import type {PurchaseOrder, PurchaseOrderStatusType} from "../../domain/entities/inventory/PurchaseOrder.ts";
+import type { PurchaseOrderRepository } from "../../domain/repositories/inventory/PurchaseOrderRepository";
+
+import type { PurchaseOrderWithItems } from "../../domain/entities/inventory/facture/PurchaseOrderWithItems";
+import type { PurchaseOrderFilters } from "../../domain/objects/filters/PurchaseOrderFilters";
+import type { PurchaseOrderStatusType } from "../../domain/entities/inventory/facture/PurchaseOrder";
+
+import { PurchaseOrderRemoteDataSource } from "../datasources/PurchaseOrderRemoteDataSource";
+import { purchaseOrderMapper } from "../mappers/factureMapper";
 
 export class PurchaseOrderRepositoryImpl implements PurchaseOrderRepository {
-    async createWithItems(data: {
-        supplierId: string;
-        expectedDeliveryDate?: string | null;
-        invoiceNumber?: string | null;
-        notes?: string | null;
-        items: Array<{
-            ingredientId: string;
-            quantity: number;
-            unitPrice: number;
-        }>;
-    }): Promise<PurchaseOrder> {
-        const response = await apiClient.post('/purchase-orders/with-items', data);
-        return response.data;
+
+    constructor(
+        private remote: PurchaseOrderRemoteDataSource,
+    ) {}
+
+    // =========================
+    // CREATE
+    // =========================
+
+    async create(input: PurchaseOrderWithItems): Promise<void> {
+        const dto = purchaseOrderMapper.toCreateDTO(input);
+
+        await this.remote.createPurchaseOrder(dto);
     }
 
-    async findById(id: string): Promise<PurchaseOrder | null> {
-        try {
-            const response = await apiClient.get(`/purchase-orders/${id}`);
-            return response.data;
-        } catch (error) {
-            if (isAxiosError(error) && error.response?.status === 404) {
-                return null;
-            }
-            throw error;
+    // =========================
+    // READ
+    // =========================
+
+    async findAll(
+        filters?: PurchaseOrderFilters,
+    ): Promise<PurchaseOrderWithItems[]> {
+        const data = await this.remote.getPurchaseOrders(filters);
+
+        return data.map(purchaseOrderMapper.toDomain);
+    }
+
+    async findById(
+        id: string,
+    ): Promise<PurchaseOrderWithItems | null> {
+        const data = await this.remote.getPurchaseOrderById(id);
+
+        if (!data) return null;
+
+        return purchaseOrderMapper.toDomain(data);
+    }
+
+    // =========================
+    // UPDATE
+    // =========================
+
+    async update(
+        data: Partial<PurchaseOrderWithItems>,
+    ): Promise<void> {
+        if (!data.purchaseOrder?.id) {
+            throw new Error("PurchaseOrder id is required");
         }
+
+        const dto = purchaseOrderMapper.toUpdateDTO(
+            data as PurchaseOrderWithItems,
+        );
+
+        await this.remote.updatePurchaseOrder(
+            data.purchaseOrder.id,
+            dto,
+        );
     }
 
-    async findAll(filters?: PurchaseOrderFilters): Promise<PurchaseOrder[]> {
-        const params = new URLSearchParams();
-        if (filters) {
-            Object.entries(filters).forEach(([key, value]) => {
-                if (value !== undefined && value !== null) {
-                    params.append(key, String(value));
-                }
-            });
-        }
-        const queryString = params.toString();
-        const url = queryString ? `/purchase-orders?${queryString}` : '/purchase-orders';
-        const response = await apiClient.get(url);
-        return response.data;
+    // =========================
+    // STATUS UPDATE
+    // =========================
+
+    async updateStatus(
+        id: string,
+        status: PurchaseOrderStatusType,
+    ): Promise<void> {
+        await this.remote.updatePurchaseOrderStatus(id, status);
     }
 
-    async update(id: string, data: Partial<PurchaseOrder>): Promise<PurchaseOrder> {
-        const response = await apiClient.patch(`/purchase-orders/${id}`, data);
-        return response.data;
-    }
-
-    async updateStatus(id: string, status: PurchaseOrderStatusType): Promise<void> {
-        await apiClient.patch(`/purchase-orders/${id}/status`, { status });
-    }
+    // =========================
+    // DELETE
+    // =========================
 
     async delete(id: string): Promise<void> {
-        await apiClient.delete(`/purchase-orders/${id}`);
-    }
-
-    async save(order: PurchaseOrder): Promise<void> {
-        await apiClient.delete(`/purchase-orders/${order}`);
-    }
-
-    async updateWithItems(id: string, data: {
-        supplierId?: string;
-        expectedDeliveryDate?: string | null;
-        invoiceNumber?: string | null;
-        notes?: string | null;
-        status?: PurchaseOrderStatusType;
-        items?: Array<{ ingredientId: string; quantity: number; unitPrice: number }>
-    }): Promise<void> {
-        const response = await apiClient.patch(`/purchase-orders/${id}`, data);
-        return response.data;
+        await this.remote.deletePurchaseOrder(id);
     }
 }

@@ -1,7 +1,7 @@
 // src/core/data/mappers/auth.mapper.ts
 
 
-import type {LoginResponseDto} from "../dtos/LoginResponseDto.ts";
+import type {LoginResponseDto} from "../dtos/auth/LoginResponseDto.ts";
 import type {Auth} from "../../domain/entities/account/Auth.ts";
 
 export const authMapper = (

@@ -24,3 +24,7 @@ dist-ssr
 *.sw?
 venv
 .sqlite
+
+# Django migrations
+**/migrations/*
+!**/migrations/__init__.py

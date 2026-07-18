@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { createBusinessUseCase } from "../../data/di/business";
 import type {Business} from "../../domain/entities/account/Business.ts";
-import { useAuthStore } from "../../store/auth.store.ts";
+import { useAuthStore } from "../store/auth.store.ts";
 import {container} from "../../data/di/container.ts";
 
 export const useCreateBusiness = () => {

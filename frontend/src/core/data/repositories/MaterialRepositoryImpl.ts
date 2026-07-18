@@ -6,7 +6,7 @@ import {apiClient} from '../http/http-client';
 import {isAxiosError} from 'axios';
 import type {MaterialResult} from "../../domain/entities/inventory/MaterialResult.ts";
 import type {MaterialFilters} from "../../domain/objects/filters/MaterialFilters.ts";
-import {mockMaterials} from "../dtos/material.ts";
+import {mockMaterials} from "../dtos/material/material.ts";
 
 
 const getMockIngredientsForMaterial = (materialId: string): MaterialIngredient[] => {

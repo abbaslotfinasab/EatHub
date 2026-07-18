@@ -19,13 +19,13 @@ import AddIcon from "@mui/icons-material/Add";
 import {useNavigate} from "react-router-dom";
 import {useState} from "react";
 
-import {useGetMenus} from "../../hooks/useGetMenus.ts";
+import {useGetMenus} from "../../hooks/menu/useGetMenus.ts";
 import {MenuSection} from "../../components/menu/MenuSection.tsx";
 import {StatCard} from "../../components/menu/StatCard.tsx";
 
-import {useAuthStore} from "../../../store/auth.store.ts";
+import {useAuthStore} from "../../store/auth.store.ts";
 import type {Menu} from "../../../domain/entities/product/menu/Menu.ts";
-import {useDeleteMenu} from "../../hooks/useDeleteMenu.tsx";
+import {useDeleteMenu} from "../../hooks/menu/useDeleteMenu.tsx";
 
 export const MenuPage = () => {
     const navigate = useNavigate();
@@ -417,7 +417,7 @@ export const MenuPage = () => {
                     onClick={() => {
                 if (!deleteTarget) return;
 
-                deleteMenu(deleteTarget.id);
+                deleteMenu(deleteTarget.id??"");
 
                 setDeleteTarget(null);
             }}

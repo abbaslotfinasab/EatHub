@@ -3,7 +3,7 @@ import type { IngredientRepository, IngredientFilters } from '../../domain/repos
 import type { Ingredient } from '../../domain/entities/inventory/Ingredient';
 import { apiClient } from '../http/http-client';
 import { isAxiosError } from 'axios';
-import {mockIngredients} from "../dtos/ingredients.ts";
+import {mockIngredients} from "../dtos/ingredient/ingredients.ts";
 
 export class IngredientRepositoryImpl implements IngredientRepository {
     async create(ingredient: Omit<Ingredient, 'id' | 'createdAt' | 'updatedAt'>): Promise<Ingredient> {

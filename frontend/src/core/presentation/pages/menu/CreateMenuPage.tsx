@@ -2,13 +2,13 @@
 
 import {useNavigate} from "react-router-dom";
 
-import {useCreateMenuWithItems} from "../../hooks/useCreateMenuWithItems";
 import {MenuForm} from "../../components/menu/create/MenuForm.tsx";
+import {useCreateMenu} from "../../hooks/menu/useCreateMenu.ts";
 
 export const CreateMenuPage = () => {
     const navigate = useNavigate();
 
-    const { mutate: createMenu, isPending } = useCreateMenuWithItems();
+    const { mutate: createMenu, isPending } = useCreateMenu();
 
     return (
         <MenuForm

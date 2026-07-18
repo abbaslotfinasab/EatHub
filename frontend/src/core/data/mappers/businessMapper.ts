@@ -3,7 +3,7 @@
 
 import type { Business } from "../../domain/entities/account/Business";
 import type { PublicRestaurantDto }
-from "../dtos/PublicRestaurantDto";
+from "../dtos/business/PublicRestaurantDto.ts";
 
 export const businessMapper = {
     toDomain(

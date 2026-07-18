@@ -10,7 +10,7 @@ import {
 } from "@mui/material";
 
 import {MenuSection} from "../../components/menu/public/MenuSection.tsx";
-import {useGetPublicMenus} from "../../hooks/useGetPublicMenu.tsx";
+import {useGetPublicMenus} from "../../hooks/menu/useGetPublicMenu.tsx";
 import {StatCard} from "../../components/menu/StatCard.tsx";
 import SearchIcon from "@mui/icons-material/Search";
 

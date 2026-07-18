@@ -21,7 +21,7 @@ import {useWatch, useFormContext} from "react-hook-form";
 import {FormTextarea} from "../../form/FormTextarea.tsx";
 import {FormFile} from "../../form/FormFile.tsx";
 import {FormInput} from "../../form/FormInput.tsx";
-import type {MenuFormInput} from "../../../../domain/objects/forms/MenuFormInput.ts";
+import type {MenuFormInput} from "../../../forms/menu/MenuFormInput.ts";
 
 
 interface Props {

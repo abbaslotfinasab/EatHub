@@ -1,9 +1,9 @@
 import {useNavigate, useParams} from "react-router-dom";
 import {Alert, CircularProgress} from "@mui/material";
 import {MenuForm} from "../../components/menu/create/MenuForm";
-import {useGetMenuById} from "../../hooks/useGetMenuById.ts";
-import {useUpdateMenuWithItems} from "../../hooks/useUpdateMenuWithItems.ts";
-import {menuMapper} from "../../../data/mappers/menu.mapper.ts";
+import {useGetMenuById} from "../../hooks/menu/useGetMenuById.ts";
+import {useUpdateMenuWithItems} from "../../hooks/menu/useUpdateMenuWithItems.ts";
+import {menuMapper} from "../../../data/mappers/menuMapper.ts";
 
 export const EditMenuPage = () => {
     const navigate = useNavigate();

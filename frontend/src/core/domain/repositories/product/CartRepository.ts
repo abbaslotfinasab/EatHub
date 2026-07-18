@@ -1,7 +1,7 @@
 // core/domain/repositories/sales/CartRepository.ts
 import type {CartItem} from "../../entities/product/CartItem.ts";
 import type {CartResult} from "../../entities/product/CartResult.ts";
-import type {Order} from "../../entities/product/Order.ts";
+import type {Order} from "../../entities/product/order/Order.ts";
 
 export interface CartRepository {
     // افزودن یک آیتم به سبد فعال (در صورت نبود سبد، آن را ایجاد می‌کند)

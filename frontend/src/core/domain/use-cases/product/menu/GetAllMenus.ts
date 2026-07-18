@@ -1,6 +1,6 @@
 // core/application/use-cases/menu/GetAllMenus.ts
 import type { MenuRepository } from '../../../repositories/product/MenuRepository';
-import type {MenuResult} from "../../../entities/product/menu/MenuResult.ts";
+import type {MenuWithItems} from "../../../entities/product/menu/MenuWithItems.ts";
 
 export interface MenuFilters {
     isActive?: boolean;
@@ -9,7 +9,7 @@ export interface MenuFilters {
 
 export class GetAllMenus {
     constructor(private menuRepository: MenuRepository) {}
-    async execute(filters?: MenuFilters): Promise<MenuResult[]> {
+    async execute(filters?: MenuFilters): Promise<MenuWithItems[]> {
         return this.menuRepository.findAll(filters);
     }
 }

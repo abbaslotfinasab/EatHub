@@ -1,16 +1,11 @@
-// core/application/use-cases/purchaseOrder/GetAllPurchaseOrders.ts
-import type { PurchaseOrderFilters } from '../../../repositories/inventory/PurchaseOrderRepository';
 
-// در صورت تمایل می‌توانید فیلترها را دوباره صادر کنید یا فقط از ریپازیتوری استفاده کنید
-export type { PurchaseOrderFilters };
-// core/application/use-cases/purchaseOrder/GetAllPurchaseOrders.ts
 import type { PurchaseOrderRepository } from '../../../repositories/inventory/PurchaseOrderRepository';
-import type { PurchaseOrder } from '../../../entities/inventory/PurchaseOrder';
+import type { PurchaseOrderFilters } from '../../../objects/filters/PurchaseOrderFilters.ts';
 
 export class GetAllPurchaseOrders {
     constructor(private readonly purchaseOrderRepository: PurchaseOrderRepository) {}
 
-    async execute(filters?: PurchaseOrderFilters): Promise<PurchaseOrder[]> {
+    async execute(filters?: PurchaseOrderFilters) {
         // اعتبارسنجی ساده (اختیاری)
         if (filters?.fromDate && isNaN(Date.parse(filters.fromDate))) {
             throw new Error('فرمت تاریخ شروع نامعتبر است');

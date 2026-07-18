@@ -1,4 +1,4 @@
-import type {MeResponseDto} from "../dtos/MeResponseDto.ts";
+import type {MeResponseDto} from "../dtos/auth/MeResponseDto.ts";
 import type {Me} from "../../domain/entities/account/Me.ts";
 
 export const meMapper = (dto: MeResponseDto): Me => {

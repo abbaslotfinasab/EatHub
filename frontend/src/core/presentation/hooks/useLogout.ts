@@ -1,7 +1,7 @@
 // src/features/auth/hooks/useLogout.ts
 
 import { useNavigate } from "react-router-dom";
-import {useAuthStore} from "../../store/auth.store.ts";
+import {useAuthStore} from "../store/auth.store.ts";
 
 export const useLogout = () => {
     const navigate = useNavigate();

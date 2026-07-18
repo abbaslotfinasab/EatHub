@@ -7,7 +7,7 @@ import type { RecipeResult } from "../../domain/entities/product/RecipeResult";
 import type { RecipeFilters } from "../../domain/objects/filters/RecipeFilters";
 import { apiClient } from "../http/http-client";
 import {isAxiosError} from "axios";
-import {mockIngredients, mockRecipes} from "../dtos/recipe.ts";
+import {mockIngredients, mockRecipes} from "../dtos/recipe/recipe.ts";
 
 export class RecipeRepositoryImpl implements RecipeRepository {
 

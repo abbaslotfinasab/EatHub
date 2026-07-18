@@ -16,7 +16,7 @@ import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
-import {useAuthStore} from "../../../../store/auth.store.ts";
+import {useAuthStore} from "../../../store/auth.store.ts";
 import {useLogout} from "../../../hooks/useLogout.ts";
 
 export const UserMenu = () => {

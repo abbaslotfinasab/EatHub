@@ -11,7 +11,7 @@ import {
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 
 import {useState} from "react";
-import {useAuthStore} from "../../../store/auth.store.ts";
+import {useAuthStore} from "../../store/auth.store.ts";
 
 
 export const RestaurantSwitcher = () => {

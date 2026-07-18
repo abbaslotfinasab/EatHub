@@ -2,10 +2,10 @@
 
 
 import type {Business} from "../account/Business.ts";
-import type {MenuResult} from "./menu/MenuResult.ts";
+import type {MenuWithItems} from "./menu/MenuWithItems.ts";
 
 export interface PublicRestaurantMenu {
     restaurant: Business;
 
-    menus: MenuResult[];
+    menus: MenuWithItems[];
 }
