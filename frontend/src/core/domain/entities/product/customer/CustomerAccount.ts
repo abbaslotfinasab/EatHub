@@ -2,7 +2,7 @@
 export interface CustomerAccount {
     id: string;
 
-    customerId:string
+    customerId:number
 
     balance: number;
 
