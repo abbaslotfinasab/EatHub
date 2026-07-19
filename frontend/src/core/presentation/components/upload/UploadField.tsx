@@ -30,8 +30,6 @@ import {useUploadFile} from "../../hooks/useUploadFile.ts";
 import {buildMediaUrl} from "../../utils/media.ts";
 
 
-
-
 interface UploadFieldProps {
 
     fileName: string;
@@ -49,21 +47,20 @@ interface UploadFieldProps {
 }
 
 
-
 export function UploadField({
+                                pathName,
 
-    fileName,
+                                folder = "uploads",
 
-    pathName,
+                                accept = "image/*",
 
-    folder = "uploads",
+                                maxSize = 5 * 1024 * 1024,
 
-    accept = "image/*",
+                            }: UploadFieldProps) {
 
-    maxSize = 5 * 1024 * 1024,
 
-}: UploadFieldProps) {
-
+    const [selectedFile, setSelectedFile] =
+        useState<File | null>(null);
 
     const {
         control,
@@ -71,19 +68,10 @@ export function UploadField({
     } = useFormContext();
 
 
-
-    const file = useWatch({
-        control,
-        name: fileName,
-    });
-
-
-
     const path = useWatch({
         control,
         name: pathName,
     });
-
 
 
     const {
@@ -93,11 +81,8 @@ export function UploadField({
     } = useUploadFile();
 
 
-
-
     const [error, setError] =
         useState<string>("");
-
 
 
     const [status, setStatus] =
@@ -109,7 +94,6 @@ export function UploadField({
         >("idle");
 
 
-
     /*
     |--------------------------------------------------------------------------
     | Preview Handler
@@ -118,12 +102,11 @@ export function UploadField({
 
 
     const preview =
-    file instanceof File
-        ? URL.createObjectURL(file)
-        : path
-            ? buildMediaUrl(path)
-            : "";
-
+        selectedFile
+            ? URL.createObjectURL(selectedFile)
+            : path
+                ? buildMediaUrl(path)
+                : "";
 
 
     /*
@@ -137,9 +120,10 @@ export function UploadField({
         selectedFile: File,
     ) => {
 
+        setSelectedFile(selectedFile);
+
 
         setError("");
-
 
 
         if (
@@ -157,24 +141,12 @@ export function UploadField({
         }
 
 
-
-        setValue(
-            fileName,
-            selectedFile,
-            {
-                shouldDirty: true,
-            }
-        );
-
-
-
         try {
 
 
             setStatus(
                 "uploading"
             );
-
 
 
             const uploadedPath =
@@ -187,7 +159,6 @@ export function UploadField({
                 });
 
 
-
             setValue(
                 pathName,
                 uploadedPath,
@@ -197,15 +168,12 @@ export function UploadField({
             );
 
 
-
             setStatus(
                 "success"
             );
 
 
-
-        }
-        catch (e) {
+        } catch (e) {
 
 
             console.error(
@@ -228,9 +196,6 @@ export function UploadField({
     };
 
 
-
-
-
     /*
     |--------------------------------------------------------------------------
     | Remove
@@ -240,30 +205,22 @@ export function UploadField({
 
     const removeFile = () => {
 
-
-        setValue(
-            fileName,
-            null,
-        );
-
+        setSelectedFile(null);
 
         setValue(
             pathName,
             null,
+            {
+                shouldDirty: true,
+            }
         );
-
 
         setError("");
 
         setStatus("idle");
 
-
         resetUpload?.();
-
     };
-
-
-
 
 
     /*
@@ -275,17 +232,13 @@ export function UploadField({
 
     const retry = () => {
 
+        if (selectedFile) {
 
-        if (file instanceof File) {
-
-            handleUpload(file);
+            handleUpload(selectedFile);
 
         }
 
     };
-
-
-
 
 
     return (
@@ -318,9 +271,6 @@ export function UploadField({
             }
 
 
-
-
-
             {
                 preview && (
 
@@ -330,9 +280,7 @@ export function UploadField({
                             preview
                         }
 
-                        filename={
-                            file?.name
-                        }
+                        filename={selectedFile?.name}
 
                         onReplace={() => {
 
@@ -358,10 +306,6 @@ export function UploadField({
             }
 
 
-
-
-
-
             {
                 status === "uploading" && (
 
@@ -373,21 +317,15 @@ export function UploadField({
                             progress
                         }
 
-                        filename={
-                            file?.name
-                        }
+                        filename={selectedFile?.name}
 
-                        size={
-                            file?.size
-                        }
+
+                        size={selectedFile?.size}
 
                     />
 
                 )
             }
-
-
-
 
 
             {
@@ -399,13 +337,11 @@ export function UploadField({
 
                         progress={100}
 
-                        filename={
-                            file?.name
-                        }
+                        filename={selectedFile?.name}
 
-                        size={
-                            file?.size
-                        }
+
+                        size={selectedFile?.size}
+
 
                     />
 
@@ -413,18 +349,13 @@ export function UploadField({
             }
 
 
-
-
-
-
             {
                 status === "error" && (
 
                     <UploadError
 
-                        filename={
-                            file?.name
-                        }
+                        filename={selectedFile?.name}
+
 
                         message={
                             error

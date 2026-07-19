@@ -58,8 +58,6 @@ export class MenuFormMapper {
 
                 price: item.price,
 
-                imageFile: null,
-
                 imageUrl: item.imageUrl,
 
                 isAvailable: item.isAvailable,

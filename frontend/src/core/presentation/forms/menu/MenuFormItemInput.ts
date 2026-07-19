@@ -9,8 +9,6 @@ export const MenuFormItemSchema = z.object({
 
     price: z.number().positive(),
 
-    imageFile: z.instanceof(File).nullable(),
-
     imageUrl: z.string().nullable(),
 
     isAvailable: z.boolean(),
