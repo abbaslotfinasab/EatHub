@@ -29,10 +29,12 @@ class MenuItem(BaseModel):
 
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
-    image_url = models.URLField(
+    image_url = models.CharField(
+        max_length=500,
         null=True,
         blank=True
     )
+
     is_available = models.BooleanField(default=True)
 
 

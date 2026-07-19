@@ -11,7 +11,7 @@ export const MenuFormItemSchema = z.object({
 
     imageUrl: z.string().nullable(),
 
-    isAvailable: z.boolean(),
+    isAvailable: z.boolean().nullable(),
 
 });
 

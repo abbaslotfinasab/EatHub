@@ -9,6 +9,7 @@ import {
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import type {MenuItem} from "../../../domain/entities/product/menu/MenuItem.ts";
+import {buildMediaUrl} from "../../utils/media.ts";
 
 
 interface Props {
@@ -22,6 +23,7 @@ export const MenuItemTile = ({
                                  onEdit,
                                  onDelete,
                              }: Props) => {
+
     return (
         <Box
             sx={{
@@ -59,7 +61,11 @@ export const MenuItemTile = ({
                 }}
             >
                 <img
-                    src={item.imageUrl ?? ""}
+                    src={
+                        item.imageUrl
+                            ? buildMediaUrl(item.imageUrl)
+                            : ""
+                    }
                     alt={item.name}
                     style={{
                         width: "100%",

@@ -27,25 +27,20 @@ import {
     UploadError,
 } from "./UploadError";
 import {useUploadFile} from "../../hooks/useUploadFile.ts";
-import {buildMediaUrl} from "../../utils/media.ts";
+import {useFilePreview} from "../../forms/upload/useFilePreview.ts";
 
 
 interface UploadFieldProps {
 
-    fileName: string;
-
     pathName: string;
 
     folder?: string;
-
-    label?: string;
 
     accept?: string;
 
     maxSize?: number;
 
 }
-
 
 export function UploadField({
                                 pathName,
@@ -99,15 +94,10 @@ export function UploadField({
     | Preview Handler
     |--------------------------------------------------------------------------
     */
-
-
-    const preview =
-        selectedFile
-            ? URL.createObjectURL(selectedFile)
-            : path
-                ? buildMediaUrl(path)
-                : "";
-
+    const preview = useFilePreview(
+        selectedFile,
+        path
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -161,7 +151,7 @@ export function UploadField({
 
             setValue(
                 pathName,
-                uploadedPath,
+                uploadedPath.url,
                 {
                     shouldDirty: true,
                 }
@@ -276,9 +266,8 @@ export function UploadField({
 
                     <UploadPreview
 
-                        src={
-                            preview
-                        }
+                        src={preview.url}
+
 
                         filename={selectedFile?.name}
 

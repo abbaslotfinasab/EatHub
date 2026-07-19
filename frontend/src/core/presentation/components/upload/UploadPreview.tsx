@@ -15,6 +15,7 @@ import {
     ImageOff,
 } from "lucide-react";
 
+
 import {useState} from "react";
 
 interface UploadPreviewProps {
@@ -44,6 +45,7 @@ export function UploadPreview({
     const [error, setError] = useState(false);
 
     const [hover, setHover] = useState(false);
+
 
     return (
         <Stack spacing={2}>
@@ -105,13 +107,11 @@ export function UploadPreview({
                         onLoad={() => setLoaded(true)}
                         onError={() => setError(true)}
                         sx={{
-                            display: loaded ? "block" : "none",
-
                             width: "100%",
-
                             height: "100%",
-
                             objectFit: "cover",
+                            opacity: loaded ? 1 : 0,
+                            transition: "opacity .3s ease",
                         }}
                     />
                 )}

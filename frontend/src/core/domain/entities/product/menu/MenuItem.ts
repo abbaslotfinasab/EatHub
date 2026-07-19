@@ -8,7 +8,7 @@ export interface MenuItem {
 
     imageUrl: string | null;
 
-    isAvailable: boolean;
+    isAvailable: boolean | null;
 
 
     createdAt?: string;

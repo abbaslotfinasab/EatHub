@@ -72,12 +72,17 @@ export function MenuForm({
     return (
         <FormProvider {...methods}>
             <Container maxWidth="lg" sx={{ py: 4 }}>
-                <Stack
-                    component="form"
-                    spacing={3}
-                    onSubmit={handleSubmit(onSubmit)}
-                    noValidate
-                >
+               <Stack
+    component="form"
+    spacing={3}
+    onSubmit={handleSubmit(
+        onSubmit,
+        (errors) => {
+            console.log(errors);
+        }
+    )}
+    noValidate
+>
                     <MenuInfoCard
                         mode={mode}
                         loading={loading}

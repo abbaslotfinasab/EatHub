@@ -23,7 +23,13 @@ dist-ssr
 *.sln
 *.sw?
 venv
-.sqlite
+# Database
+.sqlite3
+db.sqlite3
+db.sqlite3-journal
+
+# Media
+media/
 
 # Django migrations
 **/migrations/*

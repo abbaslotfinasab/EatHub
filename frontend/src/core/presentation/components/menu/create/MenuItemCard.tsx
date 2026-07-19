@@ -21,7 +21,7 @@ import {useWatch, useFormContext} from "react-hook-form";
 import {FormTextarea} from "../../form/FormTextarea.tsx";
 import {FormInput} from "../../form/FormInput.tsx";
 import type {MenuFormInput} from "../../../forms/menu/MenuFormInput.ts";
-import { UploadField } from "../../upload/UploadField.tsx";
+import {UploadField} from "../../upload/UploadField.tsx";
 
 
 interface Props {
@@ -145,6 +145,7 @@ export const MenuItemCard = ({
 
             <CardContent>
                 <Grid container spacing={3}>
+
                     <Grid size={{xs: 12, md: 6}}>
                         <FormInput
                             name={`items.${index}.name`}
@@ -162,7 +163,8 @@ export const MenuItemCard = ({
                         />
                     </Grid>
 
-                    <Grid size={{xs: 12, md: 8}}>
+
+                    <Grid size={{xs: 12}}>
                         <FormTextarea
                             name={`items.${index}.description`}
                             label="توضیحات"
@@ -170,23 +172,22 @@ export const MenuItemCard = ({
                         />
                     </Grid>
 
-                    <Grid size={{xs: 12, md: 4}}>
+
+                    <Grid
+                        size={{xs: 12}}
+                        sx={{
+                            display: "flex",
+                            justifyContent: "center",
+                        }}
+                    >
                         <UploadField
-
-                            fileName={`items.${index}.imageFile`}
-
                             pathName={`items.${index}.imageUrl`}
-
                             folder="menus"
-
                             accept="image/*"
-
-                            maxSize={
-                                5 * 1024 * 1024
-                            }
-
+                            maxSize={5 * 1024 * 1024}
                         />
                     </Grid>
+
                 </Grid>
             </CardContent>
         </Card>

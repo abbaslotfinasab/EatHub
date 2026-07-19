@@ -24,7 +24,7 @@ class MenuItemCreateSerializer(serializers.Serializer):
         decimal_places=2
     )
 
-    image_url = serializers.URLField(
+    image_url = serializers.CharField(
         required=False,
         allow_null=True
     )

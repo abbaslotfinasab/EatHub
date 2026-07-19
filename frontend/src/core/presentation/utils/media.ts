@@ -1,23 +1,18 @@
-const API_URL =
-    import.meta.env.VITE_API_URL;
-
+import {API_BASE_URL} from "../../../config/constants.ts";
 
 export function buildMediaUrl(
     path: string,
 ) {
 
-    if (!path) {
-        return "";
-    }
-
-
-    if (
-        path.startsWith("http")
-    ) {
+   if (path.startsWith("http")) {
         return path;
     }
 
+    if (path.startsWith("/media")) {
+        return `${API_BASE_URL}${path}`;
+    }
 
-    return `${API_URL}/media/${path}`;
+
+    return `${API_BASE_URL}/media/${path}`;
 
 }
