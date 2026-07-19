@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {container} from "../../../data/di/container.ts";
 
 
-export const useGetOrder = (id?: string) => {
+export const useGetOrderById = (id?: string) => {
     const { getOrderByIdUseCase } = container.orderContainer;
 
     return useQuery({

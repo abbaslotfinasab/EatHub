@@ -29,6 +29,8 @@ import {
 import {OrderStatusChip} from "./OrderStatusChip";
 import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems";
 import {OrderStatus, type OrderStatusType} from "../../../domain/entities/product/order/Order.ts";
+import {formatDateTime} from "../../utils/formatDateTime.ts";
+import {formatCurrency} from "../../utils/formatCurrency.ts";
 
 interface OrderDetailsDialogProps {
     open: boolean;
@@ -284,7 +286,7 @@ export const OrderDetailsDialog = ({
                                     />
 
                                     <Typography>
-                                        {data.createdAt ?? "-"}
+                                        {formatDateTime(data.createdAt)}
                                     </Typography>
 
                                 </Stack>
@@ -518,7 +520,8 @@ export const OrderDetailsDialog = ({
                                             fontWeight: 600,
                                         }}
                                     >
-                                        {data.subtotal.toLocaleString()} تومان
+
+                                        {formatCurrency(data.subtotal)}
                                     </Typography>
                                 </Stack>
 
@@ -538,7 +541,7 @@ export const OrderDetailsDialog = ({
                                             fontWeight: 600,
                                         }}
                                     >
-                                        {data.discount.toLocaleString()} تومان
+                                        {data.discount} %
                                     </Typography>
                                 </Stack>
                                 <Stack
@@ -556,7 +559,7 @@ export const OrderDetailsDialog = ({
                                             fontWeight: 600,
                                         }}
                                     >
-                                        {data.tax.toLocaleString()} تومان
+                                        {data.tax} %
                                     </Typography>
                                 </Stack>
 
@@ -584,7 +587,7 @@ export const OrderDetailsDialog = ({
                                             fontWeight: 700,
                                         }}
                                     >
-                                        {data.totalAmount.toLocaleString()} تومان
+                                        {formatCurrency(data.totalAmount)}
                                     </Typography>
                                 </Stack>
 

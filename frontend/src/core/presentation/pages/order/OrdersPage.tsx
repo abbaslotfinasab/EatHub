@@ -2,12 +2,11 @@ import {useMemo, useState} from "react";
 
 import {Box, Fab} from "@mui/material";
 
-import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems.ts";
 import {
     OrderStatus,
     type OrderStatusType,
 } from "../../../domain/entities/product/order/Order.ts";
-import {useGetOrders} from "../../hooks/order/useGetOrders.ts";
+import {useGetAllOrders} from "../../hooks/order/useGetAllOrders.ts";
 import {OrdersLoading} from "../../components/order/OrdersLoading.tsx";
 import {OrderActionsMenu} from "../../components/order/OrderActionsMenu.tsx";
 import {OrdersTable} from "../../components/order/OrdersTable.tsx";
@@ -17,6 +16,7 @@ import {OrdersEmpty} from "../../components/order/OrdersEmpty.tsx";
 import {OrderDetailsDialog} from "../../components/order/OrderDetailsDialog.tsx";
 import AddIcon from "@mui/icons-material/Add";
 import {useNavigate} from "react-router-dom";
+import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems.ts";
 
 
 type StatusFilter =
@@ -36,7 +36,7 @@ export const OrdersPage = () => {
         data: orders = [],
         isLoading,
         refetch,
-    } = useGetOrders();
+    } = useGetAllOrders();
 
     // ============================
     // UI State
@@ -94,43 +94,33 @@ export const OrdersPage = () => {
 
     const filteredOrders = useMemo(() => {
 
-        return orders.filter((item) => {
+    const keyword = search.trim().toLowerCase();
 
-            const order = item.order;
+    return orders.filter(({ order }) => {
 
-            const matchesStatus =
-                statusFilter === "ALL"
-                    ? true
-                    : order.status === statusFilter;
+        const matchesStatus =
+            statusFilter === "ALL" ||
+            order.status === statusFilter;
 
-            const keyword = search.trim().toLowerCase();
+        const searchText = [
+            order.id,
+            order.customerName,
+            order.customerPhone,
+            order.tableId,
+            order.orderType,
+            order.status,
+        ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
 
-            const matchesSearch =
-                keyword.length === 0
-                    ? true
-                    : order.customerName
-                        ?.toLowerCase()
-                        .includes(keyword) ||
+        return (
+            matchesStatus &&
+            searchText.includes(keyword)
+        );
+    });
 
-                    order.customerPhone
-                        ?.includes(keyword) ||
-
-                    order.id
-                        .toLowerCase()
-                        .includes(keyword);
-
-            return (
-                matchesStatus &&
-                matchesSearch
-            );
-
-        });
-
-    }, [
-        orders,
-        search,
-        statusFilter,
-    ]);
+}, [orders, search, statusFilter]);
 
     // ============================
     // Statistics

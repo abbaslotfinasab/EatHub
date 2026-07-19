@@ -7,10 +7,11 @@ import {
 } from "@mui/material";
 
 import {OrderStatusChip} from "./OrderStatusChip";
-import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems";
+import type { OrderWithItems } from "../../../domain/entities/product/order/OrderWithItems.ts";
 import {formatDateTime} from "../../utils/formatDateTime.ts";
 import {formatCurrency} from "../../utils/formatCurrency.ts";
 import {ORDER_TYPE_CONFIG} from "../../../../config/constants.ts";
+
 
 interface OrderTableRowProps {
     order: OrderWithItems;

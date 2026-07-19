@@ -51,9 +51,7 @@ export const OrderForm = ({
            <form
     onSubmit={methods.handleSubmit(
         (data) => {
-console.log(
-    methods.formState.errors.orderItems?.[0]?.menuItemId
-);            onSubmit(data);
+            onSubmit(data);
         },
         (errors) => {
             console.log(errors);

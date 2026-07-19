@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 
 
-import {useGetOrder} from "../../hooks/order/useGetOrder";
+import {useGetOrderById} from "../../hooks/order/useGetOrderById.ts";
 import {useUpdateOrder} from "../../hooks/order/useUpdateOrder";
 
 
@@ -33,7 +33,7 @@ export const UpdateOrderPage = () => {
     const {
         data: order,
         isLoading,
-    } = useGetOrder(id);
+    } = useGetOrderById(id);
 
     // ============================
     // Mutation

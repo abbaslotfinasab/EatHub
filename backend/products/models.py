@@ -116,7 +116,7 @@ class OrderItem(BaseModel):
 
     menu_item = models.ForeignKey(
         MenuItem,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
     )
 
     menu_item_name = models.CharField(max_length=120)

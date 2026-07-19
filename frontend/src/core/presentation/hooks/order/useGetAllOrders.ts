@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {container} from "../../../data/di/container.ts";
 
 
-export const useGetOrders = () => {
+export const useGetAllOrders = () => {
     const { getAllOrdersUseCase } = container.orderContainer;
 
     return useQuery({

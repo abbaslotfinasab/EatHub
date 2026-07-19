@@ -1,21 +1,35 @@
-import { useMemo } from "react";
+import {useMemo} from "react";
 
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 
 import {
-    Button,
     Divider,
     Paper,
     Stack,
     Typography,
 } from "@mui/material";
-import { useGetMenus } from "../../hooks/menu/useGetMenus.ts";
-import { useOrderItems } from "../../forms/order/useOrderItems.ts";
+import {useGetMenus} from "../../hooks/menu/useGetMenus.ts";
+import {useOrderItems} from "../../forms/order/useOrderItems.ts";
 import {formatCurrency} from "../../utils/formatCurrency.ts";
+import {LoadingButton} from "@mui/lab";
+
+import {useOrderForm} from "../../forms/order/useOrderForm";
+
+interface OrderHeaderProps {
+    mode: "create" | "edit";
+    onCancel?: () => void;
+}
 
 
+export const OrderSummaryCard = ({
+                                     mode,
+                                 }: OrderHeaderProps) => {
 
-export const OrderSummaryCard = () => {
+    const {
+        formState: {
+            isSubmitting,
+        },
+    } = useOrderForm();
 
     const {
         data: menus = [],
@@ -127,7 +141,7 @@ export const OrderSummaryCard = () => {
 
                 </Stack>
 
-                <Divider />
+                <Divider/>
 
                 {/* تعداد */}
 
@@ -235,7 +249,7 @@ export const OrderSummaryCard = () => {
 
                 </Stack>
 
-                <Divider />
+                <Divider/>
 
                 {/* مبلغ نهایی */}
 
@@ -270,7 +284,9 @@ export const OrderSummaryCard = () => {
 
                 </Stack>
 
-                <Button
+                <LoadingButton
+                    loading={isSubmitting}
+                    type="submit"
                     fullWidth
                     size="large"
                     variant="contained"
@@ -280,8 +296,10 @@ export const OrderSummaryCard = () => {
                         borderRadius: 3,
                     }}
                 >
-                    ثبت سفارش
-                </Button>
+                     {mode === "create"
+                            ? "ثبت سفارش"
+                            : "ذخیره تغییرات"}
+                </LoadingButton>
 
             </Stack>
 
