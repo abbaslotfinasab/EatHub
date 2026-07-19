@@ -1,4 +1,4 @@
-import {API_BASE_URL} from "../../../config/constants.ts";
+import {BASE_URL} from "../../../config/constants.ts";
 
 export function buildMediaUrl(
     path: string,
@@ -9,10 +9,10 @@ export function buildMediaUrl(
     }
 
     if (path.startsWith("/media")) {
-        return `${API_BASE_URL}${path}`;
+        return `${BASE_URL}${path}`;
     }
 
 
-    return `${API_BASE_URL}/media/${path}`;
+    return `${BASE_URL}/media/${path}`;
 
 }

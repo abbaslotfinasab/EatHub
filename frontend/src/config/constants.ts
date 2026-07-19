@@ -1,6 +1,7 @@
 import type {Order} from "../core/domain/entities/product/order/Order.ts";
 
 export const  API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+export const  BASE_URL = import.meta.env.VITE_BASE_URL
 
 export const NAVBAR_HEIGHT = 64;
 export const DRAWER_WIDTH = 320;
