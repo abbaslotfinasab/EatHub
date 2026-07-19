@@ -30,7 +30,6 @@ export const MenuItemsSection = ({
             name: "",
             description: null,
             price: 0,
-            imageFile: null,
             imageUrl: null,
             isAvailable: true,
         });
