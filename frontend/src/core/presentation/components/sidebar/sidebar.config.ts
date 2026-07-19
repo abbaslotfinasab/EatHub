@@ -65,20 +65,20 @@ export const sidebarSections: SidebarSectionConfig[] = [
 
         items: [
             {
-                title: "سفارشات",
+                title: "سفارش ها",
                 path: "/orders",
                 icon: ReceiptLongRoundedIcon,
             },
 
             {
-                title: "منوها",
+                title: "منو ها",
                 path: "/menus",
                 icon: RestaurantMenuRoundedIcon,
             },
 
             {
-                title: "فاکتورها",
-                path: "/sales",
+                title: "رزرو ها",
+                path: "/reserve",
                 icon: PointOfSaleRoundedIcon,
             },
         ],
@@ -112,9 +112,16 @@ export const sidebarSections: SidebarSectionConfig[] = [
         title: "مالی",
 
         items: [
+
+             {
+                title: "فاکتور ها",
+                path: "/facture",
+                icon: PointOfSaleRoundedIcon,
+            },
+
             {
-                title: "گزارشات",
-                path: "/reports",
+                title: "کیف پول",
+                path: "/wallet",
                 icon: AssessmentRoundedIcon,
             },
 

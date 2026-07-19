@@ -93,10 +93,24 @@ export const OrdersToolbar = ({
                         )
                     }
                     sx={{
-                        "& .MuiOutlinedInput-root": {
-                            height: 56,
-                            borderRadius: 3,
+                       "& .MuiOutlinedInput-root": {
+                        height: 58,
+                        borderRadius: 4,
+                        bgcolor: "#fff",
+
+                        "& fieldset": {
+                            borderColor: "#E2E8F0",
                         },
+
+                        "&:hover fieldset": {
+                            borderColor: "#1F4A33",
+                        },
+
+                        "&.Mui-focused fieldset": {
+                            borderColor: "#10281A",
+                            borderWidth: "2px",
+                        },
+                    },
                     }}
                     slotProps={{
                         input: {
