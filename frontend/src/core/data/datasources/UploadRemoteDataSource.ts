@@ -1,5 +1,5 @@
-import type { UploadOptions } from "../../domain/repositories/core/UploadRepository.ts";
-import type { UploadFileResponseDTO } from "../dtos/upload/UploadFileResponseDTO";
+import type {UploadOptions} from "../../domain/repositories/core/UploadRepository.ts";
+import type {UploadFileResponseDTO} from "../dtos/upload/UploadFileResponseDTO";
 import {apiClient} from "../http/http-client.ts";
 
 
@@ -8,9 +8,7 @@ export class UploadRemoteDataSource {
 
     async upload(
         file: File,
-
         options?: UploadOptions,
-
     ): Promise<UploadFileResponseDTO> {
 
 
@@ -34,41 +32,37 @@ export class UploadRemoteDataSource {
         }
 
 
-        const {data} =
-            await apiClient.post<UploadFileResponseDTO>(
-                "/core/upload/",
-                formData,
-                {
-                    headers:{
-                        "Content-Type":
-                            "multipart/form-data",
-                    },
+        const {data} = await apiClient.post<UploadFileResponseDTO>(
+            "/api/core/upload/",
+            formData,
+            {
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                },
+
+                timeout: 120000, // 2 دقیقه
 
 
-                    onUploadProgress(event) {
+                onUploadProgress(event) {
 
-                        if (!event.total) {
-                            return;
-                        }
-
-
-                        const progress =
-                            Math.round(
-                                (
-                                    event.loaded /
-                                    event.total
-                                ) * 100
-                            );
+                    if (!event.total) {
+                        return;
+                    }
 
 
-                        options?.onProgress?.(
-                            progress,
+                    const percent =
+                        Math.round(
+                            (event.loaded / event.total) * 100
                         );
 
-                    },
+
+                    options?.onProgress?.(
+                        percent,
+                    );
 
                 },
-            );
+            },
+        );
 
 
         return data;
