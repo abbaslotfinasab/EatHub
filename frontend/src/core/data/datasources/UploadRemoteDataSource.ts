@@ -33,7 +33,7 @@ export class UploadRemoteDataSource {
 
 
         const {data} = await apiClient.post<UploadFileResponseDTO>(
-            "/api/core/upload/",
+            "/core/upload/",
             formData,
             {
                 headers: {
