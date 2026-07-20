@@ -1,5 +1,6 @@
 // core/domain/repositories/sales/OrderRepository.ts
 import type {OrderWithItems} from "../../entities/product/order/OrderWithItems.ts";
+import type {UpdateOrderStatusInput} from "../../entities/product/order/UpdateOrderStatusInput.ts";
 
 
 export interface OrderRepository {
@@ -24,4 +25,8 @@ export interface OrderRepository {
 
     // حذف سفارش (فقط در وضعیت‌های خاص مثل PENDING یا CANCELLED)
     delete(id: string): Promise<void>;
+
+     updateStatus(
+        input: UpdateOrderStatusInput,
+    ): Promise<void>;
 }

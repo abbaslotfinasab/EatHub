@@ -28,7 +28,7 @@ export const MenuItemTile = ({
         <Box
             sx={{
                 overflow: "hidden",
-                borderRadius: 5,
+                borderRadius: 1,
 
                 bgcolor: "#fff",
 

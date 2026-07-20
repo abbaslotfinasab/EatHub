@@ -1,12 +1,13 @@
-from django.db.models import Q
+from django.forms import DecimalField
 from rest_framework import status
 
 from accounts.models import Business
 from accounts.views import TenantAPIView
 from products.serializers.customer_serializer import CustomerDetailSerializer, CustomerSerializer, \
-    CreateCustomerSerializer, UpdateCustomerSerializer, CustomerTransactionSerializer, CreditAccountSerializer, \
-    CustomerAccountSerializer, DebitAccountSerializer, AdjustAccountSerializer
+    CreateCustomerSerializer, UpdateCustomerSerializer, CustomerTransactionSerializer, \
+    CustomerAccountSerializer, CustomerListSerializer, CustomerBalanceSerializer
 from products.serializers.order_serializer import *
+from products.services.customer_service import CustomerService
 from products.services.order_service import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -18,6 +19,16 @@ from products.services.menu_service import MenuService
 from products.models import Menu, Customer, CustomerAccount
 from inventory.services.facture_service import *
 from products.services.wallet_service import WalletService
+from django.db.models import (
+    Q,
+    Count,
+    Sum,
+    DecimalField,
+    Value,
+)
+from django.db.models.functions import Coalesce
+
+
 
 
 class MenuCreateAPIView(TenantAPIView):
@@ -275,30 +286,41 @@ class OrderDetailAPIView(TenantAPIView):
 
 
 class OrderStatusUpdateAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
 
-    def post(self, request, pk):
+    permission_classes = [
+        IsAuthenticated
+    ]
 
-        order = get_object_or_404(
-            Order,
-            id=pk,
-            business=request.business
+    def patch(
+        self,
+        request,
+        order_id,
+    ):
+
+        serializer = OrderStatusUpdateSerializer(
+            data=request.data
         )
 
-        new_status = request.data.get("status")
-
-        if new_status not in Order.Status.values:
-            return Response(
-                {"error": "Invalid status"},
-                status=400
-            )
-
-        order.status = new_status
-        order.save(update_fields=["status"])
-
-        return Response({"status": "updated"})
+        serializer.is_valid(
+            raise_exception=True
+        )
 
 
+        order = OrderService.update_status(
+            business=request.business,
+            order_id=order_id,
+            **serializer.validated_data,
+        )
+
+
+        return Response(
+            {
+                "id": order.id,
+                "status": order.status,
+                "payment_status": order.payment_status,
+                "payment_method": order.payment_method,
+            }
+        )
 
 class OrderUpdateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
@@ -335,32 +357,74 @@ class OrderDeleteAPIView(TenantAPIView):
 
 
 
-
 class CustomerListAPIView(TenantAPIView):
+
     permission_classes = [IsAuthenticated]
+
 
     def get(self, request):
 
-        search = request.query_params.get("search", "").strip()
+        search = request.query_params.get(
+            "search",
+            "",
+        ).strip()
+
 
         customers = Customer.objects.filter(
             business=request.business,
         )
 
+
         if search:
+
             customers = customers.filter(
-                Q(name__icontains=search) |
+                Q(name__icontains=search)
+                |
                 Q(phone__istartswith=search)
             )
 
-        customers = customers.order_by("name")[:20]
 
-        serializer = CustomerSerializer(
+        customers = customers.select_related(
+            "account",
+        ).annotate(
+
+            total_orders=Count(
+                "orders",
+                distinct=True,
+            ),
+
+
+            total_spent=Coalesce(
+
+                Sum(
+                    "orders__total_amount",
+                    filter=Q(
+                        orders__status=Order.Status.COMPLETED
+                    ),
+                ),
+
+                Value(0),
+
+                output_field=DecimalField(
+                    max_digits=12,
+                    decimal_places=2,
+                ),
+            ),
+
+        ).order_by(
+            "-created_at",
+        )
+
+
+        serializer = CustomerListSerializer(
             customers,
             many=True,
         )
 
-        return Response(serializer.data)
+
+        return Response(
+            serializer.data
+        )
 
 
 class CustomerCreateAPIView(TenantAPIView):
@@ -453,17 +517,18 @@ class CustomerCreditAPIView(TenantAPIView):
 
     def post(self, request, customer_id):
 
-        serializer = CreditAccountSerializer(data=request.data)
+        serializer = CustomerBalanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        account = get_object_or_404(
-            CustomerAccount,
-            customer_id=customer_id,
+        customer = get_object_or_404(
+            Customer,
+            id=customer_id,
             business=request.business
         )
 
         WalletService.credit(
-            account=account,
+            business=request.business,
+            customer=customer,
             amount=serializer.validated_data["amount"],
             description=serializer.validated_data.get("description")
         )
@@ -494,17 +559,18 @@ class CustomerDebitAPIView(TenantAPIView):
 
     def post(self, request, customer_id):
 
-        serializer = DebitAccountSerializer(data=request.data)
+        serializer = CustomerBalanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        account = get_object_or_404(
-            CustomerAccount,
-            customer_id=customer_id,
-            business=request.business,
+        customer = get_object_or_404(
+            Customer,
+            id=customer_id,
+            business=request.business
         )
 
         WalletService.debit(
-            account=account,
+            business=request.business,
+            customer=customer,
             amount=serializer.validated_data["amount"],
             description=serializer.validated_data.get(
                 "description",
@@ -524,17 +590,18 @@ class CustomerAdjustAPIView(TenantAPIView):
 
     def post(self, request, customer_id):
 
-        serializer = AdjustAccountSerializer(data=request.data)
+        serializer = CustomerBalanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        account = get_object_or_404(
-            CustomerAccount,
-            customer_id=customer_id,
-            business=request.business,
+        customer = get_object_or_404(
+            Customer,
+            id=customer_id,
+            business=request.business
         )
 
         WalletService.adjust(
-            account=account,
+            business=request.business,
+            customer=customer,
             amount=serializer.validated_data["amount"],
             description=serializer.validated_data.get(
                 "description",

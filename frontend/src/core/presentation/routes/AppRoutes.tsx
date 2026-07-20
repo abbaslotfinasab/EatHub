@@ -25,6 +25,7 @@ import {EditMenuPage} from "../pages/menu/EditMenuPage.tsx";
 import {OrdersPage} from "../pages/order/OrdersPage.tsx";
 import {CreateOrderPage} from "../pages/order/CreateOrderPage.tsx";
 import {UpdateOrderPage} from "../pages/order/UpdateOrderPage.tsx";
+import {CustomersPage} from "../pages/customer/CustomersPage.tsx";
 
 export const AppRoutes = () => {
     return (
@@ -71,6 +72,9 @@ export const AppRoutes = () => {
 
                             <Route path="/materials/create" element={<CreateMaterialPage/>}/>
                             <Route path="/recipes/create" element={<CreateRecipePage/>}/>
+
+                            <Route path="/customers/" element={<CustomersPage/>}/>
+
                         </Route>
 
                     </Route>

@@ -5,6 +5,7 @@ import {MenuFormItemSchema} from "./MenuFormItemInput.ts";
 
 
 export const MenuFormSchema = z.object({
+
     name: z.string().min(2),
 
     category: z.string().min(1),

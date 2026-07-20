@@ -19,6 +19,8 @@ export const customerMapper = {
 
             userId: dto.user_id ?? null,
 
+            createdAt: dto.created_at
+
         };
 
     },
@@ -40,6 +42,8 @@ export const customerMapper = {
             totalSpent: dto.totalSpent,
 
             balance: dto.balance,
+
+            createdAt: dto.created_at
 
 
         }));

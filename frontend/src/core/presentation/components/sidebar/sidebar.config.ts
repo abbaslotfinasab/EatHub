@@ -120,8 +120,8 @@ export const sidebarSections: SidebarSectionConfig[] = [
             },
 
             {
-                title: "کیف پول",
-                path: "/wallet",
+                title: "یاشگاه مشتریان",
+                path: "/customers",
                 icon: AssessmentRoundedIcon,
             },
 

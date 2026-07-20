@@ -17,6 +17,8 @@ import {OrderDetailsDialog} from "../../components/order/OrderDetailsDialog.tsx"
 import AddIcon from "@mui/icons-material/Add";
 import {useNavigate} from "react-router-dom";
 import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems.ts";
+import {OrderStatusDialog} from "../../components/order/OrderStatusDialog.tsx";
+import {useUpdateOrderStatus} from "../../hooks/order/useUpdateOrderStatus.ts";
 
 
 type StatusFilter =
@@ -53,9 +55,14 @@ export const OrdersPage = () => {
     const [dialogOpen, setDialogOpen] =
         useState(false);
 
+    const [statusDialogOpen, setStatusDialogOpen] =
+        useState(false);
+
     const [menuAnchor, setMenuAnchor] =
         useState<HTMLElement | null>(null);
 
+    const updateStatusMutation =
+        useUpdateOrderStatus();
     // ============================
     // Handlers
     // ============================
@@ -70,6 +77,16 @@ export const OrdersPage = () => {
     const handleDialogClose = () => {
         setDialogOpen(false);
     };
+
+    const handleOpenStatusDialog = () => {
+
+        if (!selectedOrder) {
+            return;
+        }
+
+        setStatusDialogOpen(true);
+    };
+
 
     const handleMenuOpen = (
         event: React.MouseEvent<HTMLElement>,
@@ -94,33 +111,33 @@ export const OrdersPage = () => {
 
     const filteredOrders = useMemo(() => {
 
-    const keyword = search.trim().toLowerCase();
+        const keyword = search.trim().toLowerCase();
 
-    return orders.filter(({ order }) => {
+        return orders.filter(({order}) => {
 
-        const matchesStatus =
-            statusFilter === "ALL" ||
-            order.status === statusFilter;
+            const matchesStatus =
+                statusFilter === "ALL" ||
+                order.status === statusFilter;
 
-        const searchText = [
-            order.id,
-            order.customerName,
-            order.customerPhone,
-            order.tableId,
-            order.orderType,
-            order.status,
-        ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
+            const searchText = [
+                order.id,
+                order.customerName,
+                order.customerPhone,
+                order.tableId,
+                order.orderType,
+                order.status,
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toLowerCase();
 
-        return (
-            matchesStatus &&
-            searchText.includes(keyword)
-        );
-    });
+            return (
+                matchesStatus &&
+                searchText.includes(keyword)
+            );
+        });
 
-}, [orders, search, statusFilter]);
+    }, [orders, search, statusFilter]);
 
     // ============================
     // Statistics
@@ -245,6 +262,55 @@ export const OrdersPage = () => {
                 }}
             />
 
+            <OrderStatusDialog
+
+                open={statusDialogOpen}
+
+                order={
+                    selectedOrder?.order
+                }
+
+                loading={
+                    updateStatusMutation.isPending
+                }
+
+                onClose={() =>
+                    setStatusDialogOpen(false)
+                }
+
+
+                onSubmit={(data) => {
+
+
+                    if (!selectedOrder) {
+                        return;
+                    }
+
+
+                    updateStatusMutation.mutate({
+
+                        orderId:
+                        selectedOrder.order.id,
+
+                        status:
+                        data.status,
+
+                        paymentStatus:
+                        data.paymentStatus,
+
+                        paymentMethod:
+                        data.paymentMethod,
+
+                    });
+
+
+                    setStatusDialogOpen(false);
+
+
+                }}
+
+            />
+
             {/* Actions Menu */}
 
             <OrderActionsMenu
@@ -263,15 +329,11 @@ export const OrdersPage = () => {
                     }
                 }}
                 onChangeStatus={() => {
+
                     handleMenuClose();
 
-                    if (
-                        selectedOrder
-                    ) {
-                        setDialogOpen(
-                            true,
-                        );
-                    }
+                    handleOpenStatusDialog();
+
                 }}
                 onPrint={() => {
                     handleMenuClose();

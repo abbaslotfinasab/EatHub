@@ -1,6 +1,6 @@
 from django.db import transaction
 
-from products.models import Customer, CustomerAccount
+from products.models import Customer
 
 
 class CustomerService:
@@ -40,25 +40,3 @@ class CustomerService:
     @transaction.atomic
     def delete_customer(*, customer):
         customer.delete()
-
-    @staticmethod
-    @staticmethod
-    @transaction.atomic
-    def get_or_create_customer(*, business, name, phone):
-
-        if not phone:
-            return None
-
-        customer, created = Customer.objects.get_or_create(
-            business=business,
-            phone=phone,
-            defaults={
-                "name": name or "Guest",
-            },
-        )
-
-        if not created and name and customer.name != name:
-            customer.name = name
-            customer.save(update_fields=["name"])
-
-        return customer

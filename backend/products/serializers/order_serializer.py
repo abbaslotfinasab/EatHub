@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from products.models import Customer
+from products.models import Customer, Order
 
 
 class OrderItemCreateInputSerializer(serializers.Serializer):
@@ -75,18 +75,20 @@ class OrderSerializer(serializers.Serializer):
 
 
 class OrderStatusUpdateSerializer(serializers.Serializer):
+
     status = serializers.ChoiceField(
-        choices=[
-            "confirmed",
-            "preparing",
-            "ready",
-            "completed",
-            "cancelled",
-        ]
+        choices=Order.Status.choices,
     )
 
+    payment_status = serializers.ChoiceField(
+        choices=Order.PaymentStatus.choices,
+        required=False,
+    )
 
-from rest_framework import serializers
+    payment_method = serializers.ChoiceField(
+        choices=Order.PaymentMethod.choices,
+        required=False,
+    )
 
 
 class UpdateOrderInputSerializer(serializers.Serializer):

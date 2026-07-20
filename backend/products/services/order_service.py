@@ -4,7 +4,6 @@ from products.models import OrderItem, Order, MenuItem
 from django.db import transaction
 from decimal import Decimal
 
-from products.services.customer_service import CustomerService
 from products.services.wallet_service import WalletService
 
 
@@ -17,24 +16,16 @@ class OrderService:
         items_data = validated_data.pop("items")
         customer = validated_data.get("customer")
 
-        account = None
-
-        if customer:
-            account = WalletService.get_account(
-                business=business,
-                customer=customer,
-            )
-
         order = Order.objects.create(
             business=business,
             customer=customer,
-            table= validated_data["table"],
+            table=validated_data["table"],
             order_type=validated_data["order_type"],
             notes=validated_data.get("notes"),
             status=Order.Status.PENDING,
             subtotal=Decimal("0"),
             discount=validated_data.get("discount") or Decimal("0"),
-            tax = validated_data.get("tax") or Decimal("0"),
+            tax=validated_data.get("tax") or Decimal("0"),
             total_amount=Decimal("0"),
         )
 
@@ -90,20 +81,6 @@ class OrderService:
             ]
         )
 
-        order.refresh_from_db()
-        print(order.table)
-
-        # =========================
-        # 💳 DEBIT CUSTOMER ACCOUNT
-        # =========================
-        if account:
-            WalletService.debit(
-                account=account,
-                amount=order.total_amount,
-                order=order,
-                description=f"Order #{order.id}",
-            )
-
         return order
 
     @staticmethod
@@ -120,27 +97,9 @@ class OrderService:
 
         items_data = validated_data.pop("items")
 
-        customer_name = validated_data.get("customer_name")
-        customer_phone = validated_data.get("customer_phone")
-
-        customer = None
-        account = None
-
-        if customer_phone:
-            customer = CustomerService.get_or_create_customer(
-                business=business,
-                name=customer_name,
-                phone=customer_phone,
-            )
-
-            account = WalletService.get_account(
-                business=business,
-                customer=customer,
-            )
+        customer = validated_data.get("customer")
 
         order.customer = customer
-        order.customer_name = customer.name if customer else "Guest"
-        order.customer_phone = customer_phone
         order.order_type = validated_data["order_type"]
         order.notes = validated_data.get("notes")
 
@@ -206,47 +165,81 @@ class OrderService:
 
         order.save()
 
-        # -----------------------------
-        # اصلاح مانده حساب مشتری
-        # -----------------------------
-        if account:
-
-            difference = order.total_amount - old_total
-
-            if difference > 0:
-
-                WalletService.debit(
-                    account=account,
-                    amount=difference,
-                    order=order,
-                    description=f"Update Order #{order.id}",
-                )
-
-            elif difference < 0:
-
-                WalletService.credit(
-                    account=account,
-                    amount=abs(difference),
-                    order=order,
-                    description=f"Update Order #{order.id}",
-                )
-
-        return order
-
     @staticmethod
     @transaction.atomic
     def delete_order(order):
-
-        if order.customer:
-            WalletService.credit(
-                account=order.customer.account,
-                amount=order.total_amount,
-                order=order,
-                description=f"Delete Order #{order.id}",
-            )
 
         order.delete()
 
     @staticmethod
     def calculate_total(subtotal: Decimal, discount: Decimal, tax: Decimal) -> Decimal:
         return subtotal - discount + tax
+
+    @staticmethod
+    @transaction.atomic
+    def update_status(
+            *,
+            business,
+            order_id,
+            status,
+            payment_status=None,
+            payment_method=None,
+    ):
+
+        order = get_object_or_404(
+            Order,
+            id=order_id,
+            business=business,
+        )
+
+        old_payment_method = order.payment_method
+        old_payment_status = order.payment_status
+
+        order.status = status
+
+        if payment_method:
+            order.payment_method = payment_method
+
+        if payment_status:
+            order.payment_status = payment_status
+
+        # =====================================
+        # CUSTOMER ACCOUNT PAYMENT
+        # =====================================
+
+        should_debit = (
+                order.status == Order.Status.COMPLETED
+                and
+                order.payment_method == Order.PaymentMethod.CUSTOMER_ACCOUNT
+                and
+                order.payment_status != Order.PaymentStatus.PAID
+                and
+                order.customer is not None
+        )
+
+        if should_debit:
+            account = WalletService.get_or_create_account(
+                business=business,
+                customer=order.customer,
+            )
+
+            WalletService.debit(
+                account=account,
+                amount=order.total_amount,
+                order=order,
+                description=f"Order #{order.id}",
+            )
+
+            order.payment_status = (
+                Order.PaymentStatus.PAID
+            )
+
+        order.save(
+            update_fields=[
+                "status",
+                "payment_status",
+                "payment_method",
+            ]
+        )
+
+        return order

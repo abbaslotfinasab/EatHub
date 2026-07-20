@@ -14,10 +14,10 @@ import RestaurantMenuIcon from "@mui/icons-material/RestaurantMenu";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 
-import { MenuGrid } from "./MenuGrid";
+import {MenuGrid} from "./MenuGrid";
 
-import type { Menu } from "../../../domain/entities/product/menu/Menu.ts";
-import type { MenuItem } from "../../../domain/entities/product/menu/MenuItem.ts";
+import type {Menu} from "../../../domain/entities/product/menu/Menu.ts";
+import type {MenuItem} from "../../../domain/entities/product/menu/MenuItem.ts";
 
 type MenuGroup = {
     menu: Menu;
@@ -32,11 +32,11 @@ type MenuSectionProps = {
 };
 
 export const MenuSection = ({
-    group,
-    search,
-    onEdit,
-    onDelete,
-}: MenuSectionProps) => {
+                                group,
+                                search,
+                                onEdit,
+                                onDelete,
+                            }: MenuSectionProps) => {
 
     const filteredItems = group.items.filter(
         (item: MenuItem) =>
@@ -72,7 +72,7 @@ export const MenuSection = ({
             }}
         >
             <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
+                expandIcon={<ExpandMoreIcon/>}
                 sx={{
                     px: 3,
                     py: 1.5,
@@ -103,7 +103,7 @@ export const MenuSection = ({
                             sx={{
                                 width: 52,
                                 height: 52,
-                                borderRadius: 3,
+                                borderRadius: 1,
                                 bgcolor: "#F1F5F9",
                                 display: "flex",
                                 alignItems: "center",
@@ -111,7 +111,7 @@ export const MenuSection = ({
                                 color: "#10281A",
                             }}
                         >
-                            <RestaurantMenuIcon />
+                            <RestaurantMenuIcon/>
                         </Box>
 
                         <Box>
@@ -155,6 +155,7 @@ export const MenuSection = ({
 
                         <Tooltip title="ویرایش منو">
                             <IconButton
+                                component="span"
                                 size="small"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -162,18 +163,18 @@ export const MenuSection = ({
                                 }}
                                 sx={{
                                     bgcolor: "#F8FAFC",
-
                                     "&:hover": {
                                         bgcolor: "#E2E8F0",
                                     },
                                 }}
                             >
-                                <EditRoundedIcon fontSize="small" />
+                                <EditRoundedIcon fontSize="small"/>
                             </IconButton>
                         </Tooltip>
 
                         <Tooltip title="حذف منو">
                             <IconButton
+                                component="span"
                                 size="small"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -182,13 +183,12 @@ export const MenuSection = ({
                                 sx={{
                                     bgcolor: "#FEF2F2",
                                     color: "#DC2626",
-
                                     "&:hover": {
                                         bgcolor: "#FEE2E2",
                                     },
                                 }}
                             >
-                                <DeleteRoundedIcon fontSize="small" />
+                                <DeleteRoundedIcon fontSize="small"/>
                             </IconButton>
                         </Tooltip>
                     </Box>
@@ -210,7 +210,7 @@ export const MenuSection = ({
                     }}
                 />
 
-                <MenuGrid items={filteredItems} />
+                <MenuGrid items={filteredItems}/>
             </AccordionDetails>
         </Accordion>
     );

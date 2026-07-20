@@ -40,6 +40,7 @@ export class MenuFormMapper {
 
     static toFormInput(menu: MenuWithItems): MenuFormInput {
         return {
+
             name: menu.menu.name,
 
             category: menu.menu.category,

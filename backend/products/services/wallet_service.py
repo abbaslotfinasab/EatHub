@@ -8,21 +8,25 @@ from products.models import CustomerTransaction, CustomerAccount, Customer, Orde
 class WalletService:
 
     @staticmethod
-    def get_account(
+    @transaction.atomic
+    def get_or_create_account(
             *,
             business,
             customer: Customer,
-    ) -> CustomerAccount | None:
-        return CustomerAccount.objects.filter(
+    ) -> CustomerAccount:
+        account, _ = CustomerAccount.objects.get_or_create(
             business=business,
             customer=customer,
-        ).first()
+        )
+
+        return account
 
     @staticmethod
     @transaction.atomic
     def credit(
             *,
-            account: CustomerAccount,
+            business,
+            customer: Customer,
             amount: Decimal,
             description: str = "",
             order: Order | None = None,
@@ -30,6 +34,11 @@ class WalletService:
         """
         شارژ حساب مشتری
         """
+
+        account = WalletService.get_or_create_account(
+            business=business,
+            customer=customer,
+        )
 
         account.balance += amount
         account.save(update_fields=["balance"])
@@ -46,7 +55,8 @@ class WalletService:
     @transaction.atomic
     def debit(
             *,
-            account: CustomerAccount,
+            business,
+            customer: Customer,
             amount: Decimal,
             description: str = "",
             order: Order | None = None,
@@ -55,6 +65,11 @@ class WalletService:
         کسر از حساب مشتری
         اجازه منفی شدن موجودی وجود دارد.
         """
+
+        account = WalletService.get_or_create_account(
+            business=business,
+            customer=customer,
+        )
 
         account.balance -= amount
         account.save(update_fields=["balance"])
@@ -71,7 +86,8 @@ class WalletService:
     @transaction.atomic
     def adjust(
             *,
-            account: CustomerAccount,
+            business,
+            customer: Customer,
             amount: Decimal,
             description: str = "",
     ) -> CustomerTransaction:
@@ -80,7 +96,12 @@ class WalletService:
         amount می‌تواند مثبت یا منفی باشد.
         """
 
-        account.balance += amount
+        account = WalletService.get_or_create_account(
+            business=business,
+            customer=customer,
+        )
+
+        account.balance = amount
         account.save(update_fields=["balance"])
 
         return CustomerTransaction.objects.create(
@@ -91,5 +112,14 @@ class WalletService:
         )
 
     @staticmethod
-    def get_balance(*, account: CustomerAccount) -> Decimal:
+    def get_balance(
+            *,
+            business,
+            customer: Customer,
+    ) -> Decimal:
+        account = WalletService.get_or_create_account(
+            business=business,
+            customer=customer,
+        )
+
         return account.balance

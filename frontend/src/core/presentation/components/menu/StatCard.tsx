@@ -20,7 +20,7 @@ export const StatCard = ({
                 px: 2.5,
                 py: 2,
 
-                borderRadius: 4,
+                borderRadius: 1,
 
                 background:
                     "rgba(255,255,255,.10)",

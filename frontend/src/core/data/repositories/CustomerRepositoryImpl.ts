@@ -8,6 +8,8 @@ import type {CustomerListItem} from "../../domain/entities/product/customer/Cust
 import {customerMapper} from "../mappers/customerMapper.ts";
 import type {CustomerRemoteDataSource} from "../datasources/CustomerRemoteDataSource.ts";
 import {customerDetailMapper} from "../mappers/customerDetailMapper.ts";
+import type {UpdateCustomerBalanceInput} from "../../domain/entities/product/customer/UpdateCustomerBalanceInput.ts";
+import {customerBalanceMapper} from "../mappers/customerBalanceMapper.ts";
 
 export class CustomerRepositoryImpl
     implements CustomerRepository {
@@ -112,5 +114,22 @@ export class CustomerRepositoryImpl
         );
 
     }
+
+
+    // =========================
+// Balance
+// =========================
+
+   async updateBalance(
+    input: UpdateCustomerBalanceInput,
+): Promise<void> {
+
+    await this.remote.updateBalance(
+        customerBalanceMapper.toDTO(input),
+        input.type,
+        input.customerId,
+    );
+
+}
 
 }

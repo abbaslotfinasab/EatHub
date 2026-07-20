@@ -9,8 +9,8 @@ export const useDeleteMenu = () => {
     const { deleteMenuUseCase } = container.menuContainer;
 
     return useMutation({
-        mutationFn: async (id: string) => {
-            return await deleteMenuUseCase.execute(id);
+        mutationFn: async (id: number) => {
+            return await deleteMenuUseCase.execute(id.toString());
         },
 
         onSuccess: (_, id) => {

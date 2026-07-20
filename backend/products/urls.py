@@ -81,7 +81,7 @@ urlpatterns = [
         name="order-detail",
     ),
     path(
-        "orders/<int:pk>/status/",
+        "orders/<int:order_id>/status/",
         OrderStatusUpdateAPIView.as_view(),
         name="order-status-update",
     ),
@@ -143,7 +143,7 @@ urlpatterns = [
     ),
 
     path(
-        "customers/<int:customer_id>/account/credit/",
+        "customers/<int:customer_id>/credit/",
         CustomerCreditAPIView.as_view(),
         name="customer-credit",
     ),

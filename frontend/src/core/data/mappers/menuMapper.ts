@@ -74,7 +74,7 @@ export const menuMapper = {
 
     toUpdateDTO(domain: MenuWithItems): UpdateMenuDTO {
         return {
-            id: domain.menu.id!,
+            id: domain.menu.id?? -1,
             name: domain.menu.name,
             category: domain.menu.category,
             description: domain.menu.description,

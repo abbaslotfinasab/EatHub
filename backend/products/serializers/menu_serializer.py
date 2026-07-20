@@ -108,7 +108,7 @@ class MenuItemUpdateSerializer(serializers.Serializer):
         required=False
     )
 
-    image_url = serializers.URLField(
+    image_url = serializers.CharField(
         required=False,
         allow_null=True
     )

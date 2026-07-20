@@ -5,6 +5,8 @@ import {apiClient} from "../http/http-client";
 import type {CreateCustomerDTO} from "../dtos/customer/CreateCustomerDTO.ts";
 import type {UpdateCustomerDTO} from "../dtos/customer/UpdateCustomerDTO.ts";
 import type {CustomerDetailDTO} from "../dtos/customer/CustomerDetailDTO.ts";
+import type {CustomerBalanceDTO} from "../dtos/customer/CustomerBalanceDTO.ts";
+import type {CustomerBalanceOperation} from "../../domain/objects/CustomerBalanceOperation.ts";
 
 
 export class CustomerRemoteDataSource {
@@ -108,6 +110,49 @@ export class CustomerRemoteDataSource {
             );
 
         return data;
+
+    }
+
+
+    // =========================
+// Balance
+// =========================
+    async updateBalance(
+        input: CustomerBalanceDTO,
+        type: CustomerBalanceOperation,
+        customerId: number,
+    ): Promise<void> {
+
+        const endpoint =
+            (() => {
+
+                switch (type) {
+
+                    case "credit":
+                        return `/products/customers/${customerId}/credit/`;
+
+                    case "debit":
+                        return `/products/customers/${customerId}/debit/`;
+
+                    case "adjust":
+                        return `/products/customers/${customerId}/adjust/`;
+
+                    default:
+                        throw new Error(
+                            "Invalid customer balance operation",
+                        );
+                }
+
+            })();
+
+
+        await apiClient.post(
+            endpoint,
+            {
+                amount: input.amount,
+                 description: input.description || "",
+            },
+        );
 
     }
 

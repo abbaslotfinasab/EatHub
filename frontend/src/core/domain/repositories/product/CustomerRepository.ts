@@ -1,12 +1,11 @@
 // domain/repositories/customer/CustomerRepository.ts
 
 
-
 import type {Customer} from "../../entities/product/customer/Customer.ts";
 import type {CustomerSearchFilters} from "../../objects/filters/CustomerSearchFilters.ts";
 import type {CustomerDetail} from "../../entities/product/customer/CustomerDetail.ts";
 import type {CustomerListItem} from "../../entities/product/customer/CustomerListItem.ts";
-
+import type { UpdateCustomerBalanceInput } from "../../entities/product/customer/UpdateCustomerBalanceInput.ts";
 
 
 export interface CustomerRepository {
@@ -39,5 +38,8 @@ export interface CustomerRepository {
         query: string,
     ): Promise<Customer[]>;
 
+    updateBalance(
+        input: UpdateCustomerBalanceInput,
+    ): Promise<void>;
 
 }

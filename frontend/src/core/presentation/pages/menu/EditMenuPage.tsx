@@ -35,17 +35,25 @@ export const EditMenuPage = () => {
             mode="edit"
             loading={isPending}
             initialData={data ? MenuFormMapper.toFormInput(data) : undefined}
-            onSubmit={(form) =>
+            onSubmit={(form) => {
+                console.log("FORM", form);
+
                 updateMenu(
                     {
                         id,
                         input: form,
                     },
                     {
-                        onSuccess: () => navigate("/menus"),
+                        onSuccess: () => {
+                            console.log("SUCCESS");
+                            navigate("/menus");
+                        },
+                        onError: (error) => {
+                            console.log("ERROR", error);
+                        },
                     }
-                )
-            }
+                );
+            }}
         />
     );
 };

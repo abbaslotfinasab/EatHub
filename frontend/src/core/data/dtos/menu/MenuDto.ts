@@ -1,7 +1,7 @@
 import type {MenuItemDTO} from "./MenuItemDTO.ts";
 
 export interface MenuDTO {
-    id: string;
+    id: number;
 
     name: string;
     category: string;

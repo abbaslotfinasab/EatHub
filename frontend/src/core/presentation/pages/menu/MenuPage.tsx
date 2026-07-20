@@ -99,7 +99,7 @@ export const MenuPage = () => {
 
                     overflow: "hidden",
 
-                    borderRadius: 6,
+                    borderRadius: 1,
 
                     p: {
                         xs: 3,
@@ -258,7 +258,7 @@ export const MenuPage = () => {
                                 bgcolor:
                                     "#fff",
 
-                                borderRadius: 5,
+                                borderRadius: 1,
 
                                 cursor:
                                     "pointer",
@@ -321,7 +321,7 @@ export const MenuPage = () => {
 
                     "& .MuiOutlinedInput-root": {
                         height: 58,
-                        borderRadius: 4,
+                        borderRadius: 1,
                         bgcolor: "#fff",
 
                         "& fieldset": {
@@ -417,7 +417,7 @@ export const MenuPage = () => {
                     onClick={() => {
                 if (!deleteTarget) return;
 
-                deleteMenu(deleteTarget.id??"");
+                deleteMenu(deleteTarget.id ?? -1);
 
                 setDeleteTarget(null);
             }}

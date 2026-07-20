@@ -72,7 +72,6 @@ class CustomerAccountSerializer(serializers.ModelSerializer):
 
 
 class CustomerTransactionSerializer(serializers.ModelSerializer):
-
     class Meta:
         model = CustomerTransaction
         fields = [
@@ -86,18 +85,7 @@ class CustomerTransactionSerializer(serializers.ModelSerializer):
         ]
 
 
-class CreditAccountSerializer(serializers.Serializer):
-    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
-    description = serializers.CharField(required=False, allow_null=True)
-
-
-class DebitAccountSerializer(serializers.Serializer):
-    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
-    description = serializers.CharField(required=False, allow_null=True)
-
-
-
-class AdjustAccountSerializer(serializers.Serializer):
+class CustomerBalanceSerializer(serializers.Serializer):
 
     amount = serializers.DecimalField(
         max_digits=12,
@@ -107,4 +95,40 @@ class AdjustAccountSerializer(serializers.Serializer):
     description = serializers.CharField(
         required=False,
         allow_blank=True,
+        allow_null=True,
+        default="",
     )
+
+class CustomerListSerializer(serializers.ModelSerializer):
+    balance = serializers.DecimalField(
+        source="account.balance",
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+    )
+
+    totalOrders = serializers.IntegerField(
+        source="total_orders",
+        read_only=True,
+    )
+
+    totalSpent = serializers.DecimalField(
+        source="total_spent",
+        max_digits=12,
+        decimal_places=2,
+        read_only=True,
+    )
+
+    class Meta:
+        model = Customer
+
+        fields = [
+            "id",
+            "name",
+            "phone",
+            "balance",
+            "totalOrders",
+            "totalSpent",
+            "created_at",
+        ]

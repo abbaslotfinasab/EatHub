@@ -34,7 +34,7 @@ export const StatCard = ({
             sx={{
                 p: 3,
                 height: "100%",
-                borderRadius: 4,
+                borderRadius: 1,
                 border: "1px solid",
                 borderColor: "divider",
                 transition: ".2s",

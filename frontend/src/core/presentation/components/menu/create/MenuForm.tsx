@@ -1,18 +1,18 @@
-import { useEffect } from "react";
+import {useEffect} from "react";
 import {
     FormProvider,
     useFieldArray,
     useForm,
     type SubmitHandler,
 } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import {zodResolver} from "@hookform/resolvers/zod";
 import {
     Container,
     Stack,
 } from "@mui/material";
 
-import { MenuInfoCard } from "./MenuInfoCard";
-import { MenuItemsSection } from "./MenuItemsSection";
+import {MenuInfoCard} from "./MenuInfoCard";
+import {MenuItemsSection} from "./MenuItemsSection";
 
 import {
     MenuFormSchema,
@@ -44,20 +44,20 @@ const defaultValues: MenuFormInput = {
 };
 
 export function MenuForm({
-    mode,
-    loading = false,
-    initialData,
-    onSubmit,
-}: MenuFormProps) {
+                             mode,
+                             loading = false,
+                             initialData,
+                             onSubmit,
+                         }: MenuFormProps) {
 
     const methods = useForm<MenuFormInput>({
         defaultValues,
         resolver: zodResolver(MenuFormSchema),
     });
 
-    const { control, handleSubmit, reset } = methods;
+    const {control, handleSubmit, reset} = methods;
 
-    const { fields, append, remove } = useFieldArray({
+    const {fields, append, remove} = useFieldArray({
         control,
         name: "items",
     });
@@ -71,18 +71,18 @@ export function MenuForm({
 
     return (
         <FormProvider {...methods}>
-            <Container maxWidth="lg" sx={{ py: 4 }}>
-               <Stack
-    component="form"
-    spacing={3}
-    onSubmit={handleSubmit(
-        onSubmit,
-        (errors) => {
-            console.log(errors);
-        }
-    )}
-    noValidate
->
+            <Container maxWidth="lg" sx={{py: 4}}>
+                <Stack
+                    component="form"
+                    spacing={3}
+                    onSubmit={handleSubmit(
+                        onSubmit,
+                        (errors) => {
+                            console.log(errors);
+                        }
+                    )}
+                    noValidate
+                >
                     <MenuInfoCard
                         mode={mode}
                         loading={loading}

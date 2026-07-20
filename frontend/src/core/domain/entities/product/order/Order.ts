@@ -2,32 +2,114 @@
 
 
 export const OrderStatus = {
-    PENDING: 'pending',           // ثبت شده، در انتظار پرداخت یا تأیید
-    CONFIRMED: 'confirmed',       // تأیید شده (پرداخت انجام شده یا دستور پخت صادر شده)
-    PREPARING: 'preparing',       // در حال آماده‌سازی (آشپزخانه)
-    READY: 'ready',               // آماده تحویل به مشتری
-    COMPLETED: 'completed',       // تحویل شده و بسته شده
-    CANCELLED: 'cancelled',       // لغو شده توسط مشتری یا رستوران
+
+    PENDING: "pending",
+
+    CONFIRMED: "confirmed",
+
+    PREPARING: "preparing",
+
+    READY: "ready",
+
+    COMPLETED: "completed",
+
+    CANCELLED: "cancelled",
+
 } as const;
 
-export type OrderStatusType = typeof OrderStatus[keyof typeof OrderStatus];
+
+export type OrderStatusType =
+    typeof OrderStatus[keyof typeof OrderStatus];
+
+
+
+export const PaymentStatus = {
+
+    PENDING: "pending",
+
+    UNPAID: "unpaid",
+
+    PAID: "paid",
+
+    FAILED: "failed",
+
+    REFUNDED: "refunded",
+
+} as const;
+
+
+export type PaymentStatusType =
+    typeof PaymentStatus[keyof typeof PaymentStatus];
+
+
+
+export const PaymentMethod = {
+
+    CASH: "cash",
+
+    CARD: "card",
+
+    CUSTOMER_ACCOUNT: "customer_account",
+
+} as const;
+
+
+export type PaymentMethodType =
+    typeof PaymentMethod[keyof typeof PaymentMethod];
+
+
 
 export interface Order {
-    id: string;
-    customerId?: number;          // اگر کاربر احراز هویت شده
-    customerName?: string;          // اگر کاربر احراز هویت شده
-    customerPhone?: string;          // اگر کاربر احراز هویت شده
-    tableId?: number | null;      // اگر سفارش برای میز است
-    orderType: 'dine_in' | 'takeaway' | 'delivery';
-    status: OrderStatusType;
-    subtotal: number;             // جمع قیمت اقلام (بدون تخفیف)
-    discount: number;             // مبلغ تخفیف
-    tax: number;                  // مالیات (در صورت وجود)
-    totalAmount: number;          // مبلغ نهایی = subtotal - discount + tax
-    // paymentMethod: PaymentMethodType;
-    paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded';
-    notes?: string | null;               // توضیحات عمومی سفارش
-    createdAt?: string;
-    updatedAt?: string;
-}
 
+
+    id: string;
+
+
+    customerId?: number;
+
+
+    customerName?: string;
+
+
+    customerPhone?: string;
+
+
+    tableId?: number | null;
+
+
+    orderType:
+        | "dine_in"
+        | "takeaway"
+        | "delivery";
+
+
+    status: OrderStatusType;
+
+
+    paymentStatus: PaymentStatusType;
+
+
+    paymentMethod: PaymentMethodType;
+
+
+    subtotal: number;
+
+
+    discount: number;
+
+
+    tax: number;
+
+
+    totalAmount: number;
+
+
+    notes?: string | null;
+
+
+    createdAt?: string;
+
+
+    updatedAt?: string;
+
+}

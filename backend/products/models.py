@@ -38,7 +38,7 @@ class MenuItem(BaseModel):
     is_available = models.BooleanField(default=True)
 
 
-class Customer(models.Model):
+class Customer(BaseModel):
     business = models.ForeignKey(Business, on_delete=models.CASCADE)
 
     name = models.CharField(max_length=120)
@@ -50,8 +50,6 @@ class Customer(models.Model):
         blank=True,
         on_delete=models.SET_NULL
     )
-
-    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class Order(BaseModel):
@@ -77,10 +75,20 @@ class Order(BaseModel):
         FAILED = "failed", "Failed"
         REFUNDED = "refunded", "Refunded"
 
+    class PaymentMethod(models.TextChoices):
+        CASH = "cash"
+        CARD = "card"
+        CUSTOMER_ACCOUNT = "customer_account"
+
     business = models.ForeignKey(Business, on_delete=models.CASCADE)
 
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
-
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="orders",
+    )
     table = models.IntegerField(null=True, blank=True)
 
     order_type = models.CharField(
@@ -94,6 +102,11 @@ class Order(BaseModel):
         default=Status.PENDING,
     )
 
+    payment_method = models.CharField(
+        max_length=30,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH,
+    )
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -141,16 +154,14 @@ class OrderItem(BaseModel):
 
 
 
-class CustomerAccount(models.Model):
+class CustomerAccount(BaseModel):
     business = models.ForeignKey(Business, on_delete=models.CASCADE)
     customer = models.OneToOneField(Customer, on_delete=models.CASCADE, related_name="account")
-
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
-class CustomerTransaction(models.Model):
+
+class CustomerTransaction(BaseModel):
 
     class Type(models.TextChoices):
         CREDIT = "credit", "Credit"
@@ -171,4 +182,3 @@ class CustomerTransaction(models.Model):
 
     description = models.TextField(null=True, blank=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
