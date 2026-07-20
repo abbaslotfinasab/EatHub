@@ -63,26 +63,46 @@ export function CustomersPage() {
         search,
     });
 
-    const stats = useMemo(() => ({
+    const stats = useMemo(() => {
 
-        totalCustomers: customers.length,
-
-        totalBalance: customers.reduce(
-            (sum, customer) => sum + (customer.balance ?? 0),
+        const creditors = customers.reduce(
+            (sum, customer) =>
+                customer.balance && customer.balance > 0
+                    ? sum + customer.balance
+                    : sum,
             0,
-        ),
+        );
 
-        totalOrders: customers.reduce(
-            (sum, customer) => sum + (customer.totalOrders ?? 0),
+        const debtors = customers.reduce(
+            (sum, customer) =>
+                customer.balance && customer.balance < 0
+                    ? sum + Math.abs(customer.balance)
+                    : sum,
             0,
-        ),
+        );
 
-        totalSpent: customers.reduce(
-            (sum, customer) => sum + (customer.totalSpent ?? 0),
-            0,
-        ),
+        return {
 
-    }), [customers]);
+            totalCustomers: customers.length,
+
+            totalOrders: customers.reduce(
+                (sum, customer) =>
+                    sum + (customer.totalOrders ?? 0),
+                0,
+            ),
+
+            totalSpent: customers.reduce(
+                (sum, customer) =>
+                    sum + (customer.totalSpent ?? 0),
+                0,
+            ),
+
+            creditors,
+            debtors,
+
+        };
+
+    }, [customers]);
 
     const handleCreate = useCallback(() => {
 
@@ -153,7 +173,8 @@ export function CustomersPage() {
 
                 <CustomersStats
                     totalCustomers={stats.totalCustomers}
-                    totalBalance={stats.totalBalance}
+                    creditors={stats.creditors}
+                    debtors={stats.debtors}
                     totalOrders={stats.totalOrders}
                     totalSpent={stats.totalSpent}
                 />
@@ -218,7 +239,8 @@ export function CustomersPage() {
 
                     try {
 
-                        if (selectedCustomer) { /* empty */ } else {
+                        if (selectedCustomer) { /* empty */
+                        } else {
 
                             await createCustomer.mutateAsync(values);
 

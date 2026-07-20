@@ -3,15 +3,18 @@ import {
     GroupsOutlined,
     ShoppingBagOutlined,
     TrendingUpOutlined,
+    SouthWestRounded,
+    NorthEastRounded,
 } from "@mui/icons-material";
 import {Grid, Paper, Stack, Typography} from "@mui/material";
 import {formatCurrency} from "../../utils/formatCurrency.ts";
 
-
 interface CustomersStatsProps {
     totalCustomers: number;
 
-    totalBalance: number;
+    creditors: number;
+
+    debtors: number;
 
     totalOrders: number;
 
@@ -20,10 +23,12 @@ interface CustomersStatsProps {
 
 export function CustomersStats({
                                    totalCustomers,
-                                   totalBalance,
+                                   creditors,
+                                   debtors,
                                    totalOrders,
                                    totalSpent,
                                }: CustomersStatsProps) {
+
     const items = [
         {
             title: "مشتریان",
@@ -31,9 +36,14 @@ export function CustomersStats({
             icon: <GroupsOutlined color="primary"/>,
         },
         {
-            title: "اعتبار حساب‌ها",
-            value: formatCurrency(totalBalance),
-            icon: <AccountBalanceWalletOutlined color="success"/>,
+            title: "بستانکاران",
+            value: formatCurrency(creditors),
+            icon: <NorthEastRounded color="success"/>,
+        },
+        {
+            title: "بدهکاران",
+            value: formatCurrency(debtors),
+            icon: <SouthWestRounded color="error"/>,
         },
         {
             title: "کل سفارش‌ها",
@@ -43,7 +53,7 @@ export function CustomersStats({
         {
             title: "مجموع خرید",
             value: formatCurrency(totalSpent),
-            icon: <TrendingUpOutlined color="error"/>,
+            icon: <TrendingUpOutlined color="primary"/>,
         },
     ];
 
@@ -58,7 +68,7 @@ export function CustomersStats({
                     size={{
                         xs: 12,
                         sm: 6,
-                        md: 3,
+                        md: 2.4,
                     }}
                 >
                     <Paper
@@ -67,8 +77,14 @@ export function CustomersStats({
                             p: 2.5,
                             border: 1,
                             borderColor: "divider",
-                            borderRadius: 3,
+                            borderRadius: 1,
                             height: "100%",
+                            transition: "0.2s",
+
+                            "&:hover": {
+                                borderColor: "primary.main",
+                                transform: "translateY(-2px)",
+                            },
                         }}
                     >
                         <Stack
@@ -99,6 +115,9 @@ export function CustomersStats({
                                     {item.value}
                                 </Typography>
                             </Stack>
+                            <AccountBalanceWalletOutlined
+                                sx={{display: "none"}}
+                            />
 
                             {item.icon}
                         </Stack>
