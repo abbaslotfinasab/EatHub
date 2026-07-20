@@ -1,13 +1,17 @@
 export interface CustomerDTO {
     id: number;
+
     business_id?: string;
 
     name: string;
+
     phone: string;
 
-    balance?: number;
+    balance?: string;
+
     totalOrders?: number;
-    totalSpent?: number;
+
+    totalSpent?: string;
 
     user_id?: string | null;
 

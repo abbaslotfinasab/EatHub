@@ -37,11 +37,11 @@ export const customerMapper = {
 
             phone: dto.phone,
 
-            totalOrders: dto.totalOrders,
+            balance: Number(dto.balance ?? 0),
 
-            totalSpent: dto.totalSpent,
+            totalOrders: Number(dto.totalOrders ?? 0),
 
-            balance: dto.balance,
+            totalSpent: Number(dto.totalSpent ?? 0),
 
             createdAt: dto.created_at
 
