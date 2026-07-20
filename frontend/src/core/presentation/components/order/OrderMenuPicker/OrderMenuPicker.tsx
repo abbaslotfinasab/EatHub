@@ -27,7 +27,7 @@ export const OrderMenuPicker = () => {
         useState("");
 
     const [selectedMenuId, setSelectedMenuId] =
-        useState<string>();
+        useState<number>();
 
     // ===========================
     // Filter Menus

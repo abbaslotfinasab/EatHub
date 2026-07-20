@@ -13,10 +13,10 @@ import { useOrderItems } from "./useOrderItems";
 interface MenuCategoryTabsProps {
     menus: MenuWithItems[];
 
-    selectedMenuId?: string;
+    selectedMenuId?: number;
 
     onChange: (
-        menuId: string,
+        menuId: number,
     ) => void;
 }
 

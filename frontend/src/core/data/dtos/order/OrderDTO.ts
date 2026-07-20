@@ -1,4 +1,4 @@
-import type { OrderItemDTO } from "./OrderItemDTO";
+import type {OrderItemDTO} from "./OrderItemDTO";
 
 export interface OrderDTO {
     id: string;
@@ -23,7 +23,9 @@ export interface OrderDTO {
 
     total_amount: number;
 
-    payment_status:string;
+    payment_status: string;
+
+    payment_method: string;
 
     notes: string | null;
 

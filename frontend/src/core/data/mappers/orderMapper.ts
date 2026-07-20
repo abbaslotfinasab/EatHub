@@ -37,6 +37,7 @@ export const orderMapper = {
             tax: dto.tax,
             totalAmount: dto.total_amount,
             paymentStatus: dto.payment_status as Order["paymentStatus"],
+            paymentMethod : dto.payment_method as Order["paymentMethod"],
             notes: dto.notes,
             createdAt: dto.created_at,
             updatedAt: dto.updated_at,

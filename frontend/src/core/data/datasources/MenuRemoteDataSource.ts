@@ -33,7 +33,7 @@ export class MenuRemoteDataSource {
     }
 
     async updateMenu(
-        id: string,
+        id: number,
         payload: CreateMenuDTO,
     ): Promise<MenuDTO> {
         const { data } = await apiClient.patch<MenuDTO>(

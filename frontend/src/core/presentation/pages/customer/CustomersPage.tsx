@@ -218,10 +218,7 @@ export function CustomersPage() {
 
                     try {
 
-                        if (selectedCustomer) {
-
-
-                        } else {
+                        if (selectedCustomer) { /* empty */ } else {
 
                             await createCustomer.mutateAsync(values);
 

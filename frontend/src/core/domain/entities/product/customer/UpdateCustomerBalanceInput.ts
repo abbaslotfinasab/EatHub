@@ -1,7 +1,4 @@
-export type CustomerBalanceOperation =
-    | "credit"
-    | "debit"
-    | "adjust";
+import type {CustomerBalanceOperation} from "../../../objects/CustomerBalanceOperation.ts";
 
 export interface UpdateCustomerBalanceInput {
 
