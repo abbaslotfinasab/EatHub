@@ -1,6 +1,6 @@
 // presentation/forms/order/OrderFormMapper.ts
 
-import {type Order, PaymentMethod} from "../../../domain/entities/product/order/Order";
+import type {Order} from "../../../domain/entities/product/order/Order";
 import type {OrderItem} from "../../../domain/entities/product/order/OrderItem";
 import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems";
 
@@ -43,8 +43,6 @@ export const OrderFormMapper = {
             totalAmount: 0,
 
             paymentStatus: "pending",
-
-            paymentMethod: PaymentMethod.CARD,
 
             notes:
                 input.notes ?? null,

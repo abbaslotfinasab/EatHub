@@ -61,6 +61,10 @@ class OrderSerializer(serializers.Serializer):
     order_type = serializers.CharField()
     status = serializers.CharField()
 
+    payment_method = serializers.CharField()
+
+    payment_status = serializers.CharField()
+
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2)
     discount = serializers.DecimalField(max_digits=12, decimal_places=2)
     tax = serializers.DecimalField(max_digits=12, decimal_places=2)

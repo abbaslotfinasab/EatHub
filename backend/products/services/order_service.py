@@ -222,7 +222,8 @@ class OrderService:
             )
 
             WalletService.debit(
-                account=account,
+                business=business,
+                customer=order.customer,
                 amount=order.total_amount,
                 order=order,
                 description=f"Order #{order.id}",

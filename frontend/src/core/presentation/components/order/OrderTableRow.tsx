@@ -62,6 +62,14 @@ export const OrderTableRow = ({
                 <OrderStatusChip status={order.order.status}/>
             </TableCell>
 
+            {/*<TableCell>*/}
+            {/*    {order.order.paymentStatus}*/}
+            {/*</TableCell>*/}
+
+            {/*<TableCell>*/}
+            {/*    {order.order.paymentMethod}*/}
+            {/*</TableCell>*/}
+
             <TableCell>{formatDateTime(order.order.createdAt)}</TableCell>
 
             <TableCell

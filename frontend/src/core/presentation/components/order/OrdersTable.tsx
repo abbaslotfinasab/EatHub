@@ -65,7 +65,11 @@ export const OrdersTable = ({
 
                         <TableCell>مبلغ</TableCell>
 
-                        <TableCell>وضعیت</TableCell>
+                        <TableCell>وضعیت سفارش</TableCell>
+
+                        {/*<TableCell>وضعیت پرداخت</TableCell>*/}
+
+                        {/*<TableCell>روش پرداخت</TableCell>*/}
 
                         <TableCell>زمان</TableCell>
 

@@ -86,10 +86,10 @@ export interface Order {
     status: OrderStatusType;
 
 
-    paymentStatus: PaymentStatusType;
+    paymentStatus?: PaymentStatusType;
 
 
-    paymentMethod: PaymentMethodType;
+    paymentMethod?: PaymentMethodType;
 
 
     subtotal: number;
