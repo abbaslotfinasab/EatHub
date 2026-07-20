@@ -13,6 +13,7 @@ import {
 
 import {LoadingButton} from "@mui/lab";
 
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLong";
 import PaidRoundedIcon from "@mui/icons-material/Paid";
 import PaymentsRoundedIcon from "@mui/icons-material/Payments";
 
@@ -145,8 +146,8 @@ export function OrderStatusDialog({
                                     alignItems: "center",
                                 }}
                             >
-                                <PaidRoundedIcon
-                                    color="success"
+                                <ReceiptLongRoundedIcon
+                                    color="primary"
                                 />
 
                                 <Typography
@@ -154,7 +155,7 @@ export function OrderStatusDialog({
                                         fontWeight: 700,
                                     }}
                                 >
-                                    وضعیت پرداخت
+                                    وضعیت سفارش
                                 </Typography>
                             </Stack>
                             <Typography
