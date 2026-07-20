@@ -7,9 +7,15 @@ import {
     Stack,
     TextField,
     Button,
+    Paper, Typography,
 } from "@mui/material";
 
+
 import {LoadingButton} from "@mui/lab";
+
+import PaidRoundedIcon from "@mui/icons-material/Paid";
+import PaymentsRoundedIcon from "@mui/icons-material/Payments";
+
 
 import {useState} from "react";
 
@@ -115,139 +121,269 @@ export function OrderStatusDialog({
 
                 <Stack
                     sx={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 2,
+                        gap: 3,
+                        mt: 1,
                     }}
                 >
 
-                    <TextField
-                        select
-                        label="وضعیت سفارش"
-                        value={status}
-                        onChange={(e) =>
-                            setStatus(
-                                e.target.value as OrderStatusType
-                            )
-                        }
+                    {/* وضعیت سفارش */}
+
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            p: 3,
+                            borderRadius: 3,
+                        }}
                     >
 
-                        <MenuItem value="pending">
-                            در انتظار
-                        </MenuItem>
+                        <Stack spacing={2}>
 
-                        <MenuItem value="confirmed">
-                            تایید شده
-                        </MenuItem>
+                            <Stack
+                                sx={{
+                                    flexDirection: "row",
+                                    gap: 1,
+                                    alignItems: "center",
+                                }}
+                            >
+                                <PaidRoundedIcon
+                                    color="success"
+                                />
 
-                        <MenuItem value="preparing">
-                            در حال آماده سازی
-                        </MenuItem>
+                                <Typography
+                                    sx={{
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    وضعیت پرداخت
+                                </Typography>
+                            </Stack>
+                            <Typography
+                                variant="body2"
+                                color="text.secondary"
+                            >
+                                مرحله فعلی سفارش را انتخاب کنید.
+                            </Typography>
 
-                        <MenuItem value="ready">
-                            آماده تحویل
-                        </MenuItem>
+                            <TextField
+                                fullWidth
+                                select
+                                value={status}
+                                onChange={(e) =>
+                                    setStatus(
+                                        e.target.value as OrderStatusType
+                                    )
+                                }
+                            >
 
-                        <MenuItem value="completed">
-                            تکمیل شده
-                        </MenuItem>
+                                <MenuItem value="pending">
+                                    در انتظار
+                                </MenuItem>
 
-                        <MenuItem value="cancelled">
-                            لغو شده
-                        </MenuItem>
+                                <MenuItem value="confirmed">
+                                    تایید شده
+                                </MenuItem>
 
-                    </TextField>
+                                <MenuItem value="preparing">
+                                    در حال آماده سازی
+                                </MenuItem>
+
+                                <MenuItem value="ready">
+                                    آماده تحویل
+                                </MenuItem>
+
+                                <MenuItem value="completed">
+                                    تکمیل شده
+                                </MenuItem>
+
+                                <MenuItem value="cancelled">
+                                    لغو شده
+                                </MenuItem>
+
+                            </TextField>
+
+                        </Stack>
+
+                    </Paper>
 
 
-                    <TextField
-                        select
-                        label="وضعیت پرداخت"
-                        value={paymentStatus}
-                        onChange={(e) =>
-                            setPaymentStatus(
-                                e.target.value as PaymentStatusType
-                            )
-                        }
+                    {/* وضعیت پرداخت */}
+
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            p: 3,
+                            borderRadius: 3,
+                        }}
                     >
 
-                        <MenuItem value="pending">
-                            در انتظار
-                        </MenuItem>
+                        <Stack spacing={2}>
 
-                        <MenuItem value="unpaid">
-                            پرداخت نشده
-                        </MenuItem>
+                            <Stack
+                                sx={{
+                                    flexDirection: "row",
+                                    gap: 1,
+                                    alignItems: "center",
+                                }}
+                            >
+                                <PaidRoundedIcon
+                                    color="success"
+                                />
 
-                        <MenuItem value="paid">
-                            پرداخت شده
-                        </MenuItem>
+                                <Typography
+                                    sx={{
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    وضعیت پرداخت
+                                </Typography>
+                            </Stack>
 
-                        <MenuItem value="failed">
-                            ناموفق
-                        </MenuItem>
+                            <Typography
+                                variant="body2"
+                                color="text.secondary"
+                            >
+                                مشخص کنید پرداخت انجام شده است یا خیر.
+                            </Typography>
 
-                        <MenuItem value="refunded">
-                            برگشت داده شده
-                        </MenuItem>
+                            <TextField
+                                fullWidth
+                                select
+                                value={paymentStatus}
+                                onChange={(e) =>
+                                    setPaymentStatus(
+                                        e.target.value as PaymentStatusType
+                                    )
+                                }
+                            >
+
+                                <MenuItem value="pending">
+                                    در انتظار
+                                </MenuItem>
+
+                                <MenuItem value="unpaid">
+                                    پرداخت نشده
+                                </MenuItem>
+
+                                <MenuItem value="paid">
+                                    پرداخت شده
+                                </MenuItem>
+
+                                <MenuItem value="failed">
+                                    ناموفق
+                                </MenuItem>
+
+                                <MenuItem value="refunded">
+                                    برگشت داده شده
+                                </MenuItem>
+
+                            </TextField>
+
+                        </Stack>
+
+                    </Paper>
 
 
-                    </TextField>
+                    {/* روش پرداخت */}
 
-
-                    <TextField
-                        select
-                        label="روش پرداخت"
-                        value={paymentMethod}
-                        onChange={(e) =>
-                            setPaymentMethod(
-                                e.target.value as PaymentMethodType
-                            )
-                        }
+                    <Paper
+                        variant="outlined"
+                        sx={{
+                            p: 3,
+                            borderRadius: 3,
+                        }}
                     >
 
-                        <MenuItem value="cash">
-                            نقدی
-                        </MenuItem>
+                        <Stack spacing={2}>
 
+                            <Stack
+                                sx={{
+                                    flexDirection: "row",
+                                    gap: 1,
+                                    alignItems: "center",
+                                }}
+                            >
+                                <PaymentsRoundedIcon
+                                    sx={{
+                                        color: "warning.main",
+                                    }}
+                                />
 
-                        <MenuItem value="card">
-                            کارت
-                        </MenuItem>
+                                <Typography
+                                    sx={{
+                                        fontWeight: 700,
+                                    }}
+                                >
+                                    روش پرداخت
+                                </Typography>
+                            </Stack>
 
+                            <Typography
+                                variant="body2"
+                                color="text.secondary"
+                            >
+                                روش تسویه سفارش را انتخاب کنید.
+                            </Typography>
 
-                        <MenuItem value="customer_account">
-                            حساب مشتری
-                        </MenuItem>
+                            <TextField
+                                fullWidth
+                                select
+                                value={paymentMethod}
+                                onChange={(e) =>
+                                    setPaymentMethod(
+                                        e.target.value as PaymentMethodType
+                                    )
+                                }
+                            >
 
+                                <MenuItem value="cash">
+                                    نقدی
+                                </MenuItem>
 
-                    </TextField>
+                                <MenuItem value="card">
+                                    کارت
+                                </MenuItem>
 
+                                <MenuItem value="customer_account">
+                                    حساب مشتری
+                                </MenuItem>
+
+                            </TextField>
+
+                        </Stack>
+
+                    </Paper>
 
                 </Stack>
-
 
             </DialogContent>
 
 
-            <DialogActions>
+            <DialogActions
+                sx={{
+                    px: 3,
+                    pb: 3,
+                    pt: 2,
+                }}
+            >
 
                 <Button
                     onClick={onClose}
+                    size="large"
                 >
                     انصراف
                 </Button>
 
-
                 <LoadingButton
                     loading={loading}
                     variant="contained"
+                    size="large"
+                    sx={{
+                        minWidth: 180,
+                    }}
                     onClick={handleSubmit}
                 >
-
-                    ذخیره
-
+                    ذخیره تغییرات
                 </LoadingButton>
-
 
             </DialogActions>
 
