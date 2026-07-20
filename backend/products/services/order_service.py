@@ -192,15 +192,15 @@ class OrderService:
             business=business,
         )
 
-        old_payment_method = order.payment_method
+        old_status = order.status
         old_payment_status = order.payment_status
 
         order.status = status
 
-        if payment_method:
+        if payment_method is not None:
             order.payment_method = payment_method
 
-        if payment_status:
+        if payment_status is not None:
             order.payment_status = payment_status
 
         # =====================================
@@ -208,13 +208,11 @@ class OrderService:
         # =====================================
 
         should_debit = (
-                order.status == Order.Status.COMPLETED
-                and
-                order.payment_method == Order.PaymentMethod.CUSTOMER_ACCOUNT
-                and
-                order.payment_status != Order.PaymentStatus.PAID
-                and
-                order.customer is not None
+                old_status != Order.Status.COMPLETED
+                and status == Order.Status.COMPLETED
+                and order.payment_method == Order.PaymentMethod.CUSTOMER_ACCOUNT
+                and old_payment_status != Order.PaymentStatus.PAID
+                and order.customer
         )
 
         if should_debit:
