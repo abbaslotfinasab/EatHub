@@ -36,12 +36,12 @@ export function CustomersStats({
             icon: <GroupsOutlined color="primary"/>,
         },
         {
-            title: "بستانکاران",
+            title: "بستانکاری",
             value: formatCurrency(creditors),
             icon: <NorthEastRounded color="success"/>,
         },
         {
-            title: "بدهکاران",
+            title: "بدهکاری",
             value: formatCurrency(debtors),
             icon: <SouthWestRounded color="error"/>,
         },
