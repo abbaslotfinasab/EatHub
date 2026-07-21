@@ -12,42 +12,44 @@ import {
     TextField,
 } from "@mui/material";
 
-import {CustomersFilterPopover} from "./CustomersFilterPopover";
+import {
+    type MenuItemsFilter,
+    type MenuOrdering,
+    type MenuStatusFilter,
+} from "../../../domain/objects/filters/MenuFilters";
 
-import type {
-    CustomerBalanceFilter,
-    CustomerOrdering,
-    CustomerOrdersFilter,
-} from "../../../domain/objects/filters/CustomerSearchFilters";
+import {MenuFilterPopover} from "./MenuFilterPopover";
 
-export interface CustomersToolbarProps {
+export interface MenuToolbarProps {
     search: string;
 
     hasFilters?: boolean;
 
-    onSearchChange: (value: string) => void;
+    onSearchChange(
+        value: string,
+    ): void;
 
-    onFilterClick?: () => void;
+    onFilterClick?(): void;
 }
 
-export function CustomersToolbar({
-                                     search,
-                                     hasFilters = false,
-                                     onSearchChange,
-                                     onFilterClick,
-                                 }: CustomersToolbarProps) {
+export function MenuToolbar({
+                                search,
+                                hasFilters = false,
+                                onSearchChange,
+                                onFilterClick,
+                            }: MenuToolbarProps) {
 
     const [anchorEl, setAnchorEl] =
         useState<HTMLElement | null>(null);
 
-    const [balance, setBalance] =
-        useState<CustomerBalanceFilter>("ALL");
+    const [status, setStatus] =
+        useState<MenuStatusFilter>("ALL");
 
-    const [orders, setOrders] =
-        useState<CustomerOrdersFilter>("ALL");
+    const [items, setItems] =
+        useState<MenuItemsFilter>("ALL");
 
     const [ordering, setOrdering] =
-        useState<CustomerOrdering>("-created_at");
+        useState<MenuOrdering>("-created_at");
 
     const filtersActive = useMemo(
         () => hasFilters,
@@ -63,6 +65,7 @@ export function CustomersToolbar({
                     borderRadius: 1,
                     border: "1px solid",
                     borderColor: "divider",
+                    bgcolor: "background.paper",
                 }}
             >
                 <Stack
@@ -78,27 +81,33 @@ export function CustomersToolbar({
                     <TextField
                         fullWidth
                         value={search}
-                        placeholder="جستجوی نام یا شماره موبایل..."
+                        placeholder="جستجو در منو یا آیتم..."
                         onChange={(e) =>
                             onSearchChange(
                                 e.target.value,
                             )
                         }
                         sx={{
+                            flex: 1,
+
                             "& .MuiOutlinedInput-root": {
                                 height: 56,
                                 borderRadius: 1,
+                                bgcolor: "#fff",
 
                                 "& fieldset": {
-                                    borderColor: "#E2E8F0",
+                                    borderColor:
+                                        "#E2E8F0",
                                 },
 
                                 "&:hover fieldset": {
-                                    borderColor: "#1F4A33",
+                                    borderColor:
+                                        "#1F4A33",
                                 },
 
                                 "&.Mui-focused fieldset": {
-                                    borderColor: "#10281A",
+                                    borderColor:
+                                        "#10281A",
                                     borderWidth: 2,
                                 },
                             },
@@ -139,6 +148,8 @@ export function CustomersToolbar({
                                     md: 150,
                                 },
 
+                                minWidth: 150,
+
                                 height: 56,
 
                                 borderRadius: 1,
@@ -152,23 +163,23 @@ export function CustomersToolbar({
                 </Stack>
             </Paper>
 
-            <CustomersFilterPopover
+            <MenuFilterPopover
                 open={Boolean(anchorEl)}
                 anchorEl={anchorEl}
-                balance={balance}
-                orders={orders}
+                status={status}
+                items={items}
                 ordering={ordering}
-                onBalanceChange={setBalance}
-                onOrdersChange={setOrders}
+                onStatusChange={setStatus}
+                onItemsChange={setItems}
                 onOrderingChange={setOrdering}
                 onClear={() => {
-
-                    setBalance("ALL");
-                    setOrders("ALL");
+                    setStatus("ALL");
+                    setItems("ALL");
                     setOrdering("-created_at");
-
                 }}
-                onClose={() => setAnchorEl(null)}
+                onClose={() =>
+                    setAnchorEl(null)
+                }
             />
         </>
     );

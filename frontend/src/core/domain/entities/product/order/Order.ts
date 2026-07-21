@@ -1,6 +1,19 @@
 // core/domain/entities/sales/Order.ts
 
 
+export const OrderType = {
+
+    DINE_IN: "dine_in",
+
+    TAKEAWAY: "takeaway",
+
+    DELIVERY: "delivery",
+
+} as const;
+
+export type OrderTypeType =
+    typeof OrderType[keyof typeof OrderType];
+
 export const OrderStatus = {
 
     PENDING: "pending",

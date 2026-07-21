@@ -14,15 +14,14 @@ export const useGetAllCustomers = (
     } = container.customerContainer;
 
     return useQuery({
-
         queryKey: [
             "customers",
             filters,
         ],
-
         queryFn: () =>
             findAllCustomersUseCase.execute(filters),
 
+        placeholderData: (previousData) => previousData,
     });
 
 };

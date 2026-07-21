@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react";
 
-import {Box, Fab} from "@mui/material";
+import {Container, Fab, Stack} from "@mui/material";
 
 import {
     OrderStatus,
@@ -37,7 +37,6 @@ export const OrdersPage = () => {
     const {
         data: orders = [],
         isLoading,
-        refetch,
     } = useGetAllOrders();
 
     // ============================
@@ -191,55 +190,51 @@ export const OrdersPage = () => {
     // ============================
 
     return (
-        <Box
-            sx={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 3,
-            }}
-        >
-            {/* Statistics */}
+        <Container maxWidth="xl">
+            <Stack spacing={3}>
 
-            <OrdersStats
-                totalOrders={stats.totalOrders.toString()}
-                pendingOrders={stats.pendingOrders.toString()}
-                preparingOrders={stats.preparingOrders.toString()}
-                readyOrders={stats.readyOrders.toString()}
-            />
-
-            {/* Toolbar */}
-
-            <OrdersToolbar
-                search={search}
-                status={statusFilter}
-                onSearchChange={setSearch}
-                onStatusChange={setStatusFilter}
-                onRefresh={() => refetch()}
-            />
-
-            {/* Empty */}
-
-            {filteredOrders.length === 0 ? (
-                <OrdersEmpty
-                    hasFilters={
-                        search.trim().length > 0 ||
-                        statusFilter !== "ALL"
-                    }
-                    onResetFilters={
-                        handleResetFilters
-                    }
+                <OrdersStats
+                    totalOrders={stats.totalOrders}
+                    pendingOrders={stats.pendingOrders}
+                    preparingOrders={stats.preparingOrders}
+                    readyOrders={stats.readyOrders}
                 />
-            ) : (
-                <OrdersTable
-                    orders={filteredOrders}
-                    onOrderClick={
-                        handleOrderClick
-                    }
-                    onOrderMenuClick={
-                        handleMenuOpen
-                    }
+
+                {/* Toolbar */}
+
+                <OrdersToolbar
+                    search={search}
+                    status={statusFilter}
+                    onSearchChange={setSearch}
+                    onStatusChange={setStatusFilter}
                 />
-            )}
+
+                {/* Empty */}
+
+                {filteredOrders.length === 0 ? (
+                    <OrdersEmpty
+                        hasFilters={
+                            search.trim().length > 0 ||
+                            statusFilter !== "ALL"
+                        }
+                        onResetFilters={
+                            handleResetFilters
+                        }
+                    />
+                ) : (
+                    <OrdersTable
+                        orders={filteredOrders}
+                        onOrderClick={
+                            handleOrderClick
+                        }
+                        onOrderMenuClick={
+                            handleMenuOpen
+                        }
+                    />
+                )}
+
+            </Stack>
+
 
             {/* Details Dialog */}
 
@@ -393,6 +388,6 @@ export const OrdersPage = () => {
                 سفارش جدید
             </Fab>
 
-        </Box>
+        </Container>
     );
 };

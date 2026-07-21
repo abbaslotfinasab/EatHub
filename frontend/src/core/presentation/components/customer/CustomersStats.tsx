@@ -1,127 +1,81 @@
 import {
-    AccountBalanceWalletOutlined,
-    GroupsOutlined,
-    ShoppingBagOutlined,
-    TrendingUpOutlined,
-    SouthWestRounded,
-    NorthEastRounded,
-} from "@mui/icons-material";
-import {Grid, Paper, Stack, Typography} from "@mui/material";
-import {formatCurrency} from "../../utils/formatCurrency.ts";
+    Grid,
+} from "@mui/material";
+
+import PeopleAltRoundedIcon from "@mui/icons-material/PeopleAltRounded";
+import NorthEastRoundedIcon from "@mui/icons-material/NorthEastRounded";
+import SouthWestRoundedIcon from "@mui/icons-material/SouthWestRounded";
+import ShoppingBagRoundedIcon from "@mui/icons-material/ShoppingBagRounded";
+
+import { StatCard } from "../common/StatCard";
+import { formatCurrency } from "../../utils/formatCurrency";
 
 interface CustomersStatsProps {
     totalCustomers: number;
-
     creditors: number;
-
     debtors: number;
-
-    totalOrders: number;
-
     totalSpent: number;
 }
 
 export function CustomersStats({
-                                   totalCustomers,
-                                   creditors,
-                                   debtors,
-                                   totalOrders,
-                                   totalSpent,
-                               }: CustomersStatsProps) {
+    totalCustomers,
+    creditors,
+    debtors,
+    totalSpent,
+}: CustomersStatsProps) {
 
-    const items = [
+    const stats = [
         {
-            title: "مشتریان",
+            title: "تعداد مشتریان",
             value: totalCustomers.toLocaleString(),
-            icon: <GroupsOutlined color="primary"/>,
+            subtitle: "مشتریان ثبت شده",
+            icon: <PeopleAltRoundedIcon />,
+            color: "#2563EB",
         },
         {
             title: "بستانکاری",
             value: formatCurrency(creditors),
-            icon: <NorthEastRounded color="success"/>,
+            subtitle: "اعتبار نزد مشتریان",
+            icon: <NorthEastRoundedIcon />,
+            color: "#16A34A",
         },
         {
             title: "بدهکاری",
             value: formatCurrency(debtors),
-            icon: <SouthWestRounded color="error"/>,
-        },
-        {
-            title: "کل سفارش‌ها",
-            value: totalOrders.toLocaleString(),
-            icon: <ShoppingBagOutlined color="warning"/>,
+            subtitle: "مطالبات قابل وصول",
+            icon: <SouthWestRoundedIcon />,
+            color: "#DC2626",
         },
         {
             title: "مجموع خرید",
             value: formatCurrency(totalSpent),
-            icon: <TrendingUpOutlined color="primary"/>,
+            subtitle: "خرید تمامی مشتریان",
+            icon: <ShoppingBagRoundedIcon />,
+            color: "#7C3AED",
         },
     ];
 
     return (
         <Grid
             container
-            spacing={2}
+            spacing={2.5}
         >
-            {items.map((item) => (
+            {stats.map((item) => (
                 <Grid
                     key={item.title}
                     size={{
                         xs: 12,
                         sm: 6,
-                        md: 2.4,
+                        lg: 3,
                     }}
                 >
-                    <Paper
-                        elevation={0}
-                        sx={{
-                            p: 2.5,
-                            border: 1,
-                            borderColor: "divider",
-                            borderRadius: 1,
-                            height: "100%",
-                            transition: "0.2s",
-
-                            "&:hover": {
-                                borderColor: "primary.main",
-                                transform: "translateY(-2px)",
-                            },
-                        }}
-                    >
-                        <Stack
-                            sx={{
-                                flexDirection: "row",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                            }}
-                        >
-                            <Stack
-                                sx={{
-                                    gap: 0.5,
-                                }}
-                            >
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                >
-                                    {item.title}
-                                </Typography>
-
-                                <Typography
-                                    variant="h5"
-                                    sx={{
-                                        fontWeight: 700,
-                                    }}
-                                >
-                                    {item.value}
-                                </Typography>
-                            </Stack>
-                            <AccountBalanceWalletOutlined
-                                sx={{display: "none"}}
-                            />
-
-                            {item.icon}
-                        </Stack>
-                    </Paper>
+                    <StatCard
+                        title={item.title}
+                        value={item.value}
+                        subtitle={item.subtitle}
+                        icon={item.icon}
+                        color={item.color}
+                    />
                 </Grid>
             ))}
         </Grid>

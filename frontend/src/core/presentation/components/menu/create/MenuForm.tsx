@@ -7,7 +7,7 @@ import {
 } from "react-hook-form";
 import {zodResolver} from "@hookform/resolvers/zod";
 import {
-    Container,
+    Container, Fab,
     Stack,
 } from "@mui/material";
 
@@ -18,6 +18,8 @@ import {
     MenuFormSchema,
     type MenuFormInput,
 } from "../../../forms/menu/MenuFormInput.ts";
+import AddIcon from "@mui/icons-material/Add";
+import {defaultMenuItem} from "../../../forms/menu/menuItemDefault.ts";
 
 interface MenuFormProps {
     mode: "create" | "edit";
@@ -32,15 +34,7 @@ const defaultValues: MenuFormInput = {
     description: null,
     sortOrder: 0,
     isActive: true,
-    items: [
-        {
-            name: "",
-            description: null,
-            price: 0,
-            imageUrl: null,
-            isAvailable: true,
-        },
-    ],
+  items: [defaultMenuItem]
 };
 
 export function MenuForm({
@@ -90,10 +84,35 @@ export function MenuForm({
 
                     <MenuItemsSection
                         fields={fields}
-                        append={append}
                         remove={remove}
                     />
                 </Stack>
+
+                <Fab
+                variant="extended"
+                onClick={() => append({ ...defaultMenuItem })
+                }
+                sx={{
+                    position:
+                        "fixed",
+
+                    left: 24,
+                    bottom: 24,
+
+                    bgcolor:
+                        "#10281A",
+
+                    color: "#fff",
+
+                    "&:hover": {
+                        bgcolor:
+                            "#173724",
+                    },
+                }}
+            >
+                <AddIcon/>
+                آیتم جدید
+            </Fab>
             </Container>
         </FormProvider>
     );

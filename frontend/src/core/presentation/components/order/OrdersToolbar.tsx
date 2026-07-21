@@ -1,47 +1,43 @@
 // presentation/components/order/OrdersToolbar.tsx
 
-import { useState } from "react";
+import {useMemo, useState, } from "react";
 
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 
 import {
+    Badge,
     Button,
-    IconButton,
     InputAdornment,
+    Paper,
     Stack,
     TextField,
-    Tooltip,
 } from "@mui/material";
 
 import {
-    type OrderStatusType,
+    type OrderStatusType, type PaymentMethodType, type PaymentStatusType,
 } from "../../../domain/entities/product/order/Order";
 
-import { OrdersFilterPopover } from "./OrdersFilterPopover";
+import {type OrderOrdering, OrdersFilterPopover, type OrderType} from "./OrdersFilterPopover";
 
 interface OrdersToolbarProps {
     search: string;
 
     status: OrderStatusType | "ALL";
 
-    onSearchChange: (value: string) => void;
+    onSearchChange: (
+        value: string,
+    ) => void;
 
     onStatusChange: (
         status: OrderStatusType | "ALL",
     ) => void;
-
-    onRefresh?: () => void;
 }
 
 export const OrdersToolbar = ({
-    search,
-    status,
-    onSearchChange,
-    onStatusChange,
-    onRefresh,
-}: OrdersToolbarProps) => {
+                                  search,
+                                  onSearchChange,
+                              }: OrdersToolbarProps) => {
 
     // ===========================
     // State
@@ -50,6 +46,36 @@ export const OrdersToolbar = ({
     const [anchorEl, setAnchorEl] =
         useState<HTMLElement | null>(null);
 
+    const [status, setStatus] =
+        useState<OrderStatusType | "ALL">("ALL");
+
+    const [orderType, setOrderType] =
+        useState<OrderType | "ALL">("ALL");
+
+    const [paymentStatus, setPaymentStatus] =
+        useState<PaymentStatusType | "ALL">("ALL");
+
+    const [paymentMethod, setPaymentMethod] =
+        useState<PaymentMethodType | "ALL">("ALL");
+
+    const [ordering, setOrdering] =
+        useState<OrderOrdering>("-created_at");
+
+    const [fromDate, setFromDate] =
+        useState("");
+
+    const [toDate, setToDate] =
+        useState("");
+
+    // ===========================
+    // Derived State
+    // ===========================
+
+    const filtersActive = useMemo(
+        () => status !== "ALL",
+        [status],
+    );
+
     // ===========================
     // Handlers
     // ===========================
@@ -57,7 +83,9 @@ export const OrdersToolbar = ({
     const handleOpenFilters = (
         event: React.MouseEvent<HTMLElement>,
     ) => {
-        setAnchorEl(event.currentTarget);
+        setAnchorEl(
+            event.currentTarget,
+        );
     };
 
     const handleCloseFilters = () => {
@@ -70,109 +98,128 @@ export const OrdersToolbar = ({
 
     return (
         <>
-            <Stack
+            <Paper
+                elevation={0}
                 sx={{
-                    flexDirection: {
-                        xs: "column",
-                        md: "row",
-                    },
-
-                    alignItems: "center",
-
-                    gap: 2,
+                    p: 2,
+                    borderRadius: 1,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: "background.paper",
                 }}
             >
-
-                <TextField
-                    fullWidth
-                    placeholder="جستجوی مشتری، شماره سفارش..."
-                    value={search}
-                    onChange={(e) =>
-                        onSearchChange(
-                            e.target.value,
-                        )
-                    }
+                <Stack
                     sx={{
-                       "& .MuiOutlinedInput-root": {
-                        height: 58,
-                        borderRadius: 4,
-                        bgcolor: "#fff",
-
-                        "& fieldset": {
-                            borderColor: "#E2E8F0",
+                        flexDirection: {
+                            xs: "column",
+                            md: "row",
                         },
-
-                        "&:hover fieldset": {
-                            borderColor: "#1F4A33",
-                        },
-
-                        "&.Mui-focused fieldset": {
-                            borderColor: "#10281A",
-                            borderWidth: "2px",
-                        },
-                    },
-                    }}
-                    slotProps={{
-                        input: {
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <SearchRoundedIcon />
-                                </InputAdornment>
-                            ),
-                        },
-                    }}
-                />
-
-                <Button
-                    variant="outlined"
-                    startIcon={
-                        <FilterListRoundedIcon />
-                    }
-                    onClick={
-                        handleOpenFilters
-                    }
-                    sx={{
-                        minWidth: 150,
-                        height: 56,
-                        borderRadius: 3,
-                        flexShrink: 0,
+                        gap: 2,
+                        alignItems: "center",
                     }}
                 >
-                    فیلترها
-                </Button>
-
-                <Tooltip title="بروزرسانی">
-                    <IconButton
-                        onClick={onRefresh}
+                    <TextField
+                        fullWidth
+                        value={search}
+                        placeholder="جستجوی مشتری، شماره سفارش..."
+                        onChange={(e) =>
+                            onSearchChange(
+                                e.target.value,
+                            )
+                        }
                         sx={{
-                            width: 56,
-                            height: 56,
-                            border: "1px solid",
-                            borderColor:
-                                "divider",
-                            borderRadius: 3,
-                            flexShrink: 0,
-                        }}
-                    >
-                        <RefreshRoundedIcon />
-                    </IconButton>
-                </Tooltip>
+                            "& .MuiOutlinedInput-root": {
+                                height: 56,
+                                borderRadius: 1,
 
-            </Stack>
+                                "& fieldset": {
+                                    borderColor: "#E2E8F0",
+                                },
+
+                                "&:hover fieldset": {
+                                    borderColor: "#1F4A33",
+                                },
+
+                                "&.Mui-focused fieldset": {
+                                    borderColor: "#10281A",
+                                    borderWidth: 2,
+                                },
+                            },
+                        }}
+                        slotProps={{
+                            input: {
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchRoundedIcon/>
+                                    </InputAdornment>
+                                ),
+                            },
+                        }}
+                    />
+
+                    <Badge
+                        color="primary"
+                        variant="dot"
+                        invisible={!filtersActive}
+                    >
+                        <Button
+                            variant="outlined"
+                            startIcon={
+                                <FilterListRoundedIcon/>
+                            }
+                            onClick={
+                                handleOpenFilters
+                            }
+                            sx={{
+                                width: {
+                                    xs: "100%",
+                                    md: 150,
+                                },
+
+                                height: 56,
+
+                                borderRadius: 1,
+
+                                flexShrink: 0,
+                            }}
+                        >
+                            فیلترها
+                        </Button>
+                    </Badge>
+                </Stack>
+            </Paper>
 
             <OrdersFilterPopover
-                anchorEl={anchorEl}
                 open={Boolean(anchorEl)}
+                anchorEl={anchorEl}
+
                 status={status}
-                onClose={
-                    handleCloseFilters
-                }
-                onStatusChange={
-                    onStatusChange
-                }
-                onClear={() =>
-                    onStatusChange("ALL")
-                }
+                orderType={orderType}
+                paymentStatus={paymentStatus}
+                paymentMethod={paymentMethod}
+                ordering={ordering}
+                fromDate={fromDate}
+                toDate={toDate}
+
+                onStatusChange={setStatus}
+                onOrderTypeChange={setOrderType}
+                onPaymentStatusChange={setPaymentStatus}
+                onPaymentMethodChange={setPaymentMethod}
+                onOrderingChange={setOrdering}
+                onFromDateChange={setFromDate}
+                onToDateChange={setToDate}
+
+                onClear={() => {
+                    setStatus("ALL");
+                    setOrderType("ALL");
+                    setPaymentStatus("ALL");
+                    setPaymentMethod("ALL");
+                    setOrdering("-created_at");
+                    setFromDate("");
+                    setToDate("");
+                }}
+
+                onClose={handleCloseFilters}
             />
         </>
     );

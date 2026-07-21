@@ -1,9 +1,7 @@
 // src/presentation/components/menu/MenuItemsSection.tsx
 
 import {Box, Card, CardContent, Divider, Stack, Typography} from "@mui/material";
-import {Button} from "@mui/material";
-import {Plus} from "lucide-react";
-import type {FieldArrayWithId, UseFieldArrayAppend, UseFieldArrayRemove} from "react-hook-form";
+import type {FieldArrayWithId, UseFieldArrayRemove} from "react-hook-form";
 
 
 import {MenuItemCard} from "./MenuItemCard";
@@ -15,25 +13,13 @@ import type { MenuFormInput } from "../../../forms/menu/MenuFormInput.ts";
 interface Props {
     fields: FieldArrayWithId<MenuFormInput, "items", "id">[];
 
-    append: UseFieldArrayAppend<MenuFormInput, "items">;
-
     remove: UseFieldArrayRemove;
 }
 
 export const MenuItemsSection = ({
                                      fields,
-                                     append,
                                      remove,
                                  }: Props) => {
-    const handleAddItem = () => {
-        append({
-            name: "",
-            description: null,
-            price: 0,
-            imageUrl: null,
-            isAvailable: true,
-        });
-    };
 
     return (
         <Card elevation={0}>
@@ -82,24 +68,6 @@ export const MenuItemsSection = ({
                         غذاها، نوشیدنی‌ها و سایر آیتم‌های این منو را مدیریت کنید.
                     </Typography>
                 </Stack>
-
-                <Button
-                    variant="contained"
-                    endIcon={<Plus size={18}/>}
-                    onClick={handleAddItem}
-                    sx={{
-                        borderRadius: 3,
-                        px: 2.5,
-                        height: 44,
-
-                        "& .MuiButton-endIcon": {
-                            mr: 1,
-                            ml: 0,
-                        },
-                    }}
-                >
-                    افزودن آیتم
-                </Button>
             </Box>
 
             <Divider/>

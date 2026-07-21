@@ -1,11 +1,9 @@
 import {useCallback, useMemo, useState} from "react";
 import {Add} from "@mui/icons-material";
 import {
-    Box,
     Container,
     Fab,
     Stack,
-    Typography,
 } from "@mui/material";
 
 import type {CustomerListItem} from "../../../domain/entities/product/customer/CustomerListItem";
@@ -22,10 +20,15 @@ import {useCreateCustomer} from "../../hooks/customer/useCreateCustomer";
 import {useGetAllCustomers} from "../../hooks/customer/useGetAllCustomers";
 import {CustomerBalanceOperation} from "../../../domain/objects/CustomerBalanceOperation.ts";
 import {useUpdateCustomerBalance} from "../../hooks/customer/useUpdateCustomerBalance";
+import {useDebounce} from "../../hooks/useDebounce.ts";
+import AddIcon from "@mui/icons-material/Add";
 
 export function CustomersPage() {
 
     const [search, setSearch] = useState("");
+
+    const debouncedSearch =
+        useDebounce(search, 500);
 
     const [filters] = useState<CustomerSearchFilters>({
         ordering: "-created_at",
@@ -60,7 +63,8 @@ export function CustomersPage() {
         data: customers = [],
     } = useGetAllCustomers({
         ...filters,
-        search,
+        search: debouncedSearch,
+
     });
 
     const stats = useMemo(() => {
@@ -150,32 +154,14 @@ export function CustomersPage() {
     }, []);
 
     return (
-        <Container
-            maxWidth="xl"
-            sx={{py: 4}}
-        >
+
+        <Container maxWidth="xl">
             <Stack spacing={3}>
-
-                <Box>
-                    <Typography
-                        variant="h4"
-                        sx={{
-                            fontWeight: 700,
-                        }}
-                    >
-                        مشتریان
-                    </Typography>
-
-                    <Typography color="text.secondary">
-                        مدیریت مشتریان و حساب‌های اعتباری
-                    </Typography>
-                </Box>
 
                 <CustomersStats
                     totalCustomers={stats.totalCustomers}
                     creditors={stats.creditors}
                     debtors={stats.debtors}
-                    totalOrders={stats.totalOrders}
                     totalSpent={stats.totalSpent}
                 />
 
@@ -184,7 +170,6 @@ export function CustomersPage() {
                     onSearchChange={setSearch}
                     onFilterClick={() => {
                     }}
-                    onCreateClick={handleCreate}
                 />
 
                 <CustomersTable
@@ -297,6 +282,32 @@ export function CustomersPage() {
 
                 }}
             />
+
+             <Fab
+                variant="extended"
+                onClick={() => handleCreate()
+                }
+                sx={{
+                    position:
+                        "fixed",
+
+                    left: 24,
+                    bottom: 24,
+
+                    bgcolor:
+                        "#10281A",
+
+                    color: "#fff",
+
+                    "&:hover": {
+                        bgcolor:
+                            "#173724",
+                    },
+                }}
+            >
+                <AddIcon/>
+                مشتری جدید
+            </Fab>
 
         </Container>
     );

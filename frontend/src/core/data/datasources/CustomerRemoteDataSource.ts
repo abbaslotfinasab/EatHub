@@ -7,6 +7,7 @@ import type {UpdateCustomerDTO} from "../dtos/customer/UpdateCustomerDTO.ts";
 import type {CustomerDetailDTO} from "../dtos/customer/CustomerDetailDTO.ts";
 import type {CustomerBalanceDTO} from "../dtos/customer/CustomerBalanceDTO.ts";
 import type {CustomerBalanceOperation} from "../../domain/objects/CustomerBalanceOperation.ts";
+import type { CustomerSearchFilters } from "../../domain/objects/filters/CustomerSearchFilters.ts";
 
 
 export class CustomerRemoteDataSource {
@@ -80,11 +81,18 @@ export class CustomerRemoteDataSource {
     // List
     // =========================
 
-    async findAll(): Promise<CustomerDTO[]> {
+    async findAll(
+        filters?: CustomerSearchFilters,
+    ): Promise<CustomerDTO[]> {
 
         const {data} =
-            await apiClient.get<CustomerDTO[]>(
+            await apiClient.get<
+                CustomerDTO[]
+            >(
                 "/products/customers/",
+                {
+                    params: filters,
+                },
             );
 
         return data;
@@ -150,7 +158,7 @@ export class CustomerRemoteDataSource {
             endpoint,
             {
                 amount: input.amount,
-                 description: input.description || "",
+                description: input.description || "",
             },
         );
 

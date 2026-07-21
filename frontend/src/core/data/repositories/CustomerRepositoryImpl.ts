@@ -10,6 +10,7 @@ import type {CustomerRemoteDataSource} from "../datasources/CustomerRemoteDataSo
 import {customerDetailMapper} from "../mappers/customerDetailMapper.ts";
 import type {UpdateCustomerBalanceInput} from "../../domain/entities/product/customer/UpdateCustomerBalanceInput.ts";
 import {customerBalanceMapper} from "../mappers/customerBalanceMapper.ts";
+import type {CustomerSearchFilters} from "../../domain/objects/filters/CustomerSearchFilters.ts";
 
 export class CustomerRepositoryImpl
     implements CustomerRepository {
@@ -85,10 +86,14 @@ export class CustomerRepositoryImpl
     // Get All
     // =========================
 
-    async findAll(): Promise<CustomerListItem[]> {
+    async findAll(
+        filters?: CustomerSearchFilters,
+    ): Promise<CustomerListItem[]> {
 
         const dtos =
-            await this.remote.findAll();
+            await this.remote.findAll(
+                filters,
+            );
 
         return customerMapper.toDomainList(
             dtos,
@@ -120,16 +125,16 @@ export class CustomerRepositoryImpl
 // Balance
 // =========================
 
-   async updateBalance(
-    input: UpdateCustomerBalanceInput,
-): Promise<void> {
+    async updateBalance(
+        input: UpdateCustomerBalanceInput,
+    ): Promise<void> {
 
-    await this.remote.updateBalance(
-        customerBalanceMapper.toDTO(input),
-        input.type,
-        input.customerId,
-    );
+        await this.remote.updateBalance(
+            customerBalanceMapper.toDTO(input),
+            input.type,
+            input.customerId,
+        );
 
-}
+    }
 
 }
