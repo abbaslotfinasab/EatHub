@@ -1,6 +1,6 @@
 // presentation/components/order/OrdersToolbar.tsx
 
-import {useMemo, useState, } from "react";
+import {useMemo, useState,} from "react";
 
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import FilterListRoundedIcon from "@mui/icons-material/FilterListRounded";
@@ -164,7 +164,7 @@ export const OrdersToolbar = ({
                     >
                         <Button
                             variant="outlined"
-                            startIcon={
+                            endIcon={
                                 <FilterListRoundedIcon/>
                             }
                             onClick={
@@ -181,6 +181,11 @@ export const OrdersToolbar = ({
                                 borderRadius: 1,
 
                                 flexShrink: 0,
+
+                                "& .MuiButton-endIcon": {
+                                    marginRight: 8,
+                                    marginLeft: 0,
+                                }
                             }}
                         >
                             فیلترها

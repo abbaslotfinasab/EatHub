@@ -121,7 +121,7 @@ export function CustomersToolbar({
                     >
                         <Button
                             variant="outlined"
-                            startIcon={
+                            endIcon={
                                 <FilterListRoundedIcon/>
                             }
                             onClick={(e) => {
@@ -144,6 +144,12 @@ export function CustomersToolbar({
                                 borderRadius: 1,
 
                                 flexShrink: 0,
+
+                                "& .MuiButton-endIcon": {
+                                    marginRight: 8,
+                                    marginLeft: 0,
+                                }
+
                             }}
                         >
                             فیلترها

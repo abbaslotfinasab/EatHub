@@ -5,7 +5,8 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    TableCell, alpha,
+    TableCell,
+    Typography,
 } from "@mui/material";
 
 import {OrderTableRow} from "./OrderTableRow";
@@ -28,53 +29,108 @@ export const OrdersTable = ({
                                 onOrderMenuClick,
                             }: OrdersTableProps) => {
     return (
+
         <TableContainer
             component={Paper}
             elevation={0}
             sx={{
-                borderRadius: 3,
-                border: "1px solid",
+                border: 1,
                 borderColor: "divider",
+                borderRadius: 3,
                 overflow: "hidden",
+                overflowX: "auto",
+                overflowY: "hidden",
             }}
         >
-            <Table
-                sx={{
-                    "& .MuiTableCell-head": {
-                        backgroundColor: alpha("#10281A", 0.05),
-                        color: "text.secondary",
-                        fontWeight: 700,
-                        fontSize: 13,
-                        whiteSpace: "nowrap",
-                    },
-                }}
-            >
+            <Table>
 
                 <TableHead>
                     <TableRow>
 
-                        <TableCell>شماره</TableCell>
+                        <TableCell>
+                            <Typography
+                                sx={{
+                                    fontWeight: 700,
+                                }}
+                            >
+                                شماره
+                            </Typography>
+                        </TableCell>
 
-                        <TableCell>مشتری</TableCell>
+                        <TableCell><Typography
+                            sx={{
+                                fontWeight: 700,
+                            }}
+                        >
+                            مشتری
+                        </Typography></TableCell>
 
-                        <TableCell>نوع سفارش</TableCell>
+                        <TableCell><Typography
+                            sx={{
+                                fontWeight: 700,
+                            }}
+                        >
+                            نوع سفارش
+                        </Typography>
+                        </TableCell>
 
-                        <TableCell>میز</TableCell>
+                        <TableCell><Typography
+                            sx={{
+                                fontWeight: 700,
+                            }}
+                        >
+                            میز
+                        </Typography></TableCell>
 
-                        <TableCell>توضیحات</TableCell>
+                        <TableCell>
+                            <Typography
+                                sx={{
+                                    fontWeight: 700,
+                                }}
+                            >
+                                توضیحات
+                            </Typography></TableCell>
 
-                        <TableCell>مبلغ</TableCell>
+                        <TableCell><Typography
+                            sx={{
+                                fontWeight: 700,
+                            }}
+                        >
+                            مبلغ
+                        </Typography></TableCell>
 
-                        <TableCell>وضعیت سفارش</TableCell>
+                        <TableCell>
+                            <Typography
+                                sx={{
+                                    fontWeight: 700,
+                                }}
+                            >
+                                وضعیت سفارش
+                            </Typography>
+                        </TableCell>
 
                         {/*<TableCell>وضعیت پرداخت</TableCell>*/}
 
                         {/*<TableCell>روش پرداخت</TableCell>*/}
 
-                        <TableCell>زمان</TableCell>
+                        <TableCell align="center">
+                            <Typography
+                                sx={{
+                                    fontWeight: 700,
+                                }}
+                            >
+                                زمان
+                            </Typography>
+                        </TableCell>
 
-                        <TableCell align="right">
-                            عملیات
+                        <TableCell>
+                            <Typography
+                                sx={{
+                                    fontWeight: 700,
+                                }}
+                            >
+                                عملیات
+                            </Typography>
                         </TableCell>
 
                     </TableRow>

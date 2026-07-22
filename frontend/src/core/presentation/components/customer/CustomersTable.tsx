@@ -39,13 +39,15 @@ export function CustomersTable({
                 border: 1,
                 borderColor: "divider",
                 borderRadius: 3,
-                overflow: "hidden",
+                overflowX: "auto",
+                overflowY: "hidden",
             }}
         >
             <Table>
                 <TableHead>
                     <TableRow>
-                        <TableCell width={280}>
+                        <TableCell align="center"
+                                   width={150}>
                             <Typography
                                 sx={{
                                     fontWeight: 700,
@@ -55,7 +57,8 @@ export function CustomersTable({
                             </Typography>
                         </TableCell>
 
-                        <TableCell width={170}>
+                        <TableCell width={170}
+                                   align="center">
                             <Typography
                                 sx={{
                                     fontWeight: 700,
