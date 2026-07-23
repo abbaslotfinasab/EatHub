@@ -67,12 +67,6 @@ class Business(BaseModel):
         null=True
     )
 
-    qr_code = models.ImageField(
-        upload_to="businesses/qrcodes/",
-        blank=True,
-        null=True
-    )
-
     number = models.CharField(
         max_length=20,
         blank=True

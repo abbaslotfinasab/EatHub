@@ -1,9 +1,7 @@
 from django.db import transaction
-from django.urls import reverse
 
 from accounts.enums import RoleCode
 from accounts.models import Business, Membership, Role
-from accounts.services.qr_service import QRService
 from accounts.services.rbac_initializer import RBACInitializer
 
 
@@ -32,16 +30,4 @@ class BusinessService:
             is_active=True
         )
 
-        QRService.generate_qr_for_business(
-            business,
-            request=request
-        )
-
-
         return business
-
-    @staticmethod
-    def build_public_url(business):
-        path = reverse("products:public-menu", kwargs={"slug": business.slug})
-        return path
-

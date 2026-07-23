@@ -13,6 +13,7 @@ import {
     DialogActions,
 } from "@mui/material";
 
+import QRCode from "react-qr-code";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 
@@ -26,6 +27,7 @@ import {StatCard} from "../../components/menu/StatCard.tsx";
 import {useAuthStore} from "../../store/auth.store.ts";
 import type {Menu} from "../../../domain/entities/product/menu/Menu.ts";
 import {useDeleteMenu} from "../../hooks/menu/useDeleteMenu.tsx";
+import {BASE_URL} from "../../../../config/constants.ts";
 
 export const MenuPage = () => {
     const navigate = useNavigate();
@@ -37,8 +39,8 @@ export const MenuPage = () => {
     const [deleteTarget, setDeleteTarget] = useState<Menu | null>(null);
 
     const {
-    mutate: deleteMenu,
-} = useDeleteMenu();
+        mutate: deleteMenu,
+    } = useDeleteMenu();
 
     const {data, isLoading, isError} =
         useGetMenus();
@@ -78,7 +80,7 @@ export const MenuPage = () => {
         ) ?? 0;
 
     const publicMenuUrl =
-        `${window.location.origin}/products/${me?.active_business?.slug}/menu`;
+        `${BASE_URL}/products/${me?.active_business?.slug}/menu`;
 
     return (
         <Box
@@ -231,81 +233,67 @@ export const MenuPage = () => {
                             />
                         </Box>
                     </Box>
+                    <Paper
+                        elevation={0}
+                        onClick={() =>
+                            window.open(
+                                publicMenuUrl,
+                                "_blank"
+                            )
+                        }
+                        sx={{
+                            width: {
+                                xs: 160,
+                                md: 200,
+                            },
 
-                    {me?.active_business
-                        ?.qr && (
-                        <Paper
-                            elevation={0}
-                            onClick={() =>
-                                window.open(
-                                    publicMenuUrl,
-                                    "_blank"
-                                )
-                            }
-                            sx={{
-                                width: {
-                                    xs: 160,
-                                    md: 200,
+                            height: {
+                                xs: 160,
+                                md: 200,
+                            },
+
+                            p: 3,
+
+                            bgcolor:
+                                "#fff",
+
+                            borderRadius: 1,
+
+                            cursor:
+                                "pointer",
+
+                            transition:
+                                ".25s",
+
+                            display:
+                                "flex",
+
+                            alignItems:
+                                "center",
+
+                            justifyContent:
+                                "center",
+
+                            "&:hover":
+                                {
+                                    transform:
+                                        "translateY(-4px)",
+
+                                    boxShadow:
+                                        "0 20px 40px rgba(0,0,0,.2)",
                                 },
-
-                                height: {
-                                    xs: 160,
-                                    md: 200,
-                                },
-
-                                p: 2,
-
-                                bgcolor:
-                                    "#fff",
-
-                                borderRadius: 1,
-
-                                cursor:
-                                    "pointer",
-
-                                transition:
-                                    ".25s",
-
-                                display:
-                                    "flex",
-
-                                alignItems:
-                                    "center",
-
-                                justifyContent:
-                                    "center",
-
-                                "&:hover":
-                                    {
-                                        transform:
-                                            "translateY(-4px)",
-
-                                        boxShadow:
-                                            "0 20px 40px rgba(0,0,0,.2)",
-                                    },
+                        }}
+                    >
+                        <QRCode
+                            value={publicMenuUrl}
+                            style={{
+                                width: "100%",
+                                height: "100%",
                             }}
-                        >
-                            <Box
-                                component="img"
-                                src={
-                                    me
-                                        .active_business
-                                        .qr
-                                }
-                                alt="QR Menu"
-                                sx={{
-                                    width:
-                                        "100%",
-
-                                    height:
-                                        "100%",
-
-                                    objectFit:
-                                        "contain",
-                                }}
-                            />
-                        </Paper>
-                    )}
+                            bgColor="#fff"
+                            fgColor="#000"
+                        />
+                    </Paper>
                 </Box>
             </Paper>
 
@@ -397,35 +385,35 @@ export const MenuPage = () => {
                 منو جدید
             </Fab>
 
-             <Dialog
-            open={!!deleteTarget}
-            onClose={() => setDeleteTarget(null)}
-        >
-            <DialogTitle>حذف منو</DialogTitle>
+            <Dialog
+                open={!!deleteTarget}
+                onClose={() => setDeleteTarget(null)}
+            >
+                <DialogTitle>حذف منو</DialogTitle>
 
-            <DialogContent>
-                آیا مطمئنید میخواهید این منو حذف شود؟
-            </DialogContent>
+                <DialogContent>
+                    آیا مطمئنید میخواهید این منو حذف شود؟
+                </DialogContent>
 
-            <DialogActions>
-                <Button onClick={() => setDeleteTarget(null)}>
-                    لغو
-                </Button>
+                <DialogActions>
+                    <Button onClick={() => setDeleteTarget(null)}>
+                        لغو
+                    </Button>
 
-                <Button
-                    color="error"
-                    onClick={() => {
-                if (!deleteTarget) return;
+                    <Button
+                        color="error"
+                        onClick={() => {
+                            if (!deleteTarget) return;
 
-                deleteMenu(deleteTarget.id ?? -1);
+                            deleteMenu(deleteTarget.id ?? -1);
 
-                setDeleteTarget(null);
-            }}
-                >
-                    حذف
-                </Button>
-            </DialogActions>
-        </Dialog>
+                            setDeleteTarget(null);
+                        }}
+                    >
+                        حذف
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
         </Box>
     );
