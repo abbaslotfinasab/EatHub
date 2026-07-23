@@ -1,7 +1,7 @@
 // data/di/customer.container.ts
 
 import {CreateCustomer} from "../../domain/use-cases/product/customer/CreateCustomer";
-import {FindAllCustomers} from "../../domain/use-cases/product/customer/FindAllCustomers";
+import {GetAllCustomers} from "../../domain/use-cases/product/customer/GetAllCustomers.ts";
 import {SearchCustomers} from "../../domain/use-cases/product/customer/SearchCustomers";
 import {CustomerRemoteDataSource} from "../datasources/CustomerRemoteDataSource";
 import {CustomerRepositoryImpl} from "../repositories/CustomerRepositoryImpl";
@@ -24,8 +24,8 @@ export const createCustomerContainer = () => {
                 repository,
             ),
 
-        findAllCustomersUseCase:
-            new FindAllCustomers(
+        getAllCustomersUseCase:
+            new GetAllCustomers(
                 repository,
             ),
 

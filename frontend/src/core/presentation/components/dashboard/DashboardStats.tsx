@@ -1,50 +1,64 @@
-import Grid from "@mui/material/Grid";
+import {Grid} from "@mui/material";
 
 import SellRoundedIcon from "@mui/icons-material/SellRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import EventSeatRoundedIcon from "@mui/icons-material/EventSeatRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 
-import { StatCard } from "./StatCard";
+import {StatCard} from "../common/StatCard";
+import {formatCurrency} from "../../utils/formatCurrency";
 
-export const DashboardStats = () => {
+interface DashboardStatsProps {
+    todaySales: number;
+    todayOrders: number;
+    activeOrders: number;
+    todayReservations: number;
+    inventoryAlerts: number;
+}
+
+export function DashboardStats({
+                                   todaySales,
+                                   todayOrders,
+                                   todayReservations,
+                                   inventoryAlerts,
+                               }: DashboardStatsProps) {
+
     const stats = [
         {
             title: "فروش امروز",
-            value: "12,000,000",
-            subtitle: "تومان",
-            growth: 12,
-            icon: <SellRoundedIcon />,
+            value: formatCurrency(todaySales),
+            subtitle: "فروش ثبت شده",
+            icon: <SellRoundedIcon/>,
             color: "#16A34A",
         },
         {
-            title: "سفارشات فعال",
-            value: "34",
-            subtitle: "سفارش",
-            growth: 8,
-            icon: <ReceiptLongRoundedIcon />,
+            title: "سفارشات امروز",
+            value: todayOrders.toLocaleString(),
+            subtitle: "سفارشات تکمیل شده",
+            icon: <ReceiptLongRoundedIcon/>,
             color: "#2563EB",
         },
         {
             title: "رزروهای امروز",
-            value: "12",
-            subtitle: "رزرو",
-            growth: 4,
-            icon: <EventSeatRoundedIcon />,
+            value: todayReservations.toLocaleString(),
+            subtitle: "رزرو ثبت شده",
+            icon: <EventSeatRoundedIcon/>,
             color: "#9333EA",
         },
         {
             title: "هشدارهای انبار",
-            value: "5",
-            subtitle: "قلم کالا",
-            growth: -2,
-            icon: <WarningAmberRoundedIcon />,
+            value: inventoryAlerts.toLocaleString(),
+            subtitle: "نیاز به تأمین",
+            icon: <WarningAmberRoundedIcon/>,
             color: "#EA580C",
         },
     ];
 
     return (
-        <Grid container spacing={3}>
+        <Grid
+            container
+            spacing={2.5}
+        >
             {stats.map((item) => (
                 <Grid
                     key={item.title}
@@ -54,9 +68,15 @@ export const DashboardStats = () => {
                         lg: 3,
                     }}
                 >
-                    <StatCard {...item} />
+                    <StatCard
+                        title={item.title}
+                        value={item.value}
+                        subtitle={item.subtitle}
+                        icon={item.icon}
+                        color={item.color}
+                    />
                 </Grid>
             ))}
         </Grid>
     );
-};
+}

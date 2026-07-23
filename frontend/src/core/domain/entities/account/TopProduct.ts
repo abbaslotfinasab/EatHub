@@ -1,7 +1,6 @@
 export interface TopProduct {
-    id: string;
+    menuItemId: number;
     name: string;
-    orderCount: number;
-    percentage: number;
+    totalSold: number;
     revenue: number;
 }

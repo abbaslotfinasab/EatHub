@@ -8,7 +8,6 @@ import {
 
 import { DrawerTrigger } from "./DrawerTrigger.tsx";
 import { NavbarLogo } from "./NavbarLogo.tsx";
-import { NavbarSearch } from "./NavbarSearch.tsx";
 import { NotificationButton } from "./NotificationButton.tsx";
 import { UserMenu } from "./UserMenu.tsx";
 
@@ -76,9 +75,6 @@ export const Navbar = () => {
 
                 <NavbarLogo />
 
-                {/* Search */}
-
-                <NavbarSearch />
 
                 {/* Spacer */}
 

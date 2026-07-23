@@ -30,7 +30,7 @@ export interface CustomerRepository {
         id: string,
     ): Promise<CustomerDetail>;
 
-    findAll(
+    getAll(
         filters?: CustomerSearchFilters,
     ): Promise<CustomerListItem[]>;
 

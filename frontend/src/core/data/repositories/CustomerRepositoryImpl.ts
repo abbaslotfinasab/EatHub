@@ -86,12 +86,12 @@ export class CustomerRepositoryImpl
     // Get All
     // =========================
 
-    async findAll(
+    async getAll(
         filters?: CustomerSearchFilters,
     ): Promise<CustomerListItem[]> {
 
         const dtos =
-            await this.remote.findAll(
+            await this.remote.getAll(
                 filters,
             );
 

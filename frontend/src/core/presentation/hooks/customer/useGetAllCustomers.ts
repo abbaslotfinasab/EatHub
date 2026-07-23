@@ -10,7 +10,7 @@ export const useGetAllCustomers = (
 ) => {
 
     const {
-        findAllCustomersUseCase,
+        getAllCustomersUseCase,
     } = container.customerContainer;
 
     return useQuery({
@@ -19,7 +19,7 @@ export const useGetAllCustomers = (
             filters,
         ],
         queryFn: () =>
-            findAllCustomersUseCase.execute(filters),
+            getAllCustomersUseCase.execute(filters),
 
         placeholderData: (previousData) => previousData,
     });

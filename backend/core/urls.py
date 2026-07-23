@@ -12,4 +12,10 @@ urlpatterns = [
         UploadAPIView.as_view(),
         name="upload",
     ),
+
+    path(
+        "dashboard/",
+        DashboardAPIView.as_view(),
+        name="dashboard",
+    ),
 ]

@@ -5,7 +5,7 @@ import type { CustomerRepository } from "../../../repositories/product/CustomerR
 import type {CustomerListItem} from "../../../entities/product/customer/CustomerListItem.ts";
 
 
-export class FindAllCustomers {
+export class GetAllCustomers {
 
     constructor(
         private readonly customerRepository: CustomerRepository,
@@ -15,7 +15,7 @@ export class FindAllCustomers {
         filters?: CustomerSearchFilters,
     ): Promise<CustomerListItem[]> {
 
-        return this.customerRepository.findAll(
+        return this.customerRepository.getAll(
             filters,
         );
 

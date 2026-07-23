@@ -1,29 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { container } from "../../data/di/container";
+
 export const useDashboard = () => {
-    const { data, isLoading } = useQuery({
+    const { getDashboardUseCase } =
+        container.dashboardContainer;
+
+    return useQuery({
         queryKey: ["dashboard"],
         queryFn: async () => {
-            return {
-                stats: [],
-                salesData: [],
-                recentOrders: [],
-                inventoryAlerts: [],
-                topProducts: [],
-                activities: [],
-                health: {},
-            };
+            try {
+                return await getDashboardUseCase.execute();
+            } catch (error) {
+                console.error(
+                    "GET DASHBOARD FAILED:",
+                    error,
+                );
+
+                throw error;
+            }
         },
     });
-
-    return {
-        stats: data?.stats ?? [],
-        salesData: data?.salesData ?? [],
-        recentOrders: data?.recentOrders ?? [],
-        inventoryAlerts: data?.inventoryAlerts ?? [],
-        topProducts: data?.topProducts ?? [],
-        activities: data?.activities ?? [],
-        health: data?.health,
-        isLoading,
-    };
 };

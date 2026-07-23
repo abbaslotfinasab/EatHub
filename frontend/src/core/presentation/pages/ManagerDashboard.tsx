@@ -11,7 +11,7 @@ import { useDashboard } from "../hooks/useDashboard";
 
 export const ManagerDashboard = () => {
     const {
-        salesData,
+        data: dashboard,
         isLoading,
     } = useDashboard();
 
@@ -29,31 +29,39 @@ export const ManagerDashboard = () => {
         >
             <Stack spacing={3}>
 
-                {/* KPI Cards */}
-                <DashboardStats/>
+                <DashboardStats
+                    todaySales={dashboard?.stats.todaySales ?? 0}
+                    todayOrders={dashboard?.stats.todayOrders ?? 0}
+                    activeOrders={dashboard?.stats.activeOrders ?? 0}
+                    todayReservations={dashboard?.stats.todayReservations ?? 0}
+                    inventoryAlerts={dashboard?.stats.inventoryAlerts ?? 0}
+                />
 
-                {/* Sales Chart */}
-                <SalesChart data={salesData} />
+                <SalesChart
+                    data={dashboard?.salesChart ?? []}
+                />
 
-                {/* Orders + Alerts */}
                 <Grid container spacing={3}>
                     <Grid size={{ xs: 12, lg: 8 }}>
-                        <OrdersTable />
+                        <OrdersTable
+                        />
                     </Grid>
 
                     <Grid size={{ xs: 12, lg: 4 }}>
-                        <InventoryAlerts />
+                        <InventoryAlerts
+                        />
                     </Grid>
                 </Grid>
 
-                {/* Products + Activity */}
                 <Grid container spacing={3}>
                     <Grid size={{ xs: 12, md: 6 }}>
-                        <TopProducts />
+                        <TopProducts
+                        />
                     </Grid>
 
                     <Grid size={{ xs: 12, md: 6 }}>
-                        <ActivityFeed />
+                        <ActivityFeed
+                        />
                     </Grid>
                 </Grid>
             </Stack>

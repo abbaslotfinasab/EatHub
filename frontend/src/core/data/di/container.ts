@@ -1,8 +1,9 @@
 import {createAuthContainer} from "./auth.container";
-import { createCustomerContainer } from "./customer.container.ts";
+import {createCustomerContainer} from "./customer.container.ts";
 import {createMenuContainer} from "./menu.container";
 import {createOrderContainer} from "./order.container.ts";
 import {createUploadContainer} from "./upload.container.ts";
+import {createDashboardContainer} from "./dashboard.container.ts";
 
 class Container {
     private _auth?: ReturnType<typeof createAuthContainer>;
@@ -10,7 +11,7 @@ class Container {
     private _order?: ReturnType<typeof createOrderContainer>;
     private _customer?: ReturnType<typeof createCustomerContainer>;
     private _upload?: ReturnType<typeof createUploadContainer>;
-
+    private _dashboard?: ReturnType<typeof createDashboardContainer>;
 
 
     get authContainer() {
@@ -50,7 +51,7 @@ class Container {
 
     }
 
-     get uploadContainer() {
+    get uploadContainer() {
 
         if (!this._upload) {
 
@@ -60,6 +61,19 @@ class Container {
         }
 
         return this._upload;
+
+    }
+
+    get dashboardContainer() {
+
+        if (!this._dashboard) {
+
+            this._dashboard =
+                createDashboardContainer();
+
+        }
+
+        return this._dashboard;
 
     }
 

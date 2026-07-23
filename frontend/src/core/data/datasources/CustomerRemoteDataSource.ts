@@ -81,7 +81,7 @@ export class CustomerRemoteDataSource {
     // List
     // =========================
 
-    async findAll(
+    async getAll(
         filters?: CustomerSearchFilters,
     ): Promise<CustomerDTO[]> {
 
