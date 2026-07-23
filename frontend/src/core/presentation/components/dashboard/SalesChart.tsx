@@ -13,6 +13,8 @@ import {
     Tooltip,
     CartesianGrid,
 } from "recharts";
+import {formatChartDate} from "../../utils/formatChartDate.ts";
+import {formatTooltipDate} from "../../utils/formatTooltipDate.ts";
 
 interface Props {
     data: {
@@ -38,7 +40,7 @@ export const SalesChart = ({
                 <Box>
                     <Typography
                         variant="h6"
-                        sx={{fontWeight:700}}
+                        sx={{fontWeight: 700}}
                     >
                         فروش ۷ روز اخیر
                     </Typography>
@@ -51,7 +53,7 @@ export const SalesChart = ({
                     </Typography>
                 </Box>
 
-                <Box sx={{ height:320}}>
+                <Box sx={{height: 320}}>
                     <ResponsiveContainer
                         width="100%"
                         height="100%"
@@ -86,12 +88,14 @@ export const SalesChart = ({
 
                             <XAxis
                                 dataKey="date"
+                                tickFormatter={formatChartDate}
                                 tickLine={false}
                                 axisLine={false}
                             />
 
-                            <Tooltip />
-
+                            <Tooltip
+                                labelFormatter={formatTooltipDate}
+                            />
                             <Area
                                 type="monotone"
                                 dataKey="sales"

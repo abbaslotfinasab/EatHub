@@ -28,28 +28,7 @@ export const NotificationButton = () => {
         useState<HTMLElement | null>(null);
 
     const notifications: Notification[] = [
-        {
-            id: "1",
-            title: "کمبود موجودی",
-            description:
-                "پنیر پیتزا کمتر از حد مجاز شده است",
-            time: "5 دقیقه پیش",
-        },
-        {
-            id: "2",
-            title: "سفارش جدید",
-            description:
-                "سفارش شماره #125 ثبت شد",
-            time: "12 دقیقه پیش",
-        },
-        {
-            id: "3",
-            title: "رزرو جدید",
-            description:
-                "یک رزرو برای ساعت 20 ثبت شد",
-            time: "30 دقیقه پیش",
-        },
-    ];
+       ]
 
     const handleOpen = (
         event: React.MouseEvent<HTMLElement>

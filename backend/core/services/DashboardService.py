@@ -35,7 +35,6 @@ class DashboardService:
 
         today_sales = (
             today_orders.filter(
-
                 payment_status= Order.PaymentStatus.PAID
             ).aggregate(
                 total=Coalesce(
@@ -77,6 +76,7 @@ class DashboardService:
                     business=business,
                     created_at__date=date,
                     status=Order.Status.COMPLETED,
+                    payment_status=Order.PaymentStatus.PAID,
                 ).aggregate(
                     total=Coalesce(
                         Sum("total_amount"),
