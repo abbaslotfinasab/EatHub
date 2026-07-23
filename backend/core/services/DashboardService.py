@@ -1,11 +1,12 @@
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import Sum, Count
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from products.models import Order
+from core.models import ActivityLog
+from products.models import Order, OrderItem
 
 
 class DashboardService:
@@ -95,25 +96,19 @@ class DashboardService:
 
     @classmethod
     def get_recent_orders(cls, business):
+        today = timezone.localdate()
+
         orders = (
             Order.objects.filter(
                 business=business,
+                created_at__date=today,
+
             )
             .select_related("customer")
-            .order_by("-created_at")[:10]
+            .order_by("-created_at")
         )
 
-        return [
-            {
-                "id": order.id,
-                "customer": order.customer.name if order.customer else None,
-                "type": order.order_type,
-                "status": order.status,
-                "total": order.total_amount,
-                "created_at": order.created_at,
-            }
-            for order in orders
-        ]
+        return orders
 
     @classmethod
     def get_inventory_alerts(cls, business):
@@ -122,10 +117,56 @@ class DashboardService:
 
     @classmethod
     def get_top_products(cls, business):
-        # بعداً از OrderItem محاسبه می‌شود
-        return []
+        products = (
+            OrderItem.objects
+            .filter(
+                order__business=business,
+                order__status=Order.Status.COMPLETED,
+                order__payment_status=Order.PaymentStatus.PAID,
+            )
+            .values(
+                "menu_item",
+                "menu_item_name",
+            )
+            .annotate(
+                total_sold=Sum("quantity"),
+                revenue=Sum("total_price"),
+                orders_count=Count("order", distinct=True),
+            )
+            .order_by("-total_sold")[:5]
+        )
+
+        return products
 
     @classmethod
     def get_activities(cls, business):
-        # بعداً از Activity Log پر می‌شود
-        return []
+        activities = (
+            ActivityLog.objects
+            .filter(
+                business=business,
+            )
+            .select_related("user")
+            .order_by("-created_at")[:10]
+        )
+
+        return [
+            {
+                "id": activity.id,
+
+                "title": activity.title,
+
+                "description": activity.description,
+
+                "action": activity.action,
+
+                "user": (
+                    activity.user.get_full_name()
+                    if activity.user
+                    else None
+                ),
+
+                "created_at": activity.created_at,
+            }
+
+            for activity in activities
+        ]

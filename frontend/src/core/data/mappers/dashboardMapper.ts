@@ -6,6 +6,7 @@ import type {SalesChartItemDTO} from "../dtos/dashboard/SalesChartItemDTO";
 import type {TopProductDTO} from "../dtos/dashboard/TopProductDTO";
 
 import {orderMapper} from "./orderMapper";
+import {activityMapper} from "./activityMapper.ts";
 
 export const dashboardMapper = {
 
@@ -19,6 +20,10 @@ export const dashboardMapper = {
             salesChart: dto.sales_chart.map(dashboardMapper.toSalesChartItem),
             recentOrders: dto.recent_orders.map(orderMapper.toDomain),
             topProducts: dto.top_products.map(dashboardMapper.toTopProduct),
+            activities:
+                activityMapper.toDomainList(
+                    dto.activities
+                ),
         };
     },
 

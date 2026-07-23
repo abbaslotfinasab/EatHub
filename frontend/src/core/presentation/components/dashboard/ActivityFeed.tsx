@@ -8,43 +8,22 @@ import {
 
 import HomeIcon from "@mui/icons-material/Home";
 
-import {ActivityItem}
-    from "./ActivityItem";
+import {ActivityItem} from "./ActivityItem";
 
-export const ActivityFeed = () => {
-    const activities = [
-        {
-            id: "1",
-            userName: "عباس لطفی نسب",
-            action: "سفارش #1024 را ثبت کرد",
-            timestamp: "2 دقیقه قبل",
-            type: "order" as const,
-        },
+import type {Activity} from "../../../domain/entities/core/dashboard/Activity";
 
-        {
-            id: "2",
-            userName: "محمد رضایی",
-            action: "50 کیلو مرغ وارد انبار کرد",
-            timestamp: "12 دقیقه قبل",
-            type: "inventory" as const,
-        },
 
-        {
-            id: "3",
-            userName: "سارا احمدی",
-            action: "فاکتور خرید #125 را ثبت کرد",
-            timestamp: "18 دقیقه قبل",
-            type: "accounting" as const,
-        },
+interface ActivityFeedProps {
 
-        {
-            id: "4",
-            userName: "علی کریمی",
-            action: "رزرو جدید ثبت کرد",
-            timestamp: "35 دقیقه قبل",
-            type: "reservation" as const,
-        },
-    ];
+    activities: Activity[];
+
+}
+
+
+export const ActivityFeed = ({
+                                 activities,
+                             }: ActivityFeedProps) => {
+
 
     return (
         <Card
@@ -57,44 +36,67 @@ export const ActivityFeed = () => {
             }}
         >
             <CardContent>
+
                 <Stack spacing={3}>
+
                     <Stack
+                        direction="row"
                         sx={{
-                            display: "flex",
-                            flexDirection: "row",
                             alignItems: "center",
                             gap: 1,
                         }}
                     >
+
                         <HomeIcon/>
 
                         <Typography
                             variant="h6"
-                            sx={{fontWeight: 700}}
+                            sx={{
+                                fontWeight: 700,
+                            }}
                         >
                             فعالیت‌های اخیر
                         </Typography>
+
                     </Stack>
+
 
                     {activities.map(
                         (activity, index) => (
+
                             <Stack
                                 key={activity.id}
                                 spacing={2}
                             >
+
                                 <ActivityItem
-                                    {...activity}
+                                    userName={
+                                        activity.user ?? "-"
+                                    }
+                                    title={activity.title}
+                                    description={activity.description}
+                                    action={
+                                        activity.action
+                                    }
+                                    createdAt={
+                                        activity.createdAt
+                                    }
                                 />
 
-                                {index !==
-                                    activities.length -
-                                    1 && (
+
+                                {
+                                    index !== activities.length - 1 && (
                                         <Divider/>
-                                    )}
+                                    )
+                                }
+
                             </Stack>
+
                         )
                     )}
+
                 </Stack>
+
             </CardContent>
         </Card>
     );

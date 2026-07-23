@@ -12,40 +12,64 @@ import EventSeatRoundedIcon from "@mui/icons-material/EventSeatRounded";
 import RestaurantMenuRoundedIcon from "@mui/icons-material/RestaurantMenuRounded";
 
 interface Props {
-    userName: string;
+
+    userName?: string;
+
+    title: string;
+
+    description?: string;
+
+    createdAt: string;
+
     action: string;
-    timestamp: string;
-    type:
-        | "order"
-        | "inventory"
-        | "accounting"
-        | "reservation"
-        | "menu";
+
 }
 
+
 const activityIcons = {
-    order: <ShoppingBagRoundedIcon/>,
-    inventory: <Inventory2RoundedIcon/>,
-    accounting: <ReceiptLongRoundedIcon/>,
-    reservation: <EventSeatRoundedIcon/>,
-    menu: <RestaurantMenuRoundedIcon/>,
+
+    order_created: <ShoppingBagRoundedIcon/>,
+
+    order_completed: <ShoppingBagRoundedIcon/>,
+
+    order_cancelled: <ShoppingBagRoundedIcon/>,
+
+    stock_low: <Inventory2RoundedIcon/>,
+
+    invoice_created: <ReceiptLongRoundedIcon/>,
+
+    reservation_created: <EventSeatRoundedIcon/>,
+
+    menu_updated: <RestaurantMenuRoundedIcon/>,
+
 };
+
 
 export const ActivityItem = ({
                                  userName,
+                                 title,
+                                 description,
+                                 createdAt,
                                  action,
-                                 timestamp,
-                                 type,
                              }: Props) => {
+
+
+    const icon =
+        activityIcons[
+            action as keyof typeof activityIcons
+            ] ?? <ReceiptLongRoundedIcon/>;
+
+
     return (
+
         <Stack
             direction="row"
             spacing={2}
-            component="div"
             sx={{
                 alignItems: "flex-start",
             }}
         >
+
             <Avatar
                 sx={{
                     bgcolor: "#10281A",
@@ -53,32 +77,53 @@ export const ActivityItem = ({
                     height: 42,
                 }}
             >
-                {activityIcons[type]}
+                {icon}
             </Avatar>
 
-            <Box sx={{ flex: 1 }}>
+
+            <Box
+                sx={{
+                    flex: 1,
+                }}
+            >
+
                 <Typography
                     sx={{
-                        fontWeight:700
+                        fontWeight: 700,
                     }}
                 >
-                    {userName}
+                    {userName ?? "سیستم"}
                 </Typography>
 
                 <Typography
                     variant="body2"
                     color="text.secondary"
                 >
-                    {action}
+                    {title}
                 </Typography>
+
+
+                {
+                    description && (
+                        <Typography
+                            variant="body2"
+                            color="text.secondary"
+                        >
+                            {description}
+                        </Typography>
+                    )
+                }
+
 
                 <Typography
                     variant="caption"
                     color="text.disabled"
                 >
-                    {timestamp}
+                    {createdAt}
                 </Typography>
+
             </Box>
+
         </Stack>
     );
 };

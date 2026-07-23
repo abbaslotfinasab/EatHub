@@ -1,13 +1,13 @@
-import { Box, Grid, Stack } from "@mui/material";
+import {Box, Grid, Stack} from "@mui/material";
 
-import { DashboardStats } from "../components/dashboard/DashboardStats";
-import { SalesChart } from "../components/dashboard/SalesChart";
-import { OrdersTable } from "../components/dashboard/OrdersTable";
-import { InventoryAlerts } from "../components/dashboard/InventoryAlerts";
-import { TopProducts } from "../components/dashboard/TopProducts";
-import { ActivityFeed } from "../components/dashboard/ActivityFeed";
+import {DashboardStats} from "../components/dashboard/DashboardStats";
+import {SalesChart} from "../components/dashboard/SalesChart";
+import {OrdersTable} from "../components/dashboard/OrdersTable";
+import {InventoryAlerts} from "../components/dashboard/InventoryAlerts";
+import {TopProducts} from "../components/dashboard/TopProducts";
+import {ActivityFeed} from "../components/dashboard/ActivityFeed";
 
-import { useDashboard } from "../hooks/useDashboard";
+import {useDashboard} from "../hooks/useDashboard";
 
 export const ManagerDashboard = () => {
     const {
@@ -42,25 +42,28 @@ export const ManagerDashboard = () => {
                 />
 
                 <Grid container spacing={3}>
-                    <Grid size={{ xs: 12, lg: 8 }}>
+                    <Grid size={{xs: 12, lg: 8}}>
                         <OrdersTable
+                            orders={dashboard?.recentOrders ?? []}
                         />
                     </Grid>
 
-                    <Grid size={{ xs: 12, lg: 4 }}>
+                    <Grid size={{xs: 12, lg: 4}}>
                         <InventoryAlerts
                         />
                     </Grid>
                 </Grid>
 
                 <Grid container spacing={3}>
-                    <Grid size={{ xs: 12, md: 6 }}>
+                    <Grid size={{xs: 12, md: 6}}>
                         <TopProducts
+                            products={dashboard?.topProducts ?? []}
                         />
                     </Grid>
 
-                    <Grid size={{ xs: 12, md: 6 }}>
+                    <Grid size={{xs: 12, md: 6}}>
                         <ActivityFeed
+                            activities={dashboard?.activities ?? []}
                         />
                     </Grid>
                 </Grid>

@@ -8,33 +8,25 @@ import {
 
 import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
 
-import {TopProductItem}
-    from "./TopProductItem";
+import {TopProductItem} from "./TopProductItem";
+import type {TopProduct} from "../../../domain/entities/account/TopProduct";
 
-export const TopProducts = () => {
-    const products = [
-        {
-            id: "1",
-            name: "پیتزا مخصوص",
-            orderCount: 82,
-            percentage: 68,
-            revenue: 18500000,
-        },
-        {
-            id: "2",
-            name: "برگر ویژه",
-            orderCount: 61,
-            percentage: 51,
-            revenue: 14300000,
-        },
-        {
-            id: "3",
-            name: "پاستا آلفردو",
-            orderCount: 48,
-            percentage: 40,
-            revenue: 9200000,
-        },
-    ];
+interface TopProductsProps {
+    products: TopProduct[];
+}
+
+export const TopProducts = ({
+                                products,
+                            }: TopProductsProps) => {
+
+    const maxSold =
+        Math.max(
+            ...products.map(
+                (item) => item.totalSold
+            ),
+            1
+        );
+
 
     return (
         <Card
@@ -47,7 +39,9 @@ export const TopProducts = () => {
             }}
         >
             <CardContent>
+
                 <Stack spacing={3}>
+
                     <Stack
                         direction="row"
                         sx={{
@@ -62,31 +56,51 @@ export const TopProducts = () => {
                         <Typography
                             variant="h6"
                             sx={{
-                                fontWeight:700
-                            }}>
+                                fontWeight: 700,
+                            }}
+                        >
                             پرفروش‌ترین غذاها
                         </Typography>
+
                     </Stack>
+
 
                     {products.map(
                         (product, index) => (
+
                             <Stack
-                                key={product.id}
+                                key={product.menuItemId}
                                 spacing={2}
                             >
+
                                 <TopProductItem
-                                    {...product}
+                                    name={product.name}
+                                    orderCount={product.totalSold}
+                                    percentage={
+                                        Math.round(
+                                            (
+                                                product.totalSold /
+                                                maxSold
+                                            ) * 100
+                                        )
+                                    }
+                                    revenue={product.revenue}
                                 />
 
-                                {index !==
-                                    products.length -
-                                    1 && (
+
+                                {
+                                    index !== products.length - 1 && (
                                         <Divider/>
-                                    )}
+                                    )
+                                }
+
                             </Stack>
+
                         )
                     )}
+
                 </Stack>
+
             </CardContent>
         </Card>
     );

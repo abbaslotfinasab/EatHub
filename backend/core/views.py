@@ -36,3 +36,5 @@ class DashboardAPIView(TenantAPIView):
         serializer = DashboardSerializer(data)
 
         return Response(serializer.data)
+
+
