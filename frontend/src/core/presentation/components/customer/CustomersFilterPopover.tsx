@@ -10,83 +10,127 @@ import {
     Typography,
 } from "@mui/material";
 
+
 import type {
     CustomerBalanceFilter,
+    CustomerMinOrdersFilter,
     CustomerOrdering,
-    CustomerOrdersFilter,
 } from "../../../domain/objects/filters/CustomerSearchFilters";
 
+
 interface CustomersFilterPopoverProps {
+
     anchorEl: HTMLElement | null;
 
     open: boolean;
 
+
     balance: CustomerBalanceFilter;
 
-    orders: CustomerOrdersFilter;
+    minOrders: CustomerMinOrdersFilter;
 
     ordering: CustomerOrdering;
 
-    onClose(): void;
 
-    onBalanceChange(
-        value: CustomerBalanceFilter,
-    ): void;
+    onClose: () => void;
 
-    onOrdersChange(
-        value: CustomerOrdersFilter,
-    ): void;
 
-    onOrderingChange(
-        value: CustomerOrdering,
-    ): void;
+    onBalanceChange: (
+        value: CustomerBalanceFilter
+    ) => void;
 
-    onClear(): void;
+
+    onMinOrdersChange: (
+        value: CustomerMinOrdersFilter
+    ) => void;
+
+
+    onOrderingChange: (
+        value: CustomerOrdering
+    ) => void;
+
+
+    onClear: () => void;
+
 }
 
+
 export function CustomersFilterPopover({
-    anchorEl,
-    open,
-    balance,
-    orders,
-    ordering,
-    onClose,
-    onBalanceChange,
-    onOrdersChange,
-    onOrderingChange,
-    onClear,
-}: CustomersFilterPopoverProps) {
+
+                                           anchorEl,
+
+                                           open,
+
+                                           balance,
+
+                                           minOrders,
+
+                                           ordering,
+
+                                           onClose,
+
+                                           onBalanceChange,
+
+                                           onMinOrdersChange,
+
+                                           onOrderingChange,
+
+                                           onClear,
+
+                                       }: CustomersFilterPopoverProps) {
+
 
     return (
+
         <Popover
+
             open={open}
+
             anchorEl={anchorEl}
+
             onClose={onClose}
+
+
             anchorOrigin={{
                 vertical: "bottom",
                 horizontal: "right",
             }}
+
+
             transformOrigin={{
                 vertical: "top",
                 horizontal: "right",
             }}
+
+
             slotProps={{
+
                 paper: {
+
                     sx: {
+
                         width: 360,
-                        maxWidth: "calc(100vw - 32px)",
+
+                        maxWidth:
+                            "calc(100vw - 32px)",
+
                         p: 3,
+
                         mt: 1,
-                        borderRadius: 4,
+
+                        borderRadius: 3,
+
                     },
+
                 },
+
             }}
+
         >
-            <Stack
-                sx={{
-                    gap: 3,
-                }}
-            >
+
+            <Stack spacing={3}>
+
+
                 <Typography
                     variant="h6"
                     sx={{
@@ -96,134 +140,208 @@ export function CustomersFilterPopover({
                     فیلتر مشتریان
                 </Typography>
 
-                <Divider />
+
+                <Divider/>
+
 
                 <FormControl fullWidth>
+
                     <InputLabel>
                         وضعیت حساب
                     </InputLabel>
 
+
                     <Select
-                        label="وضعیت حساب"
+
                         value={balance}
-                        onChange={(e) =>
-                            onBalanceChange(
-                                e.target.value as CustomerBalanceFilter,
-                            )
-                        }
+
+                        label="وضعیت حساب"
+
+                        onChange={(event) => {
+
+                            const value =
+                                event.target.value as CustomerBalanceFilter;
+
+                            onBalanceChange(value);
+
+                        }}
+
                     >
+
                         <MenuItem value="ALL">
                             همه مشتریان
                         </MenuItem>
+
 
                         <MenuItem value="CREDITOR">
                             بستانکار
                         </MenuItem>
 
+
                         <MenuItem value="DEBTOR">
                             بدهکار
                         </MenuItem>
 
+
                         <MenuItem value="ZERO">
                             بدون مانده
                         </MenuItem>
+
+
                     </Select>
+
                 </FormControl>
 
+
                 <FormControl fullWidth>
+
                     <InputLabel>
                         تعداد سفارش
                     </InputLabel>
 
+
                     <Select
+
+                        value={minOrders}
+
                         label="تعداد سفارش"
-                        value={orders}
-                        onChange={(e) =>
-                            onOrdersChange(
-                                e.target.value as CustomerOrdersFilter,
-                            )
-                        }
+
+                        onChange={(event) => {
+
+                            const value =
+                                event.target.value as CustomerMinOrdersFilter;
+
+                            onMinOrdersChange(value);
+
+                        }}
+
                     >
+
                         <MenuItem value="ALL">
                             همه
                         </MenuItem>
 
+
                         <MenuItem value="5">
-                            بیش از ۵ سفارش
+                            بیشتر از ۵ سفارش
                         </MenuItem>
+
 
                         <MenuItem value="10">
-                            بیش از ۱۰ سفارش
+                            بیشتر از ۱۰ سفارش
                         </MenuItem>
+
 
                         <MenuItem value="50">
-                            بیش از ۵۰ سفارش
+                            بیشتر از ۵۰ سفارش
                         </MenuItem>
+
+
                     </Select>
+
+
                 </FormControl>
 
+
                 <FormControl fullWidth>
+
                     <InputLabel>
                         مرتب‌سازی
                     </InputLabel>
 
+
                     <Select
-                        label="مرتب‌سازی"
+
                         value={ordering}
-                        onChange={(e) =>
-                            onOrderingChange(
-                                e.target.value as CustomerOrdering,
-                            )
-                        }
+
+                        label="مرتب‌سازی"
+
+                        onChange={(event) => {
+
+                            const value =
+                                event.target.value as CustomerOrdering;
+
+                            onOrderingChange(value);
+
+                        }}
+
                     >
+
                         <MenuItem value="-created_at">
                             جدیدترین
                         </MenuItem>
+
 
                         <MenuItem value="created_at">
                             قدیمی‌ترین
                         </MenuItem>
 
+
                         <MenuItem value="-total_spent">
                             بیشترین خرید
                         </MenuItem>
+
 
                         <MenuItem value="-total_orders">
                             بیشترین سفارش
                         </MenuItem>
 
+
                         <MenuItem value="name">
-                            نام مشتری (الفبا)
+                            نام مشتری
                         </MenuItem>
+
+
                     </Select>
+
+
                 </FormControl>
 
-                <Divider />
+
+                <Divider/>
+
 
                 <Stack
-                    sx={{
-                        flexDirection: "row",
-                        gap: 1,
-                    }}
+                    direction="row"
+                    spacing={1}
                 >
+
                     <Button
+
                         fullWidth
+
                         variant="outlined"
+
                         color="inherit"
+
                         onClick={onClear}
+
                     >
                         حذف فیلترها
                     </Button>
 
+
                     <Button
+
                         fullWidth
+
                         variant="contained"
+
                         onClick={onClose}
+
                     >
-                        بستن
+                        اعمال
                     </Button>
+
+
                 </Stack>
+
+
             </Stack>
+
+
         </Popover>
+
     );
+
 }

@@ -6,6 +6,7 @@ import {OrderRemoteDataSource} from "../datasources/OrderRemoteDataSource";
 import {orderMapper} from "../mappers/orderMapper";
 import type {UpdateOrderStatusInput} from "../../domain/entities/product/order/UpdateOrderStatusInput.ts";
 import type {UpdateOrderStatusDTO} from "../dtos/order/UpdateOrderStatusDTO.ts";
+import type {OrderFilters} from "../../domain/objects/filters/OrderFilters.ts";
 
 export class OrderRepositoryImpl implements OrderRepository {
 
@@ -28,8 +29,10 @@ export class OrderRepositoryImpl implements OrderRepository {
     // READ
     // =========================
 
-    async findAll(): Promise<OrderWithItems[]> {
-        const data = await this.remote.getOrders();
+    async findAll(
+        filters?: OrderFilters,
+    ): Promise<OrderWithItems[]> {
+        const data = await this.remote.getOrders(filters);
 
         return data.map(orderMapper.toDomain);
     }

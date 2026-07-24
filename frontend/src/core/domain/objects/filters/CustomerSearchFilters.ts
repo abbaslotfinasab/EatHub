@@ -1,16 +1,16 @@
-
-
 export type CustomerBalanceFilter =
     | "ALL"
     | "CREDITOR"
     | "DEBTOR"
     | "ZERO";
 
-export type CustomerOrdersFilter =
+
+export type CustomerMinOrdersFilter =
     | "ALL"
     | "5"
     | "10"
     | "50";
+
 
 export type CustomerOrdering =
     | "-created_at"
@@ -19,16 +19,19 @@ export type CustomerOrdering =
     | "-total_orders"
     | "name";
 
+
 export interface CustomerSearchFilters {
+
     search?: string;
 
     balance?: CustomerBalanceFilter;
 
-    minOrders?: number;
+    minOrders?: CustomerMinOrdersFilter;
 
-    ordering?: string;
+    ordering?: CustomerOrdering;
 
     createdAfter?: string;
 
     createdBefore?: string;
+
 }

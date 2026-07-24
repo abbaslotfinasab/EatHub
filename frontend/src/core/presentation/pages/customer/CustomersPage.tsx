@@ -27,12 +27,35 @@ export function CustomersPage() {
 
     const [search, setSearch] = useState("");
 
+    const [filters, setFilters] =
+        useState<CustomerSearchFilters>({
+            ordering: "-created_at",
+        });
+
+
     const debouncedSearch =
         useDebounce(search, 500);
 
-    const [filters] = useState<CustomerSearchFilters>({
-        ordering: "-created_at",
-    });
+
+    const customerFilters = useMemo(
+        () => ({
+
+            ...filters,
+
+            search:
+                debouncedSearch || undefined,
+
+        }), [
+            filters,
+            debouncedSearch
+        ]);
+
+
+    const {
+        data: customers = []
+    } = useGetAllCustomers(
+        customerFilters
+    );
 
     const [selectedCustomer, setSelectedCustomer] =
         useState<CustomerListItem | null>(null);
@@ -58,14 +81,6 @@ export function CustomersPage() {
 
     const updateBalanceMutation =
         useUpdateCustomerBalance();
-
-    const {
-        data: customers = [],
-    } = useGetAllCustomers({
-        ...filters,
-        search: debouncedSearch,
-
-    });
 
     const stats = useMemo(() => {
 
@@ -167,9 +182,9 @@ export function CustomersPage() {
 
                 <CustomersToolbar
                     search={search}
+                    filters={filters}
                     onSearchChange={setSearch}
-                    onFilterClick={() => {
-                    }}
+                    onFiltersChange={setFilters}
                 />
 
                 <CustomersTable
@@ -283,7 +298,7 @@ export function CustomersPage() {
                 }}
             />
 
-             <Fab
+            <Fab
                 variant="extended"
                 onClick={() => handleCreate()
                 }

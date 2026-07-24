@@ -1,4 +1,4 @@
-import {Box, Grid, Stack} from "@mui/material";
+import {Container, Grid, Stack} from "@mui/material";
 
 import {DashboardStats} from "../components/dashboard/DashboardStats";
 import {SalesChart} from "../components/dashboard/SalesChart";
@@ -20,13 +20,8 @@ export const ManagerDashboard = () => {
     }
 
     return (
-        <Box
-            sx={{
-                p: 3,
-                backgroundColor: "#F8FAFC",
-                minHeight: "100vh",
-            }}
-        >
+                <Container maxWidth="xl">
+
             <Stack spacing={3}>
 
                 <DashboardStats
@@ -68,6 +63,6 @@ export const ManagerDashboard = () => {
                     </Grid>
                 </Grid>
             </Stack>
-        </Box>
+                </Container>
     );
 };

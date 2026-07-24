@@ -30,7 +30,6 @@ from django.db.models.functions import Coalesce
 
 
 
-
 class MenuCreateAPIView(TenantAPIView):
 
     permission_classes = [IsAuthenticated]
@@ -258,20 +257,237 @@ class OrderCreateAPIView(TenantAPIView):
         )
 
 
+
 class OrderListAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
+
+    permission_classes = [
+        IsAuthenticated
+    ]
+
 
     def get(self, request):
 
-        orders = Order.objects.filter(
+        filters = Q(
             business=request.business
-        ).order_by("-id")
-
-        serializer = OrderSerializer(orders, many=True)
-
-        return Response(serializer.data)
+        )
 
 
+        # =========================
+        # Search
+        # =========================
+
+        search = request.query_params.get(
+            "search",
+            ""
+        ).strip()
+
+
+        if search:
+
+            filters &= (
+
+                Q(
+                    id__icontains=search
+                )
+                |
+                Q(
+                    customer__name__icontains=search
+                )
+                |
+                Q(
+                    customer__phone__icontains=search
+                )
+
+            )
+
+
+
+        # =========================
+        # Status
+        # =========================
+
+        status = request.query_params.get(
+            "status"
+        )
+
+
+        if status:
+
+            filters &= Q(
+                status=status
+            )
+
+
+
+        # =========================
+        # Order Type
+        # =========================
+
+        order_type = request.query_params.get(
+            "order_type"
+        )
+
+
+        if order_type:
+
+            filters &= Q(
+                order_type=order_type
+            )
+
+
+
+        # =========================
+        # Payment Status
+        # =========================
+
+        payment_status = request.query_params.get(
+            "payment_status"
+        )
+
+
+        if payment_status:
+
+            filters &= Q(
+                payment_status=payment_status
+            )
+
+
+
+        # =========================
+        # Payment Method
+        # =========================
+
+        payment_method = request.query_params.get(
+            "payment_method"
+        )
+
+
+        if payment_method:
+
+            filters &= Q(
+                payment_method=payment_method
+            )
+
+
+
+        # =========================
+        # Date Range
+        # =========================
+
+        from_date = request.query_params.get(
+            "from_date"
+        )
+
+
+        to_date = request.query_params.get(
+            "to_date"
+        )
+
+
+        if from_date:
+
+            filters &= Q(
+                created_at__date__gte=from_date
+            )
+
+
+        if to_date:
+
+            filters &= Q(
+                created_at__date__lte=to_date
+            )
+
+
+
+        # =========================
+        # Amount
+        # =========================
+
+        min_total = request.query_params.get(
+            "min_total"
+        )
+
+
+        max_total = request.query_params.get(
+            "max_total"
+        )
+
+
+        if min_total:
+
+            filters &= Q(
+                total_amount__gte=Decimal(min_total)
+            )
+
+
+        if max_total:
+
+            filters &= Q(
+                total_amount__lte=Decimal(max_total)
+            )
+
+
+
+        # =========================
+        # Query
+        # =========================
+
+        orders = (
+
+            Order.objects
+            .filter(filters)
+            .select_related(
+                "customer",
+            )
+
+        )
+
+
+
+        # =========================
+        # Ordering
+        # =========================
+
+        ordering = request.query_params.get(
+            "ordering",
+            "-created_at"
+        )
+
+
+        allowed_ordering = {
+
+            "created_at",
+            "-created_at",
+
+            "total_amount",
+            "-total_amount",
+
+        }
+
+
+        if ordering in allowed_ordering:
+
+            orders = orders.order_by(
+                ordering
+            )
+
+        else:
+
+            orders = orders.order_by(
+                "-created_at"
+            )
+
+
+
+        serializer = OrderSerializer(
+            orders,
+            many=True,
+        )
+
+
+        return Response(
+            serializer.data
+        )
 class OrderDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
@@ -357,9 +573,12 @@ class OrderDeleteAPIView(TenantAPIView):
 
 
 
+
 class CustomerListAPIView(TenantAPIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated
+    ]
 
 
     def get(self, request):
@@ -370,6 +589,22 @@ class CustomerListAPIView(TenantAPIView):
         ).strip()
 
 
+        balance = request.query_params.get(
+            "balance"
+        )
+
+
+        min_orders = request.query_params.get(
+            "minOrders"
+        )
+
+
+        ordering = request.query_params.get(
+            "ordering",
+            "-created_at",
+        )
+
+
         customers = Customer.objects.filter(
             business=request.business,
         )
@@ -378,15 +613,18 @@ class CustomerListAPIView(TenantAPIView):
         if search:
 
             customers = customers.filter(
+
                 Q(name__icontains=search)
                 |
                 Q(phone__istartswith=search)
+
             )
 
 
         customers = customers.select_related(
             "account",
         ).annotate(
+
 
             total_orders=Count(
                 "orders",
@@ -397,10 +635,13 @@ class CustomerListAPIView(TenantAPIView):
             total_spent=Coalesce(
 
                 Sum(
+
                     "orders__total_amount",
+
                     filter=Q(
                         orders__status=Order.Status.COMPLETED
                     ),
+
                 ),
 
                 Value(0),
@@ -409,11 +650,95 @@ class CustomerListAPIView(TenantAPIView):
                     max_digits=12,
                     decimal_places=2,
                 ),
+
             ),
 
-        ).order_by(
-            "-created_at",
+
         )
+
+
+
+        # -------------------------
+        # فیلتر تعداد سفارش
+        # -------------------------
+
+        if min_orders:
+
+            try:
+
+                min_orders = int(
+                    min_orders
+                )
+
+                customers = customers.filter(
+                    total_orders__gte=min_orders
+                )
+
+            except ValueError:
+
+                pass
+
+
+
+        # -------------------------
+        # فیلتر وضعیت حساب
+        # -------------------------
+
+        if balance:
+
+            if balance == "CREDITOR":
+
+                customers = customers.filter(
+                    account__balance__gt=0
+                )
+
+
+            elif balance == "DEBTOR":
+
+                customers = customers.filter(
+                    account__balance__lt=0
+                )
+
+
+            elif balance == "ZERO":
+
+                customers = customers.filter(
+
+                    Q(account__balance=0)
+                    |
+                    Q(account__isnull=True)
+
+                )
+
+
+
+        # -------------------------
+        # مرتب سازی
+        # -------------------------
+
+        allowed_ordering = {
+
+            "-created_at",
+            "created_at",
+            "-total_spent",
+            "-total_orders",
+            "name",
+
+        }
+
+
+        if ordering in allowed_ordering:
+
+            customers = customers.order_by(
+                ordering
+            )
+
+        else:
+
+            customers = customers.order_by(
+                "-created_at"
+            )
+
 
 
         serializer = CustomerListSerializer(
@@ -425,7 +750,6 @@ class CustomerListAPIView(TenantAPIView):
         return Response(
             serializer.data
         )
-
 
 class CustomerCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]

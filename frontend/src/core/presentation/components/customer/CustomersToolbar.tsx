@@ -15,128 +15,209 @@ import {
 import {CustomersFilterPopover} from "./CustomersFilterPopover";
 
 import type {
-    CustomerBalanceFilter,
-    CustomerOrdering,
-    CustomerOrdersFilter,
+    CustomerSearchFilters,
 } from "../../../domain/objects/filters/CustomerSearchFilters";
 
+
 export interface CustomersToolbarProps {
+
     search: string;
 
-    hasFilters?: boolean;
+    filters: CustomerSearchFilters;
 
-    onSearchChange: (value: string) => void;
+    onSearchChange: (
+        value: string
+    ) => void;
 
-    onFilterClick?: () => void;
+    onFiltersChange: (
+        filters: CustomerSearchFilters
+    ) => void;
+
 }
 
+
 export function CustomersToolbar({
-                                     search,
-                                     hasFilters = false,
-                                     onSearchChange,
-                                     onFilterClick,
-                                 }: CustomersToolbarProps) {
 
-    const [anchorEl, setAnchorEl] =
-        useState<HTMLElement | null>(null);
+    search,
 
-    const [balance, setBalance] =
-        useState<CustomerBalanceFilter>("ALL");
+    filters,
 
-    const [orders, setOrders] =
-        useState<CustomerOrdersFilter>("ALL");
+    onSearchChange,
 
-    const [ordering, setOrdering] =
-        useState<CustomerOrdering>("-created_at");
+    onFiltersChange,
 
-    const filtersActive = useMemo(
-        () => hasFilters,
-        [hasFilters],
-    );
+}: CustomersToolbarProps) {
+
+
+    const [
+        anchorEl,
+        setAnchorEl,
+    ] = useState<HTMLElement | null>(null);
+
+
+    const filtersActive =
+        useMemo(
+            () => {
+
+                return Boolean(
+
+                    filters.balance ||
+                    filters.minOrders||
+                    (
+                        filters.ordering &&
+                        filters.ordering !== "-created_at"
+                    ) ||
+                    filters.createdAfter ||
+                    filters.createdBefore
+
+                );
+
+            },
+            [
+                filters,
+            ],
+        );
+
+
+    const clearFilters = () => {
+
+        onFiltersChange({
+
+            ordering: "-created_at",
+
+        });
+
+    };
+
 
     return (
+
         <>
+
             <Paper
                 elevation={0}
                 sx={{
                     p: 2,
+
                     borderRadius: 1,
+
                     border: "1px solid",
+
                     borderColor: "divider",
                 }}
             >
+
                 <Stack
                     sx={{
                         flexDirection: {
                             xs: "column",
                             md: "row",
                         },
+
                         gap: 2,
+
                         alignItems: "center",
                     }}
                 >
+
                     <TextField
+
                         fullWidth
+
                         value={search}
+
                         placeholder="جستجوی نام یا شماره موبایل..."
+
                         onChange={(e) =>
                             onSearchChange(
                                 e.target.value,
                             )
                         }
+
                         sx={{
                             "& .MuiOutlinedInput-root": {
+
                                 height: 56,
+
                                 borderRadius: 1,
 
                                 "& fieldset": {
-                                    borderColor: "#E2E8F0",
+                                    borderColor:
+                                        "#E2E8F0",
                                 },
 
                                 "&:hover fieldset": {
-                                    borderColor: "#1F4A33",
+                                    borderColor:
+                                        "#1F4A33",
                                 },
 
                                 "&.Mui-focused fieldset": {
-                                    borderColor: "#10281A",
-                                    borderWidth: 2,
+
+                                    borderColor:
+                                        "#10281A",
+
+                                    borderWidth:
+                                        2,
                                 },
+
                             },
                         }}
+
                         slotProps={{
                             input: {
+
                                 startAdornment: (
-                                    <InputAdornment position="start">
+
+                                    <InputAdornment
+                                        position="start"
+                                    >
                                         <SearchRoundedIcon/>
+
                                     </InputAdornment>
+
                                 ),
                             },
                         }}
+
                     />
 
+
                     <Badge
+
                         variant="dot"
+
                         color="primary"
-                        invisible={!filtersActive}
+
+                        invisible={
+                            !filtersActive
+                        }
+
                     >
+
                         <Button
+
                             variant="outlined"
+
                             endIcon={
                                 <FilterListRoundedIcon/>
                             }
+
                             onClick={(e) => {
 
                                 setAnchorEl(
                                     e.currentTarget,
                                 );
 
-                                onFilterClick?.();
-
                             }}
+
                             sx={{
+
                                 width: {
+
                                     xs: "100%",
+
                                     md: 150,
+
                                 },
 
                                 height: 56,
@@ -146,36 +227,117 @@ export function CustomersToolbar({
                                 flexShrink: 0,
 
                                 "& .MuiButton-endIcon": {
+
                                     marginRight: 8,
+
                                     marginLeft: 0,
-                                }
+
+                                },
 
                             }}
+
                         >
                             فیلترها
+
                         </Button>
+
                     </Badge>
+
+
                 </Stack>
+
+
             </Paper>
 
-            <CustomersFilterPopover
-                open={Boolean(anchorEl)}
-                anchorEl={anchorEl}
-                balance={balance}
-                orders={orders}
-                ordering={ordering}
-                onBalanceChange={setBalance}
-                onOrdersChange={setOrders}
-                onOrderingChange={setOrdering}
-                onClear={() => {
 
-                    setBalance("ALL");
-                    setOrders("ALL");
-                    setOrdering("-created_at");
+            <CustomersFilterPopover
+
+                open={
+                    Boolean(anchorEl)
+                }
+
+
+                anchorEl={
+                    anchorEl
+                }
+
+
+                balance={
+                    filters.balance ?? "ALL"
+                }
+
+
+                minOrders={
+                    filters.minOrders ?? "ALL"
+                }
+
+
+                ordering={
+                    filters.ordering ?? "-created_at"
+                }
+
+
+                onBalanceChange={(value) => {
+
+                    onFiltersChange({
+
+                        ...filters,
+
+                        balance:
+                            value === "ALL"
+                                ? undefined
+                                : value,
+
+                    });
 
                 }}
-                onClose={() => setAnchorEl(null)}
+
+
+                onMinOrdersChange={(value) => {
+
+                    onFiltersChange({
+
+                        ...filters,
+
+                        minOrders:
+                            value === "ALL"
+                                ? undefined
+                                : value,
+
+                    });
+
+                }}
+
+
+                onOrderingChange={(value) => {
+
+                    onFiltersChange({
+
+                        ...filters,
+
+                        ordering:
+                            value,
+
+                    });
+
+                }}
+
+
+                onClear={
+                    clearFilters
+                }
+
+
+                onClose={() => {
+
+                    setAnchorEl(null);
+
+                }}
+
             />
+
         </>
+
     );
+
 }

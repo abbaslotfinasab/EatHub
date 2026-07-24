@@ -4,6 +4,7 @@ import type {OrderDTO} from "../dtos/order/OrderDTO";
 import type {CreateOrderDTO} from "../dtos/order/CreateOrderDTO";
 import type {UpdateOrderDTO} from "../dtos/order/UpdateOrderDTO";
 import type {UpdateOrderStatusDTO} from "../dtos/order/UpdateOrderStatusDTO.ts";
+import type {OrderFilters} from "../../domain/objects/filters/OrderFilters.ts";
 
 export class OrderRemoteDataSource {
 
@@ -24,9 +25,12 @@ export class OrderRemoteDataSource {
     // Read
     // =========================
 
-    async getOrders(): Promise<OrderDTO[]> {
+    async getOrders(filters?: OrderFilters): Promise<OrderDTO[]> {
         const {data} = await apiClient.get<OrderDTO[]>(
             "/products/orders/list",
+            {
+                    params: filters,
+                },
         );
 
         return data;
