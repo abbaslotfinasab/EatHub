@@ -29,6 +29,7 @@ export const orderMapper = {
             customerId: dto.customer_id ?? undefined,
             customerName: dto.customer_name ?? undefined,
             customerPhone: dto.customer_phone ?? undefined,
+            businessName: dto.business.name,
             tableId: dto.table,
             orderType: dto.order_type,
             status: dto.status as Order["status"],

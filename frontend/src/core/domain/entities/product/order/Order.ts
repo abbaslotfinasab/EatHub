@@ -86,6 +86,7 @@ export interface Order {
 
     customerPhone?: string;
 
+    businessName : string;
 
     tableId?: number | null;
 

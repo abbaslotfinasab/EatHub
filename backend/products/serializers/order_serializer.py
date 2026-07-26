@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from accounts.serializers.business_serializer import BusinessSerializer
 from products.models import Customer, Order
 
 
@@ -57,6 +58,9 @@ class OrderSerializer(serializers.Serializer):
 
     table = serializers.IntegerField(required=False,
                                      allow_null=True, )
+
+    business = BusinessSerializer(read_only=True)
+
 
     customer_name = serializers.CharField(source="customer.name", read_only=True)
     customer_phone = serializers.CharField(source="customer.phone", read_only=True)

@@ -18,18 +18,10 @@ import {OrderStatusChip} from "../OrderStatusChip";
 
 interface Props {
     order: Order;
-
-    restaurant?: {
-        name: string;
-        logo?: string;
-        phone?: string;
-        address?: string;
-    };
 }
 
 export function ReceiptHeader({
                                   order,
-                                  restaurant,
                               }: Props) {
 
     return (
@@ -53,7 +45,6 @@ export function ReceiptHeader({
             >
 
                 <Avatar
-                    src={restaurant?.logo}
                     sx={{
                         width: 88,
                         height: 88,
@@ -78,23 +69,8 @@ export function ReceiptHeader({
                             fontWeight: 800,
                         }}
                     >
-                        {restaurant?.name ?? "Restaurant"}
+                        {order.businessName ?? "EatHub"}
                     </Typography>
-
-                    {(restaurant?.address || restaurant?.phone) && (
-
-                        <Typography
-                            variant="body2"
-                            color="text.secondary"
-                        >
-                            {restaurant?.address}
-
-                            {restaurant?.address && restaurant?.phone && " • "}
-
-                            {restaurant?.phone}
-                        </Typography>
-
-                    )}
 
                 </Stack>
 

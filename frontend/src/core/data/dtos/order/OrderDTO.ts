@@ -1,4 +1,5 @@
 import type {OrderItemDTO} from "./OrderItemDTO";
+import type {ActiveBusinessDTO} from "../business/ActiveBusinessDTO.ts";
 
 export interface OrderDTO {
     id: string;
@@ -8,6 +9,8 @@ export interface OrderDTO {
     customer_name: string;
 
     customer_phone: string | null;
+
+    business:ActiveBusinessDTO;
 
     table: number | null;
 
