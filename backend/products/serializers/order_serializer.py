@@ -44,8 +44,11 @@ class CreateOrderInputSerializer(serializers.Serializer):
 
     items = OrderItemCreateInputSerializer(many=True)
 
-    notes = serializers.CharField(required=False, allow_null=True)
-
+    notes = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+    )
 
 class OrderSerializer(serializers.Serializer):
     id = serializers.IntegerField()
