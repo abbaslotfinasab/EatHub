@@ -6,7 +6,7 @@ export interface CustomerDetailDTO {
 
     customer: CustomerDTO;
 
-    account: CustomerAccountDTO;
+    account: CustomerAccountDTO | null;
 
     transactions: CustomerTransactionDTO[];
 

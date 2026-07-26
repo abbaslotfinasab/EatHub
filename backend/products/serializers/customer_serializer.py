@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from products.models import Customer, CustomerAccount, CustomerTransaction
@@ -23,35 +24,6 @@ class CustomerSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "created_at"]
-
-
-class CustomerDetailSerializer(serializers.ModelSerializer):
-    balance = serializers.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        source="account.balance",
-        read_only=True
-    )
-
-    total_orders = serializers.IntegerField(
-        read_only=True
-    )
-
-    total_spent = serializers.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        read_only=True,
-    )
-
-    class Meta:
-        model = Customer
-        fields = [
-            "id",
-            "name",
-            "phone",
-            "balance",
-            "created_at",
-        ]
 
 
 class CustomerAccountSerializer(serializers.ModelSerializer):
@@ -85,8 +57,44 @@ class CustomerTransactionSerializer(serializers.ModelSerializer):
         ]
 
 
-class CustomerBalanceSerializer(serializers.Serializer):
+class CustomerDetailSerializer(serializers.Serializer):
+    customer = CustomerSerializer(
+        read_only=True,
+    )
 
+    account = CustomerAccountSerializer(
+        read_only=True,
+    )
+
+    transactions = CustomerTransactionSerializer(
+        many=True,
+        read_only=True,
+    )
+
+    def to_representation(self, instance):
+
+        try:
+            account = instance.account
+        except ObjectDoesNotExist:
+            account = None
+
+        return {
+            "customer": CustomerSerializer(instance).data,
+            "account": (
+                CustomerAccountSerializer(account).data
+                if account else None
+            ),
+            "transactions": (
+                CustomerTransactionSerializer(
+                    account.transactions.all(),
+                    many=True,
+                ).data
+                if account else []
+            ),
+        }
+
+
+class CustomerBalanceSerializer(serializers.Serializer):
     amount = serializers.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -98,6 +106,7 @@ class CustomerBalanceSerializer(serializers.Serializer):
         allow_null=True,
         default="",
     )
+
 
 class CustomerListSerializer(serializers.ModelSerializer):
     balance = serializers.DecimalField(

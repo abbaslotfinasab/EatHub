@@ -13,18 +13,17 @@ import {
 
 import {LoadingButton} from "@mui/lab";
 
-import type {CustomerListItem} from "../../../domain/entities/product/customer/CustomerListItem.ts";
-
 
 import {formatCurrency} from "../../utils/formatCurrency.ts";
 import {CustomerBalanceOperation} from "../../../domain/objects/CustomerBalanceOperation.ts";
+import type {CustomerDetail} from "../../../domain/entities/product/customer/CustomerDetail.ts";
 
 
 interface CustomerBalanceDialogProps {
 
     open: boolean;
 
-    customer?: CustomerListItem | null;
+    customer?: CustomerDetail | null;
 
     operation: CustomerBalanceOperation;
 
@@ -83,6 +82,9 @@ export function CustomerBalanceDialog({
     if (!customer) {
         return null;
     }
+
+    const info = customer.customer;
+    const account = customer.account;
 
 
     const submitLabel = {
@@ -147,7 +149,7 @@ export function CustomerBalanceDialog({
                             }}
                         >
                             {
-                                customer.name.charAt(0)
+                                info.name.charAt(0)
                             }
                         </Avatar>
 
@@ -162,7 +164,7 @@ export function CustomerBalanceDialog({
                                     fontWeight: 700,
                                 }}
                             >
-                                {customer.name}
+                                {info.name}
                             </Typography>
 
                             <Typography
@@ -170,7 +172,7 @@ export function CustomerBalanceDialog({
                                 color="text.secondary"
                             >
                                 {
-                                    customer.phone
+                                    info.phone
                                 }
                             </Typography>
 
@@ -185,7 +187,7 @@ export function CustomerBalanceDialog({
 
                         value={
                             formatCurrency(
-                                customer.balance ?? 0,
+                                account?.balance ?? 0,
                             )
                         }
 

@@ -6,6 +6,9 @@ import {SearchCustomers} from "../../domain/use-cases/product/customer/SearchCus
 import {CustomerRemoteDataSource} from "../datasources/CustomerRemoteDataSource";
 import {CustomerRepositoryImpl} from "../repositories/CustomerRepositoryImpl";
 import {UpdateCustomerBalance} from "../../domain/use-cases/product/customer/UpdateCustomerBalance.ts";
+import {DeleteCustomer} from "../../domain/use-cases/product/customer/DeleteCustomer.ts";
+import {UpdateCustomer} from "../../domain/use-cases/product/customer/UpdateCustomer.ts";
+import {GetCustomerById} from "../../domain/use-cases/product/customer/GetCustomerById.ts";
 
 export const createCustomerContainer = () => {
 
@@ -39,20 +42,20 @@ export const createCustomerContainer = () => {
             repository,
             ),
 
-        // updateCustomerUseCase:
-        //     new UpdateCustomer(
-        //         repository,
-        //     ),
+        updateCustomerUseCase:
+            new UpdateCustomer(
+                repository,
+            ),
 
-        // deleteCustomerUseCase:
-        //     new DeleteCustomer(
-        //         repository,
-        //     ),
+        deleteCustomerUseCase:
+            new DeleteCustomer(
+                repository,
+            ),
 
-        // getCustomerByIdUseCase:
-        //     new GetCustomerById(
-        //         repository,
-        //     ),
+        getCustomerByIdUseCase:
+            new GetCustomerById(
+                repository,
+            ),
 
     };
 

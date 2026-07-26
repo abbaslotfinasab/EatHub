@@ -2,7 +2,7 @@ import type {CustomerBalanceOperation} from "../../../objects/CustomerBalanceOpe
 
 export interface UpdateCustomerBalanceInput {
 
-    customerId: number;
+    customerId: number ;
 
     type: CustomerBalanceOperation;
 

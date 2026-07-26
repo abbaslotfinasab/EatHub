@@ -815,8 +815,9 @@ class CustomerDeleteAPIView(TenantAPIView):
             business=request.business
         )
 
-        CustomerService.delete_customer(customer)
-
+        CustomerService.delete_customer(
+            customer=customer,
+        )
         return Response(status=204)
 
 

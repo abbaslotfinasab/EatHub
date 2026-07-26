@@ -7,7 +7,7 @@ import type { CustomerTransaction } from "./CustomerTransaction";
 export interface CustomerDetail {
     customer: Customer;
 
-    account: CustomerAccount;
+    account: CustomerAccount | null;
 
     transactions: CustomerTransaction[];
 }

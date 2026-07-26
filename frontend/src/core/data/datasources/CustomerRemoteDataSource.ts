@@ -38,7 +38,7 @@ export class CustomerRemoteDataSource {
         payload: UpdateCustomerDTO,
     ): Promise<void> {
 
-        await apiClient.put<CustomerDTO>(
+        await apiClient.patch<CustomerDTO>(
             `/products/customers/${payload.id}/update/`,
             payload,
         );

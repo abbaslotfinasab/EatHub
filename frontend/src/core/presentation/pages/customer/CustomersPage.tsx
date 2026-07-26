@@ -1,5 +1,4 @@
 import {useCallback, useMemo, useState} from "react";
-import {Add} from "@mui/icons-material";
 import {
     Container,
     Fab,
@@ -22,8 +21,23 @@ import {CustomerBalanceOperation} from "../../../domain/objects/CustomerBalanceO
 import {useUpdateCustomerBalance} from "../../hooks/customer/useUpdateCustomerBalance";
 import {useDebounce} from "../../hooks/useDebounce.ts";
 import AddIcon from "@mui/icons-material/Add";
+import {useGetCustomerById} from "../../hooks/customer/useGetCustomerById.ts";
+import {useUpdateCustomer} from "../../hooks/customer/useUpdateCustomer.ts";
+import {useDeleteCustomer} from "../../hooks/customer/useDeleteCustomer.ts";
 
 export function CustomersPage() {
+
+    // ============================
+    // Filters
+    // ============================
+
+    type CustomerDialogMode =
+        | "create"
+        | "edit"
+        | null;
+
+    const [formMode, setFormMode] =
+        useState<CustomerDialogMode>(null);
 
     const [search, setSearch] = useState("");
 
@@ -32,89 +46,170 @@ export function CustomersPage() {
             ordering: "-created_at",
         });
 
-
     const debouncedSearch =
         useDebounce(search, 500);
 
-
     const customerFilters = useMemo(
         () => ({
-
             ...filters,
-
-            search:
-                debouncedSearch || undefined,
-
-        }), [
+            search: debouncedSearch || undefined,
+        }),
+        [
             filters,
-            debouncedSearch
-        ]);
-
-
-    const {
-        data: customers = []
-    } = useGetAllCustomers(
-        customerFilters
+            debouncedSearch,
+        ],
     );
 
-    const [selectedCustomer, setSelectedCustomer] =
-        useState<CustomerListItem | null>(null);
+    // ============================
+    // Queries
+    // ============================
 
-    const [detailsOpen, setDetailsOpen] = useState(false);
+    const {
+        data: customers = [],
+    } = useGetAllCustomers(
+        customerFilters,
+    );
 
-    const [formOpen, setFormOpen] = useState(false);
-
-    const [balanceOpen, setBalanceOpen] = useState(false);
-
-    const [operation, setOperation] =
-        useState<CustomerBalanceOperation>(
-            CustomerBalanceOperation.CREDIT
+    const [
+        selectedCustomer,
+        setSelectedCustomer,
+    ] =
+        useState<CustomerListItem | null>(
+            null,
         );
 
-    const [amount, setAmount] = useState("");
+    const {
+        data: customerDetail,
+        isLoading: customerDetailLoading,
+    } = useGetCustomerById(
+        selectedCustomer?.id.toString() ?? "",
+    );
 
-    const [description, setDescription] =
-        useState("");
+    // ============================
+    // Dialogs
+    // ============================
+
+    const [
+        detailsOpen,
+        setDetailsOpen,
+    ] = useState(false);
+
+    const [
+        formOpen,
+        setFormOpen,
+    ] = useState(false);
+
+    const [
+        balanceOpen,
+        setBalanceOpen,
+    ] = useState(false);
+
+    // ============================
+    // Balance
+    // ============================
+
+    const [
+        operation,
+        setOperation,
+    ] =
+        useState<CustomerBalanceOperation>(
+            CustomerBalanceOperation.CREDIT,
+        );
+
+    const [
+        amount,
+        setAmount,
+    ] = useState("");
+
+    const [
+        description,
+        setDescription,
+    ] = useState("");
+
+    // ============================
+    // Mutations
+    // ============================
 
     const createCustomer =
         useCreateCustomer();
 
-    const updateBalanceMutation =
+    const updateCustomer =
+        useUpdateCustomer();
+
+    const deleteCustomer =
+        useDeleteCustomer();
+
+    const updateBalance =
         useUpdateCustomerBalance();
+
+    // ============================
+    // Statistics
+    // ============================
 
     const stats = useMemo(() => {
 
-        const creditors = customers.reduce(
-            (sum, customer) =>
-                customer.balance && customer.balance > 0
-                    ? sum + customer.balance
-                    : sum,
-            0,
-        );
+        const creditors =
+            customers.reduce(
+                (
+                    sum,
+                    customer,
+                ) =>
+                    customer.balance &&
+                    customer.balance > 0
+                        ? sum +
+                        customer.balance
+                        : sum,
+                0,
+            );
 
-        const debtors = customers.reduce(
-            (sum, customer) =>
-                customer.balance && customer.balance < 0
-                    ? sum + Math.abs(customer.balance)
-                    : sum,
-            0,
-        );
+        const debtors =
+            customers.reduce(
+                (
+                    sum,
+                    customer,
+                ) =>
+                    customer.balance &&
+                    customer.balance < 0
+                        ? sum +
+                        Math.abs(
+                            customer.balance,
+                        )
+                        : sum,
+                0,
+            );
 
         return {
 
-            totalCustomers: customers.length,
+            totalCustomers:
+            customers.length,
 
-            totalOrders: customers.reduce(
-                (sum, customer) =>
-                    sum + (customer.totalOrders ?? 0),
-                0,
-            ),
+            totalOrders:
+                customers.reduce(
+                    (
+                        sum,
+                        customer,
+                    ) =>
+                        sum +
+                        (
+                            customer.totalOrders ??
+                            0
+                        ),
+                    0,
+                ),
 
-            totalSpent: customers.reduce(
-                (sum, customer) =>
-                    sum + (customer.totalSpent ?? 0),
-                0,
-            ),
+            totalSpent:
+                customers.reduce(
+                    (
+                        sum,
+                        customer,
+                    ) =>
+                        sum +
+                        (
+                            customer.totalSpent ??
+                            0
+                        ),
+                    0,
+                ),
 
             creditors,
             debtors,
@@ -123,108 +218,183 @@ export function CustomersPage() {
 
     }, [customers]);
 
-    const handleCreate = useCallback(() => {
+    // ============================
+    // Handlers
+    // ============================
+
+
+    const handleCreate = () => {
 
         setSelectedCustomer(null);
 
-        setFormOpen(true);
-
-    }, []);
-
-    const handleView = useCallback((customer: CustomerListItem) => {
-
-        setSelectedCustomer(customer);
-
-        setDetailsOpen(true);
-
-    }, []);
-
-    const handleEdit = useCallback((customer: CustomerListItem) => {
-
-        setSelectedCustomer(customer);
+        setFormMode("create");
 
         setFormOpen(true);
 
-    }, []);
-    const handleRecharge = useCallback((customer: CustomerListItem) => {
+    };
 
-        setSelectedCustomer(customer);
+    const handleView =
+        useCallback(
+            (
+                customer: CustomerListItem,
+            ) => {
 
-        setOperation(
-            CustomerBalanceOperation.CREDIT,
+                setSelectedCustomer(customer);
+
+                setDetailsOpen(true);
+
+            },
+            [],
         );
 
-        setAmount("");
+    const handleEdit = (
+        customer: CustomerListItem,
+    ) => {
 
-        setDescription("");
+        setSelectedCustomer(customer);
 
-        setBalanceOpen(true);
+        setFormMode("edit");
 
-    }, []);
+        setFormOpen(true);
 
-    const handleDelete = useCallback((customer: CustomerListItem) => {
+    };
 
-        console.log(customer);
+    const handleRecharge =
+        useCallback(
+            (
+                customer: CustomerListItem,
+            ) => {
 
-    }, []);
+                setSelectedCustomer(
+                    customer,
+                );
+
+                setOperation(
+                    CustomerBalanceOperation.CREDIT,
+                );
+
+                setAmount("");
+
+                setDescription("");
+
+                setBalanceOpen(true);
+
+            },
+            [],
+        );
+
+    const handleDelete =
+        useCallback(
+            async (
+                customer: CustomerListItem,
+            ) => {
+
+                if (
+                    !confirm(
+                        "حذف مشتری انجام شود؟",
+                    )
+                ) {
+                    return;
+                }
+
+                await deleteCustomer.mutateAsync(
+                    customer.id.toString(),
+                );
+
+            },
+            [deleteCustomer],
+        );
+
+    // ============================
+    // Render
+    // ============================
 
     return (
-
         <Container maxWidth="xl">
+
             <Stack spacing={3}>
 
                 <CustomersStats
-                    totalCustomers={stats.totalCustomers}
-                    creditors={stats.creditors}
-                    debtors={stats.debtors}
-                    totalSpent={stats.totalSpent}
+                    totalCustomers={
+                        stats.totalCustomers
+                    }
+                    creditors={
+                        stats.creditors
+                    }
+                    debtors={
+                        stats.debtors
+                    }
+                    totalSpent={
+                        stats.totalSpent
+                    }
                 />
 
                 <CustomersToolbar
                     search={search}
                     filters={filters}
-                    onSearchChange={setSearch}
-                    onFiltersChange={setFilters}
+                    onSearchChange={
+                        setSearch
+                    }
+                    onFiltersChange={
+                        setFilters
+                    }
                 />
 
                 <CustomersTable
                     customers={customers}
                     onView={handleView}
                     onEdit={handleEdit}
-                    onRecharge={handleRecharge}
-                    onDelete={handleDelete}
+                    onRecharge={
+                        handleRecharge
+                    }
+                    onDelete={
+                        handleDelete
+                    }
                 />
 
             </Stack>
 
-            <Fab
-                color="primary"
-                onClick={handleCreate}
-                sx={{
-                    position: "fixed",
-                    bottom: 24,
-                    right: 24,
-                }}
-            >
-                <Add/>
-            </Fab>
-
             <CustomerDetailsDialog
                 open={detailsOpen}
-                customer={selectedCustomer}
-                onClose={() => setDetailsOpen(false)}
-                onEdit={handleEdit}
-                onRecharge={handleRecharge}
+                loading={
+                    customerDetailLoading
+                }
+                customer={
+                    customerDetail
+                }
+                onClose={() =>
+                    setDetailsOpen(false)
+                }
+                onEdit={() => {
+
+                    setDetailsOpen(false);
+
+                    setFormOpen(true);
+
+                }}
+                onRecharge={() => {
+
+                    setDetailsOpen(false);
+
+                    setBalanceOpen(true);
+
+                }}
             />
 
             <CustomerFormDialog
                 open={formOpen}
-                loading={createCustomer.isPending}
+                loading={
+                    createCustomer.isPending ||
+                    updateCustomer.isPending
+                }
                 initialValues={
-                    selectedCustomer
+                    formMode === "edit" && customerDetail
                         ? {
-                            name: selectedCustomer.name,
-                            phone: selectedCustomer.phone,
+                            name:
+                            customerDetail.customer.name,
+
+                            phone:
+                            customerDetail.customer.phone,
                         }
                         : undefined
                 }
@@ -232,62 +402,88 @@ export function CustomersPage() {
 
                     setFormOpen(false);
 
-                    setSelectedCustomer(null);
+                    setSelectedCustomer(
+                        null,
+                    );
 
                 }}
-                onSubmit={async (values) => {
+                onSubmit={async (
+                    values,
+                ) => {
 
-                    try {
+                    if (
+                        customerDetail
+                    ) {
 
-                        if (selectedCustomer) { /* empty */
-                        } else {
+                        await updateCustomer.mutateAsync(
+                            {
+                                id:
+                                customerDetail.customer.id,
+                                ...values,
+                            },
+                        );
 
-                            await createCustomer.mutateAsync(values);
+                    } else {
 
-                        }
-
-                        setFormOpen(false);
-
-                        setSelectedCustomer(null);
-
-                    } catch (error) {
-
-                        console.error(error);
+                        await createCustomer.mutateAsync(
+                            values,
+                        );
 
                     }
+
+                    setFormOpen(false);
+
+                    setSelectedCustomer(
+                        null,
+                    );
 
                 }}
             />
 
             <CustomerBalanceDialog
                 open={balanceOpen}
-                customer={selectedCustomer}
-                operation={operation}
+                customer={
+                    customerDetail
+                }
+                operation={
+                    operation
+                }
                 amount={amount}
-                description={description}
-                onClose={() => setBalanceOpen(false)}
-                onOperationChange={setOperation}
-                onAmountChange={setAmount}
-                onDescriptionChange={setDescription}
+                description={
+                    description
+                }
+                onClose={() =>
+                    setBalanceOpen(false)
+                }
+                onOperationChange={
+                    setOperation
+                }
+                onAmountChange={
+                    setAmount
+                }
+                onDescriptionChange={
+                    setDescription
+                }
                 onSubmit={async () => {
 
-                    if (!selectedCustomer) {
+                    if (
+                        !customerDetail
+                    ) {
                         return;
                     }
 
-
-                    await updateBalanceMutation.mutateAsync({
-
-                        customerId: selectedCustomer.id,
-
-                        type: operation,
-
-                        amount: Number(amount),
-
-                        description,
-
-                    });
-
+                    await updateBalance.mutateAsync(
+                        {
+                            customerId:
+                                customerDetail.customer.id ?? "",
+                            type: operation,
+                            amount:
+                                Number(
+                                    amount,
+                                ),
+                            description,
+                        },
+                    );
 
                     setBalanceOpen(false);
 
@@ -300,20 +496,16 @@ export function CustomersPage() {
 
             <Fab
                 variant="extended"
-                onClick={() => handleCreate()
+                onClick={
+                    handleCreate
                 }
                 sx={{
-                    position:
-                        "fixed",
-
+                    position: "fixed",
                     left: 24,
                     bottom: 24,
-
                     bgcolor:
                         "#10281A",
-
                     color: "#fff",
-
                     "&:hover": {
                         bgcolor:
                             "#173724",
@@ -326,4 +518,5 @@ export function CustomersPage() {
 
         </Container>
     );
+
 }
