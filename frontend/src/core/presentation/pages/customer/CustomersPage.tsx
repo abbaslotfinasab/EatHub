@@ -475,7 +475,7 @@ export function CustomersPage() {
                     await updateBalance.mutateAsync(
                         {
                             customerId:
-                                customerDetail.customer.id ?? "",
+                                customerDetail.customer.id ?? -1,
                             type: operation,
                             amount:
                                 Number(
