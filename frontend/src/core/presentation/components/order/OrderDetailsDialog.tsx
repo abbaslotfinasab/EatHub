@@ -1,83 +1,47 @@
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
-import RestaurantRoundedIcon from "@mui/icons-material/RestaurantRounded";
-import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
-import LocalDiningRoundedIcon from "@mui/icons-material/LocalDiningRounded";
+// presentation/components/order/OrderDetailsDialog.tsx
 
 import {
-    Button,
     Dialog,
-    DialogActions,
     DialogContent,
-    DialogTitle,
-    Divider,
-    Grid,
     IconButton,
-    MenuItem,
-    Paper,
     Stack,
-    Table,
-    TableBody,
-    TableCell, TableContainer,
-    TableHead,
-    TableRow,
-    TextField,
-    Typography,
 } from "@mui/material";
 
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
-import {OrderStatusChip} from "./OrderStatusChip";
+import type {OrderStatusType} from "../../../domain/entities/product/order/Order";
 import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems";
-import {OrderStatus, type OrderStatusType} from "../../../domain/entities/product/order/Order.ts";
-import {formatDateTime} from "../../utils/formatDateTime.ts";
-import {formatCurrency} from "../../utils/formatCurrency.ts";
+import {ReceiptHeader} from "./details/ReceiptHeader";
+import {ReceiptOrderInfo} from "./details/ReceiptOrderInfo";
+import {ReceiptItems} from "./details/ReceiptItems";
+import {ReceiptSummary} from "./details/ReceiptSummary";
+import {ReceiptPayment} from "./details/ReceiptPayment";
+import {ReceiptActions} from "./details/ReceiptActions";
+import {ReceiptNotes} from "./details/ReceiptNotes.tsx";
+import {ReceiptCustomer} from "./details/ReceiptCustomer.tsx";
+
 
 interface OrderDetailsDialogProps {
     open: boolean;
+
     order?: OrderWithItems;
+
     loading?: boolean;
 
-    onClose: () => void;
+    onClose(): void;
 
-    onStatusChange?: (
+    onPrint?(): void;
+
+    onStatusChange?(
         status: OrderStatusType,
-    ) => void;
-
-    onPrint?: () => void;
+    ): void;
 }
-
-const ORDER_STATUS_OPTIONS = [
-    {
-        value: OrderStatus.PENDING,
-        label: "در انتظار",
-    },
-    {
-        value: OrderStatus.CONFIRMED,
-        label: "تأیید شده",
-    },
-    {
-        value: OrderStatus.PREPARING,
-        label: "درحال آماده سازی",
-    },
-    {
-        value: OrderStatus.READY,
-        label: "آماده تحویل",
-    },
-    {
-        value: OrderStatus.COMPLETED,
-        label: "تحویل شده",
-    },
-    {
-        value: OrderStatus.CANCELLED,
-        label: "لغو شده",
-    },
-];
 
 export const OrderDetailsDialog = ({
                                        open,
                                        order,
                                        onClose,
-                                       onStatusChange,
+                                       onPrint,
                                    }: OrderDetailsDialogProps) => {
 
     if (!order) {
@@ -87,553 +51,107 @@ export const OrderDetailsDialog = ({
     const data = order.order;
 
     return (
+
         <Dialog
             open={open}
             onClose={onClose}
             fullWidth
-            maxWidth="lg"
+            maxWidth="sm"
+            slotProps={{
+                paper: {
+                    sx: {
+                        borderRadius: 4,
+                        overflow: "hidden",
+                    },
+                },
+            }}
         >
 
-            <DialogTitle
+            <DialogContent
                 sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    py: 2,
+                    p: 0,
+                    bgcolor: "#fafafa",
                 }}
             >
 
-                <Stack spacing={1}>
+                <Stack>
 
-                    <Typography
-                        variant="h6"
+                    <Stack
                         sx={{
-                            fontWeight: 700,
+                            position: "relative",
                         }}
                     >
-                        سفارش #{data.id}
-                    </Typography>
 
-                    <OrderStatusChip
-                        status={data.status}
+                        <IconButton
+                            onClick={onClose}
+                            sx={{
+                                position: "absolute",
+                                top: 12,
+                                left: 12,
+                                zIndex: 10,
+                                bgcolor: "background.paper",
+                                boxShadow: 1,
+
+                                "&:hover": {
+                                    bgcolor: "background.paper",
+                                },
+                            }}
+                        >
+                            <CloseRoundedIcon/>
+                        </IconButton>
+
+                        <ReceiptHeader
+                            order={data}
+                        />
+
+                    </Stack>
+
+                    <Stack
+                        spacing={2}
+                        sx={{
+                            p: 3,
+                        }}
+                    >
+
+                        <ReceiptCustomer
+                            order={data}
+                        />
+
+                        <ReceiptOrderInfo
+                            order={data}
+                        />
+
+                        <ReceiptItems
+                            items={
+                                order.orderItems
+                            }
+                        />
+
+                        <ReceiptSummary
+                            order={data}
+                        />
+
+                        <ReceiptPayment
+                            order={data}
+                        />
+
+                        <ReceiptNotes
+                            notes={data.notes}
+                        />
+
+                    </Stack>
+
+                    <ReceiptActions
+                        onPrint={onPrint}
+                        onClose={onClose}
                     />
 
                 </Stack>
 
-                <IconButton
-                    onClick={onClose}
-                >
-                    <CloseRoundedIcon/>
-                </IconButton>
-
-            </DialogTitle>
-
-            <Divider/>
-
-            <DialogContent>
-
-                <Grid
-                    container
-                    spacing={2}
-                >
-
-                    {/* Customer */}
-
-                    <Grid size={{xs: 12, md: 6}}>
-
-                        <Paper
-                            variant="outlined"
-                            sx={{
-                                p: 3,
-                                height: "100%",
-                            }}
-                        >
-
-                            <Stack spacing={2}>
-
-                                <Stack
-                                    sx={{
-                                        flexDirection: "row",
-                                        gap: 1,
-                                        alignItems: "center",
-                                    }}
-                                >
-
-                                    <PersonRoundedIcon/>
-
-                                    <Typography
-                                        sx={{
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        اطلاعات مشتری
-                                    </Typography>
-
-                                </Stack>
-
-                                <Divider/>
-
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                >
-                                    نام مشتری
-                                </Typography>
-
-                                <Typography
-                                    sx={{
-                                        fontWeight: 600,
-                                    }}
-                                >
-                                    {data.customerName}
-                                </Typography>
-
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                >
-                                    شماره تماس
-                                </Typography>
-
-                                <Typography>
-                                    {data.customerPhone ?? "-"}
-                                </Typography>
-
-                            </Stack>
-
-                        </Paper>
-
-                    </Grid>
-
-                    {/* Order Info */}
-
-                    <Grid size={{xs: 12, md: 6}}>
-
-                        <Paper
-                            variant="outlined"
-                            sx={{
-                                p: 3,
-                                height: "100%",
-                            }}
-                        >
-
-                            <Stack spacing={2}>
-
-                                <Stack
-                                    sx={{
-                                        flexDirection: "row",
-                                        gap: 1,
-                                        alignItems: "center",
-                                    }}
-                                >
-                                    <RestaurantRoundedIcon/>
-
-                                    <Typography
-                                        sx={{
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        اطلاعات سفارش
-                                    </Typography>
-                                </Stack>
-
-                                <Divider/>
-
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                >
-                                    نوع سفارش
-                                </Typography>
-
-                                <Typography>
-
-                                    {data.orderType === "dine_in"
-                                        ? "حضوری"
-                                        : data.orderType === "delivery"
-                                            ? "ارسال"
-                                            : "بیرون بر"}
-
-                                </Typography>
-
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                >
-                                    میز
-                                </Typography>
-
-                                <Typography>
-                                    {data.tableId ?? "-"}
-                                </Typography>
-
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                >
-                                    زمان ثبت
-                                </Typography>
-                                <Stack
-                                    sx={{
-                                        flexDirection: "row",
-                                        gap: 1,
-                                        alignItems: "center",
-                                    }}
-                                >
-
-                                    <AccessTimeRoundedIcon
-                                        fontSize="small"
-                                    />
-
-                                    <Typography>
-                                        {formatDateTime(data.createdAt)}
-                                    </Typography>
-
-                                </Stack>
-
-                                <TextField
-                                    select
-                                    fullWidth
-                                    size="small"
-                                    label="وضعیت سفارش"
-                                    value={data.status}
-                                    onChange={(e) =>
-                                        onStatusChange?.(
-                                            e.target.value as OrderStatusType
-                                        )
-                                    }
-                                >
-
-                                    {ORDER_STATUS_OPTIONS.map((item) => (
-                                        <MenuItem
-                                            key={item.value}
-                                            value={item.value}
-                                        >
-                                            {item.label}
-                                        </MenuItem>
-                                    ))}
-
-                                </TextField>
-
-                            </Stack>
-
-                        </Paper>
-
-                    </Grid>
-                    {/* ==========================
-                        Order Items
-                    =========================== */}
-
-                    <Grid size={{xs: 12}}>
-                        <Paper
-                            variant="outlined"
-                            sx={{
-                                p: 3,
-                            }}
-                        >
-                            <Stack spacing={2}>
-
-                                <Stack
-                                    sx={{
-                                        flexDirection: "row",
-                                        gap: 1,
-                                        alignItems: "center",
-                                    }}
-                                >
-                                    <LocalDiningRoundedIcon/>
-
-                                    <Typography
-                                        sx={{
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        اقلام سفارش
-                                    </Typography>
-                                </Stack>
-                                <Divider/>
-
-                                <TableContainer>
-
-                                    <Table size="small">
-
-                                        <TableHead>
-
-                                            <TableRow>
-
-                                                <TableCell>
-                                                    آیتم
-                                                </TableCell>
-
-                                                <TableCell align="center">
-                                                    تعداد
-                                                </TableCell>
-
-                                                <TableCell align="right">
-                                                    قیمت واحد
-                                                </TableCell>
-
-                                                <TableCell align="right">
-                                                    مبلغ
-                                                </TableCell>
-
-                                            </TableRow>
-
-                                        </TableHead>
-
-                                        <TableBody>
-
-                                            {order.orderItems.map((item) => (
-
-                                                <TableRow
-                                                    key={item.id}
-                                                    hover
-                                                >
-
-                                                    <TableCell>
-
-                                                        <Stack spacing={0.5}>
-
-                                                            <Typography
-                                                                sx={{
-                                                                    fontWeight: 600,
-                                                                }}
-                                                            >
-                                                                {item.menuItemName}
-                                                            </Typography>
-
-                                                            {item.notes && (
-
-                                                                <Typography
-                                                                    variant="caption"
-                                                                    color="text.secondary"
-                                                                >
-                                                                    {item.notes}
-                                                                </Typography>
-
-                                                            )}
-
-                                                        </Stack>
-
-                                                    </TableCell>
-
-                                                    <TableCell align="center">
-                                                        {item.quantity}
-                                                    </TableCell>
-
-                                                    <TableCell align="right">
-                                                        {(item.unitPrice ?? 0).toLocaleString()}
-                                                    </TableCell>
-
-                                                    <TableCell align="right">
-                                                        {(item.totalPrice ?? 0).toLocaleString()}
-                                                    </TableCell>
-
-                                                </TableRow>
-
-                                            ))}
-
-                                        </TableBody>
-
-                                    </Table>
-
-                                </TableContainer>
-
-                            </Stack>
-                        </Paper>
-                    </Grid>
-
-                    {/* ==========================
-                        Notes
-                    =========================== */}
-
-                    <Grid size={{xs: 12, md: 6}}>
-
-                        <Paper
-                            variant="outlined"
-                            sx={{
-                                p: 3,
-                                height: "100%",
-                            }}
-                        >
-
-                            <Stack spacing={2}>
-
-                                <Typography
-                                    sx={{
-                                        fontWeight: 700,
-                                    }}
-                                >
-                                    توضیحات سفارش
-                                </Typography>
-                                <Divider/>
-
-                                <Typography
-                                    color="text.secondary"
-                                >
-                                    {data.notes || "توضیحی ثبت نشده است."}
-                                </Typography>
-
-                            </Stack>
-
-                        </Paper>
-
-                    </Grid>
-
-                    {/* ==========================
-                        Summary
-                    =========================== */}
-
-                    <Grid size={{xs: 12, md: 6}}>
-
-                        <Paper
-                            variant="outlined"
-                            sx={{
-                                p: 3,
-                                height: "100%",
-                            }}
-                        >
-
-                            <Stack spacing={2}>
-
-                                <Typography
-                                    sx={{
-                                        fontWeight: 700,
-                                    }}
-                                >
-                                    خلاصه مالی
-                                </Typography>
-
-                                <Divider/>
-
-                                <Stack
-                                    sx={{
-                                        flexDirection: "row",
-                                        justifyContent: "space-between",
-                                    }}
-                                >
-                                    <Typography color="text.secondary">
-                                        جمع اقلام
-                                    </Typography>
-
-                                    <Typography
-                                        sx={{
-                                            fontWeight: 600,
-                                        }}
-                                    >
-
-                                        {formatCurrency(data.subtotal)}
-                                    </Typography>
-                                </Stack>
-
-                                <Stack
-                                    sx={{
-                                        flexDirection: "row",
-                                        justifyContent: "space-between",
-                                    }}
-                                >
-                                    <Typography color="text.secondary">
-                                        تخفیف
-                                    </Typography>
-
-                                    <Typography
-                                        color="success.main"
-                                        sx={{
-                                            fontWeight: 600,
-                                        }}
-                                    >
-                                        {data.discount} %
-                                    </Typography>
-                                </Stack>
-                                <Stack
-                                    sx={{
-                                        flexDirection: "row",
-                                        justifyContent: "space-between",
-                                    }}
-                                >
-                                    <Typography color="text.secondary">
-                                        مالیات
-                                    </Typography>
-
-                                    <Typography
-                                        sx={{
-                                            fontWeight: 600,
-                                        }}
-                                    >
-                                        {data.tax} %
-                                    </Typography>
-                                </Stack>
-
-                                <Divider/>
-
-                                <Stack
-                                    sx={{
-                                        flexDirection: "row",
-                                        justifyContent: "space-between",
-                                    }}
-                                >
-                                    <Typography
-                                        variant="h6"
-                                        sx={{
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        مبلغ نهایی
-                                    </Typography>
-
-                                    <Typography
-                                        variant="h6"
-                                        color="primary.main"
-                                        sx={{
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        {formatCurrency(data.totalAmount)}
-                                    </Typography>
-                                </Stack>
-
-                            </Stack>
-
-                        </Paper>
-
-                    </Grid>
-
-                </Grid>
-
             </DialogContent>
 
-            <Divider/>
-
-            <DialogActions
-                sx={{
-                    px: 3,
-                    py: 2,
-                    justifyContent: "space-between",
-                }}
-            >
-
-                <Button
-                    variant="outlined"
-                    onClick={print}
-                >
-                    چاپ فاکتور
-                </Button>
-
-                <Stack
-                    direction="row"
-                    spacing={1}
-                >
-
-                    <Button
-                        color="inherit"
-                        onClick={onClose}
-                    >
-                        بستن
-                    </Button>
-
-                </Stack>
-
-            </DialogActions>
-
         </Dialog>
+
     );
+
 };

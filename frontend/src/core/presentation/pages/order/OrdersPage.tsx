@@ -38,14 +38,14 @@ import {OrdersEmpty} from "../../components/order/OrdersEmpty.tsx";
 import {OrderActionsMenu} from "../../components/order/OrderActionsMenu.tsx";
 import {OrderDetailsDialog} from "../../components/order/OrderDetailsDialog.tsx";
 import {OrderStatusDialog} from "../../components/order/OrderStatusDialog.tsx";
-
+import {useDeleteOrder} from "../../hooks/order/useDeleteOrder.ts";
+import {useGetOrderById} from "../../hooks/order/useGetOrderById.ts";
 
 
 export const OrdersPage = () => {
 
 
     const navigate = useNavigate();
-
 
 
     /*
@@ -61,7 +61,6 @@ export const OrdersPage = () => {
     ] = useState("");
 
 
-
     const [
         filters,
         setFilters
@@ -73,13 +72,11 @@ export const OrdersPage = () => {
     });
 
 
-
     const debouncedSearch =
         useDebounce(
             search,
             500
         );
-
 
 
     const orderFilters = useMemo(() => ({
@@ -101,15 +98,14 @@ export const OrdersPage = () => {
     ]);
 
 
-
-
-
     /*
     |--------------------------------------------------------------------------
     | Query
     |--------------------------------------------------------------------------
     */
 
+    const deleteOrder =
+        useDeleteOrder();
 
     const {
 
@@ -122,9 +118,6 @@ export const OrdersPage = () => {
     );
 
 
-
-
-
     /*
     |--------------------------------------------------------------------------
     | UI State
@@ -132,14 +125,16 @@ export const OrdersPage = () => {
     */
 
 
-    const [
-        selectedOrder,
-        setSelectedOrder
-    ] = useState<OrderWithItems | null>(
-        null
+    const [selectedOrderId, setSelectedOrderId] =
+        useState<string | null>(null);
+
+
+    const {
+        data: orderDetail,
+        isLoading: orderDetailLoading,
+    } = useGetOrderById(
+        selectedOrderId ?? undefined,
     );
-
-
 
     const [
         dialogOpen,
@@ -147,12 +142,10 @@ export const OrdersPage = () => {
     ] = useState(false);
 
 
-
     const [
         statusDialogOpen,
         setStatusDialogOpen
     ] = useState(false);
-
 
 
     const [
@@ -163,12 +156,8 @@ export const OrdersPage = () => {
     );
 
 
-
     const updateStatusMutation =
         useUpdateOrderStatus();
-
-
-
 
 
     /*
@@ -192,34 +181,31 @@ export const OrdersPage = () => {
     };
 
 
-
     const handleOrderClick = (
         order: OrderWithItems
     ) => {
 
-        setSelectedOrder(order);
-
+        setSelectedOrderId(
+            order.order.id,
+        );
         setDialogOpen(true);
 
     };
 
 
-
     const handleMenuOpen = (
         event: React.MouseEvent<HTMLElement>,
-
         order: OrderWithItems,
-
     ) => {
 
-        setSelectedOrder(order);
-
+        setSelectedOrderId(
+            order.order.id,
+        );
         setMenuAnchor(
             event.currentTarget
         );
 
     };
-
 
 
     const handleMenuClose = () => {
@@ -229,11 +215,10 @@ export const OrdersPage = () => {
     };
 
 
-
     const handleOpenStatusDialog = () => {
 
 
-        if (!selectedOrder) {
+        if (!selectedOrderId) {
 
             return;
 
@@ -243,9 +228,6 @@ export const OrdersPage = () => {
         setStatusDialogOpen(true);
 
     };
-
-
-
 
 
     /*
@@ -262,49 +244,37 @@ export const OrdersPage = () => {
 
 
             totalOrders:
-                orders.length,
-
+            orders.length,
 
 
             pendingOrders:
-                orders.filter(
-
-                    item =>
-                        item.order.status ===
-                        OrderStatus.PENDING
-
-                ).length,
-
+            orders.filter(
+                item =>
+                    item.order.status ===
+                    OrderStatus.PENDING
+            ).length,
 
 
             preparingOrders:
-                orders.filter(
-
-                    item =>
-                        item.order.status ===
-                        OrderStatus.PREPARING
-
-                ).length,
-
+            orders.filter(
+                item =>
+                    item.order.status ===
+                    OrderStatus.PREPARING
+            ).length,
 
 
             readyOrders:
-                orders.filter(
-
-                    item =>
-                        item.order.status ===
-                        OrderStatus.READY
-
-                ).length,
+            orders.filter(
+                item =>
+                    item.order.status ===
+                    OrderStatus.READY
+            ).length,
 
 
         };
 
 
-    },[orders]);
-
-
-
+    }, [orders]);
 
 
     if (isLoading) {
@@ -312,9 +282,6 @@ export const OrdersPage = () => {
         return <OrdersLoading/>;
 
     }
-
-
-
 
 
     return (
@@ -346,7 +313,6 @@ export const OrdersPage = () => {
                 />
 
 
-
                 <OrdersToolbar
 
                     search={search}
@@ -364,8 +330,6 @@ export const OrdersPage = () => {
                 />
 
 
-
-
                 {
                     orders.length === 0 ? (
 
@@ -375,13 +339,11 @@ export const OrdersPage = () => {
                             hasFilters={
 
                                 Boolean(
-
                                     search ||
 
                                     Object.keys(
                                         filters
                                     ).length > 1
-
                                 )
 
                             }
@@ -421,42 +383,15 @@ export const OrdersPage = () => {
             </Stack>
 
 
-
-
-
             <OrderDetailsDialog
-
                 open={dialogOpen}
-
-
-                order={
-                    selectedOrder ?? undefined
-                }
-
-
-                onClose={() =>
-                    setDialogOpen(false)
-                }
-
-
-                onPrint={() => {
-
-                    console.log(
-                        "Print",
-                        selectedOrder
-                    );
-
-                }}
-
-
-                onStatusChange={() => {}}
-
+                loading={orderDetailLoading}
+                order={orderDetail ?? undefined}
+                onClose={() => {
+                setDialogOpen(false);
+                setSelectedOrderId(null);
+            }}
             />
-
-
-
-
-
 
             <OrderStatusDialog
 
@@ -464,9 +399,7 @@ export const OrdersPage = () => {
                 open={statusDialogOpen}
 
 
-                order={
-                    selectedOrder?.order
-                }
+                order={orderDetail?.order}
 
 
                 loading={
@@ -474,44 +407,42 @@ export const OrdersPage = () => {
                 }
 
 
-                onClose={() =>
-                    setStatusDialogOpen(false)
-                }
+                onClose={() => {
+                    setStatusDialogOpen(false);
+                    setSelectedOrderId(null);
+                }}
 
 
+                onSubmit={(data) => {
 
-                onSubmit={(data)=>{
 
-
-                    if (!selectedOrder) {
+                    if (!selectedOrderId) {
 
                         return;
 
                     }
 
 
-
                     updateStatusMutation.mutate({
 
 
                         orderId:
-                            selectedOrder.order.id,
+                            selectedOrderId ?? "",
 
 
                         status:
-                            data.status,
+                        data.status,
 
 
                         paymentStatus:
-                            data.paymentStatus,
+                        data.paymentStatus,
 
 
                         paymentMethod:
-                            data.paymentMethod,
+                        data.paymentMethod,
 
 
                     });
-
 
 
                     setStatusDialogOpen(false);
@@ -521,10 +452,6 @@ export const OrdersPage = () => {
 
 
             />
-
-
-
-
 
 
             <OrderActionsMenu
@@ -543,8 +470,7 @@ export const OrdersPage = () => {
                 }
 
 
-
-                onView={()=>{
+                onView={() => {
 
 
                     handleMenuClose();
@@ -556,9 +482,7 @@ export const OrdersPage = () => {
                 }}
 
 
-
-
-                onChangeStatus={()=>{
+                onChangeStatus={() => {
 
 
                     handleMenuClose();
@@ -570,61 +494,51 @@ export const OrdersPage = () => {
                 }}
 
 
-
-
-                onPrint={()=>{
+                onPrint={() => {
 
 
                     handleMenuClose();
-
-
-                    console.log(
-                        "Print",
-                        selectedOrder
-                    );
 
 
                 }}
 
 
-
-                onEdit={()=>{
+                onEdit={() => {
 
 
                     handleMenuClose();
 
 
-
-                    if (!selectedOrder) {
+                    if (!selectedOrderId) {
 
                         return;
 
                     }
 
 
-
                     navigate(
-
-                        `/orders/${selectedOrder.order.id}/edit`
-
+                        `/orders/${selectedOrderId}/edit`
                     );
 
 
                 }}
 
 
-
-                onDelete={()=>{
-
+                onDelete={async () => {
 
                     handleMenuClose();
 
+                    if (!selectedOrderId) {
+                        return;
+                    }
 
-                    console.log(
-                        "Delete",
-                        selectedOrder
-                    );
+                    if (!confirm("سفارش حذف شود؟")) {
+                        return;
+                    }
 
+                    await deleteOrder.mutateAsync(selectedOrderId);
+
+                    setSelectedOrderId(null);
 
                 }}
 
@@ -632,17 +546,12 @@ export const OrdersPage = () => {
             />
 
 
-
-
-
-
-
             <Fab
 
                 variant="extended"
 
 
-                onClick={()=>
+                onClick={() =>
 
 
                     navigate(
@@ -676,8 +585,7 @@ export const OrdersPage = () => {
                         "#fff",
 
 
-
-                    "&:hover":{
+                    "&:hover": {
 
                         bgcolor:
                             "#173724",
@@ -696,7 +604,6 @@ export const OrdersPage = () => {
 
 
             </Fab>
-
 
 
         </Container>

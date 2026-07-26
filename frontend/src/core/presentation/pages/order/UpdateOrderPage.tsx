@@ -166,8 +166,10 @@ export const UpdateOrderPage = () => {
 
                 <OrderForm
                     mode="edit"
+                    order={order}
                     loading={updateOrder.isPending}
                     onSubmit={handleSubmit}
+                    onCancel={() => navigate("/orders")}
                 />
 
             </Box>

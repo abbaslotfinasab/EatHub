@@ -4,10 +4,11 @@ import type {OrderWithItems} from "../../../domain/entities/product/order/OrderW
 
 import {OrderFormContent} from "./OrderFormContent";
 import {type OrderFormInput, OrderFormSchema} from "./OrderFormInput.ts";
-import { useForm } from "react-hook-form";
-import { FormProvider } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import {useForm} from "react-hook-form";
+import {FormProvider} from "react-hook-form";
+import {zodResolver} from "@hookform/resolvers/zod";
 import {OrderFormMapper} from "./OrderFormMapper.tsx";
+import {useEffect} from "react";
 
 interface OrderFormProps {
     mode: "create" | "edit";
@@ -24,40 +25,43 @@ interface OrderFormProps {
 }
 
 
-
 export const OrderForm = ({
-    mode,
-    order,
-    loading,
-    onSubmit,
-    onCancel,
-}: OrderFormProps) => {
+                              mode,
+                              order,
+                              loading,
+                              onSubmit,
+                              onCancel,
+                          }: OrderFormProps) => {
 
     const methods = useForm<OrderFormInput>({
         resolver: zodResolver(OrderFormSchema),
-        defaultValues: order
-            ? OrderFormMapper.toForm(order)
-            : {
-                  customerId: undefined,
-                  tableId: null,
-                  orderType: "dine_in",
-                  notes: "",
-                  orderItems: [],
-              },
+        defaultValues: {
+            customerId: undefined,
+            tableId: null,
+            orderType: "dine_in",
+            notes: "",
+            orderItems: [],
+        },
     });
+
+    useEffect(() => {
+        if (order) {
+            methods.reset(OrderFormMapper.toForm(order));
+        }
+    }, [order, methods]);
 
     return (
         <FormProvider {...methods}>
-           <form
-    onSubmit={methods.handleSubmit(
-        (data) => {
-            onSubmit(data);
-        },
-        (errors) => {
-            console.log(errors);
-        },
-    )}
->
+            <form
+                onSubmit={methods.handleSubmit(
+                    (data) => {
+                        onSubmit(data);
+                    },
+                    (errors) => {
+                        console.log(errors);
+                    },
+                )}
+            >
                 <OrderFormContent
                     loading={loading}
                     mode={mode}

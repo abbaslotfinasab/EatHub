@@ -19,7 +19,6 @@ export const useUpdateOrderStatus = () => {
     } = container.orderContainer;
 
 
-
     return useMutation({
 
         mutationFn: async (
@@ -33,17 +32,15 @@ export const useUpdateOrderStatus = () => {
         },
 
 
-        onSuccess: () => {
-
+        onSuccess: (_, variables) => {
 
             queryClient.invalidateQueries({
-
-                queryKey: [
-                    "orders",
-                ],
-
+                queryKey: ["orders"],
             });
 
+            queryClient.invalidateQueries({
+                queryKey: ["orders", variables.orderId],
+            });
 
         },
 

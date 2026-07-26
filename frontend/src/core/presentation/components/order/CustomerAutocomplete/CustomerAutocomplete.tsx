@@ -1,26 +1,24 @@
-// presentation/components/order/customer/CustomerAutocomplete.tsx
-
-import {useState} from "react";
-
+import { useMemo, useState } from "react";
 
 import {
     Autocomplete,
     TextField,
 } from "@mui/material";
 
-import {useOrderForm} from "../../../forms/order/useOrderForm";
+import type { Customer } from "../../../../domain/entities/product/customer/Customer";
 
-import {useSearchCustomers} from "../../../hooks/customer/useSearchCustomers";
+import { useOrderForm } from "../../../forms/order/useOrderForm";
 
-import {CustomerOption} from "./CustomerOption";
+import { useSearchCustomers } from "../../../hooks/customer/useSearchCustomers";
+import { useGetCustomerById } from "../../../hooks/customer/useGetCustomerById";
+import { useCreateCustomer } from "../../../hooks/customer/useCreateCustomer";
+
+import { CustomerOption } from "./CustomerOption";
+import { CustomerCreateButton } from "./CustomerCreateButton";
 import {
     CreateCustomerDialog,
     type CreateCustomerDialogValues,
 } from "./CreateCustomerDialog";
-
-import {CustomerCreateButton} from "./CustomerCreateButton.tsx";
-import type {Customer} from "../../../../domain/entities/product/customer/Customer.ts";
-import {useCreateCustomer} from "../../../hooks/customer/useCreateCustomer.ts";
 
 export const CustomerAutocomplete = () => {
 
@@ -32,80 +30,121 @@ export const CustomerAutocomplete = () => {
     const customerId =
         watch("customerId");
 
-
     const [keyword, setKeyword] =
         useState("");
 
     const [dialogOpen, setDialogOpen] =
         useState(false);
 
-    // ==========================
+    // ====================================
+    // Selected customer (Edit Mode)
+    // ====================================
+
+    const {
+        data: customerDetail,
+    } = useGetCustomerById(
+        customerId?.toString(),
+    );
+
+    const selectedCustomer =
+        customerDetail?.customer ?? null;
+
+    // ====================================
     // Search
-    // ==========================
+    // ====================================
 
     const {
         data: customers = [],
         isLoading,
-    } = useSearchCustomers(keyword);
+    } = useSearchCustomers(
+        keyword,
+    );
 
-    // ==========================
-    // Create
-    // ==========================
+    // ====================================
+    // Merge Options
+    // ====================================
+
+    const options = useMemo(() => {
+
+        if (!selectedCustomer) {
+            return customers;
+        }
+
+        const exists =
+            customers.some(
+                x =>
+                    x.id ===
+                    selectedCustomer.id,
+            );
+
+        if (exists) {
+            return customers;
+        }
+
+        return [
+            selectedCustomer,
+            ...customers,
+        ];
+
+    }, [
+        customers,
+        selectedCustomer,
+    ]);
+
+    // ====================================
+    // Create Customer
+    // ====================================
 
     const createCustomer =
         useCreateCustomer();
 
     const handleCreateCustomer = async (
-    values: CreateCustomerDialogValues,
-) => {
+        values: CreateCustomerDialogValues,
+    ) => {
 
-    const customer =
-        await createCustomer.mutateAsync(values);
+        const customer =
+            await createCustomer.mutateAsync(
+                values,
+            );
 
-    setValue(
-        "customerId",
-        customer.id,
-    );
+        setValue(
+            "customerId",
+            customer.id,
+        );
 
-    setKeyword(
-        customer.name,
-    );
+        setKeyword(
+            customer.name,
+        );
 
-    setDialogOpen(false);
+        setDialogOpen(false);
 
-};
+    };
 
-    // ==========================
-    // Selected Customer
-    // ==========================
-
-    const selectedCustomer =
-        customers.find(
-            x => x.id === customerId,
-        ) ?? null;
+    // ====================================
+    // Render
+    // ====================================
 
     return (
         <>
-
             <Autocomplete<Customer>
-
-                loadingText="در حال جستجو..."
 
                 fullWidth
 
-                options={customers}
+                loading={isLoading}
+
+                loadingText="در حال جستجو..."
+
+                options={options}
 
                 value={selectedCustomer}
-
-                loading={isLoading}
 
                 filterOptions={(x) => x}
 
                 isOptionEqualToValue={(
-                    a,
-                    b,
+                    option,
+                    value,
                 ) =>
-                    a.id === b.id
+                    option.id === value.id
                 }
 
                 getOptionLabel={(option) =>
@@ -115,9 +154,14 @@ export const CustomerAutocomplete = () => {
                 onInputChange={(
                     _,
                     value,
+                    reason,
                 ) => {
 
-                    setKeyword(value);
+                    if (
+                        reason === "input"
+                    ) {
+                        setKeyword(value);
+                    }
 
                 }}
 
@@ -126,31 +170,21 @@ export const CustomerAutocomplete = () => {
                     customer,
                 ) => {
 
-                    if (!customer) {
-
-                        setValue(
-                            "customerId",
-                            undefined,
-                        );
-
-                        return;
-
-                    }
-
                     setValue(
                         "customerId",
-                        customer.id,
+                        customer?.id,
                     );
-
 
                 }}
 
                 renderInput={(params) => (
+
                     <TextField
                         {...params}
                         label="مشتری"
                         placeholder="نام یا شماره تماس..."
                     />
+
                 )}
 
                 renderOption={(
@@ -160,38 +194,43 @@ export const CustomerAutocomplete = () => {
 
                     <CustomerOption
                         {...props}
-                        customer={
-                            customer
-                        }
+                        customer={customer}
                     />
 
                 )}
 
                 noOptionsText={
+
                     <CustomerCreateButton
                         search={keyword}
-                        onClick={() => setDialogOpen(true)}
+                        onClick={() =>
+                            setDialogOpen(true)
+                        }
                     />
+
                 }
 
             />
 
             <CreateCustomerDialog
+
                 open={dialogOpen}
+
                 initialName={keyword}
+
                 loading={
                     createCustomer.isPending
                 }
+
                 onClose={() =>
-                    setDialogOpen(
-                        false,
-                    )
+                    setDialogOpen(false)
                 }
+
                 onSubmit={
                     handleCreateCustomer
                 }
-            />
 
+            />
         </>
     );
 

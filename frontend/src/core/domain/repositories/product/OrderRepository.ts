@@ -12,7 +12,7 @@ export interface OrderRepository {
 
 
     // پیدا کردن سفارش با شناسه (بدون آیتم‌ها)
-    findById(id: string): Promise<OrderWithItems | null>;
+    findById(id: string): Promise<OrderWithItems>;
 
     // دریافت لیست سفارش‌ها با فیلتر (بدون آیتم‌ها)
     findAll(filters?: OrderFilters): Promise<OrderWithItems[]>;
