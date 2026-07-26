@@ -37,10 +37,8 @@ export class OrderRepositoryImpl implements OrderRepository {
         return data.map(orderMapper.toDomain);
     }
 
-    async findById(id: string): Promise<OrderWithItems | null> {
+    async findById(id: string): Promise<OrderWithItems> {
         const data = await this.remote.getOrderById(id);
-
-        if (!data) return null;
 
         return orderMapper.toDomain(data);
     }
