@@ -3,22 +3,13 @@
 import {
     Dialog,
     DialogContent,
-    IconButton,
-    Stack,
 } from "@mui/material";
 
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 import type {OrderStatusType} from "../../../domain/entities/product/order/Order";
 import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems";
-import {ReceiptHeader} from "./details/ReceiptHeader";
-import {ReceiptOrderInfo} from "./details/ReceiptOrderInfo";
-import {ReceiptItems} from "./details/ReceiptItems";
-import {ReceiptSummary} from "./details/ReceiptSummary";
-import {ReceiptPayment} from "./details/ReceiptPayment";
-import {ReceiptActions} from "./details/ReceiptActions";
-import {ReceiptNotes} from "./details/ReceiptNotes.tsx";
-import {ReceiptCustomer} from "./details/ReceiptCustomer.tsx";
+import {ReceiptCard} from "./details/ReceiptCard.tsx";
+import {usePrintReceipt} from "../../hooks/usePrintReceipt.ts";
 
 
 interface OrderDetailsDialogProps {
@@ -41,14 +32,18 @@ export const OrderDetailsDialog = ({
                                        open,
                                        order,
                                        onClose,
-                                       onPrint,
                                    }: OrderDetailsDialogProps) => {
+
+    const {
+        printReceipt80,
+        exportPdf,
+    } = usePrintReceipt();
+
 
     if (!order) {
         return null;
     }
 
-    const data = order.order;
 
     return (
 
@@ -61,7 +56,6 @@ export const OrderDetailsDialog = ({
                 paper: {
                     sx: {
                         borderRadius: 4,
-                        overflow: "hidden",
                     },
                 },
             }}
@@ -70,83 +64,18 @@ export const OrderDetailsDialog = ({
             <DialogContent
                 sx={{
                     p: 0,
-                    bgcolor: "#fafafa",
+                    bgcolor: "#f5f5f5",
                 }}
             >
 
-                <Stack>
+                <ReceiptCard
+                    order={order}
+                    onClose={onClose}
+                    onPrint={printReceipt80}
+                    onDownloadPdf={exportPdf}
 
-                    <Stack
-                        sx={{
-                            position: "relative",
-                        }}
-                    >
+                />
 
-                        <IconButton
-                            onClick={onClose}
-                            sx={{
-                                position: "absolute",
-                                top: 12,
-                                left: 12,
-                                zIndex: 10,
-                                bgcolor: "background.paper",
-                                boxShadow: 1,
-
-                                "&:hover": {
-                                    bgcolor: "background.paper",
-                                },
-                            }}
-                        >
-                            <CloseRoundedIcon/>
-                        </IconButton>
-
-                        <ReceiptHeader
-                            order={data}
-                        />
-
-                    </Stack>
-
-                    <Stack
-                        spacing={2}
-                        sx={{
-                            p: 3,
-                        }}
-                    >
-
-                        <ReceiptCustomer
-                            order={data}
-                        />
-
-                        <ReceiptOrderInfo
-                            order={data}
-                        />
-
-                        <ReceiptItems
-                            items={
-                                order.orderItems
-                            }
-                        />
-
-                        <ReceiptSummary
-                            order={data}
-                        />
-
-                        <ReceiptPayment
-                            order={data}
-                        />
-
-                        <ReceiptNotes
-                            notes={data.notes}
-                        />
-
-                    </Stack>
-
-                    <ReceiptActions
-                        onPrint={onPrint}
-                        onClose={onClose}
-                    />
-
-                </Stack>
 
             </DialogContent>
 

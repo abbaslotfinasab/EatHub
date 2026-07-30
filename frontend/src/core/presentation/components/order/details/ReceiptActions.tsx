@@ -1,16 +1,15 @@
 import {
     Button,
     DialogActions,
+    Divider,
     Stack,
 } from "@mui/material";
 
-import PrintRoundedIcon from "@mui/icons-material/PrintRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 
 interface ReceiptActionsProps {
-
     onClose(): void;
 
     onPrint?(): void;
@@ -19,89 +18,135 @@ interface ReceiptActionsProps {
 
     onChangeStatus?(): void;
 
+    onDownloadPdf?(): void;
+
+
+}
+
+function PictureAsPdfRoundedIcon() {
+    return null;
 }
 
 export function ReceiptActions({
+                                   onClose,
+                                   onEdit,
+                                   onChangeStatus,
+                                   onDownloadPdf,
 
-    onClose,
-
-    onPrint,
-
-    onEdit,
-
-    onChangeStatus,
-
-}: ReceiptActionsProps) {
+                               }: ReceiptActionsProps) {
 
     return (
 
         <DialogActions
             sx={{
-                px: 3,
-                py: 2,
+                p: 3,
                 borderTop: "1px solid",
                 borderColor: "divider",
+                bgcolor: "background.paper",
             }}
         >
 
             <Stack
-                direction="row"
-                spacing={1}
+                spacing={2}
                 sx={{
                     width: "100%",
-                    justifyContent: "space-between",
-                    flexWrap: "wrap",
-                    gap: 1,
                 }}
             >
 
-                <Stack
-                    direction="row"
-                    spacing={1}
-                >
+                {/* Primary Action */}
 
-                    {onPrint && (
+                {/* Primary Action */}
 
-                        <Button
-                            variant="outlined"
-                            startIcon={<PrintRoundedIcon />}
-                            onClick={onPrint}
-                        >
-                            چاپ فاکتور
-                        </Button>
+                {onDownloadPdf && (
 
-                    )}
+                    <Button
+                        fullWidth
+                        size="large"
+                        variant="contained"
+                        startIcon={<PictureAsPdfRoundedIcon/>}
+                        onClick={onDownloadPdf}
+                        sx={{
+                            height: 56,
+                            borderRadius: 3,
+                            fontWeight: 700,
+                            textTransform: "none",
+                            boxShadow: 0,
 
-                    {onEdit && (
+                            "&:hover": {
+                                boxShadow: 2,
+                            },
+                        }}
+                    >
+                        دانلود PDF رسید
+                    </Button>
 
-                        <Button
-                            variant="outlined"
-                            startIcon={<EditRoundedIcon />}
-                            onClick={onEdit}
-                        >
-                            ویرایش سفارش
-                        </Button>
+                )}
+                {/* Secondary Actions */}
 
-                    )}
+                {(onEdit || onChangeStatus) && (
 
-                    {onChangeStatus && (
+                    <Stack
+                        direction={{
+                            xs: "column",
+                            sm: "row",
+                        }}
+                        spacing={2}
+                    >
 
-                        <Button
-                            variant="contained"
-                            startIcon={<TaskAltRoundedIcon />}
-                            onClick={onChangeStatus}
-                        >
-                            تغییر وضعیت
-                        </Button>
+                        {onChangeStatus && (
 
-                    )}
+                            <Button
+                                fullWidth
+                                size="large"
+                                variant="outlined"
+                                color="primary"
+                                startIcon={<TaskAltRoundedIcon/>}
+                                onClick={onChangeStatus}
+                                sx={{
+                                    height: 48,
+                                    borderRadius: 2.5,
+                                }}
+                            >
+                                تغییر وضعیت
+                            </Button>
 
-                </Stack>
+                        )}
+
+                        {onEdit && (
+
+                            <Button
+                                fullWidth
+                                size="large"
+                                variant="outlined"
+                                color="inherit"
+                                startIcon={<EditRoundedIcon/>}
+                                onClick={onEdit}
+                                sx={{
+                                    height: 48,
+                                    borderRadius: 2.5,
+                                }}
+                            >
+                                ویرایش سفارش
+                            </Button>
+
+                        )}
+
+                    </Stack>
+
+                )}
+
+                <Divider/>
 
                 <Button
+                    fullWidth
+                    size="large"
                     color="inherit"
-                    startIcon={<CloseRoundedIcon />}
+                    startIcon={<CloseRoundedIcon/>}
                     onClick={onClose}
+                    sx={{
+                        height: 46,
+                        borderRadius: 2,
+                    }}
                 >
                     بستن
                 </Button>

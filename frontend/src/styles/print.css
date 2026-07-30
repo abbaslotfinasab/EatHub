@@ -1,0 +1,38 @@
+@media print {
+
+    body {
+
+        margin: 0;
+
+        padding: 0;
+
+        background: white;
+
+    }
+
+    body * {
+
+        visibility: hidden;
+
+    }
+
+    #thermal-print,
+    #thermal-print * {
+
+        visibility: visible;
+
+    }
+
+    #thermal-print {
+
+        position: absolute;
+
+        left: 0;
+
+        top: 0;
+
+        width: 80mm;
+
+    }
+
+}
