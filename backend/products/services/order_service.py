@@ -100,6 +100,7 @@ class OrderService:
         customer = validated_data.get("customer")
 
         order.customer = customer
+        order.table = validated_data.get("table")
         order.order_type = validated_data["order_type"]
         order.notes = validated_data.get("notes")
 

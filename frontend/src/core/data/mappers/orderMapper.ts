@@ -88,8 +88,8 @@ export const orderMapper = {
 
     toUpdateDTO(domain: OrderWithItems): UpdateOrderDTO {
         return {
-            customer_id: domain.order.customerId,
-            table_id: domain.order.tableId,
+            customer: domain.order.customerId,
+            table: domain.order.tableId,
             order_type: domain.order.orderType,
             notes: domain.order.notes,
             items: domain.orderItems.map(orderMapper.toUpdateOrderItemDTO),

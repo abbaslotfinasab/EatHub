@@ -109,10 +109,9 @@ class UpdateOrderInputSerializer(serializers.Serializer):
         allow_null=True,
     )
 
-    table_id = serializers.CharField(
+    table = serializers.IntegerField(
         required=False,
         allow_null=True,
-        allow_blank=True,
     )
 
     order_type = serializers.ChoiceField(

@@ -1,9 +1,9 @@
 import type { UpdateOrderItemDTO } from "./UpdateOrderItemDTO";
 
 export interface UpdateOrderDTO {
-    customer_id?: number;
+    customer?: number;
 
-    table_id?: number | null;
+    table?: number | null;
 
     order_type: "dine_in" | "takeaway" | "delivery";
 
