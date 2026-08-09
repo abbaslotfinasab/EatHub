@@ -2,19 +2,16 @@ import {useCallback} from "react";
 
 export interface PrintReceiptOptions {
     title?: string;
+
     width?: number;
+
     height?: number;
 
-    /**
-     * Optional callback before opening print window.
-     */
     beforePrint?(): void;
 
-    /**
-     * Optional callback after print dialog is triggered.
-     */
     afterPrint?(): void;
 }
+
 
 export function usePrintReceipt() {
 
@@ -26,6 +23,7 @@ export function usePrintReceipt() {
         const element =
             document.getElementById(elementId);
 
+
         if (!element) {
 
             console.error(
@@ -36,7 +34,9 @@ export function usePrintReceipt() {
 
         }
 
+
         options?.beforePrint?.();
+
 
         const printWindow =
             window.open(
@@ -44,6 +44,7 @@ export function usePrintReceipt() {
                 "_blank",
                 `width=${options?.width ?? 900},height=${options?.height ?? 1000}`,
             );
+
 
         if (!printWindow) {
 
@@ -54,6 +55,7 @@ export function usePrintReceipt() {
             return;
 
         }
+
 
         /*
         |--------------------------------------------------------------------------
@@ -68,209 +70,333 @@ export function usePrintReceipt() {
                 ),
             )
                 .map(
-                    node => node.outerHTML
+                    node =>
+                        node.outerHTML,
                 )
                 .join("\n");
 
 
         /*
         |--------------------------------------------------------------------------
-        | Print document
+        | Print Document
         |--------------------------------------------------------------------------
         */
+
+        printWindow.document.open();
+
 
         printWindow.document.write(`
 
-<!DOCTYPE html>
+            <!DOCTYPE html>
 
-<html
-    lang="fa"
-    dir="rtl"
->
+            <html
+                lang="fa"
+                dir="rtl"
+            >
 
-<head>
+            <head>
 
-    <meta charset="UTF-8"/>
+                <meta charset="UTF-8"/>
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    />
+                <meta
+                    name="viewport"
+                    content="width=device-width, initial-scale=1.0"
+                />
 
-    <title>
-        ${options?.title ?? "رسید سفارش"}
-    </title>
+                <base
+                    href="${document.baseURI}"
+                />
 
-    ${styles}
-
-    <style>
-
-        html,
-        body {
-
-            margin: 0;
-            padding: 0;
-
-            background: #ffffff;
-
-            direction: rtl;
-
-        }
-
-        *,
-        *::before,
-        *::after {
-
-            box-sizing: border-box;
-
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-
-        }
-
-        body {
-
-            font-family:
-                "Vazirmatn",
-                "Tahoma",
-                "Arial",
-                sans-serif;
-
-        }
-
-        @page {
-
-            margin: 0;
-
-            size: auto;
-
-        }
-
-        @media print {
-
-            html,
-            body {
-
-                margin: 0 !important;
-                padding: 0 !important;
-
-            }
-
-        }
-
-    </style>
-
-</head>
-
-<body>
-
-    ${element.outerHTML}
-
-</body>
-
-</html>
-
-        `);
-
-        printWindow.document.close();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Wait for document
-        |--------------------------------------------------------------------------
-        */
-
-        const executePrint = () => {
-
-            printWindow.focus();
-
-            printWindow.print();
-
-            options?.afterPrint?.();
-
-        };
+                <title>
+                    ${options?.title ?? "رسید سفارش"}
+                </title>
 
 
-        /*
-        |--------------------------------------------------------------------------
-        | Wait for images
-        |--------------------------------------------------------------------------
-        */
+                ${styles}
 
-        const waitForImages = async () => {
 
-            const images =
-                Array.from(
-                    printWindow.document.images,
-                );
+                <style>
 
-            if (images.length === 0) {
+                    html,
+                    body {
 
-                return;
+                        margin: 0;
 
-            }
+                        padding: 0;
 
-            await Promise.all(
-                images.map(
-                    image => {
+                        background: #ffffff;
 
-                        if (image.complete) {
+                        direction: rtl;
 
-                            return Promise.resolve();
+                    }
+
+
+                    *,
+                    *::before,
+                    *::after {
+
+                        box-sizing: border-box;
+
+                        -webkit-print-color-adjust: exact !important;
+
+                        print-color-adjust: exact !important;
+
+                    }
+
+
+                    body {
+
+                        font-family:
+                            "Vazirmatn",
+                            "Tahoma",
+                            "Arial",
+                            sans-serif;
+
+                    }
+
+
+                    @page {
+
+                        margin: 0;
+
+                        size: auto;
+
+                    }
+
+
+                    @media print {
+
+                        html,
+                        body {
+
+                            margin: 0 !important;
+
+                            padding: 0 !important;
 
                         }
 
-                        return new Promise<void>(
-                            resolve => {
+                    }
 
-                                image.onload =
-                                    () => resolve();
+                </style>
 
-                                image.onerror =
-                                    () => resolve();
+            </head>
 
-                            },
-                        );
 
-                    },
-                ),
-            );
+            <body>
 
-        };
+                ${element.outerHTML}
+
+            </body>
+
+            </html>
+
+        `);
+
+
+        printWindow.document.close();
 
 
         /*
         |--------------------------------------------------------------------------
-        | Execute
+        | Wait for Stylesheets
         |--------------------------------------------------------------------------
         */
 
-        const run = async () => {
+        const waitForStylesheets =
+            async () => {
 
-            await waitForImages();
+                const stylesheets =
+                    Array.from(
+                        printWindow.document.querySelectorAll(
+                            'link[rel="stylesheet"]',
+                        ),
+                    );
 
-            setTimeout(
-                executePrint,
-                200,
-            );
 
-        };
+                await Promise.all(
 
+                    stylesheets.map(
+                        stylesheet => {
+
+                            const link =
+                                stylesheet as HTMLLinkElement;
+
+
+                            if (link.sheet) {
+
+                                return Promise.resolve();
+
+                            }
+
+
+                            return new Promise<void>(
+                                resolve => {
+
+                                    link.onload =
+                                        () => resolve();
+
+
+                                    link.onerror =
+                                        () => resolve();
+
+                                },
+                            );
+
+                        },
+                    ),
+
+                );
+
+            };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Wait for Fonts
+        |--------------------------------------------------------------------------
+        */
+
+        const waitForFonts =
+            async () => {
+
+                if (
+                    "fonts" in
+                    printWindow.document
+                ) {
+
+                    await
+                        printWindow.document
+                            .fonts
+                            .ready;
+
+                }
+
+            };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Wait for Images
+        |--------------------------------------------------------------------------
+        */
+
+        const waitForImages =
+            async () => {
+
+                const images =
+                    Array.from(
+                        printWindow.document.images,
+                    );
+
+
+                if (
+                    images.length === 0
+                ) {
+
+                    return;
+
+                }
+
+
+                await Promise.all(
+
+                    images.map(
+                        image => {
+
+                            if (
+                                image.complete
+                            ) {
+
+                                return Promise.resolve();
+
+                            }
+
+
+                            return new Promise<void>(
+                                resolve => {
+
+                                    image.onload =
+                                        () => resolve();
+
+
+                                    image.onerror =
+                                        () => resolve();
+
+                                },
+                            );
+
+                        },
+                    ),
+
+                );
+
+            };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Execute Print
+        |--------------------------------------------------------------------------
+        */
+
+        const executePrint =
+            async () => {
+
+                await waitForStylesheets();
+
+                await waitForFonts();
+
+                await waitForImages();
+
+
+                setTimeout(() => {
+
+                    printWindow.focus();
+
+                    printWindow.print();
+
+                }, 300);
+
+            };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Close Window
+        |--------------------------------------------------------------------------
+        */
+
+        printWindow.onafterprint =
+            () => {
+
+                printWindow.close();
+
+                options?.afterPrint?.();
+
+            };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Start
+        |--------------------------------------------------------------------------
+        */
 
         if (
             printWindow.document.readyState ===
             "complete"
         ) {
 
-            void run();
+            void executePrint();
 
         } else {
 
-            printWindow.onload = () => {
+            printWindow.onload =
+                () => {
 
-                void run();
+                    void executePrint();
 
-            };
+                };
 
         }
 
@@ -321,7 +447,7 @@ export function usePrintReceipt() {
 
     /*
     |--------------------------------------------------------------------------
-    | Generic receipt
+    | Generic Print
     |--------------------------------------------------------------------------
     */
 
@@ -344,13 +470,28 @@ export function usePrintReceipt() {
         );
 
 
-    const saveReceiptPdf = useCallback(() => {
+    /*
+    |--------------------------------------------------------------------------
+    | Save PDF
+    |--------------------------------------------------------------------------
+    |
+    | Browser print dialog:
+    |
+    | Print → Save as PDF
+    |
+    */
 
-        print("receipt-pdf", {
-            title: "رسید سفارش",
-        });
+    const saveReceiptPdf =
+        useCallback(() => {
 
-    }, [print]);
+            print(
+                "receipt-pdf",
+                {
+                    title: "رسید سفارش",
+                },
+            );
+
+        }, [print]);
 
 
     return {
@@ -364,7 +505,6 @@ export function usePrintReceipt() {
         printReceipt80,
 
         saveReceiptPdf,
-
 
     };
 
