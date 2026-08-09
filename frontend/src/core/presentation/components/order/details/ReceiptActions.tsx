@@ -1,155 +1,465 @@
 import {
     Button,
     DialogActions,
-    Divider,
+    Menu,
+    MenuItem,
     Stack,
+    Typography,
+    Divider,
 } from "@mui/material";
 
+import PrintRoundedIcon from "@mui/icons-material/PrintRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
+
+import {useState} from "react";
+
 
 interface ReceiptActionsProps {
-    onClose(): void;
 
-    onPrint?(): void;
+    onPrint58?(): void;
+
+    onPrint80?(): void;
+
+    onDownloadPdf?(): void;
 
     onEdit?(): void;
 
     onChangeStatus?(): void;
 
-    onDownloadPdf?(): void;
-
-
 }
 
-function PictureAsPdfRoundedIcon() {
-    return null;
-}
 
 export function ReceiptActions({
-                                   onClose,
-                                   onEdit,
-                                   onChangeStatus,
+
+                                   onPrint58,
+
+                                   onPrint80,
+
                                    onDownloadPdf,
 
+                                   onEdit,
+
+                                   onChangeStatus,
+
                                }: ReceiptActionsProps) {
+
+    const [
+        anchorEl,
+        setAnchorEl,
+    ] = useState<HTMLElement | null>(null);
+
+
+    const menuOpen =
+        Boolean(anchorEl);
+
+
+    const handleOutputClick = (
+        event: React.MouseEvent<HTMLButtonElement>,
+    ) => {
+
+        setAnchorEl(
+            event.currentTarget,
+        );
+
+    };
+
+
+    const handleMenuClose = () => {
+
+        setAnchorEl(null);
+
+    };
+
+
+    const executeAction = (
+        action?: () => void,
+    ) => {
+
+        setAnchorEl(null);
+
+        action?.();
+
+    };
+
+
+    const hasOutputActions =
+        Boolean(
+            onPrint58 ||
+            onPrint80 ||
+            onDownloadPdf,
+        );
+
+
+    const hasActions =
+        Boolean(
+            hasOutputActions ||
+            onEdit ||
+            onChangeStatus,
+        );
+
+
+    if (!hasActions) {
+        return null;
+    }
+
 
     return (
 
         <DialogActions
             sx={{
-                p: 3,
-                borderTop: "1px solid",
-                borderColor: "divider",
+                px: {
+                    xs: 2,
+                    sm: 3,
+                },
+
+                py: 2,
+
                 bgcolor: "background.paper",
+
+                display: "block",
             }}
         >
 
             <Stack
-                spacing={2}
+                direction={{
+                    xs: "column",
+                    sm: "row",
+                }}
+                spacing={1.5}
                 sx={{
                     width: "100%",
                 }}
             >
 
-                {/* Primary Action */}
+                {/* =================================================
+                    Output
+                ================================================= */}
 
-                {/* Primary Action */}
+                {hasOutputActions && (
 
-                {onDownloadPdf && (
+                    <>
+                        <Button
+                            fullWidth
+                            size="large"
+                            variant="contained"
+
+                            startIcon={
+                                <PrintRoundedIcon/>
+                            }
+
+                            endIcon={
+                                <KeyboardArrowDownRoundedIcon/>
+                            }
+
+                            onClick={
+                                handleOutputClick
+                            }
+
+                            sx={{
+                                flex: 1,
+
+                                minHeight: 52,
+
+                                borderRadius: 2.5,
+
+                                fontWeight: 700,
+
+                                boxShadow: 0,
+
+                                justifyContent:
+                                    "space-between",
+
+                                px: 2,
+
+                                "&:hover": {
+                                    boxShadow: 2,
+                                },
+                            }}
+                        >
+                            چاپ رسید
+                        </Button>
+
+
+                        <Menu
+                            anchorEl={anchorEl}
+                            open={menuOpen}
+                            onClose={
+                                handleMenuClose
+                            }
+
+                            anchorOrigin={{
+                                vertical: "top",
+                                horizontal: "right",
+                            }}
+
+                            transformOrigin={{
+                                vertical: "bottom",
+                                horizontal: "right",
+                            }}
+
+                            slotProps={{
+                                paper: {
+                                    sx: {
+                                        minWidth: 280,
+
+                                        mb: 1,
+
+                                        p: 0.75,
+
+                                        borderRadius: 2.5,
+
+                                        border:
+                                            "1px solid",
+
+                                        borderColor:
+                                            "divider",
+
+                                        boxShadow:
+                                            "0 12px 40px rgba(0,0,0,.14)",
+                                    },
+                                },
+                            }}
+                        >
+
+                            {onPrint80 && (
+
+                                <MenuItem
+                                    onClick={() =>
+                                        executeAction(
+                                            onPrint80,
+                                        )
+                                    }
+
+                                    sx={{
+                                        minHeight: 58,
+
+                                        borderRadius: 2,
+
+                                        gap: 1.5,
+                                    }}
+                                >
+
+                                    <PrintRoundedIcon/>
+
+                                    <Stack>
+
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 700,
+                                                fontSize: 14,
+                                            }}
+                                        >
+                                            mm چاپ رسید ۸۰
+                                        </Typography>
+
+                                        <Typography
+                                            variant="caption"
+                                            color="text.secondary"
+                                        >
+                                            پرینتر حرارتی
+                                        </Typography>
+
+                                    </Stack>
+
+                                </MenuItem>
+
+                            )}
+
+
+                            {onPrint58 && (
+
+                                <MenuItem
+                                    onClick={() =>
+                                        executeAction(
+                                            onPrint58,
+                                        )
+                                    }
+
+                                    sx={{
+                                        minHeight: 58,
+
+                                        borderRadius: 2,
+
+                                        gap: 1.5,
+                                    }}
+                                >
+
+                                    <PrintRoundedIcon/>
+
+                                    <Stack>
+
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 700,
+                                                fontSize: 14,
+                                            }}
+                                        >
+                                            mm چاپ رسید ۵۸
+                                        </Typography>
+
+                                        <Typography
+                                            variant="caption"
+                                            color="text.secondary"
+                                        >
+                                            پرینتر حرارتی
+                                        </Typography>
+
+                                    </Stack>
+
+                                </MenuItem>
+
+                            )}
+
+
+                            {(
+                                onPrint58 ||
+                                onPrint80
+                            ) && onDownloadPdf && (
+
+                                <Divider
+                                    sx={{
+                                        my: 0.75,
+                                    }}
+                                />
+
+                            )}
+
+
+                            {onDownloadPdf && (
+
+                                <MenuItem
+                                    onClick={() =>
+                                        executeAction(
+                                            onDownloadPdf,
+                                        )
+                                    }
+
+                                    sx={{
+                                        minHeight: 58,
+
+                                        borderRadius: 2,
+
+                                        gap: 1.5,
+                                    }}
+                                >
+
+                                    <PictureAsPdfRoundedIcon/>
+
+                                    <Stack>
+
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 700,
+                                                fontSize: 14,
+                                            }}
+                                        >
+                                            ذخیره PDF
+                                        </Typography>
+
+                                        <Typography
+                                            variant="caption"
+                                            color="text.secondary"
+                                        >
+                                            دریافت نسخه دیجیتال رسید
+                                        </Typography>
+
+                                    </Stack>
+
+                                </MenuItem>
+
+                            )}
+
+                        </Menu>
+
+                    </>
+
+                )}
+
+
+                {/* =================================================
+                    Change Status
+                ================================================= */}
+
+                {onChangeStatus && (
 
                     <Button
                         fullWidth
                         size="large"
-                        variant="contained"
-                        startIcon={<PictureAsPdfRoundedIcon/>}
-                        onClick={onDownloadPdf}
-                        sx={{
-                            height: 56,
-                            borderRadius: 3,
-                            fontWeight: 700,
-                            textTransform: "none",
-                            boxShadow: 0,
+                        variant="outlined"
 
-                            "&:hover": {
-                                boxShadow: 2,
-                            },
+                        startIcon={
+                            <TaskAltRoundedIcon/>
+                        }
+
+                        onClick={
+                            onChangeStatus
+                        }
+
+                        sx={{
+                            flex: 1,
+
+                            minHeight: 52,
+
+                            borderRadius: 2.5,
+
+                            fontWeight: 600,
+
+                            whiteSpace: "nowrap",
                         }}
                     >
-                        دانلود PDF رسید
+                        تغییر وضعیت
                     </Button>
 
                 )}
-                {/* Secondary Actions */}
 
-                {(onEdit || onChangeStatus) && (
 
-                    <Stack
-                        direction={{
-                            xs: "column",
-                            sm: "row",
+                {/* =================================================
+                    Edit
+                ================================================= */}
+
+                {onEdit && (
+
+                    <Button
+                        fullWidth
+                        size="large"
+                        variant="outlined"
+                        color="inherit"
+
+                        startIcon={
+                            <EditRoundedIcon/>
+                        }
+
+                        onClick={
+                            onEdit
+                        }
+
+                        sx={{
+                            flex: 1,
+
+                            minHeight: 52,
+
+                            borderRadius: 2.5,
+
+                            fontWeight: 600,
+
+                            whiteSpace: "nowrap",
+
+                            borderColor:
+                                "divider",
+
+                            "&:hover": {
+                                borderColor:
+                                    "text.primary",
+                            },
                         }}
-                        spacing={2}
                     >
-
-                        {onChangeStatus && (
-
-                            <Button
-                                fullWidth
-                                size="large"
-                                variant="outlined"
-                                color="primary"
-                                startIcon={<TaskAltRoundedIcon/>}
-                                onClick={onChangeStatus}
-                                sx={{
-                                    height: 48,
-                                    borderRadius: 2.5,
-                                }}
-                            >
-                                تغییر وضعیت
-                            </Button>
-
-                        )}
-
-                        {onEdit && (
-
-                            <Button
-                                fullWidth
-                                size="large"
-                                variant="outlined"
-                                color="inherit"
-                                startIcon={<EditRoundedIcon/>}
-                                onClick={onEdit}
-                                sx={{
-                                    height: 48,
-                                    borderRadius: 2.5,
-                                }}
-                            >
-                                ویرایش سفارش
-                            </Button>
-
-                        )}
-
-                    </Stack>
+                        ویرایش سفارش
+                    </Button>
 
                 )}
-
-                <Divider/>
-
-                <Button
-                    fullWidth
-                    size="large"
-                    color="inherit"
-                    startIcon={<CloseRoundedIcon/>}
-                    onClick={onClose}
-                    sx={{
-                        height: 46,
-                        borderRadius: 2,
-                    }}
-                >
-                    بستن
-                </Button>
 
             </Stack>
 

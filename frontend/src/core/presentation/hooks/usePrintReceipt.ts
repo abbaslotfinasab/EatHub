@@ -2,14 +2,18 @@ import {useCallback} from "react";
 
 export interface PrintReceiptOptions {
     title?: string;
+    width?: number;
+    height?: number;
 
+    /**
+     * Optional callback before opening print window.
+     */
     beforePrint?(): void;
 
+    /**
+     * Optional callback after print dialog is triggered.
+     */
     afterPrint?(): void;
-
-    width?: number;
-
-    height?: number;
 }
 
 export function usePrintReceipt() {
@@ -19,105 +23,252 @@ export function usePrintReceipt() {
         options?: PrintReceiptOptions,
     ) => {
 
-        const element = document.getElementById(elementId);
+        const element =
+            document.getElementById(elementId);
 
         if (!element) {
-            console.error(`Element #${elementId} not found.`);
+
+            console.error(
+                `[PrintReceipt] Element #${elementId} not found.`,
+            );
+
             return;
+
         }
 
         options?.beforePrint?.();
 
-        const printWindow = window.open(
-            "",
-            "_blank",
-            `width=${options?.width ?? 900},height=${options?.height ?? 1000}`,
-        );
+        const printWindow =
+            window.open(
+                "",
+                "_blank",
+                `width=${options?.width ?? 900},height=${options?.height ?? 1000}`,
+            );
 
         if (!printWindow) {
+
+            console.error(
+                "[PrintReceipt] Could not open print window.",
+            );
+
             return;
+
         }
 
-        const styles = Array.from(
-            document.querySelectorAll(
-                'style,link[rel="stylesheet"]',
-            ),
-        )
-            .map(node => node.outerHTML)
-            .join("");
+        /*
+        |--------------------------------------------------------------------------
+        | Copy application styles
+        |--------------------------------------------------------------------------
+        */
+
+        const styles =
+            Array.from(
+                document.querySelectorAll(
+                    'style, link[rel="stylesheet"]',
+                ),
+            )
+                .map(
+                    node => node.outerHTML
+                )
+                .join("\n");
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Print document
+        |--------------------------------------------------------------------------
+        */
 
         printWindow.document.write(`
+
 <!DOCTYPE html>
 
-<html lang="fa" dir="rtl">
+<html
+    lang="fa"
+    dir="rtl"
+>
 
 <head>
 
-<meta charset="UTF-8"/>
+    <meta charset="UTF-8"/>
 
-<title>${options?.title ?? "Receipt"}</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    />
 
-${styles}
+    <title>
+        ${options?.title ?? "رسید سفارش"}
+    </title>
 
-<style>
+    ${styles}
 
-html,
-body{
+    <style>
 
-    margin:0;
-    padding:0;
-    background:#fff;
-    direction:rtl;
+        html,
+        body {
 
-}
+            margin: 0;
+            padding: 0;
 
-*{
-    box-sizing:border-box;
-    -webkit-print-color-adjust:exact !important;
-    print-color-adjust:exact !important;
-}
+            background: #ffffff;
 
-@page{
-    margin:0;
-    size:auto;
-}
+            direction: rtl;
 
-</style>
+        }
+
+        *,
+        *::before,
+        *::after {
+
+            box-sizing: border-box;
+
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+
+        }
+
+        body {
+
+            font-family:
+                "Vazirmatn",
+                "Tahoma",
+                "Arial",
+                sans-serif;
+
+        }
+
+        @page {
+
+            margin: 0;
+
+            size: auto;
+
+        }
+
+        @media print {
+
+            html,
+            body {
+
+                margin: 0 !important;
+                padding: 0 !important;
+
+            }
+
+        }
+
+    </style>
 
 </head>
 
 <body>
 
-${element.outerHTML}
+    ${element.outerHTML}
 
 </body>
 
 </html>
-`);
+
+        `);
 
         printWindow.document.close();
 
-        printWindow.focus();
+        /*
+        |--------------------------------------------------------------------------
+        | Wait for document
+        |--------------------------------------------------------------------------
+        */
 
-        const execute = () => {
+        const executePrint = () => {
+
+            printWindow.focus();
 
             printWindow.print();
-
-            printWindow.close();
 
             options?.afterPrint?.();
 
         };
 
-        if (printWindow.document.readyState === "complete") {
 
-            setTimeout(execute, 300);
+        /*
+        |--------------------------------------------------------------------------
+        | Wait for images
+        |--------------------------------------------------------------------------
+        */
+
+        const waitForImages = async () => {
+
+            const images =
+                Array.from(
+                    printWindow.document.images,
+                );
+
+            if (images.length === 0) {
+
+                return;
+
+            }
+
+            await Promise.all(
+                images.map(
+                    image => {
+
+                        if (image.complete) {
+
+                            return Promise.resolve();
+
+                        }
+
+                        return new Promise<void>(
+                            resolve => {
+
+                                image.onload =
+                                    () => resolve();
+
+                                image.onerror =
+                                    () => resolve();
+
+                            },
+                        );
+
+                    },
+                ),
+            );
+
+        };
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Execute
+        |--------------------------------------------------------------------------
+        */
+
+        const run = async () => {
+
+            await waitForImages();
+
+            setTimeout(
+                executePrint,
+                200,
+            );
+
+        };
+
+
+        if (
+            printWindow.document.readyState ===
+            "complete"
+        ) {
+
+            void run();
 
         } else {
 
             printWindow.onload = () => {
 
-                setTimeout(execute, 300);
+                void run();
 
             };
 
@@ -125,71 +276,79 @@ ${element.outerHTML}
 
     }, []);
 
-    //------------------------------------------------------------------
-    // Thermal 58
-    //------------------------------------------------------------------
 
-    const printReceipt58 = useCallback(() => {
+    /*
+    |--------------------------------------------------------------------------
+    | Receipt 58mm
+    |--------------------------------------------------------------------------
+    */
 
-        print("receipt-58", {
-            title: "Receipt 58mm",
+    const printReceipt58 =
+        useCallback(() => {
+
+            print(
+                "receipt-58",
+                {
+                    title: "رسید سفارش",
+                    width: 500,
+                    height: 800,
+                },
+            );
+
+        }, [print]);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Receipt 80mm
+    |--------------------------------------------------------------------------
+    */
+
+    const printReceipt80 =
+        useCallback(() => {
+
+            print(
+                "receipt-80",
+                {
+                    title: "رسید سفارش",
+                    width: 700,
+                    height: 900,
+                },
+            );
+
+        }, [print]);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Generic receipt
+    |--------------------------------------------------------------------------
+    */
+
+    const printReceipt =
+        useCallback(
+            (
+                elementId: string,
+                title = "رسید سفارش",
+            ) => {
+
+                print(
+                    elementId,
+                    {
+                        title,
+                    },
+                );
+
+            },
+            [print],
+        );
+
+
+    const saveReceiptPdf = useCallback(() => {
+
+        print("receipt-pdf", {
+            title: "رسید سفارش",
         });
-
-    }, [print]);
-
-    //------------------------------------------------------------------
-    // Thermal 80
-    //------------------------------------------------------------------
-
-    const printReceipt80 = useCallback(() => {
-
-        print("receipt-80", {
-            title: "Receipt 80mm",
-        });
-
-    }, [print]);
-
-    //------------------------------------------------------------------
-    // Future
-    //------------------------------------------------------------------
-
-    const printInvoice = useCallback(() => {
-
-        print("invoice-a4", {
-            title: "Invoice",
-        });
-
-    }, [print]);
-
-
-    const downloadPdf58 = useCallback(async () => {
-
-        console.log("Coming Soon");
-
-    }, []);
-
-    const downloadPdf80 = useCallback(async () => {
-
-        console.log("Coming Soon");
-
-    }, []);
-
-    const shareReceipt58 = useCallback(async () => {
-
-        console.log("Coming Soon");
-
-    }, []);
-
-    const shareReceipt80 = useCallback(async () => {
-
-        console.log("Coming Soon");
-
-    }, []);
-
-
-    const exportPdf = useCallback(() => {
-
-        print("receipt-card");
 
     }, [print]);
 
@@ -198,19 +357,15 @@ ${element.outerHTML}
 
         print,
 
+        printReceipt,
+
         printReceipt58,
+
         printReceipt80,
 
-        printInvoice,
-
-        downloadPdf58,
-        downloadPdf80,
-
-        exportPdf,
+        saveReceiptPdf,
 
 
-        shareReceipt58,
-        shareReceipt80,
     };
 
 }

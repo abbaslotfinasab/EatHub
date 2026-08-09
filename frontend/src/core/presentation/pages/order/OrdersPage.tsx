@@ -388,9 +388,40 @@ export const OrdersPage = () => {
                 loading={orderDetailLoading}
                 order={orderDetail ?? undefined}
                 onClose={() => {
-                setDialogOpen(false);
-                setSelectedOrderId(null);
-            }}
+                    setDialogOpen(false);
+                    setSelectedOrderId(null);
+                }}
+               onStatusChange={() => {
+
+
+                    handleMenuClose();
+
+
+                    handleOpenStatusDialog();
+
+
+                }}
+
+
+                onEdit={() => {
+
+
+                    handleMenuClose();
+
+
+                    if (!selectedOrderId) {
+
+                        return;
+
+                    }
+
+
+                    navigate(
+                        `/orders/${selectedOrderId}/edit`
+                    );
+
+
+                }}
             />
 
             <OrderStatusDialog
