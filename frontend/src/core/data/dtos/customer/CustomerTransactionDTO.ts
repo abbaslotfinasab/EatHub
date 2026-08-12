@@ -16,5 +16,5 @@ export interface CustomerTransactionDTO {
 
     description?: string | null;
 
-    createdAt?: string;
+    created_at?: string;
 }

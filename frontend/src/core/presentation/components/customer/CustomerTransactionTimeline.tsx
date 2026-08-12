@@ -167,36 +167,45 @@ export function CustomerTransactionTimeline({
                                     </Typography>
                                 )}
 
-                                <Typography
-                                    variant="caption"
-                                    color="text.disabled"
+                                <Stack
+                                    sx={{
+                                        flexDirection: "row",
+                                        gap: 2,
+                                        alignItems: "center",
+                                        flexWrap: "wrap",
+                                    }}
                                 >
-                                    {transaction.createdAt
-                                        ? formatDateTime(
-                                            transaction.createdAt,
-                                        )
-                                        : "-"}
-                                </Typography>
-
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                >
-                                    موجودی پس از تراکنش:
-                                    {" "}
                                     <Typography
-                                        component="span"
-                                        variant="body2"
-                                        sx={{
-                                            fontWeight: 700,
-                                            color: "text.primary",
-                                        }}
+                                        variant="caption"
+                                        color="text.disabled"
                                     >
-                                        {formatCurrency(
-                                            transaction.balanceAfter,
-                                        )}
+                                        {transaction.createdAt
+                                            ? formatDateTime(
+                                                transaction.createdAt,
+                                            )
+                                            : "-"}
                                     </Typography>
-                                </Typography>
+
+                                    <Typography
+                                        variant="body2"
+                                        color="text.secondary"
+                                    >
+                                        موجودی پس از تراکنش:
+                                        {" "}
+                                        <Typography
+                                            component="span"
+                                            variant="body2"
+                                            sx={{
+                                                fontWeight: 700,
+                                                color: "text.primary",
+                                            }}
+                                        >
+                                            {formatCurrency(
+                                                transaction.balanceAfter,
+                                            )}
+                                        </Typography>
+                                    </Typography>
+                                </Stack>
 
                             </Stack>
                         </TimelineContent>

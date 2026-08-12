@@ -30,7 +30,7 @@ export const customerTransactionMapper = {
 
             description: dto.description,
 
-            createdAt: dto.createdAt,
+            createdAt: dto.created_at,
 
         };
 
