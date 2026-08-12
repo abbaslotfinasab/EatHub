@@ -12,6 +12,8 @@ export interface CustomerTransactionDTO {
 
     amount: number;
 
+    balance_after : number;
+
     description?: string | null;
 
     createdAt?: string;

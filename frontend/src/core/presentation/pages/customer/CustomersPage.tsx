@@ -356,12 +356,8 @@ export function CustomersPage() {
 
             <CustomerDetailsDialog
                 open={detailsOpen}
-                loading={
-                    customerDetailLoading
-                }
-                customer={
-                    customerDetail
-                }
+                loading={customerDetailLoading}
+                customer={customerDetail}
                 onClose={() =>
                     setDetailsOpen(false)
                 }

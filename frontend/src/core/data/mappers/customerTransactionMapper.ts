@@ -26,6 +26,8 @@ export const customerTransactionMapper = {
                         : CustomerTransactionType.ADJUST,
             amount: dto.amount,
 
+            balanceAfter: dto.balance_after,
+
             description: dto.description,
 
             createdAt: dto.createdAt,

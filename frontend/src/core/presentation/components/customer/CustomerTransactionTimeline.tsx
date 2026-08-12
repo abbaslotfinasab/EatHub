@@ -11,21 +11,29 @@ import {
     TimelineItem,
     TimelineSeparator,
 } from "@mui/lab";
-import {Paper, Stack, Typography} from "@mui/material";
+import {
+    Paper,
+    Stack,
+    Typography,
+} from "@mui/material";
+
 import {
     CustomerTransactionType,
-    type CustomerTransaction
+    type CustomerTransaction,
 } from "../../../domain/entities/product/customer/CustomerTransaction";
-import {formatCurrency} from "../../utils/formatCurrency.ts";
-import {formatDateTime} from "../../utils/formatDateTime.ts";
 
+import {formatCurrency} from "../../utils/formatCurrency";
+import {formatDateTime} from "../../utils/formatDateTime";
 
 interface CustomerTransactionTimelineProps {
     transactions: CustomerTransaction[];
+
+    onOrderClick?(orderId: string): void;
 }
 
 export function CustomerTransactionTimeline({
                                                 transactions,
+                                                onOrderClick,
                                             }: CustomerTransactionTimelineProps) {
 
     if (transactions.length === 0) {
@@ -49,6 +57,7 @@ export function CustomerTransactionTimeline({
             sx={{
                 p: 0,
                 m: 0,
+
                 "& .MuiTimelineItem-root:before": {
                     display: "none",
                 },
@@ -56,19 +65,25 @@ export function CustomerTransactionTimeline({
         >
             {transactions.map((transaction, index) => {
 
-                const config = getTransactionConfig(transaction);
+                const config =
+                    getTransactionConfig(transaction);
 
                 return (
-                    <TimelineItem key={transaction.id}>
+                    <TimelineItem
+                        key={transaction.id}
+                    >
                         <TimelineSeparator>
 
-                            <TimelineDot color={config.color}>
+                            <TimelineDot
+                                color={config.color}
+                            >
                                 {config.icon}
                             </TimelineDot>
 
-                            {index !== transactions.length - 1 && (
-                                <TimelineConnector/>
-                            )}
+                            {index !==
+                                transactions.length - 1 && (
+                                    <TimelineConnector/>
+                                )}
 
                         </TimelineSeparator>
 
@@ -79,30 +94,76 @@ export function CustomerTransactionTimeline({
                         >
                             <Stack spacing={0.5}>
 
-                                <Typography
+                                <Stack
                                     sx={{
-                                        fontWeight: 700,
+                                        flexDirection: "row",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        gap: 2,
                                     }}
                                 >
-                                    {config.title}
-                                </Typography>
 
-                                <Typography
-                                    color={config.textColor}
-                                    sx={{
-                                        fontWeight: 600,
-                                    }}
-                                >
-                                    {config.prefix}
-                                    {formatCurrency(transaction.amount)}
-                                </Typography>
+                                    <Typography
+                                        sx={{
+                                            fontWeight: 700,
+                                        }}
+                                    >
+                                        {config.title}
+                                    </Typography>
+
+                                    <Typography
+                                        color={
+                                            config.textColor
+                                        }
+                                        sx={{
+                                            fontWeight: 700,
+                                            whiteSpace:
+                                                "nowrap",
+                                        }}
+                                    >
+                                        {config.prefix}
+                                        {formatCurrency(
+                                            transaction.amount,
+                                        )}
+                                    </Typography>
+
+                                </Stack>
+
+                                {transaction.orderId && (
+                                    <Typography
+                                        component="span"
+                                        variant="body2"
+                                        onClick={() =>
+                                            onOrderClick?.(
+                                                transaction.orderId!,
+                                            )
+                                        }
+                                        sx={{
+                                            color:
+                                                "primary.main",
+                                            cursor:
+                                                onOrderClick
+                                                    ? "pointer"
+                                                    : "default",
+                                            fontWeight: 600,
+                                            width: "fit-content",
+                                        }}
+                                    >
+                                        سفارش #
+                                        {
+                                            transaction.orderId
+                                        }
+                                    </Typography>
+                                )}
 
                                 {transaction.description && (
                                     <Typography
                                         variant="body2"
                                         color="text.secondary"
                                     >
-                                        {transaction.description}
+                                        {
+                                            transaction.description
+                                        }
                                     </Typography>
                                 )}
 
@@ -110,7 +171,31 @@ export function CustomerTransactionTimeline({
                                     variant="caption"
                                     color="text.disabled"
                                 >
-                                    {formatDateTime(transaction.createdAt)}
+                                    {transaction.createdAt
+                                        ? formatDateTime(
+                                            transaction.createdAt,
+                                        )
+                                        : "-"}
+                                </Typography>
+
+                                <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                >
+                                    موجودی پس از تراکنش:
+                                    {" "}
+                                    <Typography
+                                        component="span"
+                                        variant="body2"
+                                        sx={{
+                                            fontWeight: 700,
+                                            color: "text.primary",
+                                        }}
+                                    >
+                                        {formatCurrency(
+                                            transaction.balanceAfter,
+                                        )}
+                                    </Typography>
                                 </Typography>
 
                             </Stack>
@@ -134,7 +219,11 @@ function getTransactionConfig(
                 prefix: "+",
                 color: "success" as const,
                 textColor: "success.main",
-                icon: <AccountBalanceWalletOutlined fontSize="small"/>,
+                icon: (
+                    <AccountBalanceWalletOutlined
+                        fontSize="small"
+                    />
+                ),
             };
 
         case CustomerTransactionType.DEBIT:
@@ -143,7 +232,11 @@ function getTransactionConfig(
                 prefix: "-",
                 color: "error" as const,
                 textColor: "error.main",
-                icon: <ShoppingCartOutlined fontSize="small"/>,
+                icon: (
+                    <ShoppingCartOutlined
+                        fontSize="small"
+                    />
+                ),
             };
 
         case CustomerTransactionType.ADJUST:
@@ -153,7 +246,11 @@ function getTransactionConfig(
                 prefix: "",
                 color: "warning" as const,
                 textColor: "warning.main",
-                icon: <TuneOutlined fontSize="small"/>,
+                icon: (
+                    <TuneOutlined
+                        fontSize="small"
+                    />
+                ),
             };
     }
 }

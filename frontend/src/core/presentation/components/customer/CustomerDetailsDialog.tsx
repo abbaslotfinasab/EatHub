@@ -1,4 +1,10 @@
 import {
+    AccountBalanceWalletOutlined,
+    Close as CloseIcon,
+    EditOutlined,
+} from "@mui/icons-material";
+
+import {
     Avatar,
     Box,
     Button,
@@ -10,16 +16,15 @@ import {
     Stack,
     Typography,
 } from "@mui/material";
+
 import Grid from "@mui/material/Grid";
 
-import CloseIcon from "@mui/icons-material/Close";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import AccountBalanceWalletOutlinedIcon from "@mui/icons-material/AccountBalanceWalletOutlined";
-
 import type {CustomerDetail} from "../../../domain/entities/product/customer/CustomerDetail";
-import {formatCurrency} from "../../utils/formatCurrency";
-import {formatDate} from "../../utils/formatDate.ts";
 
+import {formatCurrency} from "../../utils/formatCurrency";
+import {formatDate} from "../../utils/formatDate";
+
+import {CustomerTransactionTimeline} from "./CustomerTransactionTimeline";
 
 interface CustomerDetailsDialogProps {
 
@@ -35,22 +40,17 @@ interface CustomerDetailsDialogProps {
 
     onRecharge: () => void;
 
+    onOrderClick?(orderId: string): void;
 }
 
 export function CustomerDetailsDialog({
-
                                           open,
-
-                                          loading,
-
+                                          loading = false,
                                           customer,
-
                                           onClose,
-
                                           onEdit,
-
                                           onRecharge,
-
+                                          onOrderClick,
                                       }: CustomerDetailsDialogProps) {
 
     if (!open) {
@@ -78,7 +78,6 @@ export function CustomerDetailsDialog({
                 </DialogContent>
             </Dialog>
         );
-
     }
 
     if (!customer) {
@@ -89,10 +88,13 @@ export function CustomerDetailsDialog({
 
     const account = customer.account;
 
-    const balance = account?.balance ?? 0;
+    const balance =
+        account?.balance ?? 0;
+
+    const transactions =
+        customer.transactions ?? [];
 
     return (
-
         <Dialog
             open={open}
             onClose={onClose}
@@ -113,6 +115,7 @@ export function CustomerDetailsDialog({
                         alignItems: "center",
                     }}
                 >
+
                     <Stack
                         sx={{
                             flexDirection: "row",
@@ -120,7 +123,6 @@ export function CustomerDetailsDialog({
                             alignItems: "center",
                         }}
                     >
-
                         <Avatar
                             sx={{
                                 width: 56,
@@ -172,6 +174,10 @@ export function CustomerDetailsDialog({
                 }}
             >
 
+                {/* =========================
+                    Customer Summary
+                ========================== */}
+
                 <Grid
                     container
                     spacing={2}
@@ -180,12 +186,14 @@ export function CustomerDetailsDialog({
                     <Grid
                         size={{
                             xs: 12,
-                            md: 6,
+                            sm: 6,
                         }}
                     >
                         <InfoItem
                             title="مانده حساب"
-                            value={formatCurrency(balance)}
+                            value={formatCurrency(
+                                balance,
+                            )}
                             color={
                                 balance > 0
                                     ? "success.main"
@@ -199,25 +207,13 @@ export function CustomerDetailsDialog({
                     <Grid
                         size={{
                             xs: 12,
-                            md: 6,
+                            sm: 6,
                         }}
                     >
                         <InfoItem
                             title="تعداد سفارش"
-                            value={`${info.name ?? 0}`}
-                        />
-                    </Grid>
-
-                    <Grid
-                        size={{
-                            xs: 12,
-                            md: 6,
-                        }}
-                    >
-                        <InfoItem
-                            title="مجموع خرید"
-                            value={formatCurrency(
-                                customer?.account?.balance ?? 0,
+                            value={String(
+                                0
                             )}
                         />
                     </Grid>
@@ -225,7 +221,21 @@ export function CustomerDetailsDialog({
                     <Grid
                         size={{
                             xs: 12,
-                            md: 6,
+                            sm: 6,
+                        }}
+                    >
+                        <InfoItem
+                            title="مجموع خرید"
+                            value={formatCurrency(
+                                0
+                            )}
+                        />
+                    </Grid>
+
+                    <Grid
+                        size={{
+                            xs: 12,
+                            sm: 6,
                         }}
                     >
                         <InfoItem
@@ -242,6 +252,46 @@ export function CustomerDetailsDialog({
 
                 </Grid>
 
+                {/* =========================
+                    Transactions
+                ========================== */}
+
+                <Divider
+                    sx={{
+                        my: 3,
+                    }}
+                />
+
+                <Typography
+                    sx={{
+                        mb: 2,
+                        fontWeight: 700,
+                    }}
+                >
+                    تراکنش‌های حساب
+                </Typography>
+
+                <Box
+                    sx={{
+                        maxHeight: 360,
+                        overflowY: "auto",
+                        pr: 1,
+                    }}
+                >
+                    <CustomerTransactionTimeline
+                        transactions={
+                            transactions
+                        }
+                        onOrderClick={
+                            onOrderClick
+                        }
+                    />
+                </Box>
+
+                {/* =========================
+                    Actions
+                ========================== */}
+
                 <Divider
                     sx={{
                         my: 3,
@@ -255,10 +305,11 @@ export function CustomerDetailsDialog({
                         justifyContent: "flex-end",
                     }}
                 >
+
                     <Button
                         variant="outlined"
                         startIcon={
-                            <EditOutlinedIcon/>
+                            <EditOutlined/>
                         }
                         onClick={onEdit}
                     >
@@ -268,7 +319,7 @@ export function CustomerDetailsDialog({
                     <Button
                         variant="contained"
                         startIcon={
-                            <AccountBalanceWalletOutlinedIcon/>
+                            <AccountBalanceWalletOutlined/>
                         }
                         onClick={onRecharge}
                     >
@@ -280,33 +331,22 @@ export function CustomerDetailsDialog({
             </DialogContent>
 
         </Dialog>
-
     );
-
 }
 
 interface InfoItemProps {
-
     title: string;
-
     value: string;
-
     color?: string;
-
 }
 
 function InfoItem({
-
                       title,
-
                       value,
-
                       color = "text.primary",
-
                   }: InfoItemProps) {
 
     return (
-
         <Box
             sx={{
                 p: 2,
@@ -335,7 +375,6 @@ function InfoItem({
             </Typography>
 
         </Box>
-
     );
-
 }
+

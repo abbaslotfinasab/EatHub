@@ -35,6 +35,14 @@ class MenuItem(BaseModel):
         blank=True
     )
 
+    recipe = models.OneToOneField(
+        "inventory.Recipe",
+        on_delete=models.PROTECT,
+        related_name="menu_item",
+        null=True,
+        blank=True,
+    )
+
     is_available = models.BooleanField(default=True)
 
 
@@ -176,9 +184,16 @@ class CustomerTransaction(BaseModel):
 
     order = models.ForeignKey(Order, null=True, blank=True, on_delete=models.SET_NULL)
 
+
     type = models.CharField(max_length=10, choices=Type.choices)
 
     amount = models.DecimalField(max_digits=12, decimal_places=2)
+
+    balance_after = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+    )
 
     description = models.TextField(null=True, blank=True)
 

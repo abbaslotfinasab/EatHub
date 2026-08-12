@@ -52,6 +52,7 @@ class CustomerTransactionSerializer(serializers.ModelSerializer):
             "order",
             "type",
             "amount",
+            "balance_after",
             "description",
             "created_at",
         ]
@@ -78,6 +79,14 @@ class CustomerDetailSerializer(serializers.Serializer):
         except ObjectDoesNotExist:
             account = None
 
+        transactions = (
+            account.transactions
+            .all()
+            .order_by("-created_at", "-id")
+            if account
+            else []
+        )
+
         return {
             "customer": CustomerSerializer(instance).data,
             "account": (
@@ -86,7 +95,7 @@ class CustomerDetailSerializer(serializers.Serializer):
             ),
             "transactions": (
                 CustomerTransactionSerializer(
-                    account.transactions.all(),
+                    transactions,
                     many=True,
                 ).data
                 if account else []

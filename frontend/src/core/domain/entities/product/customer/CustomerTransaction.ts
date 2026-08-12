@@ -20,6 +20,9 @@ export interface CustomerTransaction {
 
     amount: number;
 
+    balanceAfter: number;
+
+
     description?: string | null;
 
     createdAt?: string;
