@@ -1,20 +1,15 @@
-import {
-    Box,
-    Divider,
-    Stack,
-    Typography,
-} from "@mui/material";
-
 import type {OrderWithItems} from "../../../../domain/entities/product/order/OrderWithItems";
 
 import {formatCurrency} from "../../../utils/formatCurrency";
 import {formatDateTime} from "../../../utils/formatDateTime";
 
+import "./ReceiptThermal.css";
+
 
 interface ReceiptThermalProps {
 
     /**
-     * Element ID used by usePrintReceipt.
+     * HTML element id used by usePrintReceipt.
      */
     id?: string;
 
@@ -32,145 +27,47 @@ interface ReceiptThermalProps {
 
 
 export function ReceiptThermal({
-
-                                   id,
-
-                                   order,
-
-                                   paper = 80,
-
-                               }: ReceiptThermalProps) {
+    id,
+    order,
+    paper = 80,
+}: ReceiptThermalProps) {
 
     const data = order.order;
 
-    const width =
-        paper === 58
-            ? "58mm"
-            : "80mm";
+    const is58mm = paper === 58;
 
 
     return (
-
-        <Box
+        <div
             id={id}
-
             dir="rtl"
-
-            sx={{
-                width,
-
-                minWidth: width,
-
-                maxWidth: width,
-
-                bgcolor: "#ffffff",
-
-                color: "#000000",
-
-                mx: "auto",
-
-                px: paper === 58 ? 1 : 1.5,
-
-                py: 1.5,
-
-                overflow: "hidden",
-
-                fontFamily:
-                    '"Vazirmatn", "Tahoma", Arial, sans-serif',
-
-                fontSize:
-                    paper === 58
-                        ? "10px"
-                        : "11px",
-
-                lineHeight: 1.5,
-
-                WebkitPrintColorAdjust: "exact",
-
-                printColorAdjust: "exact",
-
-                "@media print": {
-
-                    width,
-
-                    minWidth: width,
-
-                    maxWidth: width,
-
-                    margin: 0,
-
-                    padding:
-                        paper === 58
-                            ? "4px"
-                            : "6px",
-
-                    boxShadow: "none",
-
-                    borderRadius: 0,
-
-                },
-
-            }}
+            className={[
+                "thermal-receipt",
+                is58mm
+                    ? "thermal-receipt--58"
+                    : "thermal-receipt--80",
+            ].join(" ")}
         >
 
             {/* =====================================================
                 Header
             ===================================================== */}
 
-            <Stack
-                sx={{
-                    alignItems: "center",
-                    gap: 0.4,
-                    textAlign: "center",
-                }}
-            >
+            <header className="thermal-receipt__header">
 
-                <Typography
-                    sx={{
-                        fontSize:
-                            paper === 58
-                                ? 16
-                                : 18,
-
-                        fontWeight: 800,
-
-                        lineHeight: 1.3,
-
-                        color: "#000",
-                    }}
-                >
+                <div className="thermal-receipt__business-name">
                     {data.businessName ?? "رستوران"}
-                </Typography>
+                </div>
 
-
-                <Typography
-                    sx={{
-                        fontSize:
-                            paper === 58
-                                ? 11
-                                : 12,
-
-                        fontWeight: 700,
-                    }}
-                >
+                <div className="thermal-receipt__title">
                     رسید سفارش
-                </Typography>
+                </div>
 
-
-                <Typography
-                    sx={{
-                        fontSize:
-                            paper === 58
-                                ? 9
-                                : 10,
-
-                        color: "#000",
-                    }}
-                >
+                <div className="thermal-receipt__order-number">
                     شماره سفارش: #{data.id}
-                </Typography>
+                </div>
 
-            </Stack>
+            </header>
 
 
             <ThermalDivider/>
@@ -180,7 +77,7 @@ export function ReceiptThermal({
                 Order Information
             ===================================================== */}
 
-            <Stack spacing={0.3}>
+            <section className="thermal-receipt__info">
 
                 <InfoRow
                     label="تاریخ"
@@ -191,7 +88,6 @@ export function ReceiptThermal({
                     }
                 />
 
-
                 <InfoRow
                     label="مشتری"
                     value={
@@ -200,258 +96,80 @@ export function ReceiptThermal({
                     }
                 />
 
-
                 {data.customerPhone && (
-
                     <InfoRow
                         label="تلفن"
                         value={data.customerPhone}
                     />
-
                 )}
-
 
                 <InfoRow
                     label="نوع سفارش"
-                    value={
-                        getOrderTypeLabel(
-                            data.orderType,
-                        )
-                    }
+                    value={getOrderTypeLabel(data.orderType)}
                 />
 
-
                 {data.tableId && (
-
                     <InfoRow
                         label="میز"
                         value={String(data.tableId)}
                     />
-
                 )}
 
-            </Stack>
+            </section>
 
 
             <ThermalDivider/>
 
 
             {/* =====================================================
-                Items Header
-            ===================================================== */}
-
-            <Box
-                sx={{
-                    display: "grid",
-
-                    gridTemplateColumns:
-                        paper === 58
-                            ? "1fr auto"
-                            : "1fr 65px 75px",
-
-                    gap: 0.5,
-
-                    fontWeight: 800,
-
-                    fontSize:
-                        paper === 58
-                            ? 9
-                            : 10,
-
-                    mb: 0.5,
-                }}
-            >
-
-                <Typography
-                    sx={{
-                        fontSize: "inherit",
-                        fontWeight: "inherit",
-                    }}
-                >
-                    کالا / محصول
-                </Typography>
-
-
-                {paper === 80 && (
-
-                    <Typography
-                        align="center"
-                        sx={{
-                            fontSize: "inherit",
-                            fontWeight: "inherit",
-                        }}
-                    >
-                        تعداد
-                    </Typography>
-
-                )}
-
-
-                <Typography
-                    align="left"
-                    sx={{
-                        fontSize: "inherit",
-                        fontWeight: "inherit",
-                    }}
-                >
-                    مبلغ
-                </Typography>
-
-            </Box>
-
-
-            {/* =====================================================
                 Items
             ===================================================== */}
 
-            <Stack spacing={0.8}>
+            <section className="thermal-receipt__items">
 
-                {order.orderItems.map((item) => (
+                <div
+                    className={[
+                        "thermal-receipt__items-header",
+                        is58mm
+                            ? "thermal-receipt__items-header--58"
+                            : "thermal-receipt__items-header--80",
+                    ].join(" ")}
+                >
 
-                    <Box
-                        key={item.id}
-                        sx={{
-                            breakInside: "avoid",
-                        }}
-                    >
-
-                        {paper === 58 ? (
-
-                            /*
-                             * 58mm
-                             * Compact layout
-                             */
-
-                            <Stack spacing={0.2}>
-
-                                <Typography
-                                    sx={{
-                                        fontSize: 10,
-                                        fontWeight: 700,
-                                        lineHeight: 1.3,
-                                    }}
-                                >
-                                    {item.menuItemName}
-                                </Typography>
+                    <div>
+                        کالا / محصول
+                    </div>
 
 
-                                <Stack
-                                    sx={{
-                                        flexDirection: "row",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                    }}
-                                >
-
-                                    <Typography
-                                        sx={{
-                                            fontSize: 9,
-                                        }}
-                                    >
-                                        {item.quantity}
-                                        {" × "}
-                                        {formatCurrency(
-                                            item.unitPrice,
-                                        )}
-                                    </Typography>
+                    {!is58mm && (
+                        <div className="thermal-receipt__quantity-header">
+                            تعداد
+                        </div>
+                    )}
 
 
-                                    <Typography
-                                        sx={{
-                                            fontSize: 10,
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        {formatCurrency(
-                                            item.totalPrice,
-                                        )}
-                                    </Typography>
+                    <div className="thermal-receipt__price-header">
+                        مبلغ
+                    </div>
 
-                                </Stack>
-
-                            </Stack>
-
-                        ) : (
-
-                            /*
-                             * 80mm
-                             * More spacious layout
-                             */
-
-                            <Box
-                                sx={{
-                                    display: "grid",
-
-                                    gridTemplateColumns:
-                                        "1fr 65px 75px",
-
-                                    gap: 0.5,
-
-                                    alignItems: "start",
-                                }}
-                            >
-
-                                <Box>
-
-                                    <Typography
-                                        sx={{
-                                            fontSize: 10,
-                                            fontWeight: 700,
-                                            lineHeight: 1.35,
-                                        }}
-                                    >
-                                        {item.menuItemName}
-                                    </Typography>
+                </div>
 
 
-                                    {item.notes && (
+                <div className="thermal-receipt__items-list">
 
-                                        <Typography
-                                            sx={{
-                                                fontSize: 8,
-                                                mt: 0.2,
-                                                color: "#333",
-                                            }}
-                                        >
-                                            {item.notes}
-                                        </Typography>
+                    {order.orderItems.map((item) => (
 
-                                    )}
+                        <ThermalItem
+                            key={item.id}
+                            item={item}
+                            paper={paper}
+                        />
 
-                                </Box>
+                    ))}
 
+                </div>
 
-                                <Typography
-                                    align="center"
-                                    sx={{
-                                        fontSize: 9,
-                                    }}
-                                >
-                                    {item.quantity}
-                                </Typography>
-
-
-                                <Typography
-                                    align="left"
-                                    sx={{
-                                        fontSize: 9,
-                                        fontWeight: 700,
-                                    }}
-                                >
-                                    {formatCurrency(
-                                        item.totalPrice,
-                                    )}
-                                </Typography>
-
-                            </Box>
-
-                        )}
-
-                    </Box>
-
-                ))}
-
-            </Stack>
+            </section>
 
 
             <ThermalDivider/>
@@ -461,7 +179,7 @@ export function ReceiptThermal({
                 Summary
             ===================================================== */}
 
-            <Stack spacing={0.35}>
+            <section className="thermal-receipt__summary">
 
                 <SummaryRow
                     label="جمع سفارش"
@@ -470,25 +188,21 @@ export function ReceiptThermal({
 
 
                 {Number(data.discount) > 0 && (
-
                     <SummaryRow
                         label="تخفیف"
                         value={formatCurrency(data.discount)}
                     />
-
                 )}
 
 
                 {Number(data.tax) > 0 && (
-
                     <SummaryRow
                         label="مالیات"
                         value={formatCurrency(data.tax)}
                     />
-
                 )}
 
-            </Stack>
+            </section>
 
 
             <ThermalDivider/>
@@ -498,50 +212,17 @@ export function ReceiptThermal({
                 Total
             ===================================================== */}
 
-            <Box
-                sx={{
-                    display: "flex",
+            <section className="thermal-receipt__total">
 
-                    alignItems: "center",
-
-                    justifyContent: "space-between",
-
-                    gap: 1,
-
-                    py: 0.5,
-                }}
-            >
-
-                <Typography
-                    sx={{
-                        fontSize:
-                            paper === 58
-                                ? 12
-                                : 13,
-
-                        fontWeight: 900,
-                    }}
-                >
+                <span className="thermal-receipt__total-label">
                     مبلغ قابل پرداخت
-                </Typography>
+                </span>
 
-
-                <Typography
-                    sx={{
-                        fontSize:
-                            paper === 58
-                                ? 12
-                                : 13,
-
-                        fontWeight: 900,
-
-                        whiteSpace: "nowrap",
-                    }}
-                >
+                <span className="thermal-receipt__total-value">
                     {formatCurrency(data.totalAmount)}
-                </Typography>
+                </span>
 
-            </Box>
+            </section>
 
 
             <ThermalDivider/>
@@ -551,32 +232,26 @@ export function ReceiptThermal({
                 Payment
             ===================================================== */}
 
-            <Stack spacing={0.3}>
+            <section className="thermal-receipt__payment">
 
                 <InfoRow
                     label="وضعیت پرداخت"
-                    value={
-                        getPaymentStatusLabel(
-                            data.paymentStatus,
-                        )
-                    }
+                    value={getPaymentStatusLabel(
+                        data.paymentStatus,
+                    )}
                 />
 
 
                 {data.paymentMethod && (
-
                     <InfoRow
                         label="روش پرداخت"
-                        value={
-                            getPaymentMethodLabel(
-                                data.paymentMethod,
-                            )
-                        }
+                        value={getPaymentMethodLabel(
+                            data.paymentMethod,
+                        )}
                     />
-
                 )}
 
-            </Stack>
+            </section>
 
 
             {/* =====================================================
@@ -584,37 +259,21 @@ export function ReceiptThermal({
             ===================================================== */}
 
             {data.notes && (
-
                 <>
-
                     <ThermalDivider/>
 
-                    <Box>
+                    <section className="thermal-receipt__notes">
 
-                        <Typography
-                            sx={{
-                                fontSize: 9,
-                                fontWeight: 800,
-                                mb: 0.2,
-                            }}
-                        >
+                        <div className="thermal-receipt__notes-title">
                             توضیحات
-                        </Typography>
+                        </div>
 
-
-                        <Typography
-                            sx={{
-                                fontSize: 9,
-                                lineHeight: 1.5,
-                            }}
-                        >
+                        <div className="thermal-receipt__notes-text">
                             {data.notes}
-                        </Typography>
+                        </div>
 
-                    </Box>
-
+                    </section>
                 </>
-
             )}
 
 
@@ -625,80 +284,136 @@ export function ReceiptThermal({
                 Footer
             ===================================================== */}
 
-            <Stack
-                sx={{
-                    alignItems: "center",
-                    gap: 0.3,
-                    textAlign: "center",
-                }}
-            >
-                <Typography
-                    sx={{
-                        fontSize:
-                            paper === 58
-                                ? 9
-                                : 10,
+            <footer className="thermal-receipt__footer">
 
-                        fontWeight: 700,
-                    }}
-                >
+                <div className="thermal-receipt__footer-title">
                     از خرید شما سپاسگزاریم
-                </Typography>
+                </div>
 
-
-                <Typography
-                    sx={{
-                        fontSize: 8,
-                    }}
-                >
+                <div className="thermal-receipt__footer-subtitle">
                     سفارش شما با موفقیت ثبت شد
-                </Typography>
+                </div>
 
-            </Stack>
+            </footer>
 
-        </Box>
-
+        </div>
     );
-
 }
 
 
 /* ================================================================
-   Components
+   Item
 ================================================================ */
 
 
-/**
- * Dashed divider optimized for thermal printers.
- */
-function ThermalDivider() {
+interface ThermalItemProps {
 
-    return (
+    item: OrderWithItems["orderItems"][number];
 
-        <Divider
-            sx={{
-                my: 0.8,
-
-                borderColor: "#000",
-
-                borderStyle: "dashed",
-
-                opacity: 1,
-
-                "&::before, &::after": {
-                    borderColor: "#000",
-                },
-            }}
-        />
-
-    );
+    paper: 58 | 80;
 
 }
 
 
-/**
- * Generic information row.
- */
+function ThermalItem({
+    item,
+    paper,
+}: ThermalItemProps) {
+
+    const is58mm = paper === 58;
+
+
+    if (is58mm) {
+
+        return (
+            <article className="thermal-receipt__item thermal-receipt__item--58">
+
+                <div className="thermal-receipt__item-name">
+                    {item.menuItemName}
+                </div>
+
+
+                <div className="thermal-receipt__item-meta">
+
+                    <span>
+                        {item.quantity}
+                        {" × "}
+                        {formatCurrency(item.unitPrice)}
+                    </span>
+
+
+                    <strong>
+                        {formatCurrency(item.totalPrice)}
+                    </strong>
+
+                </div>
+
+
+                {item.notes && (
+                    <div className="thermal-receipt__item-notes">
+                        {item.notes}
+                    </div>
+                )}
+
+            </article>
+        );
+    }
+
+
+    return (
+        <article className="thermal-receipt__item thermal-receipt__item--80">
+
+            <div className="thermal-receipt__item-product">
+
+                <div className="thermal-receipt__item-name">
+                    {item.menuItemName}
+                </div>
+
+
+                {item.notes && (
+                    <div className="thermal-receipt__item-notes">
+                        {item.notes}
+                    </div>
+                )}
+
+            </div>
+
+
+            <div className="thermal-receipt__item-quantity">
+                {item.quantity}
+            </div>
+
+
+            <div className="thermal-receipt__item-price">
+                {formatCurrency(item.totalPrice)}
+            </div>
+
+        </article>
+    );
+}
+
+
+/* ================================================================
+   Divider
+================================================================ */
+
+
+function ThermalDivider() {
+
+    return (
+        <div
+            className="thermal-receipt__divider"
+            aria-hidden="true"
+        />
+    );
+}
+
+
+/* ================================================================
+   Info Row
+================================================================ */
+
+
 interface InfoRowProps {
 
     label: string;
@@ -709,65 +424,32 @@ interface InfoRowProps {
 
 
 function InfoRow({
-                     label,
-                     value,
-                 }: InfoRowProps) {
+    label,
+    value,
+}: InfoRowProps) {
 
     return (
+        <div className="thermal-receipt__info-row">
 
-        <Box
-            sx={{
-                display: "flex",
-
-                justifyContent: "space-between",
-
-                alignItems: "baseline",
-
-                gap: 1,
-
-                direction: "rtl",
-            }}
-        >
-
-            <Typography
-                sx={{
-                    fontSize: 9,
-
-                    color: "#333",
-
-                    whiteSpace: "nowrap",
-                }}
-            >
+            <span className="thermal-receipt__info-label">
                 {label}
-            </Typography>
+            </span>
 
 
-            <Typography
-                sx={{
-                    fontSize: 9,
-
-                    fontWeight: 600,
-
-                    color: "#000",
-
-                    textAlign: "left",
-
-                    wordBreak: "break-word",
-                }}
-            >
+            <span className="thermal-receipt__info-value">
                 {value}
-            </Typography>
+            </span>
 
-        </Box>
-
+        </div>
     );
-
 }
 
 
-/**
- * Summary row.
- */
+/* ================================================================
+   Summary Row
+================================================================ */
+
+
 interface SummaryRowProps {
 
     label: string;
@@ -778,49 +460,23 @@ interface SummaryRowProps {
 
 
 function SummaryRow({
-                        label,
-                        value,
-                    }: SummaryRowProps) {
+    label,
+    value,
+}: SummaryRowProps) {
 
     return (
+        <div className="thermal-receipt__summary-row">
 
-        <Box
-            sx={{
-                display: "flex",
-
-                justifyContent: "space-between",
-
-                alignItems: "center",
-
-                gap: 1,
-            }}
-        >
-
-            <Typography
-                sx={{
-                    fontSize: 9,
-                }}
-            >
+            <span>
                 {label}
-            </Typography>
+            </span>
 
-
-            <Typography
-                sx={{
-                    fontSize: 9,
-
-                    fontWeight: 600,
-
-                    whiteSpace: "nowrap",
-                }}
-            >
+            <strong>
                 {value}
-            </Typography>
+            </strong>
 
-        </Box>
-
+        </div>
     );
-
 }
 
 
@@ -851,7 +507,6 @@ function getOrderTypeLabel(
             return type;
 
     }
-
 }
 
 
@@ -883,7 +538,6 @@ function getPaymentStatusLabel(
             return "-";
 
     }
-
 }
 
 
@@ -909,6 +563,4 @@ function getPaymentMethodLabel(
             return method;
 
     }
-
 }
-

@@ -116,13 +116,13 @@ export const OrderDetailsDialog = ({
 
                 <Box
                     sx={{
-                        position: "fixed",
-                        left: "-10000px",
-                        top: 0,
-                        visibility: "hidden",
+                        position: "absolute",
+                        width: 0,
+                        height: 0,
+                        overflow: "hidden",
+                        pointerEvents: "none",
                     }}
                 >
-
                     <ReceiptThermal
                         id="receipt-58"
                         order={order}
@@ -134,9 +134,7 @@ export const OrderDetailsDialog = ({
                         order={order}
                         paper={80}
                     />
-
                 </Box>
-
             </DialogContent>
 
         </Dialog>
