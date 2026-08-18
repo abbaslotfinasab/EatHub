@@ -1,0 +1,746 @@
+@page {
+    size: A4;
+    margin: 0;
+}
+
+
+/* ================================================================
+   Root
+================================================================ */
+
+
+.receipt-pdf {
+
+    --pdf-text: #111111;
+    --pdf-muted: #666666;
+    --pdf-border: #d9d9d9;
+    --pdf-border-dark: #bdbdbd;
+    --pdf-background: #ffffff;
+
+    width: 210mm;
+    min-height: 297mm;
+
+    margin: 0 auto;
+
+    padding: 14mm;
+
+    box-sizing: border-box;
+
+    background: var(--pdf-background);
+
+    color: var(--pdf-text);
+
+    direction: rtl;
+
+    font-family:
+        "Vazirmatn",
+        Tahoma,
+        Arial,
+        sans-serif;
+
+    font-size: 11px;
+
+    font-weight: 400;
+
+    line-height: 1.6;
+
+    text-align: right;
+
+    -webkit-print-color-adjust: exact;
+
+    print-color-adjust: exact;
+}
+
+
+/* ================================================================
+   Reset
+================================================================ */
+
+
+.receipt-pdf *,
+.receipt-pdf *::before,
+.receipt-pdf *::after {
+
+    box-sizing: border-box;
+
+}
+
+
+.receipt-pdf h1,
+.receipt-pdf h2,
+.receipt-pdf h3,
+.receipt-pdf p {
+
+    margin: 0;
+
+}
+
+
+.receipt-pdf table {
+
+    border-collapse: collapse;
+
+    border-spacing: 0;
+
+}
+
+
+/* ================================================================
+   Header
+================================================================ */
+
+
+.receipt-pdf__header {
+
+    display: flex;
+
+    align-items: flex-start;
+
+    justify-content: space-between;
+
+    gap: 20mm;
+
+    width: 100%;
+
+}
+
+
+.receipt-pdf__business {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 3px;
+
+}
+
+
+.receipt-pdf__business-name {
+
+    color: var(--pdf-text);
+
+    font-size: 22px;
+
+    font-weight: 900;
+
+    line-height: 1.4;
+}
+
+
+.receipt-pdf__document-title {
+
+    color: var(--pdf-muted);
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+}
+
+
+.receipt-pdf__meta {
+
+    min-width: 55mm;
+
+    padding: 4mm;
+
+    border: 1px solid var(--pdf-border);
+
+    border-radius: 3mm;
+
+}
+
+
+.receipt-pdf__meta-row {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 8mm;
+
+}
+
+
+.receipt-pdf__meta-row + .receipt-pdf__meta-row {
+
+    margin-top: 2mm;
+
+}
+
+
+.receipt-pdf__meta-row span {
+
+    color: var(--pdf-muted);
+
+}
+
+
+.receipt-pdf__meta-row strong {
+
+    font-weight: 700;
+
+    white-space: nowrap;
+
+}
+
+
+/* ================================================================
+   Divider
+================================================================ */
+
+
+.receipt-pdf__divider {
+
+    width: 100%;
+
+    height: 1px;
+
+    margin: 7mm 0;
+
+    background: var(--pdf-border);
+
+}
+
+
+/* ================================================================
+   Section Title
+================================================================ */
+
+
+.receipt-pdf__section-title {
+
+    margin-bottom: 4mm !important;
+
+    color: var(--pdf-text);
+
+    font-size: 12px;
+
+    font-weight: 800;
+
+    line-height: 1.4;
+}
+
+
+/* ================================================================
+   Information
+================================================================ */
+
+
+.receipt-pdf__information-grid {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+    gap: 3mm 10mm;
+
+}
+
+
+.receipt-pdf__info-field {
+
+    display: flex;
+
+    align-items: baseline;
+
+    justify-content: space-between;
+
+    gap: 5mm;
+
+    min-width: 0;
+
+    padding: 2.5mm 0;
+
+    border-bottom: 1px solid #eeeeee;
+}
+
+
+.receipt-pdf__info-label {
+
+    flex: 0 0 auto;
+
+    color: var(--pdf-muted);
+
+    font-size: 10px;
+
+    white-space: nowrap;
+}
+
+
+.receipt-pdf__info-value {
+
+    min-width: 0;
+
+    color: var(--pdf-text);
+
+    font-size: 10px;
+
+    font-weight: 600;
+
+    text-align: left;
+
+    overflow-wrap: anywhere;
+}
+
+
+/* ================================================================
+   Items
+================================================================ */
+
+
+.receipt-pdf__items {
+
+    width: 100%;
+
+}
+
+
+.receipt-pdf__items-table {
+
+    width: 100%;
+
+    table-layout: fixed;
+
+    border: 1px solid var(--pdf-border);
+
+}
+
+
+.receipt-pdf__items-table thead {
+
+    display: table-header-group;
+
+}
+
+
+.receipt-pdf__items-table tr {
+
+    break-inside: avoid;
+
+    page-break-inside: avoid;
+}
+
+
+.receipt-pdf__items-table th {
+
+    padding: 3mm 2.5mm;
+
+    border-bottom: 1px solid var(--pdf-border-dark);
+
+    background: #f4f4f4;
+
+    color: var(--pdf-text);
+
+    font-size: 10px;
+
+    font-weight: 800;
+
+    text-align: center;
+
+    vertical-align: middle;
+}
+
+
+.receipt-pdf__items-table td {
+
+    padding: 3mm 2.5mm;
+
+    border-bottom: 1px solid #eeeeee;
+
+    color: var(--pdf-text);
+
+    font-size: 10px;
+
+    vertical-align: top;
+}
+
+
+.receipt-pdf__items-table tbody tr:last-child td {
+
+    border-bottom: 0;
+
+}
+
+
+/* ================================================================
+   Table Columns
+================================================================ */
+
+
+.receipt-pdf__col-number {
+
+    width: 10mm;
+
+    text-align: center !important;
+}
+
+
+.receipt-pdf__col-product {
+
+    width: auto;
+
+    text-align: right !important;
+}
+
+
+.receipt-pdf__col-quantity {
+
+    width: 20mm;
+
+    text-align: center !important;
+}
+
+
+.receipt-pdf__col-price {
+
+    width: 35mm;
+
+    text-align: left !important;
+}
+
+
+.receipt-pdf__col-total {
+
+    width: 38mm;
+
+    text-align: left !important;
+}
+
+
+/* ================================================================
+   Product
+================================================================ */
+
+
+.receipt-pdf__product {
+
+    min-width: 0;
+
+}
+
+
+.receipt-pdf__product-name {
+
+    font-size: 10px;
+
+    font-weight: 700;
+
+    line-height: 1.5;
+
+    overflow-wrap: anywhere;
+}
+
+
+.receipt-pdf__product-note {
+
+    margin-top: 1mm;
+
+    color: var(--pdf-muted);
+
+    font-size: 8px;
+
+    line-height: 1.5;
+
+    overflow-wrap: anywhere;
+}
+
+
+/* ================================================================
+   Financial
+================================================================ */
+
+
+.receipt-pdf__financial {
+
+    display: flex;
+
+    justify-content: flex-start;
+
+    width: 100%;
+}
+
+
+.receipt-pdf__financial-content {
+
+    width: 80mm;
+
+    margin-right: auto;
+
+}
+
+
+.receipt-pdf__financial-rows {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 2mm;
+
+}
+
+
+.receipt-pdf__summary-row {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 8mm;
+
+    font-size: 10px;
+}
+
+
+.receipt-pdf__summary-row strong {
+
+    font-weight: 700;
+
+    white-space: nowrap;
+}
+
+
+/* ================================================================
+   Grand Total
+================================================================ */
+
+
+.receipt-pdf__grand-total {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 8mm;
+
+    margin-top: 5mm;
+
+    padding: 4mm 0;
+
+    border-top: 2px solid var(--pdf-text);
+
+    border-bottom: 2px solid var(--pdf-text);
+
+}
+
+
+.receipt-pdf__grand-total span {
+
+    font-size: 12px;
+
+    font-weight: 800;
+}
+
+
+.receipt-pdf__grand-total strong {
+
+    font-size: 14px;
+
+    font-weight: 900;
+
+    white-space: nowrap;
+}
+
+
+/* ================================================================
+   Payment
+================================================================ */
+
+
+.receipt-pdf__payment {
+
+    margin-top: 8mm;
+
+}
+
+
+.receipt-pdf__payment-box {
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+
+    gap: 4mm 10mm;
+
+    padding: 4mm;
+
+    border: 1px solid var(--pdf-border);
+
+    border-radius: 2mm;
+
+}
+
+
+/* ================================================================
+   Notes
+================================================================ */
+
+
+.receipt-pdf__notes {
+
+    width: 100%;
+}
+
+
+.receipt-pdf__notes-content {
+
+    min-height: 18mm;
+
+    padding: 4mm;
+
+    border: 1px solid var(--pdf-border);
+
+    border-radius: 2mm;
+
+    color: var(--pdf-text);
+
+    font-size: 10px;
+
+    line-height: 1.8;
+
+    white-space: pre-wrap;
+
+    overflow-wrap: anywhere;
+}
+
+
+/* ================================================================
+   Footer
+================================================================ */
+
+
+.receipt-pdf__footer {
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    gap: 2mm;
+
+    margin-top: 12mm;
+
+    padding-top: 6mm;
+
+    border-top: 1px solid var(--pdf-border);
+
+    text-align: center;
+
+}
+
+
+.receipt-pdf__footer-title {
+
+    font-size: 11px;
+
+    font-weight: 800;
+}
+
+
+.receipt-pdf__footer-subtitle {
+
+    color: var(--pdf-muted);
+
+    font-size: 9px;
+}
+
+
+.receipt-pdf__footer-generated {
+
+    margin-top: 2mm;
+
+    color: #888888;
+
+    font-size: 8px;
+}
+
+
+/* ================================================================
+   Print
+================================================================ */
+
+
+@media print {
+
+    .receipt-pdf {
+
+        width: 210mm !important;
+
+        min-width: 210mm !important;
+
+        max-width: 210mm !important;
+
+        min-height: 297mm !important;
+
+        margin: 0 !important;
+
+        padding: 14mm !important;
+
+        background: #ffffff !important;
+
+        box-shadow: none !important;
+
+        border: 0 !important;
+
+        border-radius: 0 !important;
+
+    }
+
+
+    .receipt-pdf__items-table {
+
+        break-inside: auto;
+
+        page-break-inside: auto;
+
+    }
+
+
+    .receipt-pdf__items-table tr {
+
+        break-inside: avoid;
+
+        page-break-inside: avoid;
+
+    }
+
+
+    .receipt-pdf__information,
+    .receipt-pdf__items,
+    .receipt-pdf__financial,
+    .receipt-pdf__payment,
+    .receipt-pdf__notes {
+
+        break-inside: avoid;
+
+    }
+
+}
+
+
+/* ================================================================
+   Screen Preview
+================================================================ */
+
+
+@media screen {
+
+    .receipt-pdf {
+
+        box-shadow:
+            0 8px 30px rgba(0, 0, 0, 0.08);
+
+    }
+
+}

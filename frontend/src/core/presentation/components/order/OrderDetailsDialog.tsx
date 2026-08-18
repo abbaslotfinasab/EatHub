@@ -12,6 +12,7 @@ import {ReceiptCard} from "./details/ReceiptCard.tsx";
 import {ReceiptThermal} from "./thermal/ReceiptThermal.tsx";
 
 import {usePrintReceipt} from "../../hooks/usePrintReceipt.ts";
+import {ReceiptPdf} from "./pdf/ReceiptPdf.tsx";
 
 
 interface OrderDetailsDialogProps {
@@ -96,16 +97,14 @@ export const OrderDetailsDialog = ({
                         position: "fixed",
                         left: "-10000px",
                         top: 0,
-                        width: "794px",
+                        width: "210mm",
                         visibility: "hidden",
                         pointerEvents: "none",
                     }}
                 >
-                    <ReceiptCard
+                    <ReceiptPdf
                         id="receipt-pdf"
                         order={order}
-                        showActions={false}
-                        showCloseButton={false}
                     />
                 </Box>
 
