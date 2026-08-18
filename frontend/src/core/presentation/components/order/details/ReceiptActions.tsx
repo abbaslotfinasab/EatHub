@@ -1,11 +1,11 @@
 import {
     Button,
     DialogActions,
+    Divider,
     Menu,
     MenuItem,
     Stack,
     Typography,
-    Divider,
 } from "@mui/material";
 
 import PrintRoundedIcon from "@mui/icons-material/PrintRounded";
@@ -34,17 +34,17 @@ interface ReceiptActionsProps {
 
 export function ReceiptActions({
 
-                                   onPrint58,
+    onPrint58,
 
-                                   onPrint80,
+    onPrint80,
 
-                                   onDownloadPdf,
+    onDownloadPdf,
 
-                                   onEdit,
+    onEdit,
 
-                                   onChangeStatus,
+    onChangeStatus,
 
-                               }: ReceiptActionsProps) {
+}: ReceiptActionsProps) {
 
     const [
         anchorEl,
@@ -109,6 +109,7 @@ export function ReceiptActions({
     return (
 
         <DialogActions
+            dir="rtl"
             sx={{
                 px: {
                     xs: 2,
@@ -120,6 +121,8 @@ export function ReceiptActions({
                 bgcolor: "background.paper",
 
                 display: "block",
+
+                direction: "rtl",
             }}
         >
 
@@ -128,9 +131,22 @@ export function ReceiptActions({
                     xs: "column",
                     sm: "row",
                 }}
+
                 spacing={1.5}
+
                 sx={{
                     width: "100%",
+
+                           direction: "ltr",
+
+
+                    /**
+                     * مهم:
+                     * روی flex row ترتیب را RTL می‌کنیم.
+                     */
+                    "@media (min-width:600px)": {
+                        flexDirection: "row",
+                    },
                 }}
             >
 
@@ -145,14 +161,6 @@ export function ReceiptActions({
                             fullWidth
                             size="large"
                             variant="contained"
-
-                            startIcon={
-                                <PrintRoundedIcon/>
-                            }
-
-                            endIcon={
-                                <KeyboardArrowDownRoundedIcon/>
-                            }
 
                             onClick={
                                 handleOutputClick
@@ -169,26 +177,71 @@ export function ReceiptActions({
 
                                 boxShadow: 0,
 
+                                px: 2,
+
+                                /**
+                                 * خود Button را RTL می‌کنیم.
+                                 */
+                                direction: "rtl",
+
+                                /**
+                                 * مهم:
+                                 * محتویات Button به صورت flex
+                                 * کنترل می‌شوند.
+                                 */
+                                display: "flex",
+
+                                alignItems: "center",
+
                                 justifyContent:
                                     "space-between",
 
-                                px: 2,
+                                gap: 1,
 
                                 "&:hover": {
                                     boxShadow: 2,
                                 },
                             }}
                         >
-                            چاپ رسید
+
+                            <span
+                                style={{
+                                    display: "inline-flex",
+
+                                    alignItems: "center",
+
+                                    gap: "8px",
+                                }}
+                            >
+
+                                <PrintRoundedIcon
+                                    fontSize="small"
+                                />
+
+                                <span>
+                                    چاپ رسید
+                                </span>
+
+                            </span>
+
+
+                            <KeyboardArrowDownRoundedIcon
+                                fontSize="small"
+                            />
+
                         </Button>
 
 
                         <Menu
                             anchorEl={anchorEl}
+
                             open={menuOpen}
+
                             onClose={
                                 handleMenuClose
                             }
+
+                            dir="rtl"
 
                             anchorOrigin={{
                                 vertical: "top",
@@ -202,6 +255,8 @@ export function ReceiptActions({
 
                             slotProps={{
                                 paper: {
+                                    dir: "rtl",
+
                                     sx: {
                                         minWidth: 280,
 
@@ -219,6 +274,8 @@ export function ReceiptActions({
 
                                         boxShadow:
                                             "0 12px 40px rgba(0,0,0,.14)",
+
+                                        direction: "rtl",
                                     },
                                 },
                             }}
@@ -239,25 +296,47 @@ export function ReceiptActions({
                                         borderRadius: 2,
 
                                         gap: 1.5,
+
+                                        direction: "rtl",
+
+                                        textAlign: "right",
                                     }}
                                 >
 
                                     <PrintRoundedIcon/>
 
-                                    <Stack>
+                                    <Stack
+                                        sx={{
+                                            alignItems:
+                                                "flex-start",
+                                        }}
+                                    >
 
                                         <Typography
                                             sx={{
                                                 fontWeight: 700,
+
                                                 fontSize: 14,
+
+                                                direction: "rtl",
+
+                                                textAlign:
+                                                    "right",
                                             }}
                                         >
-                                            mm چاپ رسید ۸۰
+                                            چاپ رسید ۸۰ mm
                                         </Typography>
+
 
                                         <Typography
                                             variant="caption"
                                             color="text.secondary"
+                                            sx={{
+                                                direction: "rtl",
+
+                                                textAlign:
+                                                    "right",
+                                            }}
                                         >
                                             پرینتر حرارتی
                                         </Typography>
@@ -284,25 +363,47 @@ export function ReceiptActions({
                                         borderRadius: 2,
 
                                         gap: 1.5,
+
+                                        direction: "rtl",
+
+                                        textAlign: "right",
                                     }}
                                 >
 
                                     <PrintRoundedIcon/>
 
-                                    <Stack>
+                                    <Stack
+                                        sx={{
+                                            alignItems:
+                                                "flex-start",
+                                        }}
+                                    >
 
                                         <Typography
                                             sx={{
                                                 fontWeight: 700,
+
                                                 fontSize: 14,
+
+                                                direction: "rtl",
+
+                                                textAlign:
+                                                    "right",
                                             }}
                                         >
-                                            mm چاپ رسید ۵۸
+                                            چاپ رسید ۵۸ mm
                                         </Typography>
+
 
                                         <Typography
                                             variant="caption"
                                             color="text.secondary"
+                                            sx={{
+                                                direction: "rtl",
+
+                                                textAlign:
+                                                    "right",
+                                            }}
                                         >
                                             پرینتر حرارتی
                                         </Typography>
@@ -343,25 +444,47 @@ export function ReceiptActions({
                                         borderRadius: 2,
 
                                         gap: 1.5,
+
+                                        direction: "rtl",
+
+                                        textAlign: "right",
                                     }}
                                 >
 
                                     <PictureAsPdfRoundedIcon/>
 
-                                    <Stack>
+                                    <Stack
+                                        sx={{
+                                            alignItems:
+                                                "flex-start",
+                                        }}
+                                    >
 
                                         <Typography
                                             sx={{
                                                 fontWeight: 700,
+
                                                 fontSize: 14,
+
+                                                direction: "rtl",
+
+                                                textAlign:
+                                                    "right",
                                             }}
                                         >
                                             ذخیره PDF
                                         </Typography>
 
+
                                         <Typography
                                             variant="caption"
                                             color="text.secondary"
+                                            sx={{
+                                                direction: "rtl",
+
+                                                textAlign:
+                                                    "right",
+                                            }}
                                         >
                                             دریافت نسخه دیجیتال رسید
                                         </Typography>
@@ -390,10 +513,6 @@ export function ReceiptActions({
                         size="large"
                         variant="outlined"
 
-                        startIcon={
-                            <TaskAltRoundedIcon/>
-                        }
-
                         onClick={
                             onChangeStatus
                         }
@@ -408,9 +527,25 @@ export function ReceiptActions({
                             fontWeight: 600,
 
                             whiteSpace: "nowrap",
+
+                            direction: "rtl",
+
+                            display: "flex",
+
+                            alignItems: "center",
+
+                            justifyContent: "center",
+
+                            gap: 1,
                         }}
                     >
-                        تغییر وضعیت
+
+                        <TaskAltRoundedIcon/>
+
+                        <span>
+                            تغییر وضعیت
+                        </span>
+
                     </Button>
 
                 )}
@@ -427,10 +562,6 @@ export function ReceiptActions({
                         size="large"
                         variant="outlined"
                         color="inherit"
-
-                        startIcon={
-                            <EditRoundedIcon/>
-                        }
 
                         onClick={
                             onEdit
@@ -450,13 +581,29 @@ export function ReceiptActions({
                             borderColor:
                                 "divider",
 
+                            direction: "rtl",
+
+                            display: "flex",
+
+                            alignItems: "center",
+
+                            justifyContent: "center",
+
+                            gap: 1,
+
                             "&:hover": {
                                 borderColor:
                                     "text.primary",
                             },
                         }}
                     >
-                        ویرایش سفارش
+
+                        <EditRoundedIcon/>
+
+                        <span>
+                            ویرایش سفارش
+                        </span>
+
                     </Button>
 
                 )}

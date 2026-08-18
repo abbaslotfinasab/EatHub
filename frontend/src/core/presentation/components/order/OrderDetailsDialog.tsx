@@ -59,20 +59,24 @@ export const OrderDetailsDialog = ({
             onClose={onClose}
             fullWidth
             maxWidth="sm"
+            dir="rtl"
             slotProps={{
                 paper: {
+                    dir: "rtl",
                     sx: {
                         borderRadius: 1,
+                        direction: "rtl",
                     },
                 },
             }}
         >
 
             <DialogContent
+                dir="rtl"
                 sx={{
                     p: 0,
                     bgcolor: "#f5f5f5",
-
+                    direction: "rtl",
                 }}
             >
 
