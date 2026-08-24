@@ -3,9 +3,9 @@ from rest_framework import status
 
 from accounts.models import Business
 from accounts.views import TenantAPIView
-from products.serializers.customer_serializer import CustomerDetailSerializer, CustomerSerializer, \
+from products.serializers.customer_serializer import CustomerDetailSerializer, \
     CreateCustomerSerializer, UpdateCustomerSerializer, CustomerTransactionSerializer, \
-    CustomerAccountSerializer, CustomerListSerializer, CustomerBalanceSerializer
+    CustomerAccountSerializer, CustomerBalanceSerializer
 from products.serializers.order_serializer import *
 from products.services.customer_service import CustomerService
 from products.services.order_service import *
@@ -17,7 +17,6 @@ from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, 
     MenuItemCreateSerializer, MenuItemUpdateSerializer
 from products.services.menu_service import MenuService
 from products.models import Menu, Customer, CustomerAccount
-from inventory.services.facture_service import *
 from products.services.wallet_service import WalletService
 from django.db.models import (
     Q,
@@ -248,8 +247,6 @@ class OrderCreateAPIView(TenantAPIView):
             business=request.business,
             validated_data=serializer.validated_data
         )
-
-        # PurchaseOrderService.create_from_order(order=order)
 
         return Response(
             OrderSerializer(order).data,
@@ -739,9 +736,7 @@ class CustomerListAPIView(TenantAPIView):
                 "-created_at"
             )
 
-
-
-        serializer = CustomerListSerializer(
+        serializer = CustomerSerializer(
             customers,
             many=True,
         )
@@ -769,19 +764,50 @@ class CustomerCreateAPIView(TenantAPIView):
 
 
 class CustomerDetailAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
+
+    permission_classes = [
+        IsAuthenticated,
+    ]
 
     def get(self, request, pk):
 
         customer = get_object_or_404(
-            Customer,
+            Customer.objects
+            .filter(
+                business=request.business,
+            )
+            .select_related(
+                "account",
+            )
+            .annotate(
+                total_orders=Count(
+                    "orders",
+                    filter=Q(
+                        orders__status=Order.Status.COMPLETED,
+                    ),
+                    distinct=True,
+                ),
+
+                total_spent=Coalesce(
+                    Sum(
+                        "orders__total_amount",
+                        filter=Q(
+                            orders__status=Order.Status.COMPLETED,
+                        ),
+                    ),
+                    Value(0),
+                    output_field=DecimalField(
+                        max_digits=12,
+                        decimal_places=2,
+                    ),
+                ),
+            ),
             id=pk,
-            business=request.business
         )
 
-        return Response(CustomerDetailSerializer(customer).data)
-
-
+        return Response(
+            CustomerDetailSerializer(customer).data
+        )
 
 class CustomerUpdateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]

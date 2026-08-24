@@ -26,9 +26,10 @@ export const orderMapper = {
     toOrder(dto: OrderDTO): Order {
         return {
             id: dto.id,
-            customerId: dto.customer_id ?? undefined,
-            customerName: dto.customer_name ?? undefined,
-            customerPhone: dto.customer_phone ?? undefined,
+            customerId: dto.customer?.id?? undefined,
+            customerName: dto.customer?.name ?? undefined,
+            customerPhone: dto.customer?.phone ?? undefined,
+            customerBalance: dto.customer_balance,
             businessName: dto.business.name,
             tableId: dto.table,
             orderType: dto.order_type,
@@ -38,7 +39,7 @@ export const orderMapper = {
             tax: dto.tax,
             totalAmount: dto.total_amount,
             paymentStatus: dto.payment_status as Order["paymentStatus"],
-            paymentMethod : dto.payment_method as Order["paymentMethod"],
+            paymentMethod: dto.payment_method as Order["paymentMethod"],
             notes: dto.notes,
             createdAt: dto.created_at,
             updatedAt: dto.updated_at,

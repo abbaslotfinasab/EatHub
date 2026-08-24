@@ -16,6 +16,7 @@ interface ReceiptPaymentProps {
     order: Order;
 }
 
+
 export function ReceiptPayment({
     order,
 }: ReceiptPaymentProps) {
@@ -55,38 +56,6 @@ export function ReceiptPayment({
                 : PersonRoundedIcon;
 
     return (
-
-    <Stack
-        sx={{
-            gap: 2,
-        }}
-    >
-
-        <Stack
-            sx={{
-                flexDirection: "row",
-                gap: 1,
-                alignItems: "center",
-            }}
-        >
-
-            <PaymentsRoundedIcon
-                color="primary"
-            />
-
-            <Typography
-                variant="h6"
-                sx={{
-                    fontWeight: 700,
-                }}
-            >
-                اطلاعات پرداخت
-            </Typography>
-
-        </Stack>
-
-        <Divider />
-
         <Stack
             sx={{
                 gap: 2,
@@ -96,72 +65,139 @@ export function ReceiptPayment({
             <Stack
                 sx={{
                     flexDirection: "row",
-                    justifyContent: "space-between",
+                    gap: 1,
                     alignItems: "center",
                 }}
             >
+                <PaymentsRoundedIcon
+                    color="primary"
+                />
 
+                <Typography
+                    variant="h6"
+                    sx={{
+                        fontWeight: 700,
+                    }}
+                >
+                    اطلاعات پرداخت
+                </Typography>
+            </Stack>
+
+            <Divider />
+
+            <Stack
+                sx={{
+                    gap: 2,
+                }}
+            >
+
+                {/* Payment Method */}
                 <Stack
                     sx={{
                         flexDirection: "row",
-                        gap: 1,
+                        justifyContent: "space-between",
                         alignItems: "center",
                     }}
                 >
+                    <Stack
+                        sx={{
+                            flexDirection: "row",
+                            gap: 1,
+                            alignItems: "center",
+                        }}
+                    >
+                        <PaymentMethodIcon
+                            fontSize="small"
+                        />
 
-                    <PaymentMethodIcon
-                        fontSize="small"
-                    />
+                        <Typography
+                            sx={{
+                                color: "text.secondary",
+                            }}
+                        >
+                            روش پرداخت
+                        </Typography>
+                    </Stack>
 
+                    <Typography
+                        sx={{
+                            fontWeight: 600,
+                        }}
+                    >
+                        {paymentMethodLabel}
+                    </Typography>
+                </Stack>
+
+
+                {/* Payment Status */}
+                <Stack
+                    sx={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                    }}
+                >
                     <Typography
                         sx={{
                             color: "text.secondary",
                         }}
                     >
-                        روش پرداخت
+                        وضعیت پرداخت
                     </Typography>
 
+                    <Chip
+                        size="small"
+                        color={paymentStatusColor}
+                        label={paymentStatusLabel}
+                    />
                 </Stack>
 
-                <Typography
-                    sx={{
-                        fontWeight: 600,
-                    }}
-                >
-                    {paymentMethodLabel}
-                </Typography>
 
-            </Stack>
+                {/* Customer Balance */}
+                {order.customerBalance !== null &&
+                    order.customerBalance !== undefined && (
+                        <Stack
+                            sx={{
+                                flexDirection: "row",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                            }}
+                        >
 
+                            <Stack
+                                sx={{
+                                    flexDirection: "row",
+                                    gap: 1,
+                                    alignItems: "center",
+                                }}
+                            >
+                                <AccountBalanceWalletRoundedIcon
+                                    fontSize="small"
+                                    color="primary"
+                                />
 
-            <Stack
-                sx={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                }}
-            >
+                                <Typography
+                                    sx={{
+                                        color: "text.secondary",
+                                    }}
+                                >
+                                    مانده حساب
+                                </Typography>
+                            </Stack>
 
-                <Typography
-                    sx={{
-                        color: "text.secondary",
-                    }}
-                >
-                    وضعیت پرداخت
-                </Typography>
+                            <Typography
+                                sx={{
+                                    fontWeight: 700,
+                                }}
+                            >
+                                {order.customerBalance.toLocaleString("fa-IR")} تومان
+                            </Typography>
 
-                <Chip
-                    size="small"
-                    color={paymentStatusColor}
-                    label={paymentStatusLabel}
-                />
+                        </Stack>
+                    )}
 
             </Stack>
 
         </Stack>
-
-    </Stack>
-
-);
-
+    );
 }

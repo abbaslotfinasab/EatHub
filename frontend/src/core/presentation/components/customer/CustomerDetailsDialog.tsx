@@ -213,7 +213,7 @@ export function CustomerDetailsDialog({
                         <InfoItem
                             title="تعداد سفارش"
                             value={String(
-                                0
+                                info.totalOrders
                             )}
                         />
                     </Grid>
@@ -227,7 +227,7 @@ export function CustomerDetailsDialog({
                         <InfoItem
                             title="مجموع خرید"
                             value={formatCurrency(
-                                0
+                                info.totalSpent
                             )}
                         />
                     </Grid>

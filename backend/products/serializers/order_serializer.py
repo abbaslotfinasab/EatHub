@@ -1,7 +1,8 @@
 from rest_framework import serializers
 
 from accounts.serializers.business_serializer import BusinessSerializer
-from products.models import Customer, Order
+from products.models import Customer, Order, CustomerTransaction
+from products.serializers.customer_serializer import CustomerSerializer
 
 
 class OrderItemCreateInputSerializer(serializers.Serializer):
@@ -54,37 +55,64 @@ class CreateOrderInputSerializer(serializers.Serializer):
 class OrderSerializer(serializers.Serializer):
     id = serializers.IntegerField()
 
-    customer_id = serializers.IntegerField(source="customer.id", read_only=True)
+    customer = CustomerSerializer(allow_null=True)
 
-    table = serializers.IntegerField(required=False,
-                                     allow_null=True, )
+    table = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+    )
 
     business = BusinessSerializer(read_only=True)
-
-
-    customer_name = serializers.CharField(source="customer.name", read_only=True)
-    customer_phone = serializers.CharField(source="customer.phone", read_only=True)
 
     order_type = serializers.CharField()
     status = serializers.CharField()
 
     payment_method = serializers.CharField()
-
     payment_status = serializers.CharField()
 
-    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2)
-    discount = serializers.DecimalField(max_digits=12, decimal_places=2)
-    tax = serializers.DecimalField(max_digits=12, decimal_places=2)
-    total_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    subtotal = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2
+    )
 
-    notes = serializers.CharField(allow_null=True)
+    discount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2
+    )
+
+    tax = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2
+    )
+
+    total_amount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2
+    )
+
+    customer_balance = serializers.SerializerMethodField()
+
+    notes = serializers.CharField(
+        allow_null=True
+    )
 
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
 
     items = OrderItemSerializer(many=True)
 
+    def get_customer_balance(self, obj):
+        transaction = (
+            CustomerTransaction.objects
+            .filter(order=obj)
+            .order_by("-created_at")
+            .first()
+        )
 
+        if transaction is None:
+            return None
+
+        return transaction.balance_after
 class OrderStatusUpdateSerializer(serializers.Serializer):
 
     status = serializers.ChoiceField(

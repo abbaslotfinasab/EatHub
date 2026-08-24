@@ -1,16 +1,15 @@
-import type {OrderItemDTO} from "./OrderItemDTO";
+import type {CustomerDTO} from "../customer/CustomerDTO.ts";
 import type {ActiveBusinessDTO} from "../business/ActiveBusinessDTO.ts";
+import type {OrderItemDTO} from "./OrderItemDTO.ts";
 
 export interface OrderDTO {
     id: string;
 
-    customer_id: number | null;
+    customer: CustomerDTO | null;
 
-    customer_name: string;
+    customer_balance: number | null;
 
-    customer_phone: string | null;
-
-    business:ActiveBusinessDTO;
+    business: ActiveBusinessDTO;
 
     table: number | null;
 
@@ -19,15 +18,11 @@ export interface OrderDTO {
     status: string;
 
     subtotal: number;
-
     discount: number;
-
     tax: number;
-
     total_amount: number;
 
     payment_status: string;
-
     payment_method: string;
 
     notes: string | null;
@@ -35,6 +30,5 @@ export interface OrderDTO {
     items: OrderItemDTO[];
 
     created_at: string;
-
     updated_at: string;
 }

@@ -32,9 +32,9 @@ interface ReceiptPdfProps {
 
 
 export function ReceiptPdf({
-    id = "receipt-pdf",
-    order,
-}: ReceiptPdfProps) {
+                               id = "receipt-pdf",
+                               order,
+                           }: ReceiptPdfProps) {
 
     const data = order.order;
 
@@ -188,83 +188,83 @@ export function ReceiptPdf({
 
                     <thead>
 
-                        <tr>
+                    <tr>
 
-                            <th className="receipt-pdf__col-number">
-                                #
-                            </th>
+                        <th className="receipt-pdf__col-number">
+                            #
+                        </th>
 
-                            <th className="receipt-pdf__col-product">
-                                محصول
-                            </th>
+                        <th className="receipt-pdf__col-product">
+                            محصول
+                        </th>
 
-                            <th className="receipt-pdf__col-quantity">
-                                تعداد
-                            </th>
+                        <th className="receipt-pdf__col-quantity">
+                            تعداد
+                        </th>
 
-                            <th className="receipt-pdf__col-price">
-                                قیمت واحد
-                            </th>
+                        <th className="receipt-pdf__col-price">
+                            قیمت واحد
+                        </th>
 
-                            <th className="receipt-pdf__col-total">
-                                مبلغ
-                            </th>
+                        <th className="receipt-pdf__col-total">
+                            مبلغ
+                        </th>
 
-                        </tr>
+                    </tr>
 
                     </thead>
 
 
                     <tbody>
 
-                        {order.orderItems.map(
-                            (item, index) => (
+                    {order.orderItems.map(
+                        (item, index) => (
 
-                                <tr key={item.id}>
+                            <tr key={item.id}>
 
-                                    <td className="receipt-pdf__col-number">
-                                        {index + 1}
-                                    </td>
+                                <td className="receipt-pdf__col-number">
+                                    {index + 1}
+                                </td>
 
 
-                                    <td className="receipt-pdf__product">
+                                <td className="receipt-pdf__product">
 
-                                        <div className="receipt-pdf__product-name">
-                                            {item.menuItemName}
+                                    <div className="receipt-pdf__product-name">
+                                        {item.menuItemName}
+                                    </div>
+
+
+                                    {item.notes && (
+                                        <div className="receipt-pdf__product-note">
+                                            {item.notes}
                                         </div>
+                                    )}
+
+                                </td>
 
 
-                                        {item.notes && (
-                                            <div className="receipt-pdf__product-note">
-                                                {item.notes}
-                                            </div>
-                                        )}
-
-                                    </td>
+                                <td className="receipt-pdf__col-quantity">
+                                    {item.quantity}
+                                </td>
 
 
-                                    <td className="receipt-pdf__col-quantity">
-                                        {item.quantity}
-                                    </td>
+                                <td className="receipt-pdf__col-price">
+                                    {formatCurrency(
+                                        item.unitPrice,
+                                    )}
+                                </td>
 
 
-                                    <td className="receipt-pdf__col-price">
-                                        {formatCurrency(
-                                            item.unitPrice,
-                                        )}
-                                    </td>
+                                <td className="receipt-pdf__col-total">
+                                    {formatCurrency(
+                                        item.totalPrice,
+                                    )}
+                                </td>
 
+                            </tr>
 
-                                    <td className="receipt-pdf__col-total">
-                                        {formatCurrency(
-                                            item.totalPrice,
-                                        )}
-                                    </td>
-
-                                </tr>
-
-                            ),
-                        )}
+                        ),
+                    )}
 
                     </tbody>
 
@@ -365,10 +365,19 @@ export function ReceiptPdf({
                         />
                     )}
 
+
+                    {data.customerId && data.customerBalance != null && (
+                        <InfoField
+                            label="مانده حساب مشتری"
+                            value={formatCurrency(
+                                data.customerBalance,
+                            )}
+                        />
+                    )}
+
                 </div>
 
             </section>
-
 
             {/* =====================================================
                 Notes
@@ -450,8 +459,8 @@ interface SectionTitleProps {
 
 
 function SectionTitle({
-    children,
-}: SectionTitleProps) {
+                          children,
+                      }: SectionTitleProps) {
 
     return (
         <h2 className="receipt-pdf__section-title">
@@ -476,9 +485,9 @@ interface InfoFieldProps {
 
 
 function InfoField({
-    label,
-    value,
-}: InfoFieldProps) {
+                       label,
+                       value,
+                   }: InfoFieldProps) {
 
     return (
         <div className="receipt-pdf__info-field">
@@ -512,9 +521,9 @@ interface SummaryRowProps {
 
 
 function SummaryRow({
-    label,
-    value,
-}: SummaryRowProps) {
+                        label,
+                        value,
+                    }: SummaryRowProps) {
 
     return (
         <div className="receipt-pdf__summary-row">

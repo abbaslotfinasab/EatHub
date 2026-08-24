@@ -80,11 +80,11 @@ export interface Order {
 
     customerId?: number;
 
-
     customerName?: string;
 
-
     customerPhone?: string;
+
+    customerBalance?: number | null;
 
     businessName? : string;
 

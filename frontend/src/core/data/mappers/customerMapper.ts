@@ -17,6 +17,10 @@ export const customerMapper = {
             name: dto.name,
             phone: dto.phone,
 
+            totalOrders: Number(dto.totalOrders ?? 0),
+
+            totalSpent: Number(dto.totalSpent ?? 0),
+
             userId: dto.user_id ?? null,
 
             createdAt: dto.created_at

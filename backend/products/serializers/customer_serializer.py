@@ -15,16 +15,47 @@ class UpdateCustomerSerializer(serializers.Serializer):
 
 
 class CustomerSerializer(serializers.ModelSerializer):
+
+    balance = serializers.DecimalField(
+        source="account.balance",
+        max_digits=12,
+        decimal_places=2,
+        read_only=True,
+        allow_null=True,
+    )
+
+    totalOrders = serializers.IntegerField(
+        source="total_orders",
+        read_only=True,
+    )
+
+    totalSpent = serializers.DecimalField(
+        source="total_spent",
+        max_digits=12,
+        decimal_places=2,
+        read_only=True,
+    )
+
     class Meta:
         model = Customer
+
         fields = [
             "id",
             "name",
             "phone",
+            "balance",
+            "totalOrders",
+            "totalSpent",
             "created_at",
         ]
-        read_only_fields = ["id", "created_at"]
 
+        read_only_fields = [
+            "id",
+            "balance",
+            "totalOrders",
+            "totalSpent",
+            "created_at",
+        ]
 
 class CustomerAccountSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source="customer.name", read_only=True)
@@ -59,18 +90,6 @@ class CustomerTransactionSerializer(serializers.ModelSerializer):
 
 
 class CustomerDetailSerializer(serializers.Serializer):
-    customer = CustomerSerializer(
-        read_only=True,
-    )
-
-    account = CustomerAccountSerializer(
-        read_only=True,
-    )
-
-    transactions = CustomerTransactionSerializer(
-        many=True,
-        read_only=True,
-    )
 
     def to_representation(self, instance):
 
@@ -89,19 +108,22 @@ class CustomerDetailSerializer(serializers.Serializer):
 
         return {
             "customer": CustomerSerializer(instance).data,
+
             "account": (
                 CustomerAccountSerializer(account).data
-                if account else None
+                if account
+                else None
             ),
+
             "transactions": (
                 CustomerTransactionSerializer(
                     transactions,
                     many=True,
                 ).data
-                if account else []
+                if account
+                else []
             ),
         }
-
 
 class CustomerBalanceSerializer(serializers.Serializer):
     amount = serializers.DecimalField(
@@ -115,38 +137,3 @@ class CustomerBalanceSerializer(serializers.Serializer):
         allow_null=True,
         default="",
     )
-
-
-class CustomerListSerializer(serializers.ModelSerializer):
-    balance = serializers.DecimalField(
-        source="account.balance",
-        max_digits=12,
-        decimal_places=2,
-        required=False,
-        allow_null=True,
-    )
-
-    totalOrders = serializers.IntegerField(
-        source="total_orders",
-        read_only=True,
-    )
-
-    totalSpent = serializers.DecimalField(
-        source="total_spent",
-        max_digits=12,
-        decimal_places=2,
-        read_only=True,
-    )
-
-    class Meta:
-        model = Customer
-
-        fields = [
-            "id",
-            "name",
-            "phone",
-            "balance",
-            "totalOrders",
-            "totalSpent",
-            "created_at",
-        ]

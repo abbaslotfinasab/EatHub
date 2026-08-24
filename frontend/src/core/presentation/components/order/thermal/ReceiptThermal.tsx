@@ -27,10 +27,10 @@ interface ReceiptThermalProps {
 
 
 export function ReceiptThermal({
-    id,
-    order,
-    paper = 80,
-}: ReceiptThermalProps) {
+                                   id,
+                                   order,
+                                   paper = 80,
+                               }: ReceiptThermalProps) {
 
     const data = order.order;
 
@@ -229,8 +229,8 @@ export function ReceiptThermal({
 
 
             {/* =====================================================
-                Payment
-            ===================================================== */}
+    Payment
+===================================================== */}
 
             <section className="thermal-receipt__payment">
 
@@ -250,6 +250,17 @@ export function ReceiptThermal({
                         )}
                     />
                 )}
+
+
+                {data.paymentMethod === "customer_account" &&
+                    data.customerBalance != null && (
+                        <InfoRow
+                            label="مانده حساب"
+                            value={formatCurrency(
+                                data.customerBalance,
+                            )}
+                        />
+                    )}
 
             </section>
 
@@ -316,9 +327,9 @@ interface ThermalItemProps {
 
 
 function ThermalItem({
-    item,
-    paper,
-}: ThermalItemProps) {
+                         item,
+                         paper,
+                     }: ThermalItemProps) {
 
     const is58mm = paper === 58;
 
@@ -424,9 +435,9 @@ interface InfoRowProps {
 
 
 function InfoRow({
-    label,
-    value,
-}: InfoRowProps) {
+                     label,
+                     value,
+                 }: InfoRowProps) {
 
     return (
         <div className="thermal-receipt__info-row">
@@ -460,9 +471,9 @@ interface SummaryRowProps {
 
 
 function SummaryRow({
-    label,
-    value,
-}: SummaryRowProps) {
+                        label,
+                        value,
+                    }: SummaryRowProps) {
 
     return (
         <div className="thermal-receipt__summary-row">

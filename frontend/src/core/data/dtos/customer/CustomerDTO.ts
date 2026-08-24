@@ -7,7 +7,7 @@ export interface CustomerDTO {
 
     phone: string;
 
-    balance?: string;
+    balance?: number;
 
     totalOrders?: number;
 

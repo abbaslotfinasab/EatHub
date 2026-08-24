@@ -7,6 +7,10 @@ export interface Customer {
 
     phone: string;
 
+    totalOrders?: number;
+
+    totalSpent?: number;
+
     userId?: string | null;
 
     createdAt?: string;
