@@ -2,6 +2,7 @@
 import type {OrderWithItems} from "../../entities/product/order/OrderWithItems.ts";
 import type {UpdateOrderStatusInput} from "../../entities/product/order/UpdateOrderStatusInput.ts";
 import type {OrderFilters} from "../../objects/filters/OrderFilters.ts";
+import type {PaginatedResult} from "../../objects/PaginatedResult.ts";
 
 
 export interface OrderRepository {
@@ -15,7 +16,7 @@ export interface OrderRepository {
     findById(id: string): Promise<OrderWithItems>;
 
     // دریافت لیست سفارش‌ها با فیلتر (بدون آیتم‌ها)
-    findAll(filters?: OrderFilters): Promise<OrderWithItems[]>;
+    findAll(filters?: OrderFilters): Promise<PaginatedResult<OrderWithItems>>;
 
     // به‌روزرسانی جزئی فیلدهای سفارش
 // در اینترفیس OrderRepository

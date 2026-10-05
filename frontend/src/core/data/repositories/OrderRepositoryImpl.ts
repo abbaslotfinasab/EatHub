@@ -7,6 +7,7 @@ import {orderMapper} from "../mappers/orderMapper";
 import type {UpdateOrderStatusInput} from "../../domain/entities/product/order/UpdateOrderStatusInput.ts";
 import type {UpdateOrderStatusDTO} from "../dtos/order/UpdateOrderStatusDTO.ts";
 import type {OrderFilters} from "../../domain/objects/filters/OrderFilters.ts";
+import type {PaginatedResult} from "../../domain/objects/PaginatedResult.ts";
 
 export class OrderRepositoryImpl implements OrderRepository {
 
@@ -31,10 +32,15 @@ export class OrderRepositoryImpl implements OrderRepository {
 
     async findAll(
         filters?: OrderFilters,
-    ): Promise<OrderWithItems[]> {
+    ): Promise<PaginatedResult<OrderWithItems>> {
         const data = await this.remote.getOrders(filters);
 
-        return data.map(orderMapper.toDomain);
+        return {
+            count: data.count,
+            next: data.next,
+            previous: data.previous,
+            results: data.results.map(orderMapper.toDomain),
+        };
     }
 
     async findById(id: string): Promise<OrderWithItems> {

@@ -44,5 +44,9 @@ export interface OrderFilters {
 
     ordering?: OrderOrdering;
 
+    page?: number;
+
+    pageSize?: number;
+
 
 }

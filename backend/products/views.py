@@ -26,6 +26,7 @@ from django.db.models import (
     Value,
 )
 from django.db.models.functions import Coalesce
+from products.pagination import OrderListPagination
 
 
 
@@ -464,27 +465,26 @@ class OrderListAPIView(TenantAPIView):
 
         if ordering in allowed_ordering:
 
+            secondary_ordering = "id" if not ordering.startswith("-") else "-id"
             orders = orders.order_by(
-                ordering
+                ordering,
+                secondary_ordering,
             )
 
         else:
 
             orders = orders.order_by(
-                "-created_at"
+                "-created_at",
+                "-id",
             )
 
 
 
-        serializer = OrderSerializer(
-            orders,
-            many=True,
-        )
+        paginator = OrderListPagination()
+        page = paginator.paginate_queryset(orders, request, view=self)
+        serializer = OrderSerializer(page, many=True)
 
-
-        return Response(
-            serializer.data
-        )
+        return paginator.get_paginated_response(serializer.data)
 class OrderDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 

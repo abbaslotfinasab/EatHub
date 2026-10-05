@@ -5,6 +5,7 @@ import type {CreateOrderDTO} from "../dtos/order/CreateOrderDTO";
 import type {UpdateOrderDTO} from "../dtos/order/UpdateOrderDTO";
 import type {UpdateOrderStatusDTO} from "../dtos/order/UpdateOrderStatusDTO.ts";
 import type {OrderFilters} from "../../domain/objects/filters/OrderFilters.ts";
+import type {PaginatedResult} from "../../domain/objects/PaginatedResult.ts";
 
 export class OrderRemoteDataSource {
 
@@ -25,12 +26,25 @@ export class OrderRemoteDataSource {
     // Read
     // =========================
 
-    async getOrders(filters?: OrderFilters): Promise<OrderDTO[]> {
-        const {data} = await apiClient.get<OrderDTO[]>(
+    async getOrders(filters?: OrderFilters): Promise<PaginatedResult<OrderDTO>> {
+        const {data} = await apiClient.get<PaginatedResult<OrderDTO>>(
             "/products/orders/list",
             {
-                    params: filters,
+                params: {
+                    search: filters?.search,
+                    status: filters?.status,
+                    order_type: filters?.orderType,
+                    payment_status: filters?.paymentStatus,
+                    payment_method: filters?.paymentMethod,
+                    from_date: filters?.fromDate,
+                    to_date: filters?.toDate,
+                    min_total: filters?.minTotal,
+                    max_total: filters?.maxTotal,
+                    page: filters?.page,
+                    page_size: filters?.pageSize,
+                    ordering: filters?.ordering,
                 },
+            },
         );
 
         return data;

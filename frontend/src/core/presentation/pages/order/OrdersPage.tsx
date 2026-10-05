@@ -1,9 +1,10 @@
-import {useMemo, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 
 import {
     Container,
     Fab,
     Stack,
+    TablePagination,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -71,6 +72,10 @@ export const OrdersPage = () => {
 
     });
 
+    const [page, setPage] = useState(0);
+
+    const [rowsPerPage, setRowsPerPage] = useState(20);
+
 
     const debouncedSearch =
         useDebounce(
@@ -88,12 +93,18 @@ export const OrdersPage = () => {
         search:
             debouncedSearch || undefined,
 
+        page: page + 1,
+
+        pageSize: rowsPerPage,
+
 
     }), [
 
         filters,
 
-        debouncedSearch
+        debouncedSearch,
+        page,
+        rowsPerPage,
 
     ]);
 
@@ -108,15 +119,25 @@ export const OrdersPage = () => {
         useDeleteOrder();
 
     const {
-
-        data: orders = [],
-
+        data,
         isLoading,
-
     } = useGetAllOrders(
         orderFilters
     );
 
+    const orders = data?.results ?? [];
+    const totalOrderCount = data?.count ?? 0;
+    const lastPage = Math.max(
+        0,
+        Math.ceil(totalOrderCount / rowsPerPage) - 1,
+    );
+    const safePage = Math.min(page, lastPage);
+
+    useEffect(() => {
+        if (page !== safePage) {
+            setPage(safePage);
+        }
+    }, [page, safePage]);
 
     /*
     |--------------------------------------------------------------------------
@@ -170,6 +191,7 @@ export const OrdersPage = () => {
     const handleResetFilters = () => {
 
         setSearch("");
+        setPage(0);
 
         setFilters({
 
@@ -178,6 +200,30 @@ export const OrdersPage = () => {
 
         });
 
+    };
+
+    const handleSearchChange = (value: string) => {
+        setPage(0);
+        setSearch(value);
+    };
+
+    const handleFiltersChange = (nextFilters: OrderFilters) => {
+        setPage(0);
+        setFilters(nextFilters);
+    };
+
+    const handlePageChange = (
+        _event: React.MouseEvent<HTMLButtonElement> | null,
+        nextPage: number,
+    ) => {
+        setPage(Math.min(Math.max(nextPage, 0), lastPage));
+    };
+
+    const handleRowsPerPageChange = (
+        event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    ) => {
+        setRowsPerPage(Number(event.target.value));
+        setPage(0);
     };
 
 
@@ -244,7 +290,7 @@ export const OrdersPage = () => {
 
 
             totalOrders:
-            orders.length,
+            totalOrderCount,
 
 
             pendingOrders:
@@ -274,8 +320,21 @@ export const OrdersPage = () => {
         };
 
 
-    }, [orders]);
+    }, [orders, totalOrderCount]);
 
+
+    const hasActiveFilters = Boolean(
+        search ||
+        filters.status ||
+        filters.orderType ||
+        filters.paymentStatus ||
+        filters.paymentMethod ||
+        filters.fromDate ||
+        filters.toDate ||
+        filters.minTotal !== undefined ||
+        filters.maxTotal !== undefined ||
+        (filters.ordering && filters.ordering !== "-created_at")
+    );
 
     if (isLoading) {
 
@@ -319,13 +378,9 @@ export const OrdersPage = () => {
 
                     filters={filters}
 
-                    onSearchChange={
-                        setSearch
-                    }
+                    onSearchChange={handleSearchChange}
 
-                    onFiltersChange={
-                        setFilters
-                    }
+                    onFiltersChange={handleFiltersChange}
 
                 />
 
@@ -336,17 +391,7 @@ export const OrdersPage = () => {
 
                         <OrdersEmpty
 
-                            hasFilters={
-
-                                Boolean(
-                                    search ||
-
-                                    Object.keys(
-                                        filters
-                                    ).length > 1
-                                )
-
-                            }
+                            hasFilters={hasActiveFilters}
 
 
                             onResetFilters={
@@ -359,21 +404,33 @@ export const OrdersPage = () => {
                     ) : (
 
 
-                        <OrdersTable
+                        <>
+                            <OrdersTable
 
-                            orders={orders}
-
-
-                            onOrderClick={
-                                handleOrderClick
-                            }
+                                orders={orders}
 
 
-                            onOrderMenuClick={
-                                handleMenuOpen
-                            }
+                                onOrderClick={
+                                    handleOrderClick
+                                }
 
-                        />
+
+                                onOrderMenuClick={
+                                    handleMenuOpen
+                                }
+
+                            />
+
+                            <TablePagination
+                                component="div"
+                                count={totalOrderCount}
+                                page={safePage}
+                                onPageChange={handlePageChange}
+                                rowsPerPage={rowsPerPage}
+                                onRowsPerPageChange={handleRowsPerPageChange}
+                                rowsPerPageOptions={[10, 20, 50, 100]}
+                            />
+                        </>
 
 
                     )
