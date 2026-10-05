@@ -34,3 +34,5 @@ media/
 # Django migrations
 **/migrations/*
 !**/migrations/__init__.py
+!backend/purchase/migrations/
+!backend/purchase/migrations/*.py

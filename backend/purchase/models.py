@@ -263,6 +263,10 @@ class GoodsReceiptItem(BaseModel):
 
 class PurchaseInvoice(BaseModel):
 
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        APPROVED = "approved", "Approved"
+
     business = models.ForeignKey(
         Business,
         on_delete=models.CASCADE,
@@ -288,6 +292,25 @@ class PurchaseInvoice(BaseModel):
     )
 
     invoice_date = models.DateField()
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.DRAFT,
+    )
+
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    approved_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="approved_purchase_invoices",
+    )
 
     subtotal = models.DecimalField(
         max_digits=14,
@@ -323,6 +346,14 @@ class PurchaseInvoice(BaseModel):
         max_digits=14,
         decimal_places=2,
     )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["business", "invoice_number"],
+                name="unique_purchase_invoice_number_per_business",
+            ),
+        ]
 
 
 class PurchaseInvoiceItem(BaseModel):

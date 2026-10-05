@@ -21,6 +21,11 @@ from purchase.presentation.api.views.goods_receipt import (
     GoodsReceiptDetailAPIView,
     GoodsReceiptListCreateAPIView,
 )
+from purchase.presentation.api.views.purchase_invoice import (
+    PurchaseInvoiceApproveAPIView,
+    PurchaseInvoiceDetailAPIView,
+    PurchaseInvoiceListCreateAPIView,
+)
 from purchase.presentation.api.views.supplier_payment import (
     SupplierPaymentDetailAPIView,
     SupplierPaymentListCreateAPIView,
@@ -29,6 +34,21 @@ from purchase.presentation.api.views.supplier_payment import (
 app_name = "purchase"
 
 urlpatterns = [
+    path(
+        "purchase-invoices/",
+        PurchaseInvoiceListCreateAPIView.as_view(),
+        name="purchase-invoice-list-create",
+    ),
+    path(
+        "purchase-invoices/<int:pk>/",
+        PurchaseInvoiceDetailAPIView.as_view(),
+        name="purchase-invoice-detail",
+    ),
+    path(
+        "purchase-invoices/<int:pk>/approve/",
+        PurchaseInvoiceApproveAPIView.as_view(),
+        name="purchase-invoice-approve",
+    ),
     path(
         "goods-receipts/",
         GoodsReceiptListCreateAPIView.as_view(),

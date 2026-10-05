@@ -1,0 +1,49 @@
+from abc import ABC, abstractmethod
+from datetime import date
+
+from purchase.domain.entities.purchase_invoice import PurchaseInvoice
+
+
+class PurchaseInvoiceRepository(ABC):
+
+    @abstractmethod
+    def get_by_id_for_business(
+        self,
+        purchase_invoice_id: int,
+        business_id: int,
+    ) -> PurchaseInvoice | None:
+        """Return a purchase invoice, including its items, within a business."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list(
+        self,
+        business_id: int,
+        *,
+        supplier_id: int | None = None,
+        purchase_order_id: int | None = None,
+        invoice_date_from: date | None = None,
+        invoice_date_to: date | None = None,
+    ) -> list[PurchaseInvoice]:
+        """Return purchase invoices belonging to a business."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def exists_by_number(
+        self,
+        business_id: int,
+        supplier_id: int,
+        invoice_number: str,
+        *,
+        exclude_id: int | None = None,
+    ) -> bool:
+        """Check whether an invoice number exists for a supplier in a business."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def save(
+        self,
+        purchase_invoice: PurchaseInvoice,
+    ) -> PurchaseInvoice:
+        """Create or update a purchase invoice together with its items."""
+        raise NotImplementedError
