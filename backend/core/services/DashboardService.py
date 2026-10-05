@@ -123,6 +123,7 @@ class DashboardService:
                 order__business=business,
                 order__status=Order.Status.COMPLETED,
                 order__payment_status=Order.PaymentStatus.PAID,
+                menu_item__isnull=False,
             )
             .values(
                 "menu_item",

@@ -94,7 +94,9 @@ export const OrderFormMapper = {
             tax: 0,
 
             orderItems:
-                data.orderItems.map((item) => ({
+            data.orderItems
+                .filter((item) => item.menuItemId !== null)
+                .map((item) => ({
                     menuItemId:
                     item.menuItemId,
 

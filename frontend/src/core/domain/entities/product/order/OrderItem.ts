@@ -2,7 +2,7 @@
 export interface OrderItem {
     id?: number;
     orderId: number;
-    menuItemId: number;
+    menuItemId: number | null;
     menuItemName?: string;        // نام آیتم منو (برای نمایش/ گزارش)
     quantity: number;
     unitPrice?: number;           // قیمت واحد در زمان سفارش (قفل شود)

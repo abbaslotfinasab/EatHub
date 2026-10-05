@@ -10,6 +10,13 @@ import type {OrderWithItems} from "../../domain/entities/product/order/OrderWith
 import type {Order} from "../../domain/entities/product/order/Order";
 import type {OrderItem} from "../../domain/entities/product/order/OrderItem.ts";
 
+function requireMenuItemId(menuItemId: number | null): number {
+    if (menuItemId === null) {
+        throw new Error("آیتم تاریخی باید با یک آیتم فعلی جایگزین شود");
+    }
+
+    return menuItemId;
+}
 
 export const orderMapper = {
     // =====================================================
@@ -77,7 +84,7 @@ export const orderMapper = {
 
     toCreateOrderItemDTO(item: OrderItem): CreateOrderItemDTO {
         return {
-            menu_item_id: item.menuItemId,
+            menu_item_id: requireMenuItemId(item.menuItemId),
             quantity: item.quantity,
             notes: item.notes,
         };
@@ -100,7 +107,7 @@ export const orderMapper = {
     toUpdateOrderItemDTO(item: OrderItem): UpdateOrderItemDTO {
         return {
             id: item.id,
-            menu_item_id: item.menuItemId,
+            menu_item_id: requireMenuItemId(item.menuItemId),
             quantity: item.quantity,
             notes: item.notes,
         };

@@ -20,7 +20,7 @@ class OrderItemSerializer(serializers.Serializer):
 
     order_id = serializers.IntegerField(read_only=True)
 
-    menu_item_id = serializers.IntegerField()
+    menu_item_id = serializers.IntegerField(allow_null=True)
     menu_item_name = serializers.CharField()
 
     quantity = serializers.IntegerField()

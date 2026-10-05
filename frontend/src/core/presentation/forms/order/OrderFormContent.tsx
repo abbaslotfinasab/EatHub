@@ -1,6 +1,7 @@
 // presentation/forms/order/OrderFormContent.tsx
 
 import {Stack} from "@mui/material";
+import type {OrderItem} from "../../../domain/entities/product/order/OrderItem.ts";
 
 
 import {OrderHeader} from "../../components/order/OrderHeader";
@@ -13,11 +14,15 @@ interface OrderFormContentProps {
     mode: "create" | "edit";
     loading?: boolean;
     onCancel?: () => void;
+    historicalItems?: OrderItem[];
+    onRemoveHistorical?: (item: OrderItem) => void;
 }
 
 export const OrderFormContent = ({
                                      mode,
                                      onCancel,
+                                     historicalItems,
+                                     onRemoveHistorical,
                                  }: OrderFormContentProps) => {
 
     return (
@@ -34,7 +39,10 @@ export const OrderFormContent = ({
 
             <OrderMenuPicker/>
 
-            <SelectedOrderItems/>
+            <SelectedOrderItems
+                historicalItems={historicalItems}
+                onRemoveHistorical={onRemoveHistorical}
+            />
 
             <OrderSummaryCard
                 mode={mode}

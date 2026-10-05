@@ -3,7 +3,7 @@ export interface OrderItemDTO {
 
     order_id: number;
 
-    menu_item_id: number;
+    menu_item_id: number | null;
 
     menu_item_name: string;
 

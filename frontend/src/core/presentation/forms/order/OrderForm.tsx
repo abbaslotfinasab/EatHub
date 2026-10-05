@@ -8,7 +8,8 @@ import {useForm} from "react-hook-form";
 import {FormProvider} from "react-hook-form";
 import {zodResolver} from "@hookform/resolvers/zod";
 import {OrderFormMapper} from "./OrderFormMapper.tsx";
-import {useEffect} from "react";
+import {useEffect, useState} from "react";
+import type {OrderItem} from "../../../domain/entities/product/order/OrderItem";
 
 interface OrderFormProps {
     mode: "create" | "edit";
@@ -44,17 +45,45 @@ export const OrderForm = ({
         },
     });
 
+    const [removedHistoricalKeys, setRemovedHistoricalKeys] = useState<Set<string>>(
+        new Set(),
+    );
+
+    const historicalItems = (order?.orderItems ?? []).filter((item) => {
+        const key = `${item.id ?? "unknown"}-${item.orderId}`;
+        return item.menuItemId === null && !removedHistoricalKeys.has(key);
+    });
+
     useEffect(() => {
         if (order) {
             methods.reset(OrderFormMapper.toForm(order));
         }
     }, [order, methods]);
 
+    const handleRemoveHistorical = (item: OrderItem) => {
+        const key = `${item.id ?? "unknown"}-${item.orderId}`;
+        setRemovedHistoricalKeys((current) => {
+            const next = new Set(current);
+            next.add(key);
+            return next;
+        });
+        methods.clearErrors("root");
+    };
+
     return (
         <FormProvider {...methods}>
             <form
                 onSubmit={methods.handleSubmit(
                     (data) => {
+                        if (historicalItems.length > 0) {
+                            methods.setError("root", {
+                                type: "manual",
+                                message:
+                                    "آیتم‌های تاریخی را با آیتم‌های فعلی جایگزین کنید.",
+                            });
+                            return;
+                        }
+
                         onSubmit(data);
                     },
                     (errors) => {
@@ -66,6 +95,8 @@ export const OrderForm = ({
                     loading={loading}
                     mode={mode}
                     onCancel={onCancel}
+                    historicalItems={historicalItems}
+                    onRemoveHistorical={handleRemoveHistorical}
                 />
             </form>
         </FormProvider>

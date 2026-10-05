@@ -1,9 +1,12 @@
+from decimal import Decimal
+
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Role, User
-from products.models import Customer, Order
+from products.models import Customer, Menu, MenuItem, Order, OrderItem
+from products.services.menu_service import MenuService
 
 
 class OrderListPaginationTests(APITestCase):
@@ -145,5 +148,125 @@ class OrderListPaginationTests(APITestCase):
             response.data["results"][0]["business"]["id"],
             self.business.id,
         )
+
+
+class HistoricalOrderItemTests(APITestCase):
+    def setUp(self) -> None:
+        self.user = User.objects.create_user(
+            email="historical-order@example.com",
+            password="password",
+            name="Historical Order User",
+            number="7003",
+        )
+        self.business = Business.objects.create(name="Historical Orders Business")
+        role = Role.objects.create(
+            business=self.business,
+            name="Owner",
+            code="OWNER",
+        )
+        Membership.objects.create(
+            user=self.user,
+            business=self.business,
+            role=role,
+            is_active=True,
+        )
+        self.client.force_authenticate(self.user)
+
+    def create_historical_order(self):
+        menu = Menu.objects.create(
+            business=self.business,
+            name="Historical Menu",
+            category="Main",
+        )
+        menu_item = MenuItem.objects.create(
+            business=self.business,
+            menu=menu,
+            name="Original Item",
+            price="12.50",
+        )
+        order = Order.objects.create(
+            business=self.business,
+            order_type=Order.OrderType.DINE_IN,
+            status=Order.Status.PENDING,
+            payment_method=Order.PaymentMethod.CASH,
+            payment_status=Order.PaymentStatus.PENDING,
+            subtotal="25.00",
+            total_amount="25.00",
+        )
+        order_item = OrderItem.objects.create(
+            order=order,
+            menu_item=menu_item,
+            menu_item_name="Original Item",
+            quantity=2,
+            unit_price="12.50",
+            total_price="25.00",
+            notes="Historical note",
+        )
+        return menu, menu_item, order, order_item
+
+    def test_deleting_menu_item_preserves_snapshot_and_api_serialization(self):
+        _, menu_item, order, order_item = self.create_historical_order()
+        original_subtotal = Decimal("25.00")
+        original_total = Decimal("25.00")
+
+        menu_item.delete()
+
+        order_item.refresh_from_db()
+        order.refresh_from_db()
+        self.assertIsNone(order_item.menu_item_id)
+        self.assertEqual(order_item.menu_item_name, "Original Item")
+        self.assertEqual(order_item.quantity, 2)
+        self.assertEqual(order_item.unit_price, Decimal("12.50"))
+        self.assertEqual(order_item.total_price, Decimal("25.00"))
+        self.assertEqual(order.subtotal, original_subtotal)
+        self.assertEqual(order.total_amount, original_total)
+
+        detail_response = self.client.get(
+            f"/api/products/orders/{order.id}/",
+        )
+        list_response = self.client.get("/api/products/orders/list/")
+
+        for response in (detail_response, list_response):
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            payload = response.data
+            if "results" in payload:
+                payload = payload["results"][0]
+            item = payload["items"][0]
+            self.assertIsNone(item["menu_item_id"])
+            self.assertEqual(item["menu_item_name"], "Original Item")
+            self.assertEqual(item["quantity"], 2)
+            self.assertEqual(item["unit_price"], "12.50")
+            self.assertEqual(item["total_price"], "25.00")
+
+    def test_deleting_menu_preserves_historical_order_items(self):
+        menu, _, order, order_item = self.create_historical_order()
+        original_subtotal = Decimal("25.00")
+        original_total = Decimal("25.00")
+
+        menu.delete()
+
+        order_item.refresh_from_db()
+        order.refresh_from_db()
+        self.assertIsNone(order_item.menu_item_id)
+        self.assertEqual(order_item.menu_item_name, "Original Item")
+        self.assertEqual(order.subtotal, original_subtotal)
+        self.assertEqual(order.total_amount, original_total)
+
+    def test_menu_update_removing_item_preserves_historical_order_item(self):
+        menu, _, order, order_item = self.create_historical_order()
+        original_subtotal = Decimal("25.00")
+        original_total = Decimal("25.00")
+
+        MenuService.update_menu(
+            menu,
+            {"items": []},
+        )
+
+        order_item.refresh_from_db()
+        order.refresh_from_db()
+        self.assertIsNone(order_item.menu_item_id)
+        self.assertEqual(order_item.menu_item_name, "Original Item")
+        self.assertEqual(order.subtotal, original_subtotal)
+        self.assertEqual(order.total_amount, original_total)
 
 # Create your tests here.
