@@ -76,6 +76,16 @@ export const OrderFormMapper = {
         data: OrderWithItems,
     ): OrderFormInput {
 
+        const invalidItem = data.orderItems.find(
+            (item) => item.menuItemId == null,
+        );
+
+        if (invalidItem) {
+            throw new Error(
+                "Historical order items must be replaced or removed before saving.",
+            );
+        }
+
         return {
 
             customerId:
@@ -95,17 +105,19 @@ export const OrderFormMapper = {
 
             orderItems:
             data.orderItems
-                .filter((item) => item.menuItemId !== null)
-                .map((item) => ({
-                    menuItemId:
-                    item.menuItemId,
+                .map((item) => {
+                    if (item.menuItemId == null) {
+                        throw new Error(
+                            "Historical order items must be replaced or removed before saving.",
+                        );
+                    }
 
-                    quantity:
-                    item.quantity,
-
-                    notes:
-                        item.notes ?? null,
-                })),
+                    return {
+                        menuItemId: item.menuItemId,
+                        quantity: item.quantity,
+                        notes: item.notes ?? null,
+                    };
+                }),
         };
     },
 

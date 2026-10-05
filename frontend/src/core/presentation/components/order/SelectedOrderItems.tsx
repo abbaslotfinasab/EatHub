@@ -23,9 +23,9 @@ interface SelectedOrderItemsProps {
 }
 
 export const SelectedOrderItems = ({
-    historicalItems = [],
-    onRemoveHistorical,
-}: SelectedOrderItemsProps) => {
+                                       historicalItems = [],
+                                       onRemoveHistorical,
+                                   }: SelectedOrderItemsProps) => {
 
     const {
         data: menus = [],
@@ -142,18 +142,23 @@ export const SelectedOrderItems = ({
                 >
                     <Stack spacing={1}>
                         <Stack
-                            direction="row"
-                            justifyContent="space-between"
-                            alignItems="center"
-                            gap={2}
+                            sx={{
+                                flexDirection: "row",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: 2,
+                            }}
                         >
-                            <Typography fontWeight={700}>
+                            <Typography sx={{fontWeight: 700}}>
                                 {item.menuItemName ?? "آیتم تاریخی"}
                             </Typography>
+
                             <Typography
                                 variant="caption"
-                                color="warning.dark"
-                                fontWeight={700}
+                                sx={{
+                                    color: "warning.dark",
+                                    fontWeight: 700,
+                                }}
                             >
                                 آیتم تاریخی
                             </Typography>
