@@ -152,55 +152,70 @@ class Stock(BaseModel):
 class StockTransaction(BaseModel):
 
     class Type(models.TextChoices):
-        PURCHASE = "purchase", "Purchase"
-        PRODUCTION_IN = "production_in", "Production In"
-        PRODUCTION_OUT = "production_out", "Production Out"
-        SALE = "sale", "Sale"
-        WASTE = "waste", "Waste"
-        ADJUSTMENT = "adjustment", "Adjustment"
-        TRANSFER_IN = "transfer_in", "Transfer In"
-        TRANSFER_OUT = "transfer_out", "Transfer Out"
+
+        OPENING = "opening"
+
+        PURCHASE_RECEIVE = "purchase_receive"
+
+        PRODUCTION_IN = "production_in"
+
+        PRODUCTION_OUT = "production_out"
+
+        SALE = "sale"
+
+        WASTE = "waste"
+
+        ADJUSTMENT = "adjustment"
+
+        TRANSFER_IN = "transfer_in"
+
+        TRANSFER_OUT = "transfer_out"
+
 
     stock = models.ForeignKey(
         Stock,
         on_delete=models.PROTECT,
-        related_name="transactions",
+        related_name="transactions"
     )
+
 
     quantity = models.DecimalField(
         max_digits=12,
-        decimal_places=3,
+        decimal_places=3
     )
 
-    type = models.CharField(
-        max_length=30,
-        choices=Type.choices,
-    )
 
     unit_cost = models.DecimalField(
-        max_digits=12,
+        max_digits=14,
         decimal_places=2,
-        default=0,
+        default=0
     )
+
+
+    type = models.CharField(
+        max_length=40,
+        choices=Type.choices
+    )
+
+
+    balance_after = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        null=True
+    )
+
 
     reference_type = models.CharField(
         max_length=50,
-        blank=True,
-        null=True,
+        blank=True
     )
+
 
     reference_id = models.PositiveIntegerField(
-        blank=True,
         null=True,
+        blank=True
     )
 
-    description = models.TextField(
-        blank=True,
-        null=True,
-    )
-
-    class Meta:
-        ordering = ["-created_at"]
 
 
 class Recipe(BaseModel):
@@ -331,130 +346,3 @@ class RecipeOutput(BaseModel):
                 name="unique_primary_output_per_recipe",
             ),
         ]
-
-class PurchaseOrder(BaseModel):
-
-    class Status(models.TextChoices):
-        DRAFT = "draft", "Draft"
-        ORDERED = "ordered", "Ordered"
-        PARTIALLY_RECEIVED = "partially_received", "Partially Received"
-        RECEIVED = "received", "Received"
-        CANCELLED = "cancelled", "Cancelled"
-
-    class Type(models.TextChoices):
-        PURCHASE = "purchase", "Purchase"
-        SALES = "sales", "Sales"
-
-    business = models.ForeignKey(
-        Business,
-        on_delete=models.CASCADE,
-        related_name="purchase_orders",
-    )
-
-    supplier_id = models.CharField(
-        max_length=64,
-        null=True,
-        blank=True,
-    )
-
-    supplier_name = models.CharField(
-        max_length=150,
-    )
-
-    supplier_number = models.CharField(
-        max_length=30,
-        blank=True,
-        default="",
-    )
-
-    type = models.CharField(
-        max_length=20,
-        choices=Type.choices,
-        default=Type.PURCHASE,
-    )
-
-    status = models.CharField(
-        max_length=30,
-        choices=Status.choices,
-        default=Status.DRAFT,
-    )
-
-    subtotal = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-    )
-
-    discount = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-    )
-
-    tax = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-    )
-
-    total_amount = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-    )
-
-    invoice_number = models.CharField(
-        max_length=100,
-        null=True,
-        blank=True,
-    )
-
-    notes = models.TextField(
-        null=True,
-        blank=True,
-    )
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"PO-{self.id}"
-
-
-class PurchaseOrderItem(BaseModel):
-
-    purchase_order = models.ForeignKey(
-        PurchaseOrder,
-        on_delete=models.CASCADE,
-        related_name="items",
-    )
-
-    item_type = models.CharField(
-        choices=[
-            ("ingredient", "Ingredient"),
-            ("menu_item", "Menu Item"),
-        ]
-    )
-
-    item_id = models.PositiveIntegerField()
-
-    quantity = models.DecimalField(
-        max_digits=12,
-        decimal_places=3,
-    )
-
-    unit_price = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-    )
-
-    total_price = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-    )
-
-    class Meta:
-        ordering = ["id"]
-
-    def __str__(self):
-        return f"{self.ingredient} ({self.quantity})"
