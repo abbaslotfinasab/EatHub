@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date
 
 from django.db import transaction
