@@ -21,6 +21,10 @@ from purchase.presentation.api.views.goods_receipt import (
     GoodsReceiptDetailAPIView,
     GoodsReceiptListCreateAPIView,
 )
+from purchase.presentation.api.views.supplier_payment import (
+    SupplierPaymentDetailAPIView,
+    SupplierPaymentListCreateAPIView,
+)
 
 app_name = "purchase"
 
@@ -89,5 +93,15 @@ urlpatterns = [
         "suppliers/<int:pk>/",
         SupplierDetailAPIView.as_view(),
         name="supplier-detail",
+    ),
+    path(
+        "supplier-payments/",
+        SupplierPaymentListCreateAPIView.as_view(),
+        name="supplier-payment-list-create",
+    ),
+    path(
+        "supplier-payments/<int:pk>/",
+        SupplierPaymentDetailAPIView.as_view(),
+        name="supplier-payment-detail",
     ),
 ]

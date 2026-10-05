@@ -11,6 +11,8 @@ from purchase.domain.entities.goods_receipt import (
     GoodsReceipt,
     GoodsReceiptItem,
 )
+from purchase.domain.entities.supplier_payment import SupplierPayment
+from purchase.domain.enums.payment_method import PaymentMethod
 from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.domain.enums.purchase_order_status import PurchaseOrderStatus
 from purchase.models import (
@@ -19,9 +21,39 @@ from purchase.models import (
     PurchaseOrder as DjangoPurchaseOrder,
     PurchaseOrderItem as DjangoPurchaseOrderItem,
     Supplier as DjangoSupplier,
+    SupplierPayment as DjangoSupplierPayment,
     GoodsReceipt as DjangoGoodsReceipt,
     GoodsReceiptItem as DjangoGoodsReceiptItem,
 )
+
+
+class SupplierPaymentMapper:
+    @staticmethod
+    def to_domain(model: DjangoSupplierPayment) -> SupplierPayment:
+        return SupplierPayment(
+            id=model.id,
+            business_id=model.business_id,
+            supplier_id=model.supplier_id,
+            amount=model.amount,
+            payment_date=model.payment_date,
+            method=PaymentMethod(model.method),
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+        )
+
+    @staticmethod
+    def to_model(
+        entity: SupplierPayment,
+        model: DjangoSupplierPayment | None = None,
+    ) -> DjangoSupplierPayment:
+        if model is None:
+            model = DjangoSupplierPayment()
+        model.business_id = entity.business_id
+        model.supplier_id = entity.supplier_id
+        model.amount = entity.amount
+        model.payment_date = entity.payment_date
+        model.method = entity.method.value
+        return model
 
 
 class SupplierMapper:

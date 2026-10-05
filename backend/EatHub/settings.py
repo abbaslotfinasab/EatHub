@@ -63,7 +63,8 @@ INSTALLED_APPS = [
     'core',
     'products',
     'accounts.apps.AccountsConfig',
-    'inventory'
+    'inventory',
+    'purchase'
 
 ]
 
