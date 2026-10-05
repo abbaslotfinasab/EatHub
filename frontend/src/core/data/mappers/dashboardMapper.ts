@@ -18,7 +18,14 @@ export const dashboardMapper = {
         return {
             stats: dashboardMapper.toStats(dto.stats),
             salesChart: dto.sales_chart.map(dashboardMapper.toSalesChartItem),
-            recentOrders: dto.recent_orders.map(orderMapper.toDomain),
+            recentOrders: {
+                count: dto.recent_orders.count,
+                next: dto.recent_orders.next,
+                previous: dto.recent_orders.previous,
+                results: dto.recent_orders.results.map(
+                    orderMapper.toDomain,
+                ),
+            },
             topProducts: dto.top_products.map(dashboardMapper.toTopProduct),
             activities:
                 activityMapper.toDomainList(

@@ -2,6 +2,7 @@ import type {DashboardRepository} from "../../domain/repositories/core/Dashboard
 import type {Dashboard} from "../../domain/entities/core/dashboard/Dashboard.ts";
 import type {DashboardRemoteDataSource} from "../datasources/DashboardRemoteDataSource.ts";
 import { dashboardMapper } from "../mappers/dashboardMapper.ts";
+import type {DashboardFilters} from "../../domain/objects/filters/DashboardFilters.ts";
 
 export class DashboardRepositoryImpl implements DashboardRepository {
 
@@ -10,8 +11,8 @@ export class DashboardRepositoryImpl implements DashboardRepository {
     ) {
     }
 
-    async getDashboard(): Promise<Dashboard> {
-        const dto = await this.remoteDataSource.getDashboard();
+    async getDashboard(filters?: DashboardFilters): Promise<Dashboard> {
+        const dto = await this.remoteDataSource.getDashboard(filters);
 
         return dashboardMapper.toDomain(dto);
     }

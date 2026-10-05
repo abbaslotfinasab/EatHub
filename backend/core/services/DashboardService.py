@@ -105,7 +105,7 @@ class DashboardService:
 
             )
             .select_related("customer")
-            .order_by("-created_at")
+            .order_by("-created_at", "-id")
         )
 
         return orders

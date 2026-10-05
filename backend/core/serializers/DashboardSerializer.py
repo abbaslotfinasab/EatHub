@@ -51,12 +51,26 @@ class DashboardActivitySerializer(serializers.Serializer):
     created_at = serializers.DateTimeField()
 
 
+class DashboardRecentOrdersSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+
+    next = serializers.CharField(
+        allow_null=True,
+    )
+
+    previous = serializers.CharField(
+        allow_null=True,
+    )
+
+    results = OrderSerializer(many=True)
+
+
 class DashboardSerializer(serializers.Serializer):
     stats = DashboardStatsSerializer()
 
     sales_chart = serializers.ListField()
 
-    recent_orders = OrderSerializer(many=True)
+    recent_orders = DashboardRecentOrdersSerializer()
 
     inventory_alerts = serializers.ListField()
 
