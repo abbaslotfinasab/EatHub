@@ -1,9 +1,10 @@
 // presentation/components/order/OrderMenuPicker/OrderMenuPicker.tsx
 
-import {useMemo, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 
 import {
     Box,
+    Button,
     CircularProgress,
     Paper,
     Stack,
@@ -36,10 +37,10 @@ export const OrderMenuPicker = () => {
     const filteredMenus = useMemo(() => {
 
         const keyword =
-            search
-                .trim()
-                .toLowerCase();
+            search.trim().toLowerCase();
 
+        // No search keyword:
+        // return all menus as-is.
         if (!keyword) {
             return menus;
         }
@@ -50,16 +51,16 @@ export const OrderMenuPicker = () => {
 
                 items: menu.items.filter(item => {
 
+                    const name =
+                        item.name?.toLowerCase() ?? "";
+
+                    const description =
+                        item.description?.toLowerCase() ?? "";
+
                     return (
-                        item.name
-                            .toLowerCase()
-                            .includes(keyword) ||
-
-                        item.description
-                            ?.toLowerCase()
-                            .includes(keyword)
+                        name.includes(keyword) ||
+                        description.includes(keyword)
                     );
-
                 }),
             }))
             .filter(menu =>
@@ -77,17 +78,14 @@ export const OrderMenuPicker = () => {
 
     const selectedMenu = useMemo(() => {
 
-        if (
-            filteredMenus.length === 0
-        ) {
+        if (filteredMenus.length === 0) {
             return undefined;
         }
 
         return (
             filteredMenus.find(
                 menu =>
-                    menu.menu.id ===
-                    selectedMenuId,
+                    menu.menu.id === selectedMenuId,
             ) ??
             filteredMenus[0]
         );
@@ -98,13 +96,47 @@ export const OrderMenuPicker = () => {
     ]);
 
     // ===========================
+    // Keep Selected Menu Valid
+    // ===========================
+
+    useEffect(() => {
+
+        if (filteredMenus.length === 0) {
+            return;
+        }
+
+        const selectedMenuExists =
+            filteredMenus.some(
+                menu =>
+                    menu.menu.id === selectedMenuId,
+            );
+
+        if (!selectedMenuExists) {
+            setSelectedMenuId(
+                filteredMenus[0].menu.id,
+            );
+        }
+
+    }, [
+        filteredMenus,
+        selectedMenuId,
+    ]);
+
+    // ===========================
+    // Clear Search
+    // ===========================
+
+    const handleClearSearch = () => {
+        setSearch("");
+    };
+
+    // ===========================
     // Loading
     // ===========================
 
     if (isLoading) {
 
         return (
-
             <Paper
                 elevation={0}
                 sx={{
@@ -114,70 +146,15 @@ export const OrderMenuPicker = () => {
                     borderColor: "divider",
                 }}
             >
-
                 <Box
                     sx={{
                         display: "flex",
                         justifyContent: "center",
                     }}
                 >
-
-                    <CircularProgress/>
-
+                    <CircularProgress />
                 </Box>
-
             </Paper>
-
-        );
-
-    }
-
-    // ===========================
-    // Empty
-    // ===========================
-
-    if (
-        filteredMenus.length === 0
-    ) {
-
-        return (
-
-            <Paper
-                elevation={0}
-                sx={{
-                    p: 4,
-                    borderRadius: 3,
-                    border: "1px solid",
-                    borderColor: "divider",
-                }}
-            >
-
-                <Stack
-                    sx={{
-                        gap: 1,
-                        alignItems: "center",
-                    }}
-                >
-
-                    <Typography
-                        variant="h6"
-                        sx={{
-                            fontWeight: 700,
-                        }}
-                    >
-                        غذایی پیدا نشد
-                    </Typography>
-
-                    <Typography
-                        color="text.secondary"
-                    >
-                        عبارت جستجو را تغییر دهید.
-                    </Typography>
-
-                </Stack>
-
-            </Paper>
-
         );
 
     }
@@ -187,7 +164,6 @@ export const OrderMenuPicker = () => {
     // ===========================
 
     return (
-
         <Paper
             elevation={0}
             sx={{
@@ -197,8 +173,9 @@ export const OrderMenuPicker = () => {
                 borderColor: "divider",
             }}
         >
-
             <Stack spacing={3}>
+
+                {/* Header */}
 
                 <Typography
                     variant="h6"
@@ -209,33 +186,78 @@ export const OrderMenuPicker = () => {
                     انتخاب غذا
                 </Typography>
 
+                {/* Search */}
+
                 <MenuSearch
                     value={search}
                     onChange={setSearch}
                 />
 
-                <MenuCategoryTabs
-                    menus={filteredMenus}
-                    selectedMenuId={
-                        selectedMenu?.menu.id
-                    }
-                    onChange={
-                        setSelectedMenuId
-                    }
-                />
+                {/* Empty Search Result */}
 
-                {selectedMenu && (
+                {filteredMenus.length === 0 ? (
 
-                    <MenuItemsList
-                        menu={selectedMenu}
-                    />
+                    <Stack
+                        sx={{
+                            py: 5,
+                            gap: 1.5,
+                            alignItems: "center",
+                            textAlign: "center",
+                        }}
+                    >
+                        <Typography
+                            variant="h6"
+                            sx={{
+                                fontWeight: 700,
+                            }}
+                        >
+                            غذایی پیدا نشد
+                        </Typography>
+
+                        <Typography
+                            color="text.secondary"
+                        >
+                            برای عبارت «{search}» غذایی پیدا نشد.
+                        </Typography>
+
+                        <Button
+                            variant="outlined"
+                            onClick={handleClearSearch}
+                            sx={{
+                                mt: 1,
+                            }}
+                        >
+                            پاک کردن جستجو
+                        </Button>
+                    </Stack>
+
+                ) : (
+
+                    <>
+                        {/* Menu Categories */}
+
+                        <MenuCategoryTabs
+                            menus={filteredMenus}
+                            selectedMenuId={
+                                selectedMenu?.menu.id
+                            }
+                            onChange={
+                                setSelectedMenuId
+                            }
+                        />
+
+                        {/* Menu Items */}
+
+                        {selectedMenu && (
+                            <MenuItemsList
+                                menu={selectedMenu}
+                            />
+                        )}
+                    </>
 
                 )}
 
             </Stack>
-
         </Paper>
-
     );
-
 };
