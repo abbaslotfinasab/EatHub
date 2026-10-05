@@ -3,8 +3,14 @@ import {useEffect, useMemo, useState} from "react";
 import {
     Container,
     Fab,
+    FormControl,
+    InputLabel,
+    MenuItem,
+    Pagination,
+    Paper,
+    Select,
+    type SelectChangeEvent,
     Stack,
-    TablePagination,
 } from "@mui/material";
 
 import AddIcon from "@mui/icons-material/Add";
@@ -213,14 +219,15 @@ export const OrdersPage = () => {
     };
 
     const handlePageChange = (
-        _event: React.MouseEvent<HTMLButtonElement> | null,
-        nextPage: number,
+        _event: React.ChangeEvent<unknown>,
+        newPage: number,
     ) => {
+        const nextPage = newPage - 1;
         setPage(Math.min(Math.max(nextPage, 0), lastPage));
     };
 
     const handleRowsPerPageChange = (
-        event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+        event: SelectChangeEvent<number>,
     ) => {
         setRowsPerPage(Number(event.target.value));
         setPage(0);
@@ -421,15 +428,74 @@ export const OrdersPage = () => {
 
                             />
 
-                            <TablePagination
-                                component="div"
-                                count={totalOrderCount}
-                                page={safePage}
-                                onPageChange={handlePageChange}
-                                rowsPerPage={rowsPerPage}
-                                onRowsPerPageChange={handleRowsPerPageChange}
-                                rowsPerPageOptions={[10, 20, 50, 100]}
-                            />
+                            <Paper
+                                variant="outlined"
+                                sx={{
+                                    p: {xs: 1.5, sm: 2},
+                                    borderRadius: 2,
+                                    direction: "rtl",
+                                }}
+                            >
+                                <Stack
+                                    sx={{
+                                        flexDirection: {
+                                            xs: "column",
+                                            sm: "row",
+                                        },
+                                        gap: 2,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
+                                >
+                                    <Pagination
+                                        count={Math.max(
+                                            1,
+                                            Math.ceil(
+                                                totalOrderCount / rowsPerPage,
+                                            ),
+                                        )}
+                                        page={safePage + 1}
+                                        onChange={handlePageChange}
+                                        shape="rounded"
+                                        color="primary"
+                                        siblingCount={1}
+                                        boundaryCount={1}
+                                        aria-label="صفحه‌بندی سفارشات"
+                                    />
+
+                                    <FormControl
+                                        size="small"
+                                        sx={{minWidth: 150}}
+                                    >
+                                        <InputLabel id="orders-rows-per-page-label">
+                                            تعداد در صفحه
+                                        </InputLabel>
+                                        <Select
+                                            labelId="orders-rows-per-page-label"
+                                            value={rowsPerPage}
+                                            label="تعداد در صفحه"
+                                            onChange={
+                                                handleRowsPerPageChange
+                                            }
+                                            inputProps={{
+                                                "aria-label":
+                                                    "تعداد در صفحه",
+                                            }}
+                                        >
+                                            {[10, 20, 50, 100].map(
+                                                (option) => (
+                                                    <MenuItem
+                                                        key={option}
+                                                        value={option}
+                                                    >
+                                                        {option}
+                                                    </MenuItem>
+                                                ),
+                                            )}
+                                        </Select>
+                                    </FormControl>
+                                </Stack>
+                            </Paper>
                         </>
 
 
@@ -448,7 +514,7 @@ export const OrdersPage = () => {
                     setDialogOpen(false);
                     setSelectedOrderId(null);
                 }}
-               onStatusChange={() => {
+                onStatusChange={() => {
 
 
                     handleMenuClose();
