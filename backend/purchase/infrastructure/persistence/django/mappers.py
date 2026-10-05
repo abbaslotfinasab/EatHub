@@ -26,11 +26,11 @@ from purchase.models import (
     PurchaseOrder as DjangoPurchaseOrder,
     PurchaseOrderItem as DjangoPurchaseOrderItem,
     Supplier as DjangoSupplier,
-    SupplierPayment as DjangoSupplierPayment,
     GoodsReceipt as DjangoGoodsReceipt,
     GoodsReceiptItem as DjangoGoodsReceiptItem,
     PurchaseInvoice as DjangoPurchaseInvoice,
     PurchaseInvoiceItem as DjangoPurchaseInvoiceItem,
+    SupplierPayment as DjangoSupplierPayment,
 )
 
 
@@ -268,6 +268,7 @@ class GoodsReceiptMapper:
             received_quantity=item.received_quantity,
             rejected_quantity=item.rejected_quantity,
         )
+
 
 class PurchaseInvoiceMapper:
     @staticmethod
