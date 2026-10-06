@@ -13,6 +13,7 @@ class PurchaseInvoiceDomainTests(SimpleTestCase):
             "ingredient_id": 1,
             "quantity": Decimal("3.000"),
             "unit_price": Decimal("10.00"),
+            "purchase_order_item_id": 1,
         }
         values.update(kwargs)
         return PurchaseInvoiceItem(**values)
@@ -125,9 +126,44 @@ class PurchaseInvoiceDomainTests(SimpleTestCase):
         with self.assertRaises(ValueError):
             self.item(unit_price=Decimal("-1"))
 
+    def test_purchase_order_item_id_must_be_positive(self):
+        with self.assertRaisesRegex(ValueError, "Purchase order item ID"):
+            self.item(purchase_order_item_id=0)
+
     def test_duplicate_ingredients_are_allowed(self):
-        invoice = self.invoice(items=[self.item(), self.item()])
+        invoice = self.invoice(items=[self.item(), self.item(purchase_order_item_id=2)])
         self.assertEqual(len(invoice.items), 2)
+
+    def test_same_purchase_order_item_cannot_appear_twice(self):
+        with self.assertRaisesRegex(ValueError, "only appear once"):
+            self.invoice(items=[self.item(), self.item(quantity=Decimal("4"))])
+
+    def test_distinct_purchase_order_items_are_allowed(self):
+        invoice = self.invoice(items=[
+            self.item(purchase_order_item_id=1),
+            self.item(ingredient_id=2, purchase_order_item_id=2),
+        ])
+        self.assertEqual([item.purchase_order_item_id for item in invoice.items], [1, 2])
+
+    def test_purchase_order_item_reference_requires_matching_order_and_ingredient(self):
+        invoice = self.invoice()
+        invoice.validate_purchase_order_item_references(
+            purchase_order_id=1,
+            purchase_order_business_id=1,
+            item_ingredient_ids={1: 1},
+        )
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            invoice.validate_purchase_order_item_references(
+                purchase_order_id=1,
+                purchase_order_business_id=1,
+                item_ingredient_ids={1: 2},
+            )
+        with self.assertRaisesRegex(ValueError, "does not belong"):
+            invoice.validate_purchase_order_item_references(
+                purchase_order_id=2,
+                purchase_order_business_id=1,
+                item_ingredient_ids={1: 1},
+            )
 
     def test_new_invoice_defaults_to_draft(self):
         self.assertEqual(self.invoice().status, PurchaseInvoiceStatus.DRAFT)
@@ -154,7 +190,7 @@ class PurchaseInvoiceDomainTests(SimpleTestCase):
         invoice.approve(7, datetime(2026, 9, 10, 12, 0))
 
         with self.assertRaisesRegex(ValueError, "cannot be modified"):
-            invoice.add_item(2, Decimal("1.000"), Decimal("2.00"))
+            invoice.add_item(2, Decimal("1.000"), Decimal("2.00"), 1)
 
     def test_approval_requires_valid_actor_and_timestamp(self):
         invoice = self.invoice()

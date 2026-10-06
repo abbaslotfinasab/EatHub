@@ -2,9 +2,62 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from purchase.domain.enums.purchase_invoice_match_exception import PurchaseInvoiceMatchException
+
+
+MATCH_EXCEPTION_MESSAGES = {
+    PurchaseInvoiceMatchException.RECEIPT_PENDING: "No accepted goods receipt exists for this purchase order item.",
+    PurchaseInvoiceMatchException.INVOICE_OVER_RECEIVED: "Invoice quantity exceeds the accepted quantity remaining after previous invoices.",
+    PurchaseInvoiceMatchException.PRICE_VARIANCE: "Invoice unit price differs from the purchase order unit price.",
+}
+
+
+class PurchaseInvoiceMatchExceptionSerializer(serializers.Serializer):
+    code = serializers.SerializerMethodField()
+    message = serializers.SerializerMethodField()
+
+    def get_code(self, obj):
+        return obj.value
+
+    def get_message(self, obj):
+        return MATCH_EXCEPTION_MESSAGES[obj]
+
+
+class PurchaseInvoiceMatchLineSerializer(serializers.Serializer):
+    invoice_item_id = serializers.IntegerField()
+    purchase_order_item_id = serializers.IntegerField()
+    ordered_quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
+    accepted_received_quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
+    previously_invoiced_quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
+    current_invoice_quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
+    available_quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
+    purchase_order_unit_price = serializers.DecimalField(max_digits=14, decimal_places=2)
+    invoice_unit_price = serializers.DecimalField(max_digits=14, decimal_places=2)
+    price_variance = serializers.DecimalField(max_digits=14, decimal_places=2)
+    exceptions = PurchaseInvoiceMatchExceptionSerializer(many=True)
+
+
+class PurchaseInvoiceMatchResultSerializer(serializers.Serializer):
+    invoice_id = serializers.IntegerField()
+    purchase_order_id = serializers.IntegerField()
+    status = serializers.CharField()
+    exceptions = PurchaseInvoiceMatchExceptionSerializer(many=True)
+    lines = PurchaseInvoiceMatchLineSerializer(many=True)
+
+
+class LastPersistedPurchaseInvoiceMatchSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    matched_at = serializers.DateTimeField(allow_null=True)
+
+
+class PurchaseInvoiceMatchResponseSerializer(serializers.Serializer):
+    current = PurchaseInvoiceMatchResultSerializer()
+    last_persisted = LastPersistedPurchaseInvoiceMatchSerializer()
+
 
 class CreatePurchaseInvoiceItemSerializer(serializers.Serializer):
     ingredient_id = serializers.IntegerField(min_value=1)
+    purchase_order_item_id = serializers.IntegerField(min_value=1)
     quantity = serializers.DecimalField(max_digits=12, decimal_places=3, min_value=Decimal("0.001"))
     unit_price = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal("0"))
     description = serializers.CharField(required=False, allow_blank=True, default="")
@@ -27,6 +80,8 @@ class CreatePurchaseInvoiceSerializer(serializers.Serializer):
             "approved_at",
             "approved_by",
             "approved_by_id",
+            "matching_status",
+            "matched_at",
         }
         supplied = lifecycle_fields.intersection(self.initial_data)
         if supplied:
@@ -43,6 +98,7 @@ class UpdatePurchaseInvoiceSerializer(CreatePurchaseInvoiceSerializer):
 
 class PurchaseInvoiceItemSerializer(serializers.Serializer):
     ingredient_id = serializers.IntegerField()
+    purchase_order_item_id = serializers.IntegerField()
     description = serializers.CharField()
     quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
     unit_price = serializers.DecimalField(max_digits=14, decimal_places=2)
@@ -64,6 +120,8 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
     status = serializers.CharField()
     approved_at = serializers.DateTimeField(allow_null=True)
     approved_by_id = serializers.IntegerField(allow_null=True)
+    matching_status = serializers.CharField()
+    matched_at = serializers.DateTimeField(allow_null=True)
     subtotal = serializers.DecimalField(max_digits=14, decimal_places=2)
     discount_percent = serializers.DecimalField(max_digits=5, decimal_places=2)
     discount_amount = serializers.DecimalField(max_digits=14, decimal_places=2)

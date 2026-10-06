@@ -299,6 +299,19 @@ class PurchaseInvoice(BaseModel):
         default=Status.DRAFT,
     )
 
+    matching_status = models.CharField(
+        max_length=20,
+        default="not_matched",
+        choices=[
+            ("not_matched", "Not matched"),
+            ("pending_receipt", "Pending receipt"),
+            ("matched", "Matched"),
+            ("exception", "Exception"),
+        ],
+    )
+
+    matched_at = models.DateTimeField(null=True, blank=True)
+
     approved_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -366,6 +379,12 @@ class PurchaseInvoiceItem(BaseModel):
 
     ingredient = models.ForeignKey(
         Ingredient,
+        on_delete=models.PROTECT,
+        related_name="purchase_invoice_items",
+    )
+
+    purchase_order_item = models.ForeignKey(
+        PurchaseOrderItem,
         on_delete=models.PROTECT,
         related_name="purchase_invoice_items",
     )

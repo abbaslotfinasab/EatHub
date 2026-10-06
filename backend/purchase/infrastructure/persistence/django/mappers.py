@@ -18,6 +18,7 @@ from purchase.domain.entities.purchase_invoice import (
 from purchase.domain.entities.supplier_payment import SupplierPayment
 from purchase.domain.enums.payment_method import PaymentMethod
 from purchase.domain.enums.purchase_invoice_status import PurchaseInvoiceStatus
+from purchase.domain.enums.purchase_invoice_matching_status import PurchaseInvoiceMatchingStatus
 from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.domain.enums.purchase_order_status import PurchaseOrderStatus
 from purchase.models import (
@@ -281,16 +282,20 @@ class PurchaseInvoiceMapper:
             invoice_date=model.invoice_date,
             purchase_order_id=model.purchase_order_id,
             status=PurchaseInvoiceStatus(model.status),
+            matching_status=PurchaseInvoiceMatchingStatus(model.matching_status),
+            matched_at=model.matched_at,
             discount_percent=model.discount_percent,
             tax_percent=model.tax_percent,
             items=[
                 PurchaseInvoiceItem(
                     ingredient_id=item.ingredient_id,
+                    purchase_order_item_id=item.purchase_order_item_id,
                     quantity=item.quantity,
                     unit_price=item.unit_price,
                     description=item.description,
                     discount_percent=item.discount_percent,
                     tax_percent=item.tax_percent,
+                    id=item.id,
                 )
                 for item in model.items.all()
             ],
@@ -314,6 +319,8 @@ class PurchaseInvoiceMapper:
         model.invoice_number = entity.invoice_number
         model.invoice_date = entity.invoice_date
         model.status = entity.status.value
+        model.matching_status = entity.matching_status.value
+        model.matched_at = entity.matched_at
         model.approved_at = entity.approved_at
         model.approved_by_id = entity.approved_by_id
         model.subtotal = entity.subtotal
@@ -332,6 +339,7 @@ class PurchaseInvoiceMapper:
         return DjangoPurchaseInvoiceItem(
             purchase_invoice=invoice,
             ingredient_id=item.ingredient_id,
+            purchase_order_item_id=item.purchase_order_item_id,
             description=item.description,
             quantity=item.quantity,
             unit_price=item.unit_price,

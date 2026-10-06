@@ -12,6 +12,7 @@ class CreatePurchaseInvoiceUseCase:
             ingredient_id=item.ingredient_id,
             quantity=item.quantity,
             unit_price=item.unit_price,
+            purchase_order_item_id=item.purchase_order_item_id,
             description=item.description,
             discount_percent=item.discount_percent,
             tax_percent=item.tax_percent,

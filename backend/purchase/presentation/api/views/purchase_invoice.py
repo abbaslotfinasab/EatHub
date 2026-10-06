@@ -18,12 +18,15 @@ from purchase.application.use_cases.purchase_invoice.approve_purchase_invoice im
 from purchase.application.use_cases.purchase_invoice.create_purchase_invoice import CreatePurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.get_purchase_invoice import GetPurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.list_purchase_invoices import ListPurchaseInvoicesUseCase
+from purchase.application.use_cases.purchase_invoice.match_purchase_invoice import MatchPurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.update_purchase_invoice import UpdatePurchaseInvoiceUseCase
 from purchase.infrastructure.persistence.transaction import DjangoTransactionManager
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_repository import DjangoPurchaseInvoiceRepository
+from purchase.infrastructure.persistence.django.repositories.purchase_invoice_matching_repository import DjangoPurchaseInvoiceMatchingRepository
 from purchase.presentation.api.serializers.purchase_invoice import (
     CreatePurchaseInvoiceSerializer,
     PurchaseInvoiceSerializer,
+    PurchaseInvoiceMatchResponseSerializer,
     UpdatePurchaseInvoiceSerializer,
 )
 
@@ -34,6 +37,13 @@ def _repository() -> DjangoPurchaseInvoiceRepository:
 
 def _transaction_manager() -> DjangoTransactionManager:
     return DjangoTransactionManager()
+
+
+def _matching_use_case() -> MatchPurchaseInvoiceUseCase:
+    return MatchPurchaseInvoiceUseCase(
+        DjangoPurchaseInvoiceMatchingRepository(),
+        _transaction_manager(),
+    )
 
 
 def _optional_id(value: str | None, name: str) -> int | None:
@@ -159,3 +169,25 @@ class PurchaseInvoiceApproveAPIView(TenantAPIView):
         except ValueError as error:
             _handle(error)
         return Response(PurchaseInvoiceSerializer(result).data)
+
+
+class PurchaseInvoiceMatchAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            result = _matching_use_case().execute(
+                request.business.id, pk, persist=False,
+            )
+        except ValueError as error:
+            _handle(error)
+        return Response(PurchaseInvoiceMatchResponseSerializer(result).data)
+
+    def post(self, request, pk):
+        try:
+            result = _matching_use_case().execute(
+                request.business.id, pk, persist=True,
+            )
+        except ValueError as error:
+            _handle(error)
+        return Response(PurchaseInvoiceMatchResponseSerializer(result).data)

@@ -9,6 +9,7 @@ class CreatePurchaseInvoiceItemDTO:
     ingredient_id: int
     quantity: Decimal
     unit_price: Decimal
+    purchase_order_item_id: int
     description: str = ""
     discount_percent: Decimal = Decimal("0")
     tax_percent: Decimal = Decimal("0")

@@ -52,6 +52,7 @@ class PurchaseInvoiceApprovalUseCaseTests(SimpleTestCase):
                     ingredient_id=4,
                     quantity=Decimal("1.000"),
                     unit_price=Decimal("10.00"),
+                    purchase_order_item_id=20,
                 )
             ],
         )

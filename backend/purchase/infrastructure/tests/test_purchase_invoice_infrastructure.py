@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
+import inspect
 
 from django.test import TestCase
 
@@ -7,7 +8,11 @@ from accounts.models import Business, User
 from inventory.models import Ingredient
 from purchase.domain.entities.purchase_invoice import PurchaseInvoice, PurchaseInvoiceItem
 from purchase.domain.enums.purchase_invoice_status import PurchaseInvoiceStatus
+from purchase.domain.enums.purchase_invoice_match_exception import PurchaseInvoiceMatchException
+from purchase.domain.enums.purchase_invoice_matching_status import PurchaseInvoiceMatchingStatus
+from purchase.domain.services.purchase_invoice_matcher import PurchaseInvoiceMatcher
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_repository import DjangoPurchaseInvoiceRepository
+from purchase.infrastructure.persistence.django.repositories.purchase_invoice_matching_repository import DjangoPurchaseInvoiceMatchingRepository
 from purchase.models import (
     GoodsReceipt,
     GoodsReceiptItem,
@@ -51,17 +56,18 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
             items=[PurchaseInvoiceItem(
                 ingredient_id=ingredient_id or self.ingredient.id,
                 quantity=Decimal(quantity), unit_price=Decimal(unit_price),
+                purchase_order_item_id=self.order_item.id,
             )],
         )
 
-    def receive(self, quantity="80.000"):
+    def receive(self, quantity="80.000", rejected="5.000"):
         receipt = GoodsReceipt.objects.create(
             business=self.business, purchase_order=self.order,
             received_by=self.user, received_date=datetime(2026, 9, 9, 12),
         )
         GoodsReceiptItem.objects.create(
             receipt=receipt, purchase_order_item=self.order_item,
-            received_quantity=Decimal(quantity), rejected_quantity=Decimal("5.000"),
+            received_quantity=Decimal(quantity), rejected_quantity=Decimal(rejected),
         )
 
     def test_pre_receipt_invoice_is_persisted_and_price_variance_allowed(self):
@@ -69,12 +75,16 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         self.assertEqual(saved.items[0].unit_price, Decimal("12.00"))
         self.assertEqual(DjangoPurchaseInvoice.objects.count(), 1)
 
-    def test_cumulative_received_quantity_limits_multiple_invoices(self):
+    def test_over_order_quantity_is_persisted_for_matching(self):
+        saved = self.repository.save(self.invoice(quantity="100.001"))
+        self.assertEqual(saved.items[0].quantity, Decimal("100.001"))
+
+    def test_invoice_quantity_over_receipt_is_persisted_for_matching(self):
         self.receive()
         self.repository.save(self.invoice(number="INV-1", quantity="30.000"))
         self.repository.save(self.invoice(number="INV-2", quantity="50.000"))
-        with self.assertRaisesRegex(ValueError, "accepted received"):
-            self.repository.save(self.invoice(number="INV-3", quantity="1.000"))
+        third = self.repository.save(self.invoice(number="INV-3", quantity="1.000"))
+        self.assertEqual(third.items[0].quantity, Decimal("1.000"))
 
     def test_cross_business_ingredient_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "invoice business"):
@@ -115,3 +125,141 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         approved = self.repository.save(saved)
 
         self.assertEqual(approved.status, PurchaseInvoiceStatus.APPROVED)
+
+    def test_invoice_item_must_reference_item_on_invoice_purchase_order(self):
+        other_order = PurchaseOrder.objects.create(
+            business=self.business, supplier=self.supplier,
+            order_date=date(2026, 9, 2), status=PurchaseOrder.Status.SENT,
+        )
+        other_item = PurchaseOrderItem.objects.create(
+            purchase_order=other_order, ingredient=self.ingredient,
+            quantity=Decimal("5"), unit_price=Decimal("10"),
+        )
+        invoice = self.invoice()
+        invoice.items[0].purchase_order_item_id = other_item.id
+        with self.assertRaisesRegex(ValueError, "does not belong"):
+            self.repository.save(invoice)
+
+    def test_cross_business_po_item_is_rejected(self):
+        other_order = PurchaseOrder.objects.create(
+            business=self.other_business, supplier=self.other_supplier,
+            order_date=date(2026, 9, 2), status=PurchaseOrder.Status.SENT,
+        )
+        other_item = PurchaseOrderItem.objects.create(
+            purchase_order=other_order, ingredient=self.other_ingredient,
+            quantity=Decimal("5"), unit_price=Decimal("10"),
+        )
+        invoice = self.invoice()
+        invoice.items[0].purchase_order_item_id = other_item.id
+        with self.assertRaisesRegex(ValueError, "does not belong"):
+            self.repository.save(invoice)
+
+    def test_po_item_ingredient_mismatch_is_rejected(self):
+        other_ingredient = Ingredient.objects.create(
+            business=self.business, name="Sugar", unit=Ingredient.Unit.KG,
+        )
+        other_po_item = PurchaseOrderItem.objects.create(
+            purchase_order=self.order, ingredient=other_ingredient,
+            quantity=Decimal("5"), unit_price=Decimal("2"),
+        )
+        invoice = self.invoice()
+        invoice.items[0].purchase_order_item_id = other_po_item.id
+        with self.assertRaisesRegex(ValueError, "ingredient does not match"):
+            self.repository.save(invoice)
+
+    def test_duplicate_ingredient_po_items_are_explicitly_referenced(self):
+        second_po_item = PurchaseOrderItem.objects.create(
+            purchase_order=self.order, ingredient=self.ingredient,
+            quantity=Decimal("50"), unit_price=Decimal("12"),
+        )
+        invoice = self.invoice()
+        invoice.items.append(PurchaseInvoiceItem(
+            ingredient_id=self.ingredient.id,
+            purchase_order_item_id=second_po_item.id,
+            quantity=Decimal("4"), unit_price=Decimal("12"),
+        ))
+        saved = self.repository.save(invoice)
+        self.assertEqual(
+            [item.purchase_order_item_id for item in saved.items],
+            [self.order_item.id, second_po_item.id],
+        )
+
+    def test_matching_aggregates_receipts_and_previous_invoices_per_po_item(self):
+        self.receive("70.000")
+        self.receive("5.000")
+        first = self.repository.save(self.invoice(number="INV-1", quantity="20.000", unit_price="10.00"))
+        first.approve(self.user.id, datetime(2026, 9, 10, 12))
+        self.repository.save(first)
+        second = self.repository.save(self.invoice(number="INV-2", quantity="10.000", unit_price="10.00"))
+        second.approve(self.user.id, datetime(2026, 9, 10, 13))
+        self.repository.save(second)
+        current = self.repository.save(self.invoice(number="INV-3", quantity="40.000", unit_price="10.00"))
+        current.approve(self.user.id, datetime(2026, 9, 11, 12))
+        current = self.repository.save(current)
+        context = DjangoPurchaseInvoiceMatchingRepository().load_matching_context(
+            self.business.id, current.id,
+        )
+        self.assertEqual(context.lines[0].accepted_received_quantity, Decimal("75.000"))
+        self.assertEqual(context.lines[0].previously_invoiced_quantity, Decimal("30.000"))
+        self.assertEqual(context.lines[0].ordered_quantity, Decimal("100.000"))
+
+    def test_approved_invoices_consume_quantity_cumulatively_and_current_is_excluded(self):
+        self.receive("100.000", "0.000")
+        repository = DjangoPurchaseInvoiceMatchingRepository()
+        expected_previous = [Decimal("0"), Decimal("40.000"), Decimal("70.000"), Decimal("100.000")]
+        expected_available = [Decimal("100.000"), Decimal("60.000"), Decimal("30.000"), Decimal("0.000")]
+        for index, quantity in enumerate(("40.000", "30.000", "30.000", "1.000"), start=1):
+            invoice = self.repository.save(self.invoice(
+                number=f"SEQ-{index}", quantity=quantity, unit_price="10.00",
+            ))
+            invoice.approve(self.user.id, datetime(2026, 9, 10, 12 + index))
+            invoice = self.repository.save(invoice)
+            context = repository.load_matching_context(self.business.id, invoice.id)
+            line = context.lines[0]
+            result = PurchaseInvoiceMatcher().match(context.invoice, list(context.lines))
+            self.assertEqual(line.previously_invoiced_quantity, expected_previous[index - 1])
+            self.assertEqual(
+                line.accepted_received_quantity - line.previously_invoiced_quantity,
+                expected_available[index - 1],
+            )
+            if index < 4:
+                self.assertEqual(result.status, PurchaseInvoiceMatchingStatus.MATCHED)
+            else:
+                self.assertEqual(result.status, PurchaseInvoiceMatchingStatus.EXCEPTION)
+                self.assertIn(PurchaseInvoiceMatchException.INVOICE_OVER_RECEIVED, result.exceptions)
+
+    def test_multiple_receipts_count_received_quantity_and_exclude_rejected_quantity(self):
+        self.receive("30.000", "0.000")
+        self.receive("20.000", "0.000")
+        self.receive("0.000", "50.000")
+        invoice = self.repository.save(self.invoice(number="GR-AGG", quantity="50.000", unit_price="10.00"))
+        context = DjangoPurchaseInvoiceMatchingRepository().load_matching_context(
+            self.business.id, invoice.id,
+        )
+        self.assertEqual(context.lines[0].accepted_received_quantity, Decimal("50.000"))
+
+    def test_matching_lock_query_targets_only_invoice_row_for_postgresql(self):
+        # Source-structure guard only; SQLite cannot verify PostgreSQL row locking.
+        method_source = inspect.getsource(
+            DjangoPurchaseInvoiceMatchingRepository.lock_invoice_for_matching,
+        )
+        self.assertIn('select_for_update(of=("self",))', method_source)
+        self.assertIn("business_id=business_id", method_source)
+        self.assertNotIn("select_related", method_source)
+        self.assertNotIn('"purchase_order"', method_source)
+
+    def test_matching_context_is_tenant_scoped(self):
+        invoice = self.repository.save(self.invoice())
+        self.assertIsNone(DjangoPurchaseInvoiceMatchingRepository().load_matching_context(
+            self.other_business.id, invoice.id,
+        ))
+
+    def test_matching_context_uses_constant_number_of_queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        invoice = self.repository.save(self.invoice())
+        with CaptureQueriesContext(connection) as queries:
+            DjangoPurchaseInvoiceMatchingRepository().load_matching_context(
+                self.business.id, invoice.id,
+            )
+        self.assertLessEqual(len(queries), 5)
