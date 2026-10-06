@@ -1,6 +1,5 @@
 from datetime import date
 from decimal import Decimal
-import inspect
 
 from django.db import IntegrityError, transaction
 from django.test import TestCase
@@ -113,12 +112,6 @@ class AccountsPayableInfrastructureTests(TestCase):
     def test_source_invoice_relation_is_unique(self):
         self.assertTrue(DjangoAccountsPayable._meta.get_field("source_invoice").unique)
 
-    def test_creation_lock_is_tenant_scoped_and_has_no_join(self):
-        source = inspect.getsource(
-            DjangoAccountsPayableRepository.lock_source_invoice_for_creation,
-        )
-        self.assertIn('select_for_update(of=("self",))', source)
-        self.assertIn("business_id=business_id", source)
-        self.assertNotIn("select_related", source)
-        self.assertNotIn("supplier__", source)
-        self.assertNotIn("purchase_order", source)
+    def test_repository_creation_checks_supplier_and_invoice_business(self):
+        with self.assertRaisesRegex(ValueError, "does not exist in this business"):
+            self.repository.create(self.payable(business_id=self.other_business.id))

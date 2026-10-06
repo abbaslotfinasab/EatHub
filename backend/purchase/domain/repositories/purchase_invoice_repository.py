@@ -16,6 +16,16 @@ class PurchaseInvoiceRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def lock_for_posting(self, business_id: int, purchase_invoice_id: int) -> bool:
+        """Lock only the tenant-scoped invoice row for a posting command."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_posted(self, purchase_invoice: PurchaseInvoice) -> PurchaseInvoice:
+        """Persist the APPROVED -> POSTED lifecycle transition."""
+        raise NotImplementedError
+
+    @abstractmethod
     def list(
         self,
         business_id: int,

@@ -79,6 +79,8 @@ class PurchaseInvoice:
     status: PurchaseInvoiceStatus = PurchaseInvoiceStatus.DRAFT
     approved_at: datetime | None = None
     approved_by_id: int | None = None
+    posted_at: datetime | None = None
+    posted_by_id: int | None = None
     matching_status: PurchaseInvoiceMatchingStatus = PurchaseInvoiceMatchingStatus.NOT_MATCHED
     matched_at: datetime | None = None
 
@@ -187,9 +189,23 @@ class PurchaseInvoice:
         self.approved_at = approved_at
         self.validate()
 
+    def post(self, posted_by_id: int, posted_at: datetime) -> None:
+        if self.status != PurchaseInvoiceStatus.APPROVED:
+            raise ValueError(
+                f"Purchase invoice cannot be posted from status '{self.status}'."
+            )
+        if not isinstance(posted_by_id, int) or posted_by_id <= 0:
+            raise ValueError("Posting actor ID must be a positive integer.")
+        if not isinstance(posted_at, datetime):
+            raise ValueError("Posting timestamp is required.")
+        self.status = PurchaseInvoiceStatus.POSTED
+        self.posted_by_id = posted_by_id
+        self.posted_at = posted_at
+        self.validate()
+
     def ensure_editable(self) -> None:
         if self.status != PurchaseInvoiceStatus.DRAFT:
-            raise ValueError("Approved purchase invoice cannot be modified.")
+            raise ValueError("Only draft purchase invoices can be modified.")
 
     def validate(self) -> None:
         if not self.invoice_number:
@@ -210,11 +226,24 @@ class PurchaseInvoice:
         if self.status == PurchaseInvoiceStatus.DRAFT:
             if self.approved_at is not None or self.approved_by_id is not None:
                 raise ValueError("Draft purchase invoice cannot have approval metadata.")
+            if self.posted_at is not None or self.posted_by_id is not None:
+                raise ValueError("Draft purchase invoice cannot have posting metadata.")
         elif self.status == PurchaseInvoiceStatus.APPROVED:
             if not isinstance(self.approved_by_id, int) or self.approved_by_id <= 0:
                 raise ValueError("Approved purchase invoice requires an approval actor.")
             if not isinstance(self.approved_at, datetime):
                 raise ValueError("Approved purchase invoice requires an approval timestamp.")
+            if self.posted_at is not None or self.posted_by_id is not None:
+                raise ValueError("Approved purchase invoice cannot have posting metadata.")
+        elif self.status == PurchaseInvoiceStatus.POSTED:
+            if not isinstance(self.approved_by_id, int) or self.approved_by_id <= 0:
+                raise ValueError("Posted purchase invoice requires approval metadata.")
+            if not isinstance(self.approved_at, datetime):
+                raise ValueError("Posted purchase invoice requires approval metadata.")
+            if not isinstance(self.posted_by_id, int) or self.posted_by_id <= 0:
+                raise ValueError("Posted purchase invoice requires a posting actor.")
+            if not isinstance(self.posted_at, datetime):
+                raise ValueError("Posted purchase invoice requires a posting timestamp.")
         for item in self.items:
             item.validate()
 

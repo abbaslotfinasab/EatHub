@@ -266,6 +266,7 @@ class PurchaseInvoice(BaseModel):
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
         APPROVED = "approved", "Approved"
+        POSTED = "posted", "Posted"
 
     business = models.ForeignKey(
         Business,
@@ -323,6 +324,16 @@ class PurchaseInvoice(BaseModel):
         blank=True,
         on_delete=models.PROTECT,
         related_name="approved_purchase_invoices",
+    )
+
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    posted_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="posted_purchase_invoices",
     )
 
     subtotal = models.DecimalField(

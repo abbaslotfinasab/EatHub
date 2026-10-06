@@ -80,6 +80,9 @@ class CreatePurchaseInvoiceSerializer(serializers.Serializer):
             "approved_at",
             "approved_by",
             "approved_by_id",
+            "posted_at",
+            "posted_by",
+            "posted_by_id",
             "matching_status",
             "matched_at",
         }
@@ -120,6 +123,8 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
     status = serializers.CharField()
     approved_at = serializers.DateTimeField(allow_null=True)
     approved_by_id = serializers.IntegerField(allow_null=True)
+    posted_at = serializers.DateTimeField(allow_null=True)
+    posted_by_id = serializers.IntegerField(allow_null=True)
     matching_status = serializers.CharField()
     matched_at = serializers.DateTimeField(allow_null=True)
     subtotal = serializers.DecimalField(max_digits=14, decimal_places=2)

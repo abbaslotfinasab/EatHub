@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -12,6 +13,7 @@ from purchase.models import (
     GoodsReceiptItem,
     PurchaseInvoice as DjangoPurchaseInvoice,
     PurchaseInvoiceItem,
+    AccountsPayable,
     PurchaseOrder,
     PurchaseOrderItem,
     Supplier,
@@ -67,6 +69,33 @@ class PurchaseInvoiceAPITests(APITestCase):
                 "tax_percent": "0.00",
             }],
         }
+
+    def approved_invoice(self, number="POST-1", unit_price="10.00"):
+        payload = self.payload()
+        payload["invoice_number"] = number
+        payload["items"][0]["unit_price"] = unit_price
+        created = self.client.post(self.endpoint, payload, format="json")
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        approved = self.client.post(
+            f"{self.endpoint}{created.data['id']}/approve/", {}, format="json",
+        )
+        self.assertEqual(approved.status_code, status.HTTP_200_OK)
+        return DjangoPurchaseInvoice.objects.get(id=created.data["id"])
+
+    def receive(self, quantity="2.000", rejected="0.000"):
+        receipt = GoodsReceipt.objects.create(
+            business=self.business,
+            purchase_order=self.order,
+            received_by=self.user,
+            received_date="2026-09-11T12:00:00Z",
+        )
+        GoodsReceiptItem.objects.create(
+            receipt=receipt,
+            purchase_order_item=self.order_item,
+            received_quantity=Decimal(quantity),
+            rejected_quantity=Decimal(rejected),
+        )
+        return receipt
 
     def test_create_calculates_totals_and_ignores_client_business(self):
         response = self.client.post(self.endpoint, {**self.payload(), "business_id": self.other_business.id}, format="json")
@@ -315,3 +344,154 @@ class PurchaseInvoiceAPITests(APITestCase):
             self.client.get(f"{self.endpoint}{other_invoice.id}/match/").status_code,
             status.HTTP_404_NOT_FOUND,
         )
+
+    def test_post_creates_ap_atomically_and_uses_current_matching(self):
+        invoice = self.approved_invoice("POST-CURRENT")
+        pending = self.client.post(
+            f"{self.endpoint}{invoice.id}/match/", {}, format="json",
+        )
+        self.assertEqual(pending.data["current"]["status"], "pending_receipt")
+        self.assertEqual(pending.data["last_persisted"]["status"], "pending_receipt")
+        # The new receipt makes the current result MATCHED despite the previously
+        # persisted PENDING_RECEIPT result.
+        self.receive()
+        post_url = f"{self.endpoint}{invoice.id}/post/"
+
+        response = self.client.post(post_url, {"due_date": "2026-10-30"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        invoice.refresh_from_db()
+        payable = AccountsPayable.objects.get(source_invoice=invoice)
+        self.assertEqual(invoice.status, DjangoPurchaseInvoice.Status.POSTED)
+        self.assertEqual(invoice.matching_status, "matched")
+        self.assertIsNotNone(invoice.matched_at)
+        self.assertIsNotNone(invoice.posted_at)
+        self.assertEqual(invoice.posted_by_id, self.user.id)
+        self.assertEqual(payable.business_id, invoice.business_id)
+        self.assertEqual(payable.supplier_id, invoice.supplier_id)
+        self.assertEqual(payable.amount, invoice.total_price)
+        self.assertEqual(payable.status, AccountsPayable.Status.OPEN)
+        self.assertEqual(payable.due_date.isoformat(), "2026-10-30")
+        self.assertEqual(response.data["invoice"]["status"], "posted")
+        self.assertEqual(response.data["accounts_payable"]["source_invoice_id"], invoice.id)
+
+    def test_post_rejects_pending_and_exception_current_matching_results(self):
+        pending = self.approved_invoice("POST-PENDING")
+        response = self.client.post(f"{self.endpoint}{pending.id}/post/", {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(AccountsPayable.objects.filter(source_invoice=pending).exists())
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, DjangoPurchaseInvoice.Status.APPROVED)
+
+        exception = self.approved_invoice("POST-EXCEPTION", unit_price="12.00")
+        self.receive(quantity="3.000")
+        response = self.client.post(f"{self.endpoint}{exception.id}/post/", {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(AccountsPayable.objects.filter(source_invoice=exception).exists())
+
+    def test_post_rejects_draft_cross_tenant_and_duplicate_commands(self):
+        draft = self.client.post(self.endpoint, self.payload(), format="json")
+        self.assertEqual(draft.status_code, status.HTTP_201_CREATED)
+        draft_id = draft.data["id"]
+        self.assertEqual(
+            self.client.post(f"{self.endpoint}{draft_id}/post/", {}, format="json").status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        invoice = self.approved_invoice("POST-DUP")
+        self.receive()
+        url = f"{self.endpoint}{invoice.id}/post/"
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(AccountsPayable.objects.filter(source_invoice=invoice).count(), 1)
+
+        other_order = PurchaseOrder.objects.create(
+            business=self.other_business, supplier=self.other_supplier,
+            order_date=date(2026, 9, 10), status=PurchaseOrder.Status.SENT,
+        )
+        foreign = DjangoPurchaseInvoice.objects.create(
+            business=self.other_business,
+            supplier=self.other_supplier,
+            purchase_order=other_order,
+            invoice_number="POST-FOREIGN",
+            invoice_date=date(2026, 9, 10),
+            subtotal=Decimal("10"),
+            total_price=Decimal("10"),
+        )
+        self.assertEqual(
+            self.client.post(f"{self.endpoint}{foreign.id}/post/", {}, format="json").status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_post_rejects_client_controlled_lifecycle_and_financial_fields(self):
+        invoice = self.approved_invoice("POST-PROTECTED")
+        self.receive()
+        protected = {
+            "business_id": self.other_business.id,
+            "status": "posted",
+            "matching_status": "matched",
+            "posted_at": "2026-10-01T00:00:00Z",
+            "posted_by_id": self.user.id,
+            "supplier_id": self.other_supplier.id,
+            "amount": "0.01",
+            "accounts_payable_status": "paid",
+        }
+        for field, value in protected.items():
+            with self.subTest(field=field):
+                response = self.client.post(
+                    f"{self.endpoint}{invoice.id}/post/", {field: value}, format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(AccountsPayable.objects.filter(source_invoice=invoice).exists())
+
+    def test_post_rolls_back_ap_and_match_state_if_invoice_persistence_fails(self):
+        invoice = self.approved_invoice("POST-ROLLBACK")
+        self.receive()
+        with patch(
+            "purchase.infrastructure.persistence.django.repositories.purchase_invoice_repository."
+            "DjangoPurchaseInvoiceRepository.save_posted",
+            side_effect=RuntimeError("forced invoice persistence failure"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "forced invoice persistence failure"):
+                self.client.post(f"{self.endpoint}{invoice.id}/post/", {}, format="json")
+
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, DjangoPurchaseInvoice.Status.APPROVED)
+        self.assertEqual(invoice.matching_status, "not_matched")
+        self.assertIsNone(invoice.matched_at)
+        self.assertFalse(AccountsPayable.objects.filter(source_invoice=invoice).exists())
+
+    def test_post_does_not_post_invoice_if_ap_creation_fails(self):
+        invoice = self.approved_invoice("POST-AP-FAIL")
+        self.receive()
+        with patch(
+            "purchase.infrastructure.persistence.django.repositories.accounts_payable_repository."
+            "DjangoAccountsPayableRepository.create",
+            side_effect=ValueError("forced AP persistence failure"),
+        ):
+            response = self.client.post(f"{self.endpoint}{invoice.id}/post/", {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, DjangoPurchaseInvoice.Status.APPROVED)
+        self.assertEqual(invoice.matching_status, "not_matched")
+        self.assertFalse(AccountsPayable.objects.filter(source_invoice=invoice).exists())
+
+    def test_posted_invoice_is_not_editable_and_post_fields_are_read_only(self):
+        invoice = self.approved_invoice("POST-IMMUTABLE")
+        self.receive()
+        response = self.client.post(f"{self.endpoint}{invoice.id}/post/", {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        updated = self.client.put(
+            f"{self.endpoint}{invoice.id}/",
+            {**self.payload(), "invoice_number": "POST-CHANGED"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_400_BAD_REQUEST)
+
+        rejected = self.client.post(
+            self.endpoint,
+            {**self.payload(), "posted_at": "2026-10-07T00:00:00Z", "posted_by_id": self.user.id},
+            format="json",
+        )
+        self.assertEqual(rejected.status_code, status.HTTP_400_BAD_REQUEST)

@@ -14,20 +14,27 @@ from purchase.application.dto.purchase_invoice import (
     ListPurchaseInvoicesQuery,
     UpdatePurchaseInvoiceDTO,
 )
+from purchase.application.dto.purchase_invoice_posting import PostPurchaseInvoiceDTO
 from purchase.application.use_cases.purchase_invoice.approve_purchase_invoice import ApprovePurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.create_purchase_invoice import CreatePurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.get_purchase_invoice import GetPurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.list_purchase_invoices import ListPurchaseInvoicesUseCase
 from purchase.application.use_cases.purchase_invoice.match_purchase_invoice import MatchPurchaseInvoiceUseCase
+from purchase.application.use_cases.purchase_invoice.post_purchase_invoice import PostPurchaseInvoice
 from purchase.application.use_cases.purchase_invoice.update_purchase_invoice import UpdatePurchaseInvoiceUseCase
 from purchase.infrastructure.persistence.transaction import DjangoTransactionManager
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_repository import DjangoPurchaseInvoiceRepository
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_matching_repository import DjangoPurchaseInvoiceMatchingRepository
+from purchase.infrastructure.persistence.django.repositories.accounts_payable_repository import DjangoAccountsPayableRepository
 from purchase.presentation.api.serializers.purchase_invoice import (
     CreatePurchaseInvoiceSerializer,
     PurchaseInvoiceSerializer,
     PurchaseInvoiceMatchResponseSerializer,
     UpdatePurchaseInvoiceSerializer,
+)
+from purchase.presentation.api.serializers.purchase_invoice_posting import (
+    PostPurchaseInvoiceRequestSerializer,
+    PostPurchaseInvoiceResponseSerializer,
 )
 
 
@@ -43,6 +50,19 @@ def _matching_use_case() -> MatchPurchaseInvoiceUseCase:
     return MatchPurchaseInvoiceUseCase(
         DjangoPurchaseInvoiceMatchingRepository(),
         _transaction_manager(),
+    )
+
+
+def _posting_use_case() -> PostPurchaseInvoice:
+    transaction_manager = _transaction_manager()
+    return PostPurchaseInvoice(
+        _repository(),
+        DjangoAccountsPayableRepository(),
+        MatchPurchaseInvoiceUseCase(
+            DjangoPurchaseInvoiceMatchingRepository(),
+            transaction_manager,
+        ),
+        transaction_manager,
     )
 
 
@@ -191,3 +211,27 @@ class PurchaseInvoiceMatchAPIView(TenantAPIView):
         except ValueError as error:
             _handle(error)
         return Response(PurchaseInvoiceMatchResponseSerializer(result).data)
+
+
+class PurchaseInvoicePostAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        serializer = PostPurchaseInvoiceRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            result = _posting_use_case().execute(
+                PostPurchaseInvoiceDTO(
+                    business_id=request.business.id,
+                    purchase_invoice_id=pk,
+                    posted_by_id=request.user.id,
+                    posted_at=timezone.now(),
+                    due_date=serializer.validated_data["due_date"],
+                )
+            )
+        except ValueError as error:
+            _handle(error)
+        return Response(
+            PostPurchaseInvoiceResponseSerializer(result).data,
+            status=status.HTTP_200_OK,
+        )

@@ -5,10 +5,6 @@ from purchase.domain.entities.accounts_payable import AccountsPayable
 
 class AccountsPayableRepository(ABC):
     @abstractmethod
-    def lock_source_invoice_for_creation(self, business_id: int, source_invoice_id: int) -> bool:
-        raise NotImplementedError
-
-    @abstractmethod
     def create(self, accounts_payable: AccountsPayable) -> AccountsPayable:
         raise NotImplementedError
 

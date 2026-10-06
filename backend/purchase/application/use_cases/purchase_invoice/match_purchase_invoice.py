@@ -34,8 +34,11 @@ class MatchPurchaseInvoiceUseCase:
             context = self._repository.load_matching_context(business_id, invoice_id)
             if context is None:
                 raise ValueError("Purchase invoice does not exist in this business.")
-            if context.invoice.status != PurchaseInvoiceStatus.APPROVED:
-                raise ValueError("Only approved purchase invoices can be matched.")
+            if context.invoice.status not in (
+                PurchaseInvoiceStatus.APPROVED,
+                PurchaseInvoiceStatus.POSTED,
+            ):
+                raise ValueError("Only approved or posted purchase invoices can be matched.")
             result = self._matcher.match(context.invoice, list(context.lines))
             matched_at = self._clock() if persist else context.matched_at
             if persist:

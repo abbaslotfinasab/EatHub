@@ -1,7 +1,8 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 import inspect
 
+from django.db import transaction
 from django.test import TestCase
 
 from accounts.models import Business, User
@@ -117,6 +118,19 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         edited.invoice_number = "CHANGED"
         with self.assertRaisesRegex(ValueError, "cannot be modified"):
             self.repository.save(edited)
+
+    def test_generic_save_cannot_bypass_atomic_posting_workflow(self):
+        draft = self.repository.save(self.invoice())
+        post_candidate = self.repository.get_by_id_for_business(draft.id, self.business.id)
+        post_candidate.approve(self.user.id, datetime(2026, 9, 10, 12))
+        post_candidate.post(self.user.id, datetime(2026, 9, 11, 12))
+
+        with self.assertRaisesRegex(ValueError, "atomic posting workflow"):
+            self.repository.save(post_candidate)
+
+        stored = DjangoPurchaseInvoice.objects.get(id=draft.id)
+        self.assertEqual(stored.status, DjangoPurchaseInvoice.Status.DRAFT)
+        self.assertIsNone(stored.posted_at)
 
     def test_invoice_without_receipt_can_be_approved(self):
         saved = self.repository.save(self.invoice())
@@ -247,6 +261,39 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         self.assertIn("business_id=business_id", method_source)
         self.assertNotIn("select_related", method_source)
         self.assertNotIn('"purchase_order"', method_source)
+
+    def test_posting_lock_query_does_not_join_nullable_purchase_order(self):
+        lock_source = inspect.getsource(self.repository.lock_for_posting)
+        save_source = inspect.getsource(self.repository.save_posted)
+        for source in (lock_source, save_source):
+            self.assertIn('select_for_update(of=("self",))', source)
+            self.assertNotIn("select_related", source)
+            self.assertNotIn('"purchase_order"', source)
+        self.assertIn("business_id=business_id", lock_source)
+
+    def test_post_transition_persists_and_posted_invoices_consume_quantity(self):
+        self.receive("100.000", "0.000")
+        first = self.repository.save(self.invoice(number="POSTED-PREV", quantity="40.000", unit_price="10.00"))
+        first.approve(self.user.id, datetime(2026, 9, 10, 12))
+        first = self.repository.save(first)
+        posted_at = datetime(2026, 9, 11, 12, tzinfo=timezone.utc)
+
+        with transaction.atomic():
+            self.assertTrue(self.repository.lock_for_posting(self.business.id, first.id))
+            first = self.repository.get_by_id_for_business(first.id, self.business.id)
+            first.post(self.user.id, posted_at)
+            first = self.repository.save_posted(first)
+
+        self.assertEqual(first.status, PurchaseInvoiceStatus.POSTED)
+        self.assertEqual(first.posted_by_id, self.user.id)
+        self.assertEqual(first.posted_at, posted_at)
+        current = self.repository.save(self.invoice(number="POSTED-CURRENT", quantity="30.000", unit_price="10.00"))
+        current.approve(self.user.id, datetime(2026, 9, 12, 12))
+        self.repository.save(current)
+        context = DjangoPurchaseInvoiceMatchingRepository().load_matching_context(
+            self.business.id, current.id,
+        )
+        self.assertEqual(context.lines[0].previously_invoiced_quantity, Decimal("40.000"))
 
     def test_matching_context_is_tenant_scoped(self):
         invoice = self.repository.save(self.invoice())

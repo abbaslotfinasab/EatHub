@@ -11,13 +11,6 @@ from purchase.models import (
 
 
 class DjangoAccountsPayableRepository(AccountsPayableRepository):
-    def lock_source_invoice_for_creation(self, business_id: int, source_invoice_id: int) -> bool:
-        # Lock only the invoice root; never add related joins to this PostgreSQL lock query.
-        return DjangoPurchaseInvoice.objects.select_for_update(of=("self",)).filter(
-            id=source_invoice_id,
-            business_id=business_id,
-        ).exists()
-
     def create(self, accounts_payable: AccountsPayable) -> AccountsPayable:
         accounts_payable.validate()
         if accounts_payable.id is not None:

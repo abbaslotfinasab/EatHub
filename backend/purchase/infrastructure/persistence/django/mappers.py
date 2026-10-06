@@ -345,6 +345,8 @@ class PurchaseInvoiceMapper:
             ],
             approved_at=model.approved_at,
             approved_by_id=model.approved_by_id,
+            posted_at=model.posted_at,
+            posted_by_id=model.posted_by_id,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
@@ -367,6 +369,8 @@ class PurchaseInvoiceMapper:
         model.matched_at = entity.matched_at
         model.approved_at = entity.approved_at
         model.approved_by_id = entity.approved_by_id
+        model.posted_at = entity.posted_at
+        model.posted_by_id = entity.posted_by_id
         model.subtotal = entity.subtotal
         model.discount_percent = entity.discount_percent
         model.discount_amount = entity.discount_amount

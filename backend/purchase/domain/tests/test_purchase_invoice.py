@@ -48,6 +48,30 @@ class PurchaseInvoiceDomainTests(SimpleTestCase):
         self.assertEqual(invoice.tax_amount, Decimal("4.80"))
         self.assertEqual(invoice.total_price, Decimal("30.15"))
 
+    def test_only_approved_invoice_can_transition_to_posted(self):
+        invoice = self.invoice()
+        approved_at = datetime(2026, 9, 10, 12)
+        posted_at = datetime(2026, 9, 11, 12)
+        invoice.approve(4, approved_at)
+        invoice.post(5, posted_at)
+
+        self.assertEqual(invoice.status, PurchaseInvoiceStatus.POSTED)
+        self.assertEqual(invoice.approved_at, approved_at)
+        self.assertEqual(invoice.approved_by_id, 4)
+        self.assertEqual(invoice.posted_at, posted_at)
+        self.assertEqual(invoice.posted_by_id, 5)
+
+    def test_draft_invoice_cannot_be_posted(self):
+        with self.assertRaisesRegex(ValueError, "cannot be posted"):
+            self.invoice().post(5, datetime(2026, 9, 11, 12))
+
+    def test_posted_invoice_cannot_be_posted_again(self):
+        invoice = self.invoice()
+        invoice.approve(4, datetime(2026, 9, 10, 12))
+        invoice.post(5, datetime(2026, 9, 11, 12))
+        with self.assertRaisesRegex(ValueError, "cannot be posted"):
+            invoice.post(6, datetime(2026, 9, 12, 12))
+
     def test_no_discounts_or_taxes(self):
         invoice = self.invoice()
         self.assertEqual(invoice.subtotal, Decimal("30.00"))
@@ -89,7 +113,7 @@ class PurchaseInvoiceDomainTests(SimpleTestCase):
         invoice = self.invoice(
             items=[
                 self.item(quantity=Decimal("1.000"), unit_price=Decimal("10.00"), discount_percent=Decimal("10"), tax_percent=Decimal("5")),
-                self.item(ingredient_id=2, quantity=Decimal("2.000"), unit_price=Decimal("7.00"), discount_percent=Decimal("5"), tax_percent=Decimal("10")),
+                self.item(ingredient_id=2, purchase_order_item_id=2, quantity=Decimal("2.000"), unit_price=Decimal("7.00"), discount_percent=Decimal("5"), tax_percent=Decimal("10")),
             ],
             discount_percent=Decimal("10"),
             tax_percent=Decimal("20"),
@@ -158,7 +182,7 @@ class PurchaseInvoiceDomainTests(SimpleTestCase):
                 purchase_order_business_id=1,
                 item_ingredient_ids={1: 2},
             )
-        with self.assertRaisesRegex(ValueError, "does not belong"):
+        with self.assertRaisesRegex(ValueError, "does not match the invoice purchase order"):
             invoice.validate_purchase_order_item_references(
                 purchase_order_id=2,
                 purchase_order_business_id=1,
@@ -189,7 +213,7 @@ class PurchaseInvoiceDomainTests(SimpleTestCase):
         invoice = self.invoice()
         invoice.approve(7, datetime(2026, 9, 10, 12, 0))
 
-        with self.assertRaisesRegex(ValueError, "cannot be modified"):
+        with self.assertRaisesRegex(ValueError, "Only draft purchase invoices"):
             invoice.add_item(2, Decimal("1.000"), Decimal("2.00"), 1)
 
     def test_approval_requires_valid_actor_and_timestamp(self):

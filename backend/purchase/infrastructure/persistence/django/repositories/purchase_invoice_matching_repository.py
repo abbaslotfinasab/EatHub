@@ -65,12 +65,14 @@ class DjangoPurchaseInvoiceMatchingRepository(PurchaseInvoiceMatchingRepository)
             for row in accepted_rows
         }
 
-        # APPROVED is the only finalized lifecycle state today and consumes
-        # quantity; revisit this filter when additional finalized states exist.
+        # Approved and posted invoices both consume received quantity.
         previous_rows = DjangoPurchaseInvoiceItem.objects.filter(
             purchase_invoice__business_id=business_id,
             purchase_invoice__purchase_order_id=invoice_model.purchase_order_id,
-            purchase_invoice__status=DjangoPurchaseInvoice.Status.APPROVED,
+            purchase_invoice__status__in=(
+                DjangoPurchaseInvoice.Status.APPROVED,
+                DjangoPurchaseInvoice.Status.POSTED,
+            ),
             purchase_order_item_id__in=po_item_ids,
         ).exclude(purchase_invoice_id=invoice_id).values(
             "purchase_order_item_id",

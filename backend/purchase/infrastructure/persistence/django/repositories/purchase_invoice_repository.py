@@ -31,6 +31,34 @@ class DjangoPurchaseInvoiceRepository(PurchaseInvoiceRepository):
         ).first()
         return None if model is None else PurchaseInvoiceMapper.to_domain(model)
 
+    def lock_for_posting(self, business_id: int, purchase_invoice_id: int) -> bool:
+        # Lock only the invoice row. Load nullable relations after this query.
+        return DjangoPurchaseInvoice.objects.select_for_update(of=("self",)).filter(
+            id=purchase_invoice_id,
+            business_id=business_id,
+        ).exists()
+
+    def save_posted(self, purchase_invoice: PurchaseInvoice) -> PurchaseInvoice:
+        purchase_invoice.validate()
+        if purchase_invoice.status != PurchaseInvoiceStatus.POSTED:
+            raise ValueError("Purchase invoice must be posted before persistence.")
+        model = DjangoPurchaseInvoice.objects.select_for_update(of=("self",)).filter(
+            id=purchase_invoice.id,
+            business_id=purchase_invoice.business_id,
+            status=PurchaseInvoiceStatus.APPROVED.value,
+        ).first()
+        if model is None:
+            raise ValueError("Only an approved purchase invoice can be posted.")
+        model.status = PurchaseInvoiceStatus.POSTED.value
+        model.posted_at = purchase_invoice.posted_at
+        model.posted_by_id = purchase_invoice.posted_by_id
+        model.save(update_fields=["status", "posted_at", "posted_by", "updated_at"])
+        saved = self._aggregate_queryset().get(
+            id=model.id,
+            business_id=purchase_invoice.business_id,
+        )
+        return PurchaseInvoiceMapper.to_domain(saved)
+
     def list(self, business_id: int, *, supplier_id: int | None = None,
              purchase_order_id: int | None = None,
              invoice_date_from: date | None = None,
@@ -78,6 +106,8 @@ class DjangoPurchaseInvoiceRepository(PurchaseInvoiceRepository):
                     raise ValueError("Purchase invoice does not exist in the specified business.")
                 if model.status != PurchaseInvoiceStatus.DRAFT.value:
                     raise ValueError("Approved purchase invoice cannot be modified.")
+                if purchase_invoice.status == PurchaseInvoiceStatus.POSTED:
+                    raise ValueError("Posted invoices must use the atomic posting workflow.")
                 created_at = model.created_at
                 existing = list(DjangoPurchaseInvoiceItem.objects.filter(
                     purchase_invoice=model,
