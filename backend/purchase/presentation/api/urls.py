@@ -35,6 +35,7 @@ from purchase.presentation.api.views.supplier_payment import (
 from purchase.presentation.api.views.accounts_payable import (
     AccountsPayableDetailAPIView,
     AccountsPayableListAPIView,
+    AccountsPayablePaymentEligibilityAPIView,
 )
 
 app_name = "purchase"
@@ -49,6 +50,11 @@ urlpatterns = [
         "accounts-payables/<int:pk>/",
         AccountsPayableDetailAPIView.as_view(),
         name="accounts-payable-detail",
+    ),
+    path(
+        "accounts-payables/<int:pk>/payment-eligibility/",
+        AccountsPayablePaymentEligibilityAPIView.as_view(),
+        name="accounts-payable-payment-eligibility",
     ),
     path(
         "purchase-invoices/",

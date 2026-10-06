@@ -4,6 +4,12 @@ from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
 from purchase.application.dto.accounts_payable import ListAccountsPayablesQuery
+from purchase.application.dto.accounts_payable_payment_eligibility import (
+    GetAccountsPayablePaymentEligibilityQuery,
+)
+from purchase.application.use_cases.accounts_payable.get_accounts_payable_payment_eligibility import (
+    GetAccountsPayablePaymentEligibility,
+)
 from purchase.application.use_cases.accounts_payable.get_accounts_payable import (
     GetAccountsPayableUseCase,
 )
@@ -14,6 +20,9 @@ from purchase.infrastructure.persistence.django.repositories.accounts_payable_re
     DjangoAccountsPayableRepository,
 )
 from purchase.presentation.api.serializers.accounts_payable import AccountsPayableSerializer
+from purchase.presentation.api.serializers.accounts_payable_payment_eligibility import (
+    AccountsPayablePaymentEligibilitySerializer,
+)
 
 
 def _repository() -> DjangoAccountsPayableRepository:
@@ -51,3 +60,21 @@ class AccountsPayableDetailAPIView(TenantAPIView):
         except ValueError as error:
             _handle(error)
         return Response(AccountsPayableSerializer(payable).data)
+
+
+class AccountsPayablePaymentEligibilityAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            result = GetAccountsPayablePaymentEligibility(
+                _repository(),
+            ).execute(
+                GetAccountsPayablePaymentEligibilityQuery(
+                    business_id=request.business.id,
+                    accounts_payable_id=pk,
+                ),
+            )
+        except ValueError as error:
+            _handle(error)
+        return Response(AccountsPayablePaymentEligibilitySerializer(result).data)

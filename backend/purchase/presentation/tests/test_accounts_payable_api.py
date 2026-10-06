@@ -6,11 +6,20 @@ from rest_framework.test import APITestCase
 
 from accounts.enums import RoleCode
 from accounts.models import Business, Membership, Role, User
-from purchase.models import AccountsPayable, PurchaseInvoice, Supplier
+from purchase.models import (
+    AccountsPayable,
+    PaymentAllocation,
+    PurchaseInvoice,
+    Supplier,
+    SupplierPayment,
+)
 
 
 class AccountsPayableAPITests(APITestCase):
     endpoint = "/api/purchase/accounts-payables/"
+
+    def eligibility_url(self, payable_id):
+        return f"{self.endpoint}{payable_id}/payment-eligibility/"
 
     def setUp(self):
         self.user = User.objects.create_user(
@@ -56,3 +65,71 @@ class AccountsPayableAPITests(APITestCase):
     def test_accounts_payable_cannot_be_created_outside_invoice_posting(self):
         response = self.client.post(self.endpoint, {}, format="json")
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_payment_eligibility_is_read_only_for_every_ap_status(self):
+        cases = (
+            (AccountsPayable.Status.OPEN, True, None),
+            (AccountsPayable.Status.PARTIALLY_PAID, True, None),
+            (AccountsPayable.Status.PAID, False, "already_paid"),
+            (AccountsPayable.Status.CANCELLED, False, "cancelled"),
+        )
+        for index, (ap_status, eligible, reason) in enumerate(cases):
+            with self.subTest(status=ap_status):
+                payable = self.create_payable(
+                    self.business,
+                    self.supplier,
+                    f"AP-ELIGIBILITY-{index}",
+                )
+                AccountsPayable.objects.filter(id=payable.id).update(status=ap_status)
+                payments_before = SupplierPayment.objects.count()
+                allocations_before = PaymentAllocation.objects.count()
+
+                response = self.client.get(self.eligibility_url(payable.id))
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["accounts_payable_id"], payable.id)
+                self.assertEqual(response.data["eligible"], eligible)
+                self.assertEqual(response.data["status"], ap_status)
+                self.assertEqual(response.data["amount"], "10.00")
+                self.assertEqual(response.data["reason"], reason)
+                self.assertNotIn("allocated_amount", response.data)
+                self.assertNotIn("outstanding_amount", response.data)
+                payable.refresh_from_db()
+                self.assertEqual(payable.status, ap_status)
+                self.assertEqual(SupplierPayment.objects.count(), payments_before)
+                self.assertEqual(PaymentAllocation.objects.count(), allocations_before)
+
+    def test_payment_eligibility_hides_other_business_and_missing_payables(self):
+        own = self.create_payable(self.business, self.supplier, "AP-ELIGIBILITY-OWN")
+        other = self.create_payable(self.other_business, self.other_supplier, "AP-ELIGIBILITY-OTHER")
+
+        own_response = self.client.get(
+            self.eligibility_url(own.id),
+            {"business_id": self.other_business.id},
+        )
+        self.assertEqual(own_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self.client.get(self.eligibility_url(other.id)).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        self.assertEqual(
+            self.client.get(self.eligibility_url(999999)).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_payment_eligibility_requires_authentication(self):
+        payable = self.create_payable(self.business, self.supplier, "AP-ELIGIBILITY-UNAUTH")
+        self.client.force_authenticate(user=None)
+
+        response = self.client.get(self.eligibility_url(payable.id))
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_payment_eligibility_endpoint_is_get_only(self):
+        payable = self.create_payable(self.business, self.supplier, "AP-ELIGIBILITY-READONLY")
+        url = self.eligibility_url(payable.id)
+
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.put(url, {}, format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.patch(url, {}, format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.delete(url).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
