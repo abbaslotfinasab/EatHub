@@ -369,6 +369,76 @@ class PurchaseInvoice(BaseModel):
         ]
 
 
+class AccountsPayable(BaseModel):
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        PARTIALLY_PAID = "partially_paid", "Partially paid"
+        PAID = "paid", "Paid"
+        CANCELLED = "cancelled", "Cancelled"
+
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="accounts_payables",
+    )
+
+    supplier = models.ForeignKey(
+        Supplier,
+        on_delete=models.PROTECT,
+        related_name="accounts_payables",
+    )
+
+    source_invoice = models.OneToOneField(
+        PurchaseInvoice,
+        on_delete=models.PROTECT,
+        related_name="accounts_payable",
+    )
+
+    amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+    )
+
+    due_date = models.DateField(null=True, blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.OPEN,
+    )
+
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    posted_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="posted_accounts_payables",
+    )
+
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    cancelled_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="cancelled_accounts_payables",
+    )
+
+    cancellation_reason = models.TextField(blank=True, default="")
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gt=0),
+                name="purchase_accounts_payable_amount_positive",
+            ),
+        ]
+
+
 class PurchaseInvoiceItem(BaseModel):
 
     purchase_invoice = models.ForeignKey(

@@ -16,12 +16,15 @@ from purchase.domain.entities.purchase_invoice import (
     PurchaseInvoiceItem,
 )
 from purchase.domain.entities.supplier_payment import SupplierPayment
+from purchase.domain.entities.accounts_payable import AccountsPayable
+from purchase.domain.enums.accounts_payable_status import AccountsPayableStatus
 from purchase.domain.enums.payment_method import PaymentMethod
 from purchase.domain.enums.purchase_invoice_status import PurchaseInvoiceStatus
 from purchase.domain.enums.purchase_invoice_matching_status import PurchaseInvoiceMatchingStatus
 from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.domain.enums.purchase_order_status import PurchaseOrderStatus
 from purchase.models import (
+    AccountsPayable as DjangoAccountsPayable,
     PurchaseRequisition as DjangoPurchaseRequisition,
     PurchaseRequisitionItem as DjangoPurchaseRequisitionItem,
     PurchaseOrder as DjangoPurchaseOrder,
@@ -33,6 +36,47 @@ from purchase.models import (
     PurchaseInvoiceItem as DjangoPurchaseInvoiceItem,
     SupplierPayment as DjangoSupplierPayment,
 )
+
+
+class AccountsPayableMapper:
+    @staticmethod
+    def to_domain(model: DjangoAccountsPayable) -> AccountsPayable:
+        return AccountsPayable(
+            id=model.id,
+            business_id=model.business_id,
+            supplier_id=model.supplier_id,
+            source_invoice_id=model.source_invoice_id,
+            amount=model.amount,
+            due_date=model.due_date,
+            status=AccountsPayableStatus(model.status),
+            posted_at=model.posted_at,
+            posted_by_id=model.posted_by_id,
+            cancelled_at=model.cancelled_at,
+            cancelled_by_id=model.cancelled_by_id,
+            cancellation_reason=model.cancellation_reason,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+        )
+
+    @staticmethod
+    def to_model(
+        entity: AccountsPayable,
+        model: DjangoAccountsPayable | None = None,
+    ) -> DjangoAccountsPayable:
+        if model is None:
+            model = DjangoAccountsPayable()
+        model.business_id = entity.business_id
+        model.supplier_id = entity.supplier_id
+        model.source_invoice_id = entity.source_invoice_id
+        model.amount = entity.amount
+        model.due_date = entity.due_date
+        model.status = entity.status.value
+        model.posted_at = entity.posted_at
+        model.posted_by_id = entity.posted_by_id
+        model.cancelled_at = entity.cancelled_at
+        model.cancelled_by_id = entity.cancelled_by_id
+        model.cancellation_reason = entity.cancellation_reason
+        return model
 
 
 class SupplierPaymentMapper:

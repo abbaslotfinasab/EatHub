@@ -31,10 +31,24 @@ from purchase.presentation.api.views.supplier_payment import (
     SupplierPaymentDetailAPIView,
     SupplierPaymentListCreateAPIView,
 )
+from purchase.presentation.api.views.accounts_payable import (
+    AccountsPayableDetailAPIView,
+    AccountsPayableListCreateAPIView,
+)
 
 app_name = "purchase"
 
 urlpatterns = [
+    path(
+        "accounts-payables/",
+        AccountsPayableListCreateAPIView.as_view(),
+        name="accounts-payable-list-create",
+    ),
+    path(
+        "accounts-payables/<int:pk>/",
+        AccountsPayableDetailAPIView.as_view(),
+        name="accounts-payable-detail",
+    ),
     path(
         "purchase-invoices/",
         PurchaseInvoiceListCreateAPIView.as_view(),
