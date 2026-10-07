@@ -32,7 +32,7 @@ class FakePurchaseInvoiceRepository:
             return None
         return self.invoice
 
-    def save(self, invoice):
+    def save_approved(self, invoice):
         self.save_calls += 1
         self.invoice = invoice
         return invoice

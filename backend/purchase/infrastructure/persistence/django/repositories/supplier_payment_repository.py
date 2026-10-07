@@ -58,6 +58,8 @@ class DjangoSupplierPaymentRepository(SupplierPaymentRepository):
 
     def save(self, supplier_payment: SupplierPayment) -> SupplierPayment:
         supplier_payment.validate()
+        if supplier_payment.id is not None:
+            raise ValueError("Supplier payments are immutable once created.")
         if not DjangoSupplier.objects.filter(
             id=supplier_payment.supplier_id,
             business_id=supplier_payment.business_id,
@@ -65,15 +67,5 @@ class DjangoSupplierPaymentRepository(SupplierPaymentRepository):
             raise ValueError("Supplier does not exist in this business.")
         if supplier_payment.id is None:
             model = SupplierPaymentMapper.to_model(supplier_payment)
-        else:
-            model = DjangoSupplierPayment.objects.filter(
-                id=supplier_payment.id,
-                business_id=supplier_payment.business_id,
-            ).first()
-            if model is None:
-                raise ValueError(
-                    "Supplier payment does not exist in the specified business."
-                )
-            model = SupplierPaymentMapper.to_model(supplier_payment, model)
         model.save()
         return SupplierPaymentMapper.to_domain(model)

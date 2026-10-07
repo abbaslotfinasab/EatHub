@@ -99,6 +99,13 @@ class GoodsReceiptInfrastructureTests(TestCase):
             repository.get_by_id_for_business(saved.id, self.other_business.id)
         )
 
+    def test_existing_goods_receipt_cannot_be_updated(self):
+        repository = DjangoGoodsReceiptRepository()
+        saved = repository.save(self.receipt())
+        saved.items[0].received_quantity = Decimal("5")
+        with self.assertRaisesRegex(ValueError, "immutable"):
+            repository.save(saved)
+
     def test_received_quantity_query_excludes_rejected_quantity(self):
         repository = DjangoGoodsReceiptRepository()
         repository.save(self.receipt(quantity="4", rejected="3"))

@@ -81,6 +81,9 @@ class PurchaseInvoice:
     approved_by_id: int | None = None
     posted_at: datetime | None = None
     posted_by_id: int | None = None
+    cancelled_at: datetime | None = None
+    cancelled_by_id: int | None = None
+    cancellation_reason: str | None = None
     matching_status: PurchaseInvoiceMatchingStatus = PurchaseInvoiceMatchingStatus.NOT_MATCHED
     matched_at: datetime | None = None
 
@@ -203,6 +206,21 @@ class PurchaseInvoice:
         self.posted_at = posted_at
         self.validate()
 
+    def cancel(self, cancelled_by_id: int, cancelled_at: datetime, reason: str) -> None:
+        if self.status not in (PurchaseInvoiceStatus.DRAFT, PurchaseInvoiceStatus.APPROVED):
+            raise ValueError(f"Purchase invoice cannot be cancelled from status '{self.status}'.")
+        if not isinstance(cancelled_by_id, int) or cancelled_by_id <= 0:
+            raise ValueError("Cancellation actor ID must be a positive integer.")
+        if not isinstance(cancelled_at, datetime):
+            raise ValueError("Cancellation timestamp is required.")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("Cancellation reason is required.")
+        self.status = PurchaseInvoiceStatus.CANCELLED
+        self.cancelled_by_id = cancelled_by_id
+        self.cancelled_at = cancelled_at
+        self.cancellation_reason = reason.strip()
+        self.validate()
+
     def ensure_editable(self) -> None:
         if self.status != PurchaseInvoiceStatus.DRAFT:
             raise ValueError("Only draft purchase invoices can be modified.")
@@ -244,6 +262,29 @@ class PurchaseInvoice:
                 raise ValueError("Posted purchase invoice requires a posting actor.")
             if not isinstance(self.posted_at, datetime):
                 raise ValueError("Posted purchase invoice requires a posting timestamp.")
+            if self.cancelled_at is not None or self.cancelled_by_id is not None or self.cancellation_reason is not None:
+                raise ValueError("Posted purchase invoice cannot have cancellation metadata.")
+        elif self.status == PurchaseInvoiceStatus.CANCELLED:
+            if not isinstance(self.cancelled_by_id, int) or self.cancelled_by_id <= 0:
+                raise ValueError("Cancelled purchase invoice requires a cancellation actor.")
+            if not isinstance(self.cancelled_at, datetime):
+                raise ValueError("Cancelled purchase invoice requires a cancellation timestamp.")
+            if not isinstance(self.cancellation_reason, str) or not self.cancellation_reason.strip():
+                raise ValueError("Cancelled purchase invoice requires a cancellation reason.")
+            if self.posted_at is not None or self.posted_by_id is not None:
+                raise ValueError("Cancelled purchase invoice cannot have posting metadata.")
+            if (self.approved_at is None) != (self.approved_by_id is None):
+                raise ValueError("Cancelled purchase invoice approval metadata must be complete.")
+            if self.approved_at is not None and (
+                not isinstance(self.approved_at, datetime)
+                or not isinstance(self.approved_by_id, int)
+                or self.approved_by_id <= 0
+            ):
+                raise ValueError("Cancelled purchase invoice approval metadata is invalid.")
+        if self.status != PurchaseInvoiceStatus.CANCELLED and (
+            self.cancelled_at is not None or self.cancelled_by_id is not None or self.cancellation_reason is not None
+        ):
+            raise ValueError("Only cancelled purchase invoices can have cancellation metadata.")
         for item in self.items:
             item.validate()
 

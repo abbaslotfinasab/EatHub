@@ -267,6 +267,7 @@ class PurchaseInvoice(BaseModel):
         DRAFT = "draft", "Draft"
         APPROVED = "approved", "Approved"
         POSTED = "posted", "Posted"
+        CANCELLED = "cancelled", "Cancelled"
 
     business = models.ForeignKey(
         Business,
@@ -335,6 +336,18 @@ class PurchaseInvoice(BaseModel):
         on_delete=models.PROTECT,
         related_name="posted_purchase_invoices",
     )
+
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    cancelled_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="cancelled_purchase_invoices",
+    )
+
+    cancellation_reason = models.TextField(null=True, blank=True)
 
     subtotal = models.DecimalField(
         max_digits=14,

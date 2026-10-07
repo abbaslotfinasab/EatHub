@@ -68,6 +68,13 @@ class SupplierPaymentAPITests(APITestCase):
         self.assertEqual(listed.status_code, status.HTTP_200_OK)
         self.assertEqual(listed.data[0]["id"], created.data["id"])
 
+    def test_supplier_payment_detail_is_read_only(self):
+        created = self.client.post(self.endpoint, self.payload(), format="json")
+        url = f"{self.endpoint}{created.data['id']}/"
+        self.assertEqual(self.client.put(url, self.payload(), format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.patch(url, self.payload(), format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.delete(url).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
     def test_client_business_is_ignored_and_invoice_id_is_rejected(self):
         ignored = self.client.post(
             self.endpoint,

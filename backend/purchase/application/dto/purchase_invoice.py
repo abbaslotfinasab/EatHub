@@ -48,6 +48,15 @@ class ApprovePurchaseInvoiceDTO:
     approved_at: datetime
 
 
+@dataclass(frozen=True)
+class CancelPurchaseInvoiceDTO:
+    business_id: int
+    purchase_invoice_id: int
+    cancelled_by_id: int
+    cancelled_at: datetime
+    reason: str
+
+
 @dataclass
 class ListPurchaseInvoicesQuery:
     business_id: int

@@ -100,29 +100,13 @@ class DjangoGoodsReceiptRepository(GoodsReceiptRepository):
     def save(self, goods_receipt: GoodsReceipt) -> GoodsReceipt:
         with transaction.atomic():
             goods_receipt.validate()
+            if goods_receipt.id is not None:
+                raise ValueError("Goods receipts are immutable once created.")
             self._validate_cross_aggregate_ownership(goods_receipt)
 
             if goods_receipt.id is None:
                 model = GoodsReceiptMapper.to_model(goods_receipt)
                 existing_items: list[DjangoGoodsReceiptItem] = []
-            else:
-                model = DjangoGoodsReceipt.objects.filter(
-                    id=goods_receipt.id,
-                    business_id=goods_receipt.business_id,
-                ).first()
-                if model is None:
-                    raise ValueError(
-                        "Goods receipt does not exist in the specified business."
-                    )
-
-                created_at = model.created_at
-                existing_items = list(
-                    DjangoGoodsReceiptItem.objects.filter(
-                        receipt=model,
-                    ).order_by("id")
-                )
-                model = GoodsReceiptMapper.to_model(goods_receipt, model)
-                model.created_at = created_at
 
             model.save()
             self._synchronize_items(model, goods_receipt, existing_items)

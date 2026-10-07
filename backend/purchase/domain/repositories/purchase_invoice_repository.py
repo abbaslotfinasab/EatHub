@@ -26,6 +26,21 @@ class PurchaseInvoiceRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def save_approved(self, purchase_invoice: PurchaseInvoice) -> PurchaseInvoice:
+        """Persist the DRAFT -> APPROVED lifecycle transition."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def lock_for_cancellation(self, business_id: int, purchase_invoice_id: int) -> bool:
+        """Lock only the tenant-scoped invoice row for cancellation."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_cancelled(self, purchase_invoice: PurchaseInvoice) -> PurchaseInvoice:
+        """Persist the DRAFT/APPROVED -> CANCELLED transition only."""
+        raise NotImplementedError
+
+    @abstractmethod
     def list(
         self,
         business_id: int,

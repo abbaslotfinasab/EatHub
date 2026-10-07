@@ -17,6 +17,8 @@ from purchase.models import (
     PurchaseOrder,
     PurchaseOrderItem,
     Supplier,
+    SupplierPayment,
+    PaymentAllocation,
 )
 
 
@@ -226,6 +228,98 @@ class PurchaseInvoiceAPITests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_draft_and_approved_invoice_cancellation_persists_server_metadata(self):
+        draft = self.client.post(self.endpoint, self.payload(), format="json")
+        response = self.client.post(
+            f"{self.endpoint}{draft.data['id']}/cancel/",
+            {"reason": "  duplicate invoice  "}, format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "cancelled")
+        self.assertEqual(response.data["cancellation_reason"], "duplicate invoice")
+        self.assertEqual(response.data["cancelled_by_id"], self.user.id)
+        self.assertIsNotNone(response.data["cancelled_at"])
+
+        approved = self.approved_invoice("CANCEL-APPROVED")
+        result = self.client.post(
+            f"{self.endpoint}{approved.id}/cancel/", {"reason": "void before post"}, format="json",
+        )
+        self.assertEqual(result.status_code, status.HTTP_200_OK)
+        self.assertEqual(result.data["status"], "cancelled")
+        self.assertEqual(result.data["total_price"], str(approved.total_price))
+        self.assertFalse(AccountsPayable.objects.filter(source_invoice_id=approved.id).exists())
+
+    def test_cancellation_rejects_blank_unknown_and_client_controlled_fields(self):
+        created = self.client.post(self.endpoint, self.payload(), format="json")
+        url = f"{self.endpoint}{created.data['id']}/cancel/"
+        for data in ({}, {"reason": "  "}, {"reason": "x", "status": "cancelled"},
+                     {"reason": "x", "business_id": self.other_business.id},
+                     {"reason": "x", "cancelled_by": self.user.id}):
+            response = self.client.post(url, data, format="json")
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(DjangoPurchaseInvoice.objects.get(id=created.data["id"]).status, "draft")
+
+    def test_cancellation_requires_authentication(self):
+        created = self.client.post(self.endpoint, self.payload(), format="json")
+        self.client.force_authenticate(user=None)
+        response = self.client.post(
+            f"{self.endpoint}{created.data['id']}/cancel/", {"reason": "unauthenticated"}, format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_cancellation_is_tenant_scoped_and_terminal(self):
+        foreign = DjangoPurchaseInvoice.objects.create(
+            business=self.other_business, supplier=self.other_supplier,
+            purchase_order=self.order, invoice_number="FOREIGN-CANCEL", invoice_date=date(2026, 9, 10),
+            subtotal=Decimal("1.00"), total_price=Decimal("1.00"),
+        )
+        response = self.client.post(
+            f"{self.endpoint}{foreign.id}/cancel/", {"reason": "tenant check"}, format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        created = self.client.post(self.endpoint, self.payload(), format="json")
+        url = f"{self.endpoint}{created.data['id']}/cancel/"
+        self.assertEqual(self.client.post(url, {"reason": "first"}, format="json").status_code, 200)
+        self.assertEqual(self.client.post(url, {"reason": "second"}, format="json").status_code, 400)
+        self.assertEqual(
+            self.client.put(f"{self.endpoint}{created.data['id']}/", self.payload(), format="json").status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(self.client.put(url, {"reason": "x"}, format="json").status_code, 405)
+        self.assertEqual(self.client.patch(url, {"reason": "x"}, format="json").status_code, 405)
+        self.assertEqual(self.client.delete(url).status_code, 405)
+
+    def test_posted_invoice_cannot_be_cancelled_and_ap_is_unchanged(self):
+        invoice = self.approved_invoice("CANCEL-POSTED")
+        self.receive(quantity="2.000")
+        posted = self.client.post(f"{self.endpoint}{invoice.id}/post/", {}, format="json")
+        self.assertEqual(posted.status_code, status.HTTP_200_OK)
+        payable = AccountsPayable.objects.get(source_invoice_id=invoice.id)
+        payment = SupplierPayment.objects.create(
+            business=self.business, supplier=self.supplier,
+            amount=Decimal("5.00"), payment_date=date(2026, 9, 12), method="cash",
+        )
+        allocation_response = self.client.post(
+            "/api/purchase/payment-allocations/",
+            {"accounts_payable_id": payable.id, "supplier_payment_id": payment.id, "amount": "1.00"},
+            format="json",
+        )
+        self.assertEqual(allocation_response.status_code, status.HTTP_201_CREATED)
+        payable.refresh_from_db()
+        before = (payable.status, payable.amount, PaymentAllocation.objects.count(), payment.amount)
+        result = self.client.post(
+            f"{self.endpoint}{invoice.id}/cancel/", {"reason": "too late"}, format="json",
+        )
+        self.assertEqual(result.status_code, status.HTTP_400_BAD_REQUEST)
+        payable.refresh_from_db()
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.status, "posted")
+        self.assertEqual(
+            (payable.status, payable.amount, PaymentAllocation.objects.count(), payment.amount),
+            before,
+        )
 
     def test_draft_invoice_can_be_updated(self):
         created = self.client.post(self.endpoint, self.payload(), format="json")

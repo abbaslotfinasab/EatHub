@@ -378,6 +378,9 @@ class PurchaseInvoiceMapper:
             approved_by_id=model.approved_by_id,
             posted_at=model.posted_at,
             posted_by_id=model.posted_by_id,
+            cancelled_at=model.cancelled_at,
+            cancelled_by_id=model.cancelled_by_id,
+            cancellation_reason=model.cancellation_reason,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
@@ -402,6 +405,9 @@ class PurchaseInvoiceMapper:
         model.approved_by_id = entity.approved_by_id
         model.posted_at = entity.posted_at
         model.posted_by_id = entity.posted_by_id
+        model.cancelled_at = entity.cancelled_at
+        model.cancelled_by_id = entity.cancelled_by_id
+        model.cancellation_reason = entity.cancellation_reason
         model.subtotal = entity.subtotal
         model.discount_percent = entity.discount_percent
         model.discount_amount = entity.discount_amount

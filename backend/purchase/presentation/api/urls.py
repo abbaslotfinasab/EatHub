@@ -23,6 +23,7 @@ from purchase.presentation.api.views.goods_receipt import (
 )
 from purchase.presentation.api.views.purchase_invoice import (
     PurchaseInvoiceApproveAPIView,
+    PurchaseInvoiceCancelAPIView,
     PurchaseInvoiceDetailAPIView,
     PurchaseInvoiceListCreateAPIView,
     PurchaseInvoiceMatchAPIView,
@@ -94,6 +95,11 @@ urlpatterns = [
         "purchase-invoices/<int:pk>/post/",
         PurchaseInvoicePostAPIView.as_view(),
         name="purchase-invoice-post",
+    ),
+    path(
+        "purchase-invoices/<int:pk>/cancel/",
+        PurchaseInvoiceCancelAPIView.as_view(),
+        name="purchase-invoice-cancel",
     ),
     path(
         "goods-receipts/",

@@ -6,6 +6,7 @@ from django.db.models import Prefetch, Sum
 from purchase.application.dto.purchase_invoice_matching import PurchaseInvoiceMatchingContext
 from purchase.application.ports.purchase_invoice_matching import PurchaseInvoiceMatchingRepository
 from purchase.domain.enums.purchase_invoice_matching_status import PurchaseInvoiceMatchingStatus
+from purchase.domain.enums.purchase_invoice_status import PurchaseInvoiceStatus
 from purchase.domain.services.purchase_invoice_matcher import PurchaseInvoiceMatchLineInput
 from purchase.infrastructure.persistence.django.mappers import PurchaseInvoiceMapper
 from purchase.models import (
@@ -108,6 +109,7 @@ class DjangoPurchaseInvoiceMatchingRepository(PurchaseInvoiceMatchingRepository)
     ) -> None:
         updated = DjangoPurchaseInvoice.objects.filter(
             id=invoice_id, business_id=business_id,
+            status=PurchaseInvoiceStatus.APPROVED.value,
         ).update(matching_status=status.value, matched_at=matched_at)
         if updated != 1:
-            raise ValueError("Purchase invoice does not exist in this business.")
+            raise ValueError("Only approved purchase invoices can persist matching state.")

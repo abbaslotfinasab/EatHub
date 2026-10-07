@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from accounts.views import TenantAPIView
 from purchase.application.dto.purchase_invoice import (
     ApprovePurchaseInvoiceDTO,
+    CancelPurchaseInvoiceDTO,
     CreatePurchaseInvoiceDTO,
     CreatePurchaseInvoiceItemDTO,
     ListPurchaseInvoicesQuery,
@@ -17,6 +18,7 @@ from purchase.application.dto.purchase_invoice import (
 from purchase.application.dto.purchase_invoice_posting import PostPurchaseInvoiceDTO
 from purchase.application.use_cases.purchase_invoice.approve_purchase_invoice import ApprovePurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.create_purchase_invoice import CreatePurchaseInvoiceUseCase
+from purchase.application.use_cases.purchase_invoice.cancel_purchase_invoice import CancelPurchaseInvoice
 from purchase.application.use_cases.purchase_invoice.get_purchase_invoice import GetPurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.list_purchase_invoices import ListPurchaseInvoicesUseCase
 from purchase.application.use_cases.purchase_invoice.match_purchase_invoice import MatchPurchaseInvoiceUseCase
@@ -235,3 +237,37 @@ class PurchaseInvoicePostAPIView(TenantAPIView):
             PostPurchaseInvoiceResponseSerializer(result).data,
             status=status.HTTP_200_OK,
         )
+
+
+class CancelPurchaseInvoiceRequestSerializer(serializers.Serializer):
+    reason = serializers.CharField(allow_blank=False, trim_whitespace=True)
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            unknown = set(data) - {"reason"}
+            if unknown:
+                raise serializers.ValidationError({
+                    key: "Unknown fields are not allowed." for key in sorted(unknown)
+                })
+        return super().to_internal_value(data)
+
+
+class PurchaseInvoiceCancelAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        serializer = CancelPurchaseInvoiceRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            invoice = CancelPurchaseInvoice(
+                _repository(), DjangoAccountsPayableRepository(), _transaction_manager(),
+            ).execute(CancelPurchaseInvoiceDTO(
+                business_id=request.business.id,
+                purchase_invoice_id=pk,
+                cancelled_by_id=request.user.id,
+                cancelled_at=timezone.now(),
+                reason=serializer.validated_data["reason"],
+            ))
+        except ValueError as error:
+            _handle(error)
+        return Response(PurchaseInvoiceSerializer(invoice).data)

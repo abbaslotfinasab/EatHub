@@ -85,6 +85,10 @@ class CreatePurchaseInvoiceSerializer(serializers.Serializer):
             "posted_by_id",
             "matching_status",
             "matched_at",
+            "cancelled_at",
+            "cancelled_by",
+            "cancelled_by_id",
+            "cancellation_reason",
         }
         supplied = lifecycle_fields.intersection(self.initial_data)
         if supplied:
@@ -125,6 +129,9 @@ class PurchaseInvoiceSerializer(serializers.Serializer):
     approved_by_id = serializers.IntegerField(allow_null=True)
     posted_at = serializers.DateTimeField(allow_null=True)
     posted_by_id = serializers.IntegerField(allow_null=True)
+    cancelled_at = serializers.DateTimeField(allow_null=True)
+    cancelled_by_id = serializers.IntegerField(allow_null=True)
+    cancellation_reason = serializers.CharField(allow_null=True)
     matching_status = serializers.CharField()
     matched_at = serializers.DateTimeField(allow_null=True)
     subtotal = serializers.DecimalField(max_digits=14, decimal_places=2)

@@ -223,3 +223,44 @@ class PurchaseInvoiceDomainTests(SimpleTestCase):
             invoice.approve(0, datetime(2026, 9, 10, 12, 0))
         with self.assertRaisesRegex(ValueError, "timestamp"):
             invoice.approve(7, None)
+
+    def test_draft_and_approved_invoices_can_be_cancelled_with_audit_metadata(self):
+        cancelled_at = datetime(2026, 9, 12, 12)
+        draft = self.invoice()
+        draft.cancel(9, cancelled_at, "  duplicate invoice  ")
+        self.assertEqual(draft.status, PurchaseInvoiceStatus.CANCELLED)
+        self.assertEqual(draft.cancellation_reason, "duplicate invoice")
+        self.assertEqual(draft.cancelled_by_id, 9)
+        self.assertEqual(draft.cancelled_at, cancelled_at)
+
+        approved = self.invoice()
+        approved.approve(7, datetime(2026, 9, 10, 12))
+        approved.cancel(9, cancelled_at, "supplier correction")
+        self.assertEqual(approved.status, PurchaseInvoiceStatus.CANCELLED)
+        self.assertEqual(approved.approved_by_id, 7)
+
+    def test_posted_or_cancelled_invoice_cannot_be_cancelled(self):
+        posted = self.invoice()
+        posted.approve(7, datetime(2026, 9, 10, 12))
+        posted.post(8, datetime(2026, 9, 11, 12))
+        with self.assertRaisesRegex(ValueError, "cannot be cancelled"):
+            posted.cancel(9, datetime(2026, 9, 12, 12), "correction")
+
+        cancelled = self.invoice()
+        cancelled.cancel(9, datetime(2026, 9, 12, 12), "duplicate")
+        with self.assertRaisesRegex(ValueError, "cannot be cancelled"):
+            cancelled.cancel(9, datetime(2026, 9, 12, 13), "again")
+        with self.assertRaisesRegex(ValueError, "cannot be approved"):
+            cancelled.approve(8, datetime(2026, 9, 12, 13))
+        with self.assertRaisesRegex(ValueError, "cannot be posted"):
+            cancelled.post(8, datetime(2026, 9, 12, 13))
+
+    def test_cancellation_requires_actor_timestamp_and_nonblank_reason(self):
+        at = datetime(2026, 9, 12, 12)
+        for actor, timestamp, reason in ((0, at, "reason"), (2, None, "reason"), (2, at, "  ")):
+            with self.assertRaises(ValueError):
+                self.invoice().cancel(actor, timestamp, reason)
+
+    def test_cancellation_metadata_is_invalid_on_non_cancelled_invoice(self):
+        with self.assertRaisesRegex(ValueError, "Only cancelled"):
+            self.invoice(cancelled_at=datetime(2026, 9, 12, 12))

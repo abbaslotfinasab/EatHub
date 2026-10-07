@@ -65,3 +65,8 @@ class SupplierPaymentInfrastructureTests(TestCase):
     def test_cross_business_supplier_is_rejected(self):
         with self.assertRaises(ValueError):
             self.repository.save(self.payment(supplier_id=self.other_supplier.id))
+
+    def test_existing_supplier_payment_cannot_be_updated(self):
+        saved = self.repository.save(self.payment())
+        with self.assertRaisesRegex(ValueError, "immutable"):
+            self.repository.save(self.payment(id=saved.id, amount=Decimal("1.00")))

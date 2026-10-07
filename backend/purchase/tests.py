@@ -883,6 +883,18 @@ class DjangoPurchaseOrderRepositoryTests(TestCase):
             ],
         )
 
+    def test_received_purchase_order_terms_and_lines_are_immutable(self) -> None:
+        order = self.create_order(status=PurchaseOrderStatus.RECEIVED)
+        order.items[0].quantity = Decimal("999")
+        with self.assertRaisesRegex(ValueError, "cannot be changed after it is sent"):
+            self.repository.save(order)
+
+    def test_cancelled_purchase_order_cannot_be_reopened(self) -> None:
+        order = self.create_order(status=PurchaseOrderStatus.CANCELLED)
+        order.status = PurchaseOrderStatus.DRAFT
+        with self.assertRaisesRegex(ValueError, "transition is not allowed"):
+            self.repository.save(order)
+
     def test_cross_business_supplier_is_rejected_without_persisting(self) -> None:
         with self.assertRaises(ValueError):
             self.create_order(supplier_id=self.supplier_2.id)

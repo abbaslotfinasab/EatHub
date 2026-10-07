@@ -101,7 +101,7 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         self.assertEqual(saved.status, PurchaseInvoiceStatus.DRAFT)
 
         saved.approve(self.user.id, datetime(2026, 9, 10, 12, 0))
-        approved = self.repository.save(saved)
+        approved = self.repository.save_approved(saved)
 
         model = DjangoPurchaseInvoice.objects.get(id=approved.id)
         self.assertEqual(approved.status, PurchaseInvoiceStatus.APPROVED)
@@ -111,12 +111,12 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
     def test_repository_rejects_updates_to_approved_invoice(self):
         saved = self.repository.save(self.invoice())
         saved.approve(self.user.id, datetime(2026, 9, 10, 12, 0))
-        self.repository.save(saved)
+        self.repository.save_approved(saved)
 
         edited = self.invoice()
         edited.id = saved.id
         edited.invoice_number = "CHANGED"
-        with self.assertRaisesRegex(ValueError, "cannot be modified"):
+        with self.assertRaisesRegex(ValueError, "can be modified"):
             self.repository.save(edited)
 
     def test_generic_save_cannot_bypass_atomic_posting_workflow(self):
@@ -132,11 +132,43 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         self.assertEqual(stored.status, DjangoPurchaseInvoice.Status.DRAFT)
         self.assertIsNone(stored.posted_at)
 
+    def test_generic_save_cannot_bypass_approval_or_cancellation_workflows(self):
+        draft = self.repository.save(self.invoice())
+        approved_candidate = self.repository.get_by_id_for_business(draft.id, self.business.id)
+        approved_candidate.approve(self.user.id, datetime(2026, 9, 10, 12))
+        with self.assertRaisesRegex(ValueError, "dedicated workflow"):
+            self.repository.save(approved_candidate)
+        self.assertEqual(DjangoPurchaseInvoice.objects.get(id=draft.id).status, "draft")
+
+        cancelled_candidate = self.repository.get_by_id_for_business(draft.id, self.business.id)
+        cancelled_candidate.cancel(self.user.id, datetime(2026, 9, 11, 12), "duplicate")
+        with self.assertRaisesRegex(ValueError, "dedicated workflow"):
+            self.repository.save(cancelled_candidate)
+
+    def test_repository_persists_cancellation_without_changing_financial_values(self):
+        draft = self.repository.save(self.invoice())
+        original_total = draft.total_price
+        draft.cancel(self.user.id, datetime(2026, 9, 11, 12), "voided")
+        cancelled = self.repository.save_cancelled(draft)
+        self.assertEqual(cancelled.status, PurchaseInvoiceStatus.CANCELLED)
+        self.assertEqual(cancelled.total_price, original_total)
+        model = DjangoPurchaseInvoice.objects.get(id=cancelled.id)
+        self.assertEqual(model.cancellation_reason, "voided")
+        self.assertEqual(model.cancelled_by_id, self.user.id)
+
+    def test_cancelled_and_posted_invoices_cannot_be_updated_or_reopened(self):
+        draft = self.repository.save(self.invoice())
+        draft.cancel(self.user.id, datetime(2026, 9, 11, 12), "voided")
+        cancelled = self.repository.save_cancelled(draft)
+        cancelled.invoice_number = "MUTATED"
+        with self.assertRaisesRegex(ValueError, "Only draft"):
+            self.repository.save(cancelled)
+
     def test_invoice_without_receipt_can_be_approved(self):
         saved = self.repository.save(self.invoice())
         saved.approve(self.user.id, datetime(2026, 9, 10, 12, 0))
 
-        approved = self.repository.save(saved)
+        approved = self.repository.save_approved(saved)
 
         self.assertEqual(approved.status, PurchaseInvoiceStatus.APPROVED)
 
@@ -203,13 +235,13 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         self.receive("5.000")
         first = self.repository.save(self.invoice(number="INV-1", quantity="20.000", unit_price="10.00"))
         first.approve(self.user.id, datetime(2026, 9, 10, 12))
-        self.repository.save(first)
+        self.repository.save_approved(first)
         second = self.repository.save(self.invoice(number="INV-2", quantity="10.000", unit_price="10.00"))
         second.approve(self.user.id, datetime(2026, 9, 10, 13))
-        self.repository.save(second)
+        self.repository.save_approved(second)
         current = self.repository.save(self.invoice(number="INV-3", quantity="40.000", unit_price="10.00"))
         current.approve(self.user.id, datetime(2026, 9, 11, 12))
-        current = self.repository.save(current)
+        current = self.repository.save_approved(current)
         context = DjangoPurchaseInvoiceMatchingRepository().load_matching_context(
             self.business.id, current.id,
         )
@@ -227,7 +259,7 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
                 number=f"SEQ-{index}", quantity=quantity, unit_price="10.00",
             ))
             invoice.approve(self.user.id, datetime(2026, 9, 10, 12 + index))
-            invoice = self.repository.save(invoice)
+            invoice = self.repository.save_approved(invoice)
             context = repository.load_matching_context(self.business.id, invoice.id)
             line = context.lines[0]
             result = PurchaseInvoiceMatcher().match(context.invoice, list(context.lines))
@@ -275,7 +307,7 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         self.receive("100.000", "0.000")
         first = self.repository.save(self.invoice(number="POSTED-PREV", quantity="40.000", unit_price="10.00"))
         first.approve(self.user.id, datetime(2026, 9, 10, 12))
-        first = self.repository.save(first)
+        first = self.repository.save_approved(first)
         posted_at = datetime(2026, 9, 11, 12, tzinfo=timezone.utc)
 
         with transaction.atomic():
@@ -289,7 +321,7 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         self.assertEqual(first.posted_at, posted_at)
         current = self.repository.save(self.invoice(number="POSTED-CURRENT", quantity="30.000", unit_price="10.00"))
         current.approve(self.user.id, datetime(2026, 9, 12, 12))
-        self.repository.save(current)
+        self.repository.save_approved(current)
         context = DjangoPurchaseInvoiceMatchingRepository().load_matching_context(
             self.business.id, current.id,
         )

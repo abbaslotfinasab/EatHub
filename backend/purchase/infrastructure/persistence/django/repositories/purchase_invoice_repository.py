@@ -38,6 +38,49 @@ class DjangoPurchaseInvoiceRepository(PurchaseInvoiceRepository):
             business_id=business_id,
         ).exists()
 
+    def lock_for_cancellation(self, business_id: int, purchase_invoice_id: int) -> bool:
+        # Lock only the invoice row; purchase_order is nullable.
+        return DjangoPurchaseInvoice.objects.select_for_update(of=("self",)).filter(
+            id=purchase_invoice_id, business_id=business_id,
+        ).exists()
+
+    def save_approved(self, purchase_invoice: PurchaseInvoice) -> PurchaseInvoice:
+        purchase_invoice.validate()
+        if purchase_invoice.status != PurchaseInvoiceStatus.APPROVED:
+            raise ValueError("Purchase invoice must be approved before persistence.")
+        model = DjangoPurchaseInvoice.objects.select_for_update(of=("self",)).filter(
+            id=purchase_invoice.id,
+            business_id=purchase_invoice.business_id,
+            status=PurchaseInvoiceStatus.DRAFT.value,
+        ).first()
+        if model is None:
+            raise ValueError("Only a draft purchase invoice can be approved.")
+        model.status = PurchaseInvoiceStatus.APPROVED.value
+        model.approved_at = purchase_invoice.approved_at
+        model.approved_by_id = purchase_invoice.approved_by_id
+        model.save(update_fields=["status", "approved_at", "approved_by", "updated_at"])
+        saved = self._aggregate_queryset().get(id=model.id, business_id=purchase_invoice.business_id)
+        return PurchaseInvoiceMapper.to_domain(saved)
+
+    def save_cancelled(self, purchase_invoice: PurchaseInvoice) -> PurchaseInvoice:
+        purchase_invoice.validate()
+        if purchase_invoice.status != PurchaseInvoiceStatus.CANCELLED:
+            raise ValueError("Purchase invoice must be cancelled before persistence.")
+        model = DjangoPurchaseInvoice.objects.select_for_update(of=("self",)).filter(
+            id=purchase_invoice.id,
+            business_id=purchase_invoice.business_id,
+            status__in=(PurchaseInvoiceStatus.DRAFT.value, PurchaseInvoiceStatus.APPROVED.value),
+        ).first()
+        if model is None:
+            raise ValueError("Only draft or approved purchase invoices can be cancelled.")
+        model.status = PurchaseInvoiceStatus.CANCELLED.value
+        model.cancelled_at = purchase_invoice.cancelled_at
+        model.cancelled_by_id = purchase_invoice.cancelled_by_id
+        model.cancellation_reason = purchase_invoice.cancellation_reason
+        model.save(update_fields=["status", "cancelled_at", "cancelled_by", "cancellation_reason", "updated_at"])
+        saved = self._aggregate_queryset().get(id=model.id, business_id=purchase_invoice.business_id)
+        return PurchaseInvoiceMapper.to_domain(saved)
+
     def save_posted(self, purchase_invoice: PurchaseInvoice) -> PurchaseInvoice:
         purchase_invoice.validate()
         if purchase_invoice.status != PurchaseInvoiceStatus.POSTED:
@@ -105,9 +148,11 @@ class DjangoPurchaseInvoiceRepository(PurchaseInvoiceRepository):
                 if model is None:
                     raise ValueError("Purchase invoice does not exist in the specified business.")
                 if model.status != PurchaseInvoiceStatus.DRAFT.value:
-                    raise ValueError("Approved purchase invoice cannot be modified.")
-                if purchase_invoice.status == PurchaseInvoiceStatus.POSTED:
-                    raise ValueError("Posted invoices must use the atomic posting workflow.")
+                    raise ValueError("Only draft purchase invoices can be modified.")
+                if purchase_invoice.status != PurchaseInvoiceStatus.DRAFT:
+                    if purchase_invoice.status == PurchaseInvoiceStatus.POSTED:
+                        raise ValueError("Posted invoices must use the atomic posting workflow.")
+                    raise ValueError("Lifecycle transitions must use their dedicated workflow.")
                 created_at = model.created_at
                 existing = list(DjangoPurchaseInvoiceItem.objects.filter(
                     purchase_invoice=model,

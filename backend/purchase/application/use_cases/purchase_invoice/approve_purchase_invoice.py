@@ -30,7 +30,7 @@ class ApprovePurchaseInvoiceUseCase:
             if invoice is None:
                 raise ValueError("Purchase invoice does not exist in this business.")
             invoice.approve(command.approved_by_id, command.approved_at)
-            return self._repository.save(invoice)
+            return self._repository.save_approved(invoice)
 
     @staticmethod
     def _validate_positive_id(value: int, field_name: str) -> None:

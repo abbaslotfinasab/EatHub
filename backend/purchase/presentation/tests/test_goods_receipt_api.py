@@ -290,6 +290,11 @@ class GoodsReceiptAPITests(APITestCase):
             self.client.patch(self.endpoint, self.payload(), format="json").status_code,
             status.HTTP_405_METHOD_NOT_ALLOWED,
         )
+        created = self.create_receipt()
+        self.assertEqual(
+            self.client.delete(f"{self.endpoint}{created.data['id']}/").status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     def test_stock_details_are_not_exposed(self):
         response = self.create_receipt()

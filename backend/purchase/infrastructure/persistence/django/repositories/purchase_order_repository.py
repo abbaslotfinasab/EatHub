@@ -108,6 +108,33 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
                         purchase_order=model,
                     ).order_by("id")
                 )
+                allowed = {
+                    PurchaseOrderStatus.DRAFT.value: {
+                        PurchaseOrderStatus.SENT.value,
+                        PurchaseOrderStatus.CANCELLED.value,
+                    },
+                    PurchaseOrderStatus.SENT.value: {
+                        PurchaseOrderStatus.PARTIAL.value,
+                        PurchaseOrderStatus.RECEIVED.value,
+                        PurchaseOrderStatus.CANCELLED.value,
+                    },
+                    PurchaseOrderStatus.PARTIAL.value: {
+                        PurchaseOrderStatus.RECEIVED.value,
+                        PurchaseOrderStatus.CANCELLED.value,
+                    },
+                    PurchaseOrderStatus.RECEIVED.value: set(),
+                    PurchaseOrderStatus.CANCELLED.value: set(),
+                }
+                if (
+                    purchase_order.status.value != model.status
+                    and purchase_order.status.value not in allowed[model.status]
+                ):
+                    raise ValueError("Purchase order lifecycle transition is not allowed.")
+                if model.status != PurchaseOrderStatus.DRAFT.value:
+                    if not self._same_commercial_terms(model, existing_items, purchase_order):
+                        raise ValueError(
+                            "Purchase order terms and items cannot be changed after it is sent."
+                        )
                 model = PurchaseOrderMapper.to_model(purchase_order, model)
                 model.created_at = created_at
 
@@ -120,6 +147,26 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
             )
 
         return PurchaseOrderMapper.to_domain(saved_model)
+
+    @staticmethod
+    def _same_commercial_terms(model, existing_items, purchase_order: PurchaseOrder) -> bool:
+        persisted_items = [
+            (item.ingredient_id, item.quantity, item.unit_price)
+            for item in existing_items
+        ]
+        proposed_items = [
+            (item.ingredient_id, item.quantity, item.unit_price)
+            for item in purchase_order.items
+        ]
+        return (
+            model.supplier_id == purchase_order.supplier_id
+            and model.requisition_id == purchase_order.requisition_id
+            and model.order_date == purchase_order.order_date
+            and model.expected_date == purchase_order.expected_date
+            and model.discount == purchase_order.discount
+            and model.tax == purchase_order.tax
+            and persisted_items == proposed_items
+        )
 
     @staticmethod
     def _synchronize_items(
