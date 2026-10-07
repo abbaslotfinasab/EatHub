@@ -1,9 +1,13 @@
 from abc import ABC, abstractmethod
 
 from purchase.domain.entities.accounts_payable import AccountsPayable
+from purchase.domain.enums.accounts_payable_status import AccountsPayableStatus
 
 
 class AccountsPayableRepository(ABC):
+    def lock_for_payment_allocation(self, business_id: int, accounts_payable_id: int) -> bool:
+        raise NotImplementedError
+
     @abstractmethod
     def create(self, accounts_payable: AccountsPayable) -> AccountsPayable:
         raise NotImplementedError
@@ -26,4 +30,12 @@ class AccountsPayableRepository(ABC):
 
     @abstractmethod
     def exists_for_source_invoice(self, source_invoice_id: int, business_id: int) -> bool:
+        raise NotImplementedError
+
+    def save_payment_status(
+        self,
+        accounts_payable_id: int,
+        business_id: int,
+        status: AccountsPayableStatus,
+    ) -> None:
         raise NotImplementedError

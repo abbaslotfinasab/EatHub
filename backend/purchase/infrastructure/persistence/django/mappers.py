@@ -17,6 +17,7 @@ from purchase.domain.entities.purchase_invoice import (
 )
 from purchase.domain.entities.supplier_payment import SupplierPayment
 from purchase.domain.entities.accounts_payable import AccountsPayable
+from purchase.domain.entities.payment_allocation import PaymentAllocation
 from purchase.domain.enums.accounts_payable_status import AccountsPayableStatus
 from purchase.domain.enums.payment_method import PaymentMethod
 from purchase.domain.enums.purchase_invoice_status import PurchaseInvoiceStatus
@@ -35,6 +36,7 @@ from purchase.models import (
     PurchaseInvoice as DjangoPurchaseInvoice,
     PurchaseInvoiceItem as DjangoPurchaseInvoiceItem,
     SupplierPayment as DjangoSupplierPayment,
+    PaymentAllocation as DjangoPaymentAllocation,
 )
 
 
@@ -105,6 +107,35 @@ class SupplierPaymentMapper:
         model.amount = entity.amount
         model.payment_date = entity.payment_date
         model.method = entity.method.value
+        return model
+
+
+class PaymentAllocationMapper:
+    @staticmethod
+    def to_domain(model: DjangoPaymentAllocation) -> PaymentAllocation:
+        return PaymentAllocation(
+            id=model.id,
+            business_id=model.business_id,
+            accounts_payable_id=model.accounts_payable_id,
+            supplier_payment_id=model.payment_id,
+            amount=model.amount,
+            allocated_at=model.allocated_at,
+            created_at=model.created_at,
+            updated_at=model.updated_at,
+        )
+
+    @staticmethod
+    def to_model(
+        entity: PaymentAllocation,
+        model: DjangoPaymentAllocation | None = None,
+    ) -> DjangoPaymentAllocation:
+        if model is None:
+            model = DjangoPaymentAllocation()
+        model.business_id = entity.business_id
+        model.accounts_payable_id = entity.accounts_payable_id
+        model.payment_id = entity.supplier_payment_id
+        model.amount = entity.amount
+        model.allocated_at = entity.allocated_at
         return model
 
 

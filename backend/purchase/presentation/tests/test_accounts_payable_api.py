@@ -68,19 +68,35 @@ class AccountsPayableAPITests(APITestCase):
 
     def test_payment_eligibility_is_read_only_for_every_ap_status(self):
         cases = (
-            (AccountsPayable.Status.OPEN, True, None),
-            (AccountsPayable.Status.PARTIALLY_PAID, True, None),
-            (AccountsPayable.Status.PAID, False, "already_paid"),
-            (AccountsPayable.Status.CANCELLED, False, "cancelled"),
+            (AccountsPayable.Status.OPEN, Decimal("0.00"), "open", True, None),
+            (AccountsPayable.Status.PARTIALLY_PAID, Decimal("2.50"), "partially_paid", True, None),
+            (AccountsPayable.Status.PAID, Decimal("10.00"), "paid", False, "already_paid"),
+            (AccountsPayable.Status.CANCELLED, Decimal("0.00"), "cancelled", False, "cancelled"),
         )
-        for index, (ap_status, eligible, reason) in enumerate(cases):
-            with self.subTest(status=ap_status):
+        for index, (persisted_status, allocated, expected_status, eligible, reason) in enumerate(cases):
+            with self.subTest(status=persisted_status):
                 payable = self.create_payable(
                     self.business,
                     self.supplier,
                     f"AP-ELIGIBILITY-{index}",
                 )
-                AccountsPayable.objects.filter(id=payable.id).update(status=ap_status)
+                AccountsPayable.objects.filter(id=payable.id).update(status=persisted_status)
+                if allocated:
+                    payment = SupplierPayment.objects.create(
+                        business=self.business,
+                        supplier=self.supplier,
+                        amount=allocated,
+                        payment_date=date(2026, 10, 7),
+                        method="cash",
+                    )
+                    PaymentAllocation.objects.create(
+                        business=self.business,
+                        accounts_payable=payable,
+                        payment=payment,
+                        invoice=payable.source_invoice,
+                        amount=allocated,
+                        allocated_at=payable.created_at,
+                    )
                 payments_before = SupplierPayment.objects.count()
                 allocations_before = PaymentAllocation.objects.count()
 
@@ -89,13 +105,13 @@ class AccountsPayableAPITests(APITestCase):
                 self.assertEqual(response.status_code, status.HTTP_200_OK)
                 self.assertEqual(response.data["accounts_payable_id"], payable.id)
                 self.assertEqual(response.data["eligible"], eligible)
-                self.assertEqual(response.data["status"], ap_status)
+                self.assertEqual(response.data["status"], expected_status)
                 self.assertEqual(response.data["amount"], "10.00")
                 self.assertEqual(response.data["reason"], reason)
-                self.assertNotIn("allocated_amount", response.data)
-                self.assertNotIn("outstanding_amount", response.data)
+                self.assertEqual(response.data["allocated_amount"], f"{allocated:.2f}")
+                self.assertEqual(response.data["outstanding_amount"], f"{Decimal('10.00') - allocated:.2f}")
                 payable.refresh_from_db()
-                self.assertEqual(payable.status, ap_status)
+                self.assertEqual(payable.status, persisted_status)
                 self.assertEqual(SupplierPayment.objects.count(), payments_before)
                 self.assertEqual(PaymentAllocation.objects.count(), allocations_before)
 

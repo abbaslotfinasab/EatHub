@@ -557,12 +557,25 @@ class SupplierPayment(BaseModel):
 
 class PaymentAllocation(BaseModel):
 
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="payment_allocations",
+    )
+
+    accounts_payable = models.ForeignKey(
+        "AccountsPayable",
+        on_delete=models.PROTECT,
+        related_name="payment_allocations",
+    )
+
     payment = models.ForeignKey(
         "SupplierPayment",
         on_delete=models.PROTECT,
         related_name="allocations",
     )
 
+    # Retained as a synchronized legacy reference; AP is authoritative.
     invoice = models.ForeignKey(
         "PurchaseInvoice",
         on_delete=models.PROTECT,
@@ -574,12 +587,20 @@ class PaymentAllocation(BaseModel):
         decimal_places=2,
     )
 
+    allocated_at = models.DateTimeField()
+
     class Meta:
         ordering = ["id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gt=0),
+                name="purchase_payment_allocation_amount_positive",
+            ),
+        ]
 
     def __str__(self):
         return (
             f"Payment #{self.payment_id} → "
-            f"Invoice #{self.invoice_id}: "
+            f"Accounts payable #{self.accounts_payable_id}: "
             f"{self.amount}"
         )

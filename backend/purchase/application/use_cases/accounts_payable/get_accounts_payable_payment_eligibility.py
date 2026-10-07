@@ -3,14 +3,18 @@ from purchase.application.dto.accounts_payable_payment_eligibility import (
     GetAccountsPayablePaymentEligibilityQuery,
 )
 from purchase.domain.repositories.accounts_payable_repository import AccountsPayableRepository
-from purchase.domain.services.accounts_payable_payment_eligibility import (
-    AccountsPayablePaymentEligibilityPolicy,
-)
+from purchase.domain.repositories.payment_allocation_repository import PaymentAllocationRepository
+from purchase.domain.services.accounts_payable_payment_state import AccountsPayablePaymentStatePolicy
 
 
 class GetAccountsPayablePaymentEligibility:
-    def __init__(self, repository: AccountsPayableRepository) -> None:
+    def __init__(
+        self,
+        repository: AccountsPayableRepository,
+        allocation_repository: PaymentAllocationRepository,
+    ) -> None:
         self._repository = repository
+        self._allocations = allocation_repository
 
     def execute(
         self,
@@ -26,13 +30,18 @@ class GetAccountsPayablePaymentEligibility:
         if payable is None:
             raise ValueError("Accounts payable does not exist in this business.")
 
-        decision = AccountsPayablePaymentEligibilityPolicy.evaluate(payable)
+        allocated = self._allocations.allocated_amount_for_accounts_payable(
+            query.business_id, payable.id,
+        )
+        state = AccountsPayablePaymentStatePolicy.calculate(payable, allocated)
         return AccountsPayablePaymentEligibilityResult(
             accounts_payable_id=payable.id,
-            eligible=decision.eligible,
-            status=payable.status,
+            eligible=state.eligible,
+            status=state.status,
             amount=payable.amount,
-            reason=decision.reason,
+            allocated_amount=state.allocated_amount,
+            outstanding_amount=state.outstanding_amount,
+            reason=state.reason,
         )
 
     @staticmethod

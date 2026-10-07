@@ -13,6 +13,8 @@ class AccountsPayablePaymentEligibilitySerializer(serializers.Serializer):
         choices=[status.value for status in AccountsPayableStatus],
     )
     amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    allocated_amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    outstanding_amount = serializers.DecimalField(max_digits=14, decimal_places=2)
     reason = serializers.ChoiceField(
         choices=[reason.value for reason in AccountsPayablePaymentEligibilityReason],
         allow_null=True,

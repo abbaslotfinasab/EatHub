@@ -37,10 +37,24 @@ from purchase.presentation.api.views.accounts_payable import (
     AccountsPayableListAPIView,
     AccountsPayablePaymentEligibilityAPIView,
 )
+from purchase.presentation.api.views.payment_allocation import (
+    PaymentAllocationDetailAPIView,
+    PaymentAllocationListCreateAPIView,
+)
 
 app_name = "purchase"
 
 urlpatterns = [
+    path(
+        "payment-allocations/",
+        PaymentAllocationListCreateAPIView.as_view(),
+        name="payment-allocation-list-create",
+    ),
+    path(
+        "payment-allocations/<int:pk>/",
+        PaymentAllocationDetailAPIView.as_view(),
+        name="payment-allocation-detail",
+    ),
     path(
         "accounts-payables/",
         AccountsPayableListAPIView.as_view(),

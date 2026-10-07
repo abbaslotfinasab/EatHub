@@ -1,6 +1,7 @@
 from django.db import IntegrityError, transaction
 
 from purchase.domain.entities.accounts_payable import AccountsPayable
+from purchase.domain.enums.accounts_payable_status import AccountsPayableStatus
 from purchase.domain.repositories.accounts_payable_repository import AccountsPayableRepository
 from purchase.infrastructure.persistence.django.mappers import AccountsPayableMapper
 from purchase.models import (
@@ -11,6 +12,12 @@ from purchase.models import (
 
 
 class DjangoAccountsPayableRepository(AccountsPayableRepository):
+    def lock_for_payment_allocation(self, business_id: int, accounts_payable_id: int) -> bool:
+        return DjangoAccountsPayable.objects.select_for_update(of=("self",)).filter(
+            id=accounts_payable_id,
+            business_id=business_id,
+        ).exists()
+
     def create(self, accounts_payable: AccountsPayable) -> AccountsPayable:
         accounts_payable.validate()
         if accounts_payable.id is not None:
@@ -75,3 +82,20 @@ class DjangoAccountsPayableRepository(AccountsPayableRepository):
             source_invoice_id=source_invoice_id,
             business_id=business_id,
         ).exists()
+
+    def save_payment_status(
+        self,
+        accounts_payable_id: int,
+        business_id: int,
+        status: AccountsPayableStatus,
+    ) -> None:
+        if status == AccountsPayableStatus.CANCELLED:
+            raise ValueError("Payment allocations cannot change cancelled accounts payable status.")
+        model = DjangoAccountsPayable.objects.filter(
+            id=accounts_payable_id,
+            business_id=business_id,
+        ).exclude(status=AccountsPayableStatus.CANCELLED.value).first()
+        if model is None:
+            raise ValueError("Accounts payable does not exist in this business.")
+        model.status = status.value
+        model.save(update_fields=["status", "updated_at"])

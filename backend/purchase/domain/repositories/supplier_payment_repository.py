@@ -1,12 +1,14 @@
 from abc import ABC, abstractmethod
 from datetime import date
-from decimal import Decimal
 
 from purchase.domain.entities.supplier_payment import SupplierPayment
 from purchase.domain.enums.payment_method import PaymentMethod
 
 
 class SupplierPaymentRepository(ABC):
+    def lock_for_allocation(self, business_id: int, supplier_payment_id: int) -> bool:
+        raise NotImplementedError
+
 
     @abstractmethod
     def get_by_id_for_business(
@@ -29,15 +31,6 @@ class SupplierPaymentRepository(ABC):
         payment_date_to: date | None = None,
     ) -> list[SupplierPayment]:
         """Return supplier payments belonging to a business."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def total_allocated_to_invoice(
-        self,
-        business_id: int,
-        invoice_id: int,
-    ) -> Decimal:
-        """Return the total payment amount allocated to an invoice in a business."""
         raise NotImplementedError
 
     @abstractmethod

@@ -19,6 +19,9 @@ from purchase.application.use_cases.accounts_payable.list_accounts_payables impo
 from purchase.infrastructure.persistence.django.repositories.accounts_payable_repository import (
     DjangoAccountsPayableRepository,
 )
+from purchase.infrastructure.persistence.django.repositories.payment_allocation_repository import (
+    DjangoPaymentAllocationRepository,
+)
 from purchase.presentation.api.serializers.accounts_payable import AccountsPayableSerializer
 from purchase.presentation.api.serializers.accounts_payable_payment_eligibility import (
     AccountsPayablePaymentEligibilitySerializer,
@@ -69,6 +72,7 @@ class AccountsPayablePaymentEligibilityAPIView(TenantAPIView):
         try:
             result = GetAccountsPayablePaymentEligibility(
                 _repository(),
+                DjangoPaymentAllocationRepository(),
             ).execute(
                 GetAccountsPayablePaymentEligibilityQuery(
                     business_id=request.business.id,

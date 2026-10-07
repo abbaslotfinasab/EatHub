@@ -19,4 +19,6 @@ class AccountsPayablePaymentEligibilityResult:
     eligible: bool
     status: AccountsPayableStatus
     amount: Decimal
+    allocated_amount: Decimal
+    outstanding_amount: Decimal
     reason: AccountsPayablePaymentEligibilityReason | None

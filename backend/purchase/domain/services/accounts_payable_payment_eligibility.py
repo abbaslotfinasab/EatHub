@@ -5,6 +5,7 @@ from purchase.domain.enums.accounts_payable_payment_eligibility_reason import (
     AccountsPayablePaymentEligibilityReason,
 )
 from purchase.domain.enums.accounts_payable_status import AccountsPayableStatus
+from purchase.domain.services.accounts_payable_payment_state import AccountsPayablePaymentStatePolicy
 
 
 @dataclass(frozen=True)
@@ -18,17 +19,10 @@ class AccountsPayablePaymentEligibilityPolicy:
     def evaluate(
         accounts_payable: AccountsPayable,
     ) -> AccountsPayablePaymentEligibility:
-        if accounts_payable.status in (
-            AccountsPayableStatus.OPEN,
-            AccountsPayableStatus.PARTIALLY_PAID,
-        ):
-            return AccountsPayablePaymentEligibility(eligible=True)
-        if accounts_payable.status == AccountsPayableStatus.PAID:
-            return AccountsPayablePaymentEligibility(
-                eligible=False,
-                reason=AccountsPayablePaymentEligibilityReason.ALREADY_PAID,
-            )
+        eligible, reason = AccountsPayablePaymentStatePolicy.eligibility_for_status(
+            accounts_payable.status,
+        )
         return AccountsPayablePaymentEligibility(
-            eligible=False,
-            reason=AccountsPayablePaymentEligibilityReason.CANCELLED,
+            eligible=eligible,
+            reason=reason,
         )

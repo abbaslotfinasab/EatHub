@@ -30,6 +30,14 @@ class FakeAccountsPayableRepository:
         return self.payable
 
 
+class FakePaymentAllocationRepository:
+    def __init__(self, allocated=Decimal("0.00")):
+        self.allocated = allocated
+
+    def allocated_amount_for_accounts_payable(self, business_id, accounts_payable_id):
+        return self.allocated
+
+
 class GetAccountsPayablePaymentEligibilityTests(SimpleTestCase):
     def payable(self, status=AccountsPayableStatus.OPEN):
         return AccountsPayable(
@@ -51,19 +59,24 @@ class GetAccountsPayablePaymentEligibilityTests(SimpleTestCase):
     def test_returns_eligibility_from_tenant_scoped_repository_read(self):
         payable = self.payable(AccountsPayableStatus.PARTIALLY_PAID)
         repository = FakeAccountsPayableRepository(payable)
-        result = GetAccountsPayablePaymentEligibility(repository).execute(self.query())
+        result = GetAccountsPayablePaymentEligibility(
+            repository, FakePaymentAllocationRepository(Decimal("25.00")),
+        ).execute(self.query())
 
         self.assertEqual(repository.calls, [(8, 1)])
         self.assertEqual(result.accounts_payable_id, 8)
         self.assertTrue(result.eligible)
         self.assertEqual(result.status, AccountsPayableStatus.PARTIALLY_PAID)
         self.assertEqual(result.amount, Decimal("12500000.00"))
+        self.assertEqual(result.allocated_amount, Decimal("25.00"))
+        self.assertEqual(result.outstanding_amount, Decimal("12499975.00"))
         self.assertIsNone(result.reason)
         self.assertEqual(payable.status, AccountsPayableStatus.PARTIALLY_PAID)
 
     def test_paid_result_contains_already_paid_reason(self):
         result = GetAccountsPayablePaymentEligibility(
             FakeAccountsPayableRepository(self.payable(AccountsPayableStatus.PAID)),
+            FakePaymentAllocationRepository(Decimal("12500000.00")),
         ).execute(self.query())
         self.assertFalse(result.eligible)
         self.assertEqual(result.reason, AccountsPayablePaymentEligibilityReason.ALREADY_PAID)
@@ -71,6 +84,7 @@ class GetAccountsPayablePaymentEligibilityTests(SimpleTestCase):
     def test_cancelled_result_contains_cancelled_reason(self):
         result = GetAccountsPayablePaymentEligibility(
             FakeAccountsPayableRepository(self.payable(AccountsPayableStatus.CANCELLED)),
+            FakePaymentAllocationRepository(),
         ).execute(self.query())
         self.assertFalse(result.eligible)
         self.assertEqual(result.reason, AccountsPayablePaymentEligibilityReason.CANCELLED)
@@ -78,17 +92,20 @@ class GetAccountsPayablePaymentEligibilityTests(SimpleTestCase):
     def test_other_tenant_and_missing_payable_are_not_found(self):
         use_case = GetAccountsPayablePaymentEligibility(
             FakeAccountsPayableRepository(self.payable()),
+            FakePaymentAllocationRepository(),
         )
         with self.assertRaisesRegex(ValueError, "does not exist in this business"):
             use_case.execute(self.query(business_id=2))
         with self.assertRaisesRegex(ValueError, "does not exist in this business"):
             GetAccountsPayablePaymentEligibility(
                 FakeAccountsPayableRepository(None),
+                FakePaymentAllocationRepository(),
             ).execute(self.query())
 
     def test_ids_must_be_positive(self):
         use_case = GetAccountsPayablePaymentEligibility(
             FakeAccountsPayableRepository(self.payable()),
+            FakePaymentAllocationRepository(),
         )
         with self.assertRaisesRegex(ValueError, "Business ID"):
             use_case.execute(self.query(business_id=0))

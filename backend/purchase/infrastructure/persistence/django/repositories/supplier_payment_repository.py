@@ -13,6 +13,12 @@ from purchase.models import (
 
 
 class DjangoSupplierPaymentRepository(SupplierPaymentRepository):
+    def lock_for_allocation(self, business_id: int, supplier_payment_id: int) -> bool:
+        return DjangoSupplierPayment.objects.select_for_update(of=("self",)).filter(
+            id=supplier_payment_id,
+            business_id=business_id,
+        ).exists()
+
     def get_by_id_for_business(
         self,
         supplier_payment_id: int,
@@ -49,10 +55,6 @@ class DjangoSupplierPaymentRepository(SupplierPaymentRepository):
             SupplierPaymentMapper.to_domain(model)
             for model in queryset.order_by("id")
         ]
-
-    def total_allocated_to_invoice(self, business_id: int, invoice_id: int):
-        # Allocation is intentionally not implemented in Phase 1.
-        raise NotImplementedError
 
     def save(self, supplier_payment: SupplierPayment) -> SupplierPayment:
         supplier_payment.validate()
