@@ -1,3 +1,4 @@
+from purchase.application.ports.goods_receipt import TransactionManager
 from purchase.domain.entities.purchase_order import PurchaseOrder
 from purchase.domain.repositories.purchase_order_repository import (
     PurchaseOrderRepository,
@@ -5,33 +6,45 @@ from purchase.domain.repositories.purchase_order_repository import (
 
 
 class SendPurchaseOrderUseCase:
-    def __init__(self, purchase_order_repository: PurchaseOrderRepository) -> None:
+    def __init__(
+        self,
+        purchase_order_repository: PurchaseOrderRepository,
+        transaction_manager: TransactionManager,
+    ) -> None:
         self._purchase_order_repository = purchase_order_repository
+        self._transaction_manager = transaction_manager
 
     def execute(self, purchase_order_id: int, business_id: int) -> PurchaseOrder:
-        purchase_order = self._get_purchase_order_for_business(
-            purchase_order_id,
-            business_id,
-        )
-        purchase_order.send()
+        with self._transaction_manager.atomic():
+            purchase_order = self._get_purchase_order_for_business(
+                purchase_order_id,
+                business_id,
+                for_update=True,
+            )
+            purchase_order.send()
 
-        return self._purchase_order_repository.save(purchase_order)
+            return self._purchase_order_repository.save(purchase_order)
 
     def _get_purchase_order_for_business(
         self,
         purchase_order_id: int,
         business_id: int,
+        *,
+        for_update: bool = False,
     ) -> PurchaseOrder:
         purchase_order_id = self._validate_positive_id(
             purchase_order_id,
             "Purchase order ID",
         )
         business_id = self._validate_positive_id(business_id, "Business ID")
-        purchase_order = (
-            self._purchase_order_repository.get_by_id_for_business(
-                purchase_order_id,
-                business_id,
-            )
+        loader = (
+            self._purchase_order_repository.get_by_id_for_business_for_update
+            if for_update
+            else self._purchase_order_repository.get_by_id_for_business
+        )
+        purchase_order = loader(
+            purchase_order_id,
+            business_id,
         )
         if purchase_order is None:
             raise ValueError("Purchase order does not exist in this business.")

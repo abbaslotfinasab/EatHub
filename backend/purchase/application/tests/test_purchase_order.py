@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from contextlib import nullcontext
 from unittest import TestCase
 
 from purchase.application.dto.purchase_order import (
@@ -32,6 +33,7 @@ class FakePurchaseOrderRepository:
     def __init__(self) -> None:
         self.orders: dict[int, PurchaseOrder] = {}
         self.next_id = 1
+        self.locked_reads: list[int] = []
 
     def get_by_id_for_business(
         self,
@@ -42,6 +44,14 @@ class FakePurchaseOrderRepository:
         if order is None or order.business_id != business_id:
             return None
         return order
+
+    def get_by_id_for_business_for_update(
+        self,
+        purchase_order_id: int,
+        business_id: int,
+    ) -> PurchaseOrder | None:
+        self.locked_reads.append(purchase_order_id)
+        return self.get_by_id_for_business(purchase_order_id, business_id)
 
     def list(self, business_id: int, **kwargs: object) -> list[PurchaseOrder]:
         return [
@@ -80,6 +90,11 @@ class FakeSupplierRepository:
         return supplier
 
 
+class FakeTransactionManager:
+    def atomic(self):
+        return nullcontext()
+
+
 class FakeRequisitionRepository:
     def __init__(self, requisitions: list[PurchaseRequisition]) -> None:
         self.requisitions = {
@@ -100,6 +115,7 @@ class FakeRequisitionRepository:
 class PurchaseOrderApplicationTests(TestCase):
     def setUp(self) -> None:
         self.purchase_order_repository = FakePurchaseOrderRepository()
+        self.transaction_manager = FakeTransactionManager()
         self.supplier_repository = FakeSupplierRepository([
             Supplier(id=1, business_id=1, name="Local Supplier"),
             Supplier(id=2, business_id=2, name="Other Supplier"),
@@ -174,7 +190,8 @@ class PurchaseOrderApplicationTests(TestCase):
         order = self.create_use_case.execute(self.create_command())
 
         updated = UpdatePurchaseOrderUseCase(
-            self.purchase_order_repository
+            self.purchase_order_repository,
+            self.transaction_manager,
         ).execute(
             UpdatePurchaseOrderDTO(
                 business_id=1,
@@ -198,7 +215,8 @@ class PurchaseOrderApplicationTests(TestCase):
         order = self.create_use_case.execute(self.create_command())
 
         sent = SendPurchaseOrderUseCase(
-            self.purchase_order_repository
+            self.purchase_order_repository,
+            self.transaction_manager,
         ).execute(order.id, business_id=1)
 
         self.assertEqual(sent.status, "sent")
@@ -207,18 +225,88 @@ class PurchaseOrderApplicationTests(TestCase):
         order = self.create_use_case.execute(self.create_command())
 
         cancelled = CancelPurchaseOrderUseCase(
-            self.purchase_order_repository
+            self.purchase_order_repository,
+            self.transaction_manager,
         ).execute(order.id, business_id=1)
 
         self.assertEqual(cancelled.status, "cancelled")
 
     def test_rejects_invalid_lifecycle_transition(self) -> None:
         order = self.create_use_case.execute(self.create_command())
-        send_use_case = SendPurchaseOrderUseCase(self.purchase_order_repository)
+        send_use_case = SendPurchaseOrderUseCase(
+            self.purchase_order_repository,
+            self.transaction_manager,
+        )
         send_use_case.execute(order.id, business_id=1)
 
         with self.assertRaises(ValueError):
             send_use_case.execute(order.id, business_id=1)
+
+    def test_lifecycle_actions_load_the_order_under_the_transaction_lock(self) -> None:
+        order = self.create_use_case.execute(self.create_command())
+        send = SendPurchaseOrderUseCase(
+            self.purchase_order_repository,
+            self.transaction_manager,
+        )
+
+        send.execute(order.id, business_id=1)
+
+        self.assertEqual(self.purchase_order_repository.locked_reads, [order.id])
+
+    def test_sent_purchase_order_can_still_be_cancelled(self) -> None:
+        order = self.create_use_case.execute(self.create_command())
+        SendPurchaseOrderUseCase(
+            self.purchase_order_repository,
+            self.transaction_manager,
+        ).execute(order.id, business_id=1)
+
+        cancelled = CancelPurchaseOrderUseCase(
+            self.purchase_order_repository,
+            self.transaction_manager,
+        ).execute(order.id, business_id=1)
+
+        self.assertEqual(cancelled.status, "cancelled")
+
+    def test_partial_purchase_order_can_still_be_cancelled(self) -> None:
+        order = self.create_use_case.execute(self.create_command())
+        order.send()
+        order.mark_partially_received()
+
+        cancelled = CancelPurchaseOrderUseCase(
+            self.purchase_order_repository,
+            self.transaction_manager,
+        ).execute(order.id, business_id=1)
+        self.assertEqual(cancelled.status, "cancelled")
+
+    def test_received_purchase_order_cannot_be_cancelled(self) -> None:
+        order = self.create_use_case.execute(self.create_command())
+        order.send()
+        order.mark_received()
+
+        with self.assertRaises(ValueError):
+            CancelPurchaseOrderUseCase(
+                self.purchase_order_repository,
+                self.transaction_manager,
+            ).execute(order.id, business_id=1)
+
+    def test_sent_purchase_order_cannot_be_commercially_updated(self) -> None:
+        order = self.create_use_case.execute(self.create_command())
+        SendPurchaseOrderUseCase(
+            self.purchase_order_repository,
+            self.transaction_manager,
+        ).execute(order.id, business_id=1)
+
+        with self.assertRaises(ValueError):
+            UpdatePurchaseOrderUseCase(
+                self.purchase_order_repository,
+                self.transaction_manager,
+            ).execute(
+                UpdatePurchaseOrderDTO(
+                    business_id=1,
+                    purchase_order_id=order.id,
+                    items=[],
+                )
+            )
 
     def test_cross_business_get_is_rejected(self) -> None:
         order = self.create_use_case.execute(self.create_command())
@@ -234,7 +322,8 @@ class PurchaseOrderApplicationTests(TestCase):
 
         with self.assertRaises(ValueError):
             UpdatePurchaseOrderUseCase(
-                self.purchase_order_repository
+                self.purchase_order_repository,
+                self.transaction_manager,
             ).execute(
                 UpdatePurchaseOrderDTO(
                     business_id=2,

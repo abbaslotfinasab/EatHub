@@ -1,7 +1,9 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
+import inspect
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -894,6 +896,101 @@ class DjangoPurchaseOrderRepositoryTests(TestCase):
         order.status = PurchaseOrderStatus.DRAFT
         with self.assertRaisesRegex(ValueError, "transition is not allowed"):
             self.repository.save(order)
+
+    def test_stale_sent_order_cannot_cancel_after_receipt_commits_received(self) -> None:
+        order = self.create_order(status=PurchaseOrderStatus.SENT)
+        stale_order = self.repository.get_by_id_for_business(
+            order.id,
+            self.business_1.id,
+        )
+        current_order = self.repository.get_by_id_for_business_for_update(
+            order.id,
+            self.business_1.id,
+        )
+        current_order.mark_received()
+        self.repository.save(current_order)
+
+        stale_order.cancel()
+        with self.assertRaises(ValueError):
+            self.repository.save(stale_order)
+
+        persisted = self.repository.get_by_id_for_business(
+            order.id,
+            self.business_1.id,
+        )
+        self.assertEqual(persisted.status, PurchaseOrderStatus.RECEIVED)
+
+    def test_stale_draft_order_cannot_be_sent_after_cancellation_commits(self) -> None:
+        order = self.create_order()
+        stale_order = self.repository.get_by_id_for_business(
+            order.id,
+            self.business_1.id,
+        )
+        current_order = self.repository.get_by_id_for_business_for_update(
+            order.id,
+            self.business_1.id,
+        )
+        current_order.cancel()
+        self.repository.save(current_order)
+
+        stale_order.send()
+        with self.assertRaises(ValueError):
+            self.repository.save(stale_order)
+
+        persisted = self.repository.get_by_id_for_business(
+            order.id,
+            self.business_1.id,
+        )
+        self.assertEqual(persisted.status, PurchaseOrderStatus.CANCELLED)
+
+    def test_stale_draft_order_cannot_update_after_it_is_sent(self) -> None:
+        order = self.create_order()
+        stale_order = self.repository.get_by_id_for_business(
+            order.id,
+            self.business_1.id,
+        )
+        current_order = self.repository.get_by_id_for_business_for_update(
+            order.id,
+            self.business_1.id,
+        )
+        current_order.send()
+        self.repository.save(current_order)
+
+        stale_order.items[0].quantity = Decimal("9")
+        with self.assertRaises(ValueError):
+            self.repository.save(stale_order)
+
+        persisted = self.repository.get_by_id_for_business(
+            order.id,
+            self.business_1.id,
+        )
+        self.assertEqual(persisted.status, PurchaseOrderStatus.SENT)
+        self.assertEqual(persisted.items[0].quantity, Decimal("2"))
+
+    def test_stale_draft_terms_cannot_overwrite_a_newer_draft_save(self) -> None:
+        order = self.create_order()
+        stale_order = self.repository.get_by_id_for_business(
+            order.id,
+            self.business_1.id,
+        )
+        later = timezone.now() + timedelta(seconds=1)
+        DjangoPurchaseOrder.objects.filter(id=order.id).update(updated_at=later)
+
+        stale_order.items[0].quantity = Decimal("9")
+        with self.assertRaisesRegex(ValueError, "changed after it was loaded"):
+            self.repository.save(stale_order)
+
+        persisted = self.repository.get_by_id_for_business(
+            order.id,
+            self.business_1.id,
+        )
+        self.assertEqual(persisted.items[0].quantity, Decimal("2"))
+
+    def test_existing_order_save_locks_tenant_scoped_root_before_revalidation(self) -> None:
+        source = inspect.getsource(DjangoPurchaseOrderRepository.save)
+        self.assertIn('select_for_update(\n                    of=("self",)', source)
+        self.assertIn("business_id=purchase_order.business_id", source)
+        self.assertLess(source.index("select_for_update"), source.index("allowed ="))
 
     def test_cross_business_supplier_is_rejected_without_persisting(self) -> None:
         with self.assertRaises(ValueError):

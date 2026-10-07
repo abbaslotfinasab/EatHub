@@ -40,6 +40,7 @@ from purchase.infrastructure.persistence.django.repositories.requisition_reposit
 from purchase.infrastructure.persistence.django.repositories.supplier_repository import (
     DjangoSupplierRepository,
 )
+from purchase.infrastructure.persistence.transaction import DjangoTransactionManager
 from purchase.presentation.api.serializers.purchase_order import (
     PurchaseOrderCreateSerializer,
     PurchaseOrderSerializer,
@@ -57,6 +58,10 @@ def _supplier_repository() -> DjangoSupplierRepository:
 
 def _requisition_repository() -> DjangoRequisitionRepository:
     return DjangoRequisitionRepository()
+
+
+def _transaction_manager() -> DjangoTransactionManager:
+    return DjangoTransactionManager()
 
 
 def _parse_status(value: str | None) -> PurchaseOrderStatus | None:
@@ -205,7 +210,8 @@ class PurchaseOrderDetailAPIView(TenantAPIView):
 
         try:
             order = UpdatePurchaseOrderUseCase(
-                _purchase_order_repository()
+                _purchase_order_repository(),
+                _transaction_manager(),
             ).execute(
                 UpdatePurchaseOrderDTO(
                     business_id=request.business.id,
@@ -237,7 +243,10 @@ class PurchaseOrderCancelAPIView(TenantAPIView):
 
 def _transition_response(use_case_type, request, purchase_order_id: int):
     try:
-        order = use_case_type(_purchase_order_repository()).execute(
+        order = use_case_type(
+            _purchase_order_repository(),
+            _transaction_manager(),
+        ).execute(
             purchase_order_id=purchase_order_id,
             business_id=request.business.id,
         )
@@ -245,4 +254,3 @@ def _transition_response(use_case_type, request, purchase_order_id: int):
         _handle_purchase_order_error(error)
 
     return Response(PurchaseOrderSerializer(order).data)
-

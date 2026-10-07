@@ -112,13 +112,26 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
                 model = PurchaseOrderMapper.to_model(purchase_order)
                 existing_items: list[DjangoPurchaseOrderItem] = []
             else:
-                model = DjangoPurchaseOrder.objects.filter(
+                # Revalidate against the current root row while holding the
+                # same lock used by GoodsReceipt creation. Keep this query
+                # free of nullable joins; aggregate/child reads follow it.
+                model = DjangoPurchaseOrder.objects.select_for_update(
+                    of=("self",)
+                ).filter(
                     id=purchase_order.id,
                     business_id=purchase_order.business_id,
                 ).first()
                 if model is None:
                     raise ValueError(
                         "Purchase order does not exist in the specified business."
+                    )
+
+                if (
+                    purchase_order.updated_at is not None
+                    and purchase_order.updated_at != model.updated_at
+                ):
+                    raise ValueError(
+                        "Purchase order changed after it was loaded; reload it before saving."
                     )
 
                 created_at = model.created_at

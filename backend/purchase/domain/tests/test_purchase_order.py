@@ -116,6 +116,15 @@ class PurchaseOrderDomainTests(TestCase):
         with self.assertRaises(ValueError):
             order.add_item(2, Decimal("1"), Decimal("1"))
 
+    def test_partially_received_order_can_be_cancelled(self) -> None:
+        order = self.create_order()
+        order.add_item(1, Decimal("1"), Decimal("1"))
+        order.send()
+        order.mark_partially_received()
+
+        order.cancel()
+        self.assertEqual(order.status, PurchaseOrderStatus.CANCELLED)
+
     def test_remove_and_clear_items_are_aggregate_operations(self) -> None:
         order = self.create_order()
         order.add_item(1, Decimal("1"), Decimal("1"))
