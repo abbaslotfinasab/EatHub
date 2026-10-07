@@ -55,12 +55,17 @@ class FakePurchaseOrderRepository:
         self.orders = {} if order is None else {order.id: order}
         self.saved: list[PurchaseOrder] = []
         self.fail_on_save = False
+        self.locked_lookup_calls = []
 
     def get_by_id_for_business(self, purchase_order_id, business_id):
         order = self.orders.get(purchase_order_id)
         if order is None or order.business_id != business_id:
             return None
         return order
+
+    def get_by_id_for_business_for_update(self, purchase_order_id, business_id):
+        self.locked_lookup_calls.append((purchase_order_id, business_id))
+        return self.get_by_id_for_business(purchase_order_id, business_id)
 
     def save(self, purchase_order):
         if self.fail_on_save:
@@ -176,6 +181,13 @@ class GoodsReceiptApplicationTests(TestCase):
         self.assertEqual(self.order.status, PurchaseOrderStatus.PARTIAL)
         self.assertEqual(self.stock_gateway.requests[0].quantity, Decimal("4"))
         self.assertTrue(self.transaction_manager.committed)
+        self.assertEqual(self.purchase_order_repository.locked_lookup_calls, [(10, 1)])
+
+    def test_missing_po_is_rejected_through_tenant_scoped_locked_lookup(self) -> None:
+        with self.assertRaises(ValueError):
+            self.create_use_case.execute(self.command(purchase_order_id=999))
+
+        self.assertEqual(self.purchase_order_repository.locked_lookup_calls, [(999, 1)])
 
     def test_missing_po_is_rejected_and_scoped(self) -> None:
         with self.assertRaises(ValueError):
@@ -271,6 +283,18 @@ class GoodsReceiptApplicationTests(TestCase):
 
         self.assertEqual(len(self.stock_gateway.requests), 1)
         self.assertEqual(self.stock_gateway.requests[0].quantity, Decimal("4"))
+
+    def test_stock_rows_are_processed_in_stable_order(self) -> None:
+        self.line_reader.lines[21] = PurchaseOrderLine(21, 50, Decimal("10"))
+        self.create_use_case.execute(self.command(items=[
+            CreateGoodsReceiptItemDTO(20, Decimal("1")),
+            CreateGoodsReceiptItemDTO(21, Decimal("1")),
+        ]))
+
+        self.assertEqual(
+            [request.purchase_order_item_id for request in self.stock_gateway.requests],
+            [21, 20],
+        )
 
     def test_rejected_only_receipt_is_not_accepted_as_stock_receipt(self) -> None:
         with self.assertRaises(ValueError):

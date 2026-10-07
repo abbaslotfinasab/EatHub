@@ -45,6 +45,25 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
 
         return PurchaseOrderMapper.to_domain(model)
 
+    def get_by_id_for_business_for_update(
+        self,
+        purchase_order_id: int,
+        business_id: int,
+    ) -> PurchaseOrder | None:
+        # Lock only the root row. The aggregate query may join nullable requisition.
+        locked = DjangoPurchaseOrder.objects.select_for_update(of=("self",)).filter(
+            id=purchase_order_id,
+            business_id=business_id,
+        ).exists()
+        if not locked:
+            return None
+
+        model = self._aggregate_queryset().filter(
+            id=purchase_order_id,
+            business_id=business_id,
+        ).first()
+        return None if model is None else PurchaseOrderMapper.to_domain(model)
+
     def list(
         self,
         business_id: int,

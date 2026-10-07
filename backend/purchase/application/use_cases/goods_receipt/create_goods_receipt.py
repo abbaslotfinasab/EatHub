@@ -55,7 +55,7 @@ class CreateGoodsReceiptUseCase:
 
         with self._transaction_manager.atomic():
             purchase_order = (
-                self._purchase_order_repository.get_by_id_for_business(
+                self._purchase_order_repository.get_by_id_for_business_for_update(
                     purchase_order_id,
                     business_id,
                 )
@@ -238,7 +238,15 @@ class CreateGoodsReceiptUseCase:
         items: list[GoodsReceiptItem],
         lines: dict,
     ) -> None:
-        for item in items:
+        # Stock rows are locked by the gateway; visit them in a stable order
+        # so multi-line receipts do not acquire stock locks in payload order.
+        for item in sorted(
+            items,
+            key=lambda row: (
+                lines[row.purchase_order_item_id].ingredient_id,
+                row.purchase_order_item_id,
+            ),
+        ):
             if item.received_quantity <= 0:
                 continue
             self._stock_transaction_gateway.create_stock_in(

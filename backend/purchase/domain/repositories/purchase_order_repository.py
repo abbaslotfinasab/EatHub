@@ -25,6 +25,15 @@ class PurchaseOrderRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_by_id_for_business_for_update(
+        self,
+        purchase_order_id: int,
+        business_id: int,
+    ) -> PurchaseOrder | None:
+        """Load and lock the tenant-scoped PO root for a transactional workflow."""
+        raise NotImplementedError
+
+    @abstractmethod
     def list(
         self,
         business_id: int,

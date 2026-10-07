@@ -1,6 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
+import inspect
 
+from django.db import transaction
 from django.test import TestCase
 
 from accounts.models import Business, User
@@ -12,6 +14,9 @@ from purchase.infrastructure.persistence.django.repositories.goods_receipt_repos
 )
 from purchase.infrastructure.persistence.django.repositories.purchase_order_line_reader import (
     DjangoPurchaseOrderLineReader,
+)
+from purchase.infrastructure.persistence.django.repositories.purchase_order_repository import (
+    DjangoPurchaseOrderRepository,
 )
 from purchase.infrastructure.services.stock_transaction_gateway import (
     DjangoStockTransactionGateway,
@@ -98,6 +103,26 @@ class GoodsReceiptInfrastructureTests(TestCase):
         self.assertIsNone(
             repository.get_by_id_for_business(saved.id, self.other_business.id)
         )
+
+    def test_for_update_loader_locks_only_tenant_scoped_po_root(self):
+        repository = DjangoPurchaseOrderRepository()
+        source = inspect.getsource(
+            DjangoPurchaseOrderRepository.get_by_id_for_business_for_update
+        )
+        self.assertIn('select_for_update(of=("self",))', source)
+        self.assertIn("business_id=business_id", source)
+        self.assertLess(source.index("select_for_update"), source.index("self._aggregate_queryset()"))
+
+        with transaction.atomic():
+            locked = repository.get_by_id_for_business_for_update(
+                self.purchase_order.id,
+                self.business.id,
+            )
+            self.assertEqual(locked.id, self.purchase_order.id)
+            self.assertIsNone(repository.get_by_id_for_business_for_update(
+                self.purchase_order.id,
+                self.other_business.id,
+            ))
 
     def test_existing_goods_receipt_cannot_be_updated(self):
         repository = DjangoGoodsReceiptRepository()
