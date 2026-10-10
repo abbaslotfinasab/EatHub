@@ -19,13 +19,10 @@ export const TopProducts = ({
                                 products,
                             }: TopProductsProps) => {
 
-    const maxSold =
-        Math.max(
-            ...products.map(
-                (item) => item.totalSold
-            ),
-            1
-        );
+    const totalSold = products.reduce(
+        (total, product) => total + product.totalSold,
+        0,
+    );
 
 
     return (
@@ -65,24 +62,26 @@ export const TopProducts = ({
                     </Stack>
 
 
-                    {products.map(
+                    {products.length === 0 ? (
+                        <Typography color="text.secondary" variant="body2">
+                            هنوز فروش ثبت‌شده‌ای وجود ندارد.
+                        </Typography>
+                    ) : products.map(
                         (product, index) => (
 
                             <Stack
-                                key={product.menuItemId}
+                                key={product.menuItemId ?? `snapshot-${product.name}`}
                                 spacing={2}
                             >
 
                                 <TopProductItem
                                     name={product.name}
-                                    orderCount={product.totalSold}
+                                    soldCount={product.totalSold}
+                                    ordersCount={product.ordersCount}
                                     percentage={
-                                        Math.round(
-                                            (
-                                                product.totalSold /
-                                                maxSold
-                                            ) * 100
-                                        )
+                                        totalSold > 0
+                                            ? Math.round(product.totalSold / totalSold * 100)
+                                            : 0
                                     }
                                     revenue={product.revenue}
                                 />

@@ -7,14 +7,16 @@ import {
 
 interface Props {
     name: string;
-    orderCount: number;
+    soldCount: number;
+    ordersCount: number;
     percentage: number;
     revenue: number;
 }
 
 export const TopProductItem = ({
                                    name,
-                                   orderCount,
+                                   soldCount,
+                                   ordersCount,
                                    percentage,
                                    revenue,
                                }: Props) => {
@@ -39,7 +41,7 @@ export const TopProductItem = ({
                         variant="caption"
                         color="text.secondary"
                     >
-                        {orderCount} سفارش
+                        {soldCount} عدد فروخته‌شده · {ordersCount} سفارش
                     </Typography>
                 </Box>
 
@@ -65,7 +67,7 @@ export const TopProductItem = ({
                 variant="caption"
                 color="text.secondary"
             >
-                {percentage}% از فروش
+                {percentage}% از تعداد فروش ۵ محصول برتر
             </Typography>
         </Stack>
     );

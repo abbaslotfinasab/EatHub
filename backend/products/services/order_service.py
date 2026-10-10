@@ -7,13 +7,15 @@ from django.db import transaction
 from decimal import Decimal
 
 from products.services.wallet_service import WalletService
+from core.models import ActivityLog
+from core.services.ActivityLogService import ActivityLogService
 
 
 class OrderService:
 
     @staticmethod
     @transaction.atomic
-    def create_order(*, business, validated_data):
+    def create_order(*, business, validated_data, user=None):
 
         items_data = validated_data.pop("items")
         customer = validated_data.get("customer")
@@ -85,11 +87,21 @@ class OrderService:
             ]
         )
 
+        ActivityLogService.record(
+            business=business,
+            user=user,
+            action=ActivityLog.Action.ORDER_CREATED,
+            title="سفارش جدید ثبت شد",
+            description=f"سفارش شماره {order.id} ثبت شد.",
+            entity_type="order",
+            entity_id=order.id,
+        )
+
         return order
 
     @staticmethod
     @transaction.atomic
-    def update_order(*, business, order_id, validated_data):
+    def update_order(*, business, order_id, validated_data, user=None):
 
         order = get_object_or_404(
             Order,
@@ -124,6 +136,15 @@ class OrderService:
 
         if items_data is None:
             order.save()
+            ActivityLogService.record(
+                business=business,
+                user=user,
+                action=ActivityLog.Action.UPDATE,
+                title="سفارش ویرایش شد",
+                description=f"سفارش شماره {order.id} ویرایش شد.",
+                entity_type="order",
+                entity_id=order.id,
+            )
             return order
 
         # حذف آیتم‌های قبلی
@@ -176,11 +197,20 @@ class OrderService:
             tax=order.tax,
         )
         order.save()
+        ActivityLogService.record(
+            business=business,
+            user=user,
+            action=ActivityLog.Action.UPDATE,
+            title="سفارش ویرایش شد",
+            description=f"سفارش شماره {order.id} ویرایش شد.",
+            entity_type="order",
+            entity_id=order.id,
+        )
         return order
 
     @staticmethod
     @transaction.atomic
-    def delete_order(order):
+    def delete_order(order, user=None):
         order = Order.objects.select_for_update().get(pk=order.pk)
         has_transactions = CustomerTransaction.objects.filter(order=order).exists()
         safely_deletable_payment_statuses = (
@@ -192,6 +222,15 @@ class OrderService:
             raise ValidationError(
                 "Only unsettled orders without wallet transactions can be deleted."
             )
+        ActivityLogService.record(
+            business=order.business,
+            user=user,
+            action=ActivityLog.Action.DELETE,
+            title="سفارش حذف شد",
+            description=f"سفارش شماره {order.id} حذف شد.",
+            entity_type="order",
+            entity_id=order.id,
+        )
         order.delete()
 
     @staticmethod
@@ -207,9 +246,13 @@ class OrderService:
             status,
             payment_status=None,
             payment_method=None,
+            user=None,
     ):
 
         order = get_object_or_404(Order.objects.select_for_update(), id=order_id, business=business)
+        previous_status = order.status
+        previous_payment_status = order.payment_status
+        previous_payment_method = order.payment_method
 
         if order.payment_status == Order.PaymentStatus.PAID and payment_method and payment_method != order.payment_method:
             raise ValidationError("Payment method cannot be changed after payment.")
@@ -258,6 +301,37 @@ class OrderService:
                 "payment_method",
             ]
         )
+
+        if (
+            order.status != previous_status
+            or order.payment_status != previous_payment_status
+            or order.payment_method != previous_payment_method
+        ):
+            if order.status == Order.Status.COMPLETED and order.status != previous_status:
+                action = ActivityLog.Action.ORDER_COMPLETED
+                title = "سفارش تکمیل شد"
+            elif order.status == Order.Status.CANCELLED and order.status != previous_status:
+                action = ActivityLog.Action.ORDER_CANCELLED
+                title = "سفارش لغو شد"
+            else:
+                action = ActivityLog.Action.UPDATE
+                title = "سفارش یا پرداخت به‌روزرسانی شد"
+
+            activity_description = (
+                f"وضعیت سفارش شماره {order.id}: {previous_status} ← {order.status}."
+                if order.status != previous_status
+                else f"اطلاعات پرداخت سفارش شماره {order.id} به‌روزرسانی شد."
+            )
+
+            ActivityLogService.record(
+                business=business,
+                user=user,
+                action=action,
+                title=title,
+                description=activity_description,
+                entity_type="order",
+                entity_id=order.id,
+            )
 
         return order
 

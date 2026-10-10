@@ -53,10 +53,11 @@ export const dashboardMapper = {
 
     toTopProduct(dto: TopProductDTO) {
         return {
-            menuItemId: dto.menu_item_id,
-            name: dto.name,
+            menuItemId: dto.menu_item,
+            name: dto.menu_item_name,
             totalSold: dto.total_sold,
-            revenue: dto.revenue,
+            revenue: Number(dto.revenue),
+            ordersCount: dto.orders_count,
         };
     },
 

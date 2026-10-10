@@ -1,9 +1,11 @@
 export interface TopProductDTO {
-    menu_item_id: number;
+    menu_item: number | null;
 
-    name: string;
+    menu_item_name: string;
 
     total_sold: number;
 
-    revenue: number;
+    revenue: string | number;
+
+    orders_count: number;
 }

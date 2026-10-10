@@ -1,8 +1,17 @@
 from datetime import timedelta
 from decimal import Decimal
 
-from django.db.models import Sum, Count
-from django.db.models.functions import Coalesce
+from django.db.models import (
+    Case,
+    CharField,
+    Count,
+    F,
+    Min,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Cast, Coalesce, Concat
 from django.utils import timezone
 
 from core.models import ActivityLog
@@ -117,25 +126,66 @@ class DashboardService:
 
     @classmethod
     def get_top_products(cls, business):
-        products = (
+        products = list(
             OrderItem.objects
             .filter(
                 order__business=business,
                 order__status=Order.Status.COMPLETED,
                 order__payment_status=Order.PaymentStatus.PAID,
-                menu_item__isnull=False,
-            )
-            .values(
-                "menu_item",
-                "menu_item_name",
             )
             .annotate(
+                product_key=Case(
+                    When(
+                        menu_item__isnull=True,
+                        then=Concat(Value("snapshot:"), F("menu_item_name")),
+                    ),
+                    default=Concat(
+                        Value("menu:"),
+                        Cast(F("menu_item_id"), output_field=CharField()),
+                    ),
+                    output_field=CharField(),
+                ),
+            )
+            .values(
+                "product_key",
+            )
+            .annotate(
+                menu_item=Min("menu_item"),
+                menu_item_name=Min("menu_item_name"),
                 total_sold=Sum("quantity"),
                 revenue=Sum("total_price"),
                 orders_count=Count("order", distinct=True),
             )
             .order_by("-total_sold")[:5]
         )
+
+        menu_item_ids = [
+            product["menu_item"]
+            for product in products
+            if product["menu_item"] is not None
+        ]
+        latest_names = {}
+        if menu_item_ids:
+            latest_snapshots = (
+                OrderItem.objects
+                .filter(
+                    menu_item_id__in=menu_item_ids,
+                    order__business=business,
+                    order__status=Order.Status.COMPLETED,
+                    order__payment_status=Order.PaymentStatus.PAID,
+                )
+                .order_by("-created_at", "-id")
+                .values_list("menu_item_id", "menu_item_name")
+            )
+            for menu_item_id, name in latest_snapshots:
+                latest_names.setdefault(menu_item_id, name)
+
+        for product in products:
+            if product["menu_item"] is not None:
+                product["menu_item_name"] = latest_names.get(
+                    product["menu_item"],
+                    product["menu_item_name"],
+                )
 
         return products
 
@@ -161,7 +211,7 @@ class DashboardService:
                 "action": activity.action,
 
                 "user": (
-                    activity.user.get_full_name()
+                    activity.user.name
                     if activity.user
                     else None
                 ),

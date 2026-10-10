@@ -19,7 +19,7 @@ class DashboardStatsSerializer(serializers.Serializer):
 
 
 class DashboardTopProductSerializer(serializers.Serializer):
-    menu_item = serializers.IntegerField()
+    menu_item = serializers.IntegerField(allow_null=True)
 
     menu_item_name = serializers.CharField()
 
@@ -39,13 +39,15 @@ class DashboardActivitySerializer(serializers.Serializer):
     title = serializers.CharField()
 
     description = serializers.CharField(
-        allow_null=True
+        allow_null=True,
+        allow_blank=True,
     )
 
     action = serializers.CharField()
 
     user = serializers.CharField(
-        allow_null=True
+        allow_null=True,
+        allow_blank=True,
     )
 
     created_at = serializers.DateTimeField()

@@ -61,7 +61,11 @@ export const ActivityFeed = ({
                     </Stack>
 
 
-                    {activities.map(
+                    {activities.length === 0 ? (
+                        <Typography color="text.secondary" variant="body2">
+                            هنوز فعالیتی ثبت نشده است.
+                        </Typography>
+                    ) : activities.map(
                         (activity, index) => (
 
                             <Stack

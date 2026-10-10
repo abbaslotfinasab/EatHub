@@ -246,7 +246,8 @@ class OrderCreateAPIView(TenantAPIView):
 
         order = OrderService.create_order(
             business=request.business,
-            validated_data=serializer.validated_data
+            validated_data=serializer.validated_data,
+            user=request.user,
         )
 
         return Response(
@@ -522,6 +523,7 @@ class OrderStatusUpdateAPIView(TenantAPIView):
         order = OrderService.update_status(
             business=request.business,
             order_id=order_id,
+            user=request.user,
             **serializer.validated_data,
         )
 
@@ -546,6 +548,7 @@ class OrderUpdateAPIView(TenantAPIView):
             business=request.business,
             order_id=pk,
             validated_data=serializer.validated_data,
+            user=request.user,
         )
 
         return Response(OrderSerializer(order).data)
@@ -562,7 +565,7 @@ class OrderDeleteAPIView(TenantAPIView):
             business=request.business,
         )
 
-        OrderService.delete_order(order)
+        OrderService.delete_order(order, user=request.user)
 
         return Response(
             status=status.HTTP_204_NO_CONTENT

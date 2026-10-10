@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
 
 import {
+    Alert,
     Container,
     FormControl,
     Grid,
@@ -30,6 +31,7 @@ export const ManagerDashboard = () => {
     const {
         data: dashboard,
         isLoading,
+        isError,
     } = useDashboard({
         page: page + 1,
         pageSize: rowsPerPage,
@@ -67,6 +69,16 @@ export const ManagerDashboard = () => {
 
     if (isLoading) {
         return <div>Loading...</div>;
+    }
+
+    if (isError) {
+        return (
+            <Container maxWidth="xl">
+                <Alert severity="error">
+                    دریافت اطلاعات داشبورد ناموفق بود. صفحه را دوباره بارگذاری کنید.
+                </Alert>
+            </Container>
+        );
     }
 
     return (
