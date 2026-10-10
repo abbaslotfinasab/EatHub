@@ -183,8 +183,15 @@ class OrderService:
     def delete_order(order):
         order = Order.objects.select_for_update().get(pk=order.pk)
         has_transactions = CustomerTransaction.objects.filter(order=order).exists()
-        if order.payment_status == Order.PaymentStatus.PAID or has_transactions:
-            raise ValidationError("Orders with settled payments or wallet transactions cannot be deleted.")
+        safely_deletable_payment_statuses = (
+            Order.PaymentStatus.PENDING,
+            Order.PaymentStatus.UNPAID,
+            Order.PaymentStatus.FAILED,
+        )
+        if order.payment_status not in safely_deletable_payment_statuses or has_transactions:
+            raise ValidationError(
+                "Only unsettled orders without wallet transactions can be deleted."
+            )
         order.delete()
 
     @staticmethod

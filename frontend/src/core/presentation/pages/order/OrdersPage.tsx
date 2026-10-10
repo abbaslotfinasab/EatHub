@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useState} from "react";
+import {isAxiosError} from "axios";
 
 import {
     Container,
@@ -47,6 +48,27 @@ import {OrderDetailsDialog} from "../../components/order/OrderDetailsDialog.tsx"
 import {OrderStatusDialog} from "../../components/order/OrderStatusDialog.tsx";
 import {useDeleteOrder} from "../../hooks/order/useDeleteOrder.ts";
 import {useGetOrderById} from "../../hooks/order/useGetOrderById.ts";
+
+
+const getDeleteOrderErrorMessage = (error: unknown): string => {
+    if (isAxiosError(error)) {
+        const data: unknown = error.response?.data;
+        if (typeof data === "string") {
+            return data;
+        }
+        if (data && typeof data === "object" && "detail" in data) {
+            const detail = (data as {detail?: unknown}).detail;
+            if (typeof detail === "string") {
+                return detail;
+            }
+            if (Array.isArray(detail)) {
+                return detail.map(String).join(" ");
+            }
+        }
+    }
+
+    return "حذف سفارش انجام نشد. سفارش‌های پرداخت‌شده یا دارای سابقه تراکنش قابل حذف نیستند.";
+};
 
 
 export const OrdersPage = () => {
@@ -690,9 +712,12 @@ export const OrdersPage = () => {
                         return;
                     }
 
-                    await deleteOrder.mutateAsync(selectedOrderId);
-
-                    setSelectedOrderId(null);
+                    try {
+                        await deleteOrder.mutateAsync(selectedOrderId);
+                        setSelectedOrderId(null);
+                    } catch (error) {
+                        window.alert(getDeleteOrderErrorMessage(error));
+                    }
 
                 }}
 

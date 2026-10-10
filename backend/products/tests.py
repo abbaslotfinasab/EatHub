@@ -532,6 +532,58 @@ class OrderWalletPaymentTests(TestCase):
         self.assertTrue(Order.objects.filter(pk=card_order.pk).exists())
         self.assertTrue(Customer.objects.filter(pk=self.customer.pk).exists())
 
+    def test_refunded_non_wallet_order_cannot_be_deleted(self):
+        refunded_order = Order.objects.create(
+            business=self.business,
+            order_type=Order.OrderType.TAKEAWAY,
+            payment_method=Order.PaymentMethod.CARD,
+            payment_status=Order.PaymentStatus.REFUNDED,
+        )
+        with self.assertRaises(ValidationError):
+            OrderService.delete_order(refunded_order)
+        self.assertTrue(Order.objects.filter(pk=refunded_order.pk).exists())
+
+    def test_unknown_payment_state_fails_closed_on_deletion(self):
+        order = Order.objects.create(
+            business=self.business,
+            order_type=Order.OrderType.TAKEAWAY,
+            payment_status="unknown_legacy_state",
+        )
+        with self.assertRaises(ValidationError):
+            OrderService.delete_order(order)
+        self.assertTrue(Order.objects.filter(pk=order.pk).exists())
+
+    def test_cancelled_unpaid_and_failed_orders_without_history_can_be_deleted(self):
+        cases = (
+            (Order.Status.CANCELLED, Order.PaymentStatus.UNPAID),
+            (Order.Status.FAILED, Order.PaymentStatus.FAILED),
+        )
+        for status, payment_status in cases:
+            with self.subTest(status=status, payment_status=payment_status):
+                order = Order.objects.create(
+                    business=self.business,
+                    order_type=Order.OrderType.TAKEAWAY,
+                    status=status,
+                    payment_status=payment_status,
+                )
+                OrderService.delete_order(order)
+                self.assertFalse(Order.objects.filter(pk=order.pk).exists())
+
+    def test_order_with_non_debit_wallet_history_cannot_be_deleted(self):
+        transaction = WalletService.credit(
+            business=self.business,
+            customer=self.customer,
+            order=self.order,
+            amount=Decimal("5.00"),
+            description="Order-linked credit",
+        )
+        with self.assertRaises(ValidationError):
+            OrderService.delete_order(self.order)
+        transaction.refresh_from_db()
+        self.account.refresh_from_db()
+        self.assertEqual(transaction.order_id, self.order.id)
+        self.assertEqual(self.account.balance, Decimal("105.00"))
+
     def test_unsettled_order_and_customer_without_wallet_history_can_be_deleted(self):
         order = Order.objects.create(
             business=self.business,
