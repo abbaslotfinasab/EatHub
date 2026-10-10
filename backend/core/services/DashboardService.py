@@ -12,6 +12,7 @@ from django.db.models import (
     When,
 )
 from django.db.models.functions import Cast, Coalesce, Concat
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 
 from core.models import ActivityLog
@@ -21,10 +22,10 @@ from products.models import Order, OrderItem
 class DashboardService:
 
     @classmethod
-    def get_dashboard(cls, business):
+    def get_dashboard(cls, business, sales_period="weekly"):
         return {
             "stats": cls.get_stats(business),
-            "sales_chart": cls.get_sales_chart(business),
+            "sales_chart": cls.get_sales_chart(business, period=sales_period),
             "recent_orders": cls.get_recent_orders(business),
             "inventory_alerts": cls.get_inventory_alerts(business),
             "top_products": cls.get_top_products(business),
@@ -73,8 +74,51 @@ class DashboardService:
         }
 
     @classmethod
-    def get_sales_chart(cls, business):
+    def get_sales_chart(cls, business, period="weekly"):
         today = timezone.localdate()
+
+        if period == "monthly":
+            month_start = today.replace(day=1)
+            daily_sales = (
+                Order.objects.filter(
+                    business=business,
+                    created_at__date__gte=month_start,
+                    created_at__date__lte=today,
+                    status=Order.Status.COMPLETED,
+                    payment_status=Order.PaymentStatus.PAID,
+                )
+                .annotate(
+                    sale_date=TruncDate(
+                        "created_at",
+                        tzinfo=timezone.get_current_timezone(),
+                    ),
+                )
+                .values("sale_date")
+                .annotate(
+                    total=Coalesce(
+                        Sum("total_amount"),
+                        Decimal("0.00"),
+                        output_field=Order._meta.get_field("total_amount"),
+                    ),
+                )
+                .order_by("sale_date")
+            )
+            sales_by_date = {
+                row["sale_date"]: row["total"]
+                for row in daily_sales
+            }
+            return [
+                {
+                    "date": (month_start + timedelta(days=day_offset)).strftime(
+                        "%Y-%m-%d"
+                    ),
+                    "sales": sales_by_date.get(
+                        month_start + timedelta(days=day_offset),
+                        Decimal("0.00"),
+                    ),
+                }
+                for day_offset in range(today.day)
+            ]
 
         data = []
 

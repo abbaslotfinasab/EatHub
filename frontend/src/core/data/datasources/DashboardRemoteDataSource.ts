@@ -14,6 +14,7 @@ export class DashboardRemoteDataSource{
                     params: {
                         page: filters?.page,
                         page_size: filters?.pageSize,
+                        sales_period: filters?.salesPeriod,
                     },
                 },
             );

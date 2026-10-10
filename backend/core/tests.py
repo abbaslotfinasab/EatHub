@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -92,6 +92,108 @@ class DashboardRecentOrdersPaginationTests(APITestCase):
         self.assertIn("inventory_alerts", response.data)
         self.assertIn("top_products", response.data)
         self.assertIn("activities", response.data)
+
+    def test_weekly_sales_chart_keeps_seven_day_default(self):
+        today = date(2024, 3, 3)
+        tz = timezone.get_current_timezone()
+        self.create_order(
+            status=Order.Status.COMPLETED,
+            payment_status=Order.PaymentStatus.PAID,
+            total_amount=42,
+            created_at=datetime(2024, 3, 3, 12, tzinfo=tz),
+        )
+        self.create_order(
+            status=Order.Status.COMPLETED,
+            payment_status=Order.PaymentStatus.PENDING,
+            total_amount=100,
+            created_at=datetime(2024, 3, 3, 13, tzinfo=tz),
+        )
+        with patch("core.services.DashboardService.timezone.localdate", return_value=today):
+            response = self.client.get(self.endpoint)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        chart = response.data["sales_chart"]
+        self.assertEqual(len(chart), 7)
+        self.assertEqual(chart[0]["date"], "2024-02-26")
+        self.assertEqual(chart[-1]["date"], "2024-03-03")
+        self.assertEqual(Decimal(str(chart[-1]["sales"])), Decimal("42.00"))
+
+    def test_monthly_sales_chart_fills_zero_days_and_uses_paid_completed_orders(self):
+        today = date(2024, 3, 3)
+        tz = timezone.get_current_timezone()
+        for order_date, total, order_status, payment_status in (
+            (date(2024, 3, 1), 12, Order.Status.COMPLETED, Order.PaymentStatus.PAID),
+            (date(2024, 3, 3), 7, Order.Status.COMPLETED, Order.PaymentStatus.PAID),
+            (date(2024, 3, 2), 100, Order.Status.COMPLETED, Order.PaymentStatus.PENDING),
+            (date(2024, 3, 2), 100, Order.Status.PENDING, Order.PaymentStatus.PAID),
+            (date(2024, 2, 29), 100, Order.Status.COMPLETED, Order.PaymentStatus.PAID),
+        ):
+            self.create_order(
+                status=order_status,
+                payment_status=payment_status,
+                total_amount=total,
+                created_at=datetime(
+                    order_date.year,
+                    order_date.month,
+                    order_date.day,
+                    12,
+                    tzinfo=tz,
+                ),
+            )
+        self.create_order(
+            business=self.other_business,
+            status=Order.Status.COMPLETED,
+            payment_status=Order.PaymentStatus.PAID,
+            total_amount=999,
+            created_at=datetime(2024, 3, 1, 12, tzinfo=tz),
+        )
+
+        with patch("core.services.DashboardService.timezone.localdate", return_value=today):
+            response = self.client.get(
+                self.endpoint,
+                {"sales_period": "monthly"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        chart = response.data["sales_chart"]
+        self.assertEqual([item["date"] for item in chart], [
+            "2024-03-01", "2024-03-02", "2024-03-03",
+        ])
+        self.assertEqual(
+            [Decimal(str(item["sales"])) for item in chart],
+            [Decimal("12.00"), Decimal("0.00"), Decimal("7.00")],
+        )
+
+    def test_monthly_sales_chart_handles_year_boundary_and_month_without_sales(self):
+        today = date(2025, 1, 2)
+        tz = timezone.get_current_timezone()
+        self.create_order(
+            status=Order.Status.COMPLETED,
+            payment_status=Order.PaymentStatus.PAID,
+            total_amount=25,
+            created_at=datetime(2024, 12, 31, 12, tzinfo=tz),
+        )
+
+        with patch("core.services.DashboardService.timezone.localdate", return_value=today):
+            response = self.client.get(
+                self.endpoint,
+                {"sales_period": "monthly"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        chart = response.data["sales_chart"]
+        self.assertEqual([item["date"] for item in chart], [
+            "2025-01-01", "2025-01-02",
+        ])
+        self.assertTrue(all(Decimal(str(item["sales"])) == 0 for item in chart))
+
+    def test_invalid_sales_period_is_rejected(self):
+        response = self.client.get(
+            self.endpoint,
+            {"sales_period": "yearly"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_custom_page_and_page_size(self):
         for _ in range(15):

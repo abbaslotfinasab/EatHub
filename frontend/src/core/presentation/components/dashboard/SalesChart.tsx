@@ -3,6 +3,8 @@ import {
     Stack,
     Typography,
     Box,
+    ToggleButton,
+    ToggleButtonGroup,
 } from "@mui/material";
 
 import {
@@ -21,10 +23,14 @@ interface Props {
         date: string;
         sales: number;
     }[];
+    period: "weekly" | "monthly";
+    onPeriodChange: (period: "weekly" | "monthly") => void;
 }
 
 export const SalesChart = ({
                                data,
+                               period,
+                               onPeriodChange,
                            }: Props) => {
     return (
         <Paper
@@ -37,21 +43,50 @@ export const SalesChart = ({
             }}
         >
             <Stack spacing={3}>
-                <Box>
-                    <Typography
-                        variant="h6"
-                        sx={{fontWeight: 700}}
-                    >
-                        فروش ۷ روز اخیر
-                    </Typography>
+                <Stack
+                    direction={{xs: "column", sm: "row"}}
+                    spacing={2}
+                    sx={{
+                        alignItems: {xs: "stretch", sm: "center"},
+                        justifyContent: "space-between",
+                    }}
+                >
+                    <Box>
+                        <Typography
+                            variant="h6"
+                            sx={{fontWeight: 700}}
+                        >
+                            {period === "weekly" ? "فروش ۷ روز اخیر" : "فروش ماه جاری"}
+                        </Typography>
 
-                    <Typography
-                        variant="body2"
-                        color="text.secondary"
+                        <Typography
+                            variant="body2"
+                            color="text.secondary"
+                        >
+                            {period === "weekly"
+                                ? "روند فروش رستوران در هفته جاری"
+                                : "فروش روزانه از ابتدای ماه تا امروز"}
+                        </Typography>
+                    </Box>
+
+                    <ToggleButtonGroup
+                        exclusive
+                        size="small"
+                        value={period}
+                        onChange={(_event, value: "weekly" | "monthly" | null) => {
+                            if (value) onPeriodChange(value);
+                        }}
+                        aria-label="بازه نمودار فروش"
+                        sx={{alignSelf: {xs: "flex-start", sm: "auto"}}}
                     >
-                        روند فروش رستوران در هفته جاری
-                    </Typography>
-                </Box>
+                        <ToggleButton value="weekly" aria-label="هفتگی">
+                            هفتگی
+                        </ToggleButton>
+                        <ToggleButton value="monthly" aria-label="ماهانه">
+                            ماهانه
+                        </ToggleButton>
+                    </ToggleButtonGroup>
+                </Stack>
 
                 <Box sx={{height: 320}}>
                     <ResponsiveContainer

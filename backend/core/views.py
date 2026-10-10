@@ -30,8 +30,16 @@ class UploadAPIView(APIView):
 class DashboardAPIView(TenantAPIView):
 
     def get(self, request):
+        sales_period = request.query_params.get("sales_period", "weekly")
+        if sales_period not in {"weekly", "monthly"}:
+            return Response(
+                {"sales_period": ["انتخاب بازه فروش معتبر نیست."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         data = DashboardService.get_dashboard(
-            business=request.business
+            business=request.business,
+            sales_period=sales_period,
         )
 
         paginator = DashboardRecentOrdersPagination()

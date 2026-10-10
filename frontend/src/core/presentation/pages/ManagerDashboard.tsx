@@ -27,6 +27,9 @@ import {useDashboard} from "../hooks/useDashboard";
 export const ManagerDashboard = () => {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [salesPeriod, setSalesPeriod] = useState<"weekly" | "monthly">(
+        "weekly",
+    );
 
     const {
         data: dashboard,
@@ -35,6 +38,7 @@ export const ManagerDashboard = () => {
     } = useDashboard({
         page: page + 1,
         pageSize: rowsPerPage,
+        salesPeriod,
     });
 
     const recentOrders = dashboard?.recentOrders.results ?? [];
@@ -96,6 +100,8 @@ export const ManagerDashboard = () => {
 
                 <SalesChart
                     data={dashboard?.salesChart ?? []}
+                    period={salesPeriod}
+                    onPeriodChange={setSalesPeriod}
                 />
 
                 <Grid container spacing={3}>
