@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.db import transaction
+from rest_framework.exceptions import ValidationError
 
 from products.models import (
     Customer,
@@ -19,10 +20,15 @@ class WalletService:
         customer: Customer,
     ) -> CustomerAccount:
 
+        if customer.business_id != business.id:
+            raise ValidationError("Customer does not belong to this business.")
+
         account, _ = CustomerAccount.objects.get_or_create(
-            business=business,
             customer=customer,
+            defaults={"business": business},
         )
+        if account.business_id != business.id:
+            raise ValidationError("Customer account does not belong to this business.")
 
         return account
 
@@ -37,6 +43,8 @@ class WalletService:
         order: Order | None = None,
     ) -> CustomerTransaction:
 
+        WalletService._validate_order_reference(business, customer, order)
+
         account = WalletService.get_or_create_account(
             business=business,
             customer=customer,
@@ -48,6 +56,9 @@ class WalletService:
             .get(pk=account.pk)
         )
 
+        amount = Decimal(amount)
+        if amount <= 0:
+            raise ValidationError("Amount must be positive.")
         account.balance += amount
 
         account.save(
@@ -74,6 +85,13 @@ class WalletService:
         order: Order | None = None,
     ) -> CustomerTransaction:
 
+        WalletService._validate_order_reference(business, customer, order)
+        if order is not None and CustomerTransaction.objects.filter(
+            order=order,
+            type=CustomerTransaction.Type.DEBIT,
+        ).exists():
+            raise ValidationError("Order already has a wallet debit.")
+
         account = WalletService.get_or_create_account(
             business=business,
             customer=customer,
@@ -85,6 +103,9 @@ class WalletService:
             .get(pk=account.pk)
         )
 
+        amount = Decimal(amount)
+        if amount <= 0:
+            raise ValidationError("Amount must be positive.")
         account.balance -= amount
 
         account.save(
@@ -121,6 +142,7 @@ class WalletService:
             .get(pk=account.pk)
         )
 
+        amount = Decimal(amount)
         account.balance = amount
 
         account.save(
@@ -148,3 +170,10 @@ class WalletService:
         )
 
         return account.balance
+
+    @staticmethod
+    def _validate_order_reference(business, customer, order):
+        if order is not None and (
+            order.business_id != business.id or order.customer_id != customer.id
+        ):
+            raise ValidationError("Order does not belong to this customer and business.")

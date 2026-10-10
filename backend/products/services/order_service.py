@@ -1,4 +1,6 @@
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import ValidationError
+from products.models import CustomerTransaction
 
 from products.models import OrderItem, Order, MenuItem
 from django.db import transaction
@@ -15,6 +17,8 @@ class OrderService:
 
         items_data = validated_data.pop("items")
         customer = validated_data.get("customer")
+        if customer and customer.business_id != business.id:
+            raise ValidationError("Customer does not belong to this business.")
 
         order = Order.objects.create(
             business=business,
@@ -93,16 +97,20 @@ class OrderService:
             business=business,
         )
 
-        old_total = order.total_amount
+        order = Order.objects.select_for_update().get(pk=order.pk)
+        if order.payment_status == Order.PaymentStatus.PAID and {"customer", "items", "discount", "tax"}.intersection(validated_data):
+            raise ValidationError("Paid orders cannot be financially modified.")
 
-        items_data = validated_data.pop("items")
+        items_data = validated_data.pop("items", None)
 
-        customer = validated_data.get("customer")
+        customer = validated_data.get("customer", order.customer)
+        if customer and customer.business_id != business.id:
+            raise ValidationError("Customer does not belong to this business.")
 
         order.customer = customer
-        order.table = validated_data.get("table")
-        order.order_type = validated_data["order_type"]
-        order.notes = validated_data.get("notes")
+        for field in ("table", "order_type", "notes"):
+            if field in validated_data:
+                setattr(order, field, validated_data[field])
 
         order.discount = validated_data.get(
             "discount",
@@ -113,6 +121,10 @@ class OrderService:
             "tax",
             order.tax,
         ) or Decimal("0")
+
+        if items_data is None:
+            order.save()
+            return order
 
         # حذف آیتم‌های قبلی
         order.items.all().delete()
@@ -163,13 +175,16 @@ class OrderService:
             discount=order.discount,
             tax=order.tax,
         )
-
         order.save()
+        return order
 
     @staticmethod
     @transaction.atomic
     def delete_order(order):
-
+        order = Order.objects.select_for_update().get(pk=order.pk)
+        has_transactions = CustomerTransaction.objects.filter(order=order).exists()
+        if order.payment_status == Order.PaymentStatus.PAID or has_transactions:
+            raise ValidationError("Orders with settled payments or wallet transactions cannot be deleted.")
         order.delete()
 
     @staticmethod
@@ -187,52 +202,47 @@ class OrderService:
             payment_method=None,
     ):
 
-        order = get_object_or_404(
-            Order,
-            id=order_id,
-            business=business,
-        )
+        order = get_object_or_404(Order.objects.select_for_update(), id=order_id, business=business)
 
-        old_status = order.status
-        old_payment_status = order.payment_status
+        if order.payment_status == Order.PaymentStatus.PAID and payment_method and payment_method != order.payment_method:
+            raise ValidationError("Payment method cannot be changed after payment.")
 
         order.status = status
 
         if payment_method is not None:
             order.payment_method = payment_method
 
-        if payment_status is not None:
+        if (
+            order.payment_method == Order.PaymentMethod.CUSTOMER_ACCOUNT
+            and status == Order.Status.COMPLETED
+            and payment_status is not None
+            and payment_status != Order.PaymentStatus.PAID
+        ):
+            raise ValidationError(
+                "A completed customer-account order cannot request a non-paid payment status."
+            )
+
+        # Persist the locked order's requested method before pay_order reloads it.
+        # The surrounding atomic block rolls this write back if payment fails.
+        order.save(update_fields=["status", "payment_method"])
+
+        if payment_status == Order.PaymentStatus.PAID:
+            if order.payment_method != Order.PaymentMethod.CUSTOMER_ACCOUNT:
+                order.payment_status = Order.PaymentStatus.PAID
+        elif payment_status is not None:
+            if order.payment_status == Order.PaymentStatus.PAID:
+                raise ValidationError("Paid orders cannot be marked unpaid or refunded here.")
             order.payment_status = payment_status
 
-        # =====================================
-        # CUSTOMER ACCOUNT PAYMENT
-        # =====================================
-
-        should_debit = (
-                old_status != Order.Status.COMPLETED
-                and status == Order.Status.COMPLETED
-                and order.payment_method == Order.PaymentMethod.CUSTOMER_ACCOUNT
-                and old_payment_status != Order.PaymentStatus.PAID
-                and order.customer
-        )
-
-        if should_debit:
-            account = WalletService.get_or_create_account(
-                business=business,
-                customer=order.customer,
-            )
-
-            WalletService.debit(
-                business=business,
-                customer=order.customer,
-                amount=order.total_amount,
-                order=order,
-                description=f"Order #{order.id}",
-            )
-
-            order.payment_status = (
-                Order.PaymentStatus.PAID
-            )
+        # Charge on an explicit wallet-paid request or the legacy completion flow.
+        # Also validate every already-paid wallet order so inconsistent historical
+        # state fails closed on later status requests.
+        if (order.payment_method == Order.PaymentMethod.CUSTOMER_ACCOUNT and (
+                payment_status == Order.PaymentStatus.PAID
+                or order.payment_status == Order.PaymentStatus.PAID
+                or status == Order.Status.COMPLETED
+        )):
+            OrderService.pay_order(order=order, business=business)
 
         order.save(
             update_fields=[
@@ -242,4 +252,44 @@ class OrderService:
             ]
         )
 
+        return order
+
+    @staticmethod
+    @transaction.atomic
+    def pay_order(*, order, business):
+        """Charge an order's persisted total once inside the caller's transaction."""
+        order = Order.objects.select_for_update().get(pk=order.pk, business=business)
+        if order.payment_method != Order.PaymentMethod.CUSTOMER_ACCOUNT:
+            raise ValidationError("Customer account payment method is required.")
+        if order.payment_status == Order.PaymentStatus.REFUNDED:
+            raise ValidationError("A refunded order cannot be charged again.")
+        if not order.customer_id or order.customer.business_id != business.id:
+            raise ValidationError("A customer belonging to this business is required.")
+        if order.total_amount <= 0:
+            raise ValidationError("Order total must be positive.")
+        existing_debits = CustomerTransaction.objects.filter(
+            order=order,
+            type=CustomerTransaction.Type.DEBIT,
+        )
+        if order.payment_status == Order.PaymentStatus.PAID:
+            debit = existing_debits.first()
+            if (debit is None or existing_debits.count() != 1
+                    or debit.amount != order.total_amount
+                    or debit.account.customer_id != order.customer_id
+                    or debit.account.business_id != business.id):
+                raise ValidationError(
+                    "Paid order ledger does not match; manual reconciliation is required."
+                )
+            return order
+        if existing_debits.exists():
+            raise ValidationError("Order already has a wallet debit but is not marked paid.")
+        WalletService.debit(
+            business=business,
+            customer=order.customer,
+            amount=order.total_amount,
+            order=order,
+            description=f"Order #{order.id}",
+        )
+        order.payment_status = Order.PaymentStatus.PAID
+        order.save(update_fields=["payment_status"])
         return order

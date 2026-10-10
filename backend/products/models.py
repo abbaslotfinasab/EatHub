@@ -199,3 +199,12 @@ class CustomerTransaction(BaseModel):
 
     description = models.TextField(null=True, blank=True)
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["order"],
+                condition=models.Q(type="debit", order__isnull=False),
+                name="uniq_wallet_debit_per_order",
+            ),
+        ]
+
