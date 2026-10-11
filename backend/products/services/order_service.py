@@ -266,10 +266,13 @@ class OrderService:
             order.payment_method == Order.PaymentMethod.CUSTOMER_ACCOUNT
             and status == Order.Status.COMPLETED
             and payment_status is not None
-            and payment_status != Order.PaymentStatus.PAID
+            and payment_status not in (
+                Order.PaymentStatus.PAID,
+                Order.PaymentStatus.FAILED,
+            )
         ):
             raise ValidationError(
-                "A completed customer-account order cannot request a non-paid payment status."
+                "A completed customer-account order must be paid; failed payments may be retried."
             )
 
         # Persist the locked order's requested method before pay_order reloads it.

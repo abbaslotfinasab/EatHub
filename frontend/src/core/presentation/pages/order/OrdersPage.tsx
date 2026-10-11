@@ -70,8 +70,24 @@ const getDeleteOrderErrorMessage = (error: unknown): string => {
     return "حذف سفارش انجام نشد. سفارش‌های پرداخت‌شده یا دارای سابقه تراکنش قابل حذف نیستند.";
 };
 
+const getOrderStatusErrorMessage = (error: unknown): string => {
+    if (isAxiosError(error)) {
+        const data: unknown = error.response?.data;
+        if (typeof data === "string") return data;
+        if (data && typeof data === "object") {
+            const messages = Object.values(data as Record<string, unknown>)
+                .flatMap((value) => Array.isArray(value) ? value : [value])
+                .filter((value): value is string => typeof value === "string");
+            if (messages.length) return messages.join(" ");
+        }
+    }
+    return "تغییر وضعیت سفارش انجام نشد. اطلاعات سفارش و پرداخت را بررسی کنید.";
+};
+
 
 export const OrdersPage = () => {
+
+    const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
 
 
     const navigate = useNavigate();
@@ -300,6 +316,7 @@ export const OrdersPage = () => {
         }
 
 
+        setStatusUpdateError(null);
         setStatusDialogOpen(true);
 
     };
@@ -582,14 +599,17 @@ export const OrdersPage = () => {
                     updateStatusMutation.isPending
                 }
 
+                error={statusUpdateError}
+
 
                 onClose={() => {
+                    setStatusUpdateError(null);
                     setStatusDialogOpen(false);
                     setSelectedOrderId(null);
                 }}
 
 
-                onSubmit={(data) => {
+                onSubmit={async (data) => {
 
 
                     if (!selectedOrderId) {
@@ -599,29 +619,19 @@ export const OrdersPage = () => {
                     }
 
 
-                    updateStatusMutation.mutate({
-
-
-                        orderId:
-                            selectedOrderId ?? "",
-
-
-                        status:
-                        data.status,
-
-
-                        paymentStatus:
-                        data.paymentStatus,
-
-
-                        paymentMethod:
-                        data.paymentMethod,
-
-
-                    });
-
-
-                    setStatusDialogOpen(false);
+                    setStatusUpdateError(null);
+                    try {
+                        await updateStatusMutation.mutateAsync({
+                            orderId: selectedOrderId,
+                            status: data.status,
+                            paymentStatus: data.paymentStatus,
+                            paymentMethod: data.paymentMethod,
+                        });
+                        setStatusDialogOpen(false);
+                        setSelectedOrderId(null);
+                    } catch (error) {
+                        setStatusUpdateError(getOrderStatusErrorMessage(error));
+                    }
 
 
                 }}

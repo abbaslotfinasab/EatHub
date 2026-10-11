@@ -2,6 +2,7 @@ import {useEffect} from "react";
 
 import {
     Button,
+    Alert,
     Dialog,
     DialogActions,
     DialogContent,
@@ -41,6 +42,8 @@ interface Props {
 
     loading?: boolean;
 
+    error?: string | null;
+
     onClose(): void;
 
     onSubmit(data: {
@@ -54,6 +57,7 @@ export function OrderStatusDialog({
                                       open,
                                       order,
                                       loading = false,
+                                      error = null,
                                       onClose,
                                       onSubmit,
                                   }: Props) {
@@ -101,6 +105,12 @@ export function OrderStatusDialog({
                 </DialogTitle>
 
                 <DialogContent>
+
+                    {error && (
+                        <Alert severity="error" sx={{mb: 2}}>
+                            {error}
+                        </Alert>
+                    )}
 
                     <Stack
                         sx={{

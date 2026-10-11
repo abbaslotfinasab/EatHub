@@ -10,6 +10,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Role, User
+from core.models import ActivityLog
 from products.models import Customer, Menu, MenuItem, Order, OrderItem
 from products.models import CustomerAccount, CustomerTransaction
 from products.services.menu_service import MenuService
@@ -98,6 +99,48 @@ class OrderListPaginationTests(APITestCase):
         self.assertEqual(len(response.data["results"]), 5)
         self.assertIsNotNone(response.data["previous"])
         self.assertIsNotNone(response.data["next"])
+
+    def test_status_update_accepts_choice_values_and_returns_updated_state(self) -> None:
+        order = self.create_order(status=Order.Status.PREPARING)
+
+        response = self.client.patch(
+            f"/api/products/orders/{order.id}/status/",
+            {"status": "completed", "payment_status": "pending", "payment_method": "cash"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], Order.Status.COMPLETED)
+        self.assertEqual(response.data["payment_status"], Order.PaymentStatus.PENDING)
+
+    def test_status_update_rejects_invalid_status_choice(self) -> None:
+        order = self.create_order()
+
+        response = self.client.patch(
+            f"/api/products/orders/{order.id}/status/",
+            {"status": "COMPLETED"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PENDING)
+
+    def test_failed_cash_payment_can_be_completed_without_marking_it_paid(self) -> None:
+        order = self.create_order(
+            payment_status=Order.PaymentStatus.FAILED,
+            payment_method=Order.PaymentMethod.CASH,
+        )
+
+        response = self.client.patch(
+            f"/api/products/orders/{order.id}/status/",
+            {"status": "completed", "payment_status": "failed", "payment_method": "cash"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], Order.Status.COMPLETED)
+        self.assertEqual(response.data["payment_status"], Order.PaymentStatus.FAILED)
 
     def test_page_size_is_limited_to_maximum(self) -> None:
         for _ in range(105):
@@ -315,6 +358,79 @@ class OrderWalletPaymentTests(TestCase):
         self.assertEqual(txn.balance_after, self.account.balance)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
 
+    def test_preparing_and_ready_orders_can_be_completed(self):
+        for initial_status in (Order.Status.PREPARING, Order.Status.READY):
+            with self.subTest(initial_status=initial_status):
+                self.order.status = initial_status
+                self.order.payment_method = Order.PaymentMethod.CASH
+                self.order.payment_status = Order.PaymentStatus.PENDING
+                self.order.save(update_fields=["status", "payment_method", "payment_status"])
+
+                self.update(status=Order.Status.COMPLETED)
+
+                self.order.refresh_from_db()
+                self.assertEqual(self.order.status, Order.Status.COMPLETED)
+                self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+        self.assertFalse(CustomerTransaction.objects.filter(order=self.order).exists())
+
+    def test_failed_wallet_payment_can_be_retried_during_completion(self):
+        self.order.payment_status = Order.PaymentStatus.FAILED
+        self.order.save(update_fields=["payment_status"])
+
+        self.update(status=Order.Status.COMPLETED, payment_status=Order.PaymentStatus.FAILED)
+
+        self.order.refresh_from_db()
+        self.account.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.COMPLETED)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(self.account.balance, Decimal("74.50"))
+        self.assertEqual(CustomerTransaction.objects.filter(
+            order=self.order, type=CustomerTransaction.Type.DEBIT
+        ).count(), 1)
+
+    def test_failed_wallet_retry_rolls_back_completion_debit_and_activity_on_error(self):
+        self.order.status = Order.Status.PREPARING
+        self.order.payment_status = Order.PaymentStatus.FAILED
+        self.order.save(update_fields=["status", "payment_status"])
+        original_debit = WalletService.debit
+
+        def debit_then_fail(**kwargs):
+            original_debit(**kwargs)
+            raise RuntimeError("wallet operation failed after debit")
+
+        with patch.object(WalletService, "debit", side_effect=debit_then_fail):
+            with self.assertRaisesRegex(RuntimeError, "wallet operation failed"):
+                self.update(
+                    status=Order.Status.COMPLETED,
+                    payment_status=Order.PaymentStatus.FAILED,
+                )
+
+        self.order.refresh_from_db()
+        self.account.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PREPARING)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.FAILED)
+        self.assertEqual(self.account.balance, Decimal("100.00"))
+        self.assertFalse(CustomerTransaction.objects.filter(
+            order=self.order, type=CustomerTransaction.Type.DEBIT
+        ).exists())
+        self.assertFalse(ActivityLog.objects.filter(
+            entity_type="order", entity_id=self.order.id
+        ).exists())
+
+    def test_failed_cash_payment_does_not_prevent_order_completion(self):
+        self.order.payment_method = Order.PaymentMethod.CASH
+        self.order.payment_status = Order.PaymentStatus.FAILED
+        self.order.save(update_fields=["payment_method", "payment_status"])
+
+        self.update(status=Order.Status.COMPLETED)
+
+        self.order.refresh_from_db()
+        self.account.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.COMPLETED)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.FAILED)
+        self.assertEqual(self.account.balance, Decimal("100.00"))
+        self.assertFalse(CustomerTransaction.objects.filter(order=self.order).exists())
+
     def test_completion_charges_once_and_repeated_paid_request_is_idempotent(self):
         self.update(status=Order.Status.COMPLETED)
         self.update(status=Order.Status.COMPLETED)
@@ -367,18 +483,25 @@ class OrderWalletPaymentTests(TestCase):
         self.assertEqual(self.account.balance, Decimal("74.50"))
         self.assertEqual(CustomerTransaction.objects.filter(order=self.order, type="debit").count(), 1)
 
-    def test_completion_cannot_override_explicit_non_paid_wallet_status(self):
-        with self.assertRaises(ValidationError):
-            self.update(
-                status=Order.Status.COMPLETED,
-                payment_status=Order.PaymentStatus.FAILED,
-            )
-        self.order.refresh_from_db()
-        self.account.refresh_from_db()
-        self.assertEqual(self.order.status, Order.Status.PENDING)
-        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
-        self.assertEqual(self.account.balance, Decimal("100.00"))
-        self.assertFalse(CustomerTransaction.objects.filter(order=self.order).exists())
+    def test_wallet_completion_rejects_explicit_pending_and_unpaid_statuses(self):
+        for payment_status in (
+            Order.PaymentStatus.PENDING,
+            Order.PaymentStatus.UNPAID,
+        ):
+            with self.subTest(payment_status=payment_status):
+                with self.assertRaises(ValidationError):
+                    self.update(
+                        status=Order.Status.COMPLETED,
+                        payment_status=payment_status,
+                    )
+                self.order.refresh_from_db()
+                self.account.refresh_from_db()
+                self.assertEqual(self.order.status, Order.Status.PENDING)
+                self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+                self.assertEqual(self.account.balance, Decimal("100.00"))
+                self.assertFalse(CustomerTransaction.objects.filter(
+                    order=self.order, type=CustomerTransaction.Type.DEBIT
+                ).exists())
 
     def test_refunded_wallet_order_cannot_be_charged_again(self):
         self.order.payment_status = Order.PaymentStatus.REFUNDED
