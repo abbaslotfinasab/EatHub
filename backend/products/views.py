@@ -1,4 +1,7 @@
 from django.forms import DecimalField
+from django.db import transaction
+from django.http import Http404
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 
 from accounts.models import Business
@@ -12,11 +15,13 @@ from products.services.order_service import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from core.enums import PermissionCode
 from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, MenuSerializer, \
     PublicRestaurantSerializer, PublicMenuSerializer, UpdateMenuSerializer, MenuItemSerializer, \
     MenuItemCreateSerializer, MenuItemUpdateSerializer
 from products.services.menu_service import MenuService
-from products.models import Menu, Customer, CustomerAccount
+from products.models import Menu, Customer, CustomerAccount, Order, OrderRefund
 from products.services.wallet_service import WalletService
 from django.db.models import (
     Q,
@@ -27,6 +32,19 @@ from django.db.models import (
 )
 from django.db.models.functions import Coalesce
 from products.pagination import OrderListPagination
+
+
+FINANCIAL_ROLE_CODES = {"OWNER", "MANAGER", "ACCOUNTANT"}
+
+
+def _require_financial_access(request, message):
+    role = getattr(request, "role", None)
+    if (
+        role is None
+        or role.code not in FINANCIAL_ROLE_CODES
+        or PermissionCode.PAYMENTS_MANAGE not in request.permissions
+    ):
+        raise PermissionDenied(message)
 
 
 
@@ -518,6 +536,13 @@ class OrderStatusUpdateAPIView(TenantAPIView):
         serializer.is_valid(
             raise_exception=True
         )
+        changes = serializer.validated_data
+        if "status" in changes and PermissionCode.ORDERS_UPDATE not in request.permissions:
+            raise PermissionDenied("You do not have permission to update orders.")
+        if {"payment_status", "payment_method"}.intersection(changes):
+            _require_financial_access(
+                request, "You do not have permission to manage order payments."
+            )
 
 
         order = OrderService.update_status(
@@ -537,12 +562,86 @@ class OrderStatusUpdateAPIView(TenantAPIView):
             }
         )
 
+
+class OrderRefundAPIView(TenantAPIView):
+    """Create full refunds and recover the committed refund receipt by order.
+
+    GET is a durable recovery path after a lost POST response. It returns only
+    the tenant-scoped completed refund, and takes the order lock so an
+    in-flight refund is resolved before absence is reported.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @staticmethod
+    def _refund_response(refund):
+        return {
+            "id": refund.id,
+            "order_id": refund.order_id,
+            "payment_method": refund.payment_method,
+            "amount": refund.amount,
+            "reason": refund.reason,
+            "reference": refund.reference,
+            "created_at": refund.created_at,
+            "idempotency_key": refund.idempotency_key,
+            "status": Order.PaymentStatus.REFUNDED,
+        }
+
+    def get(self, request, order_id):
+        _require_financial_access(request, "You do not have permission to view refunds.")
+
+        # Acquiring the same order lock as refund_order makes a recovery lookup
+        # wait for an in-flight refund transaction before deciding it is absent.
+        with transaction.atomic():
+            order = get_object_or_404(
+                Order.objects.select_for_update(),
+                id=order_id,
+                business=request.business,
+            )
+            refunds = OrderRefund.objects.filter(
+                order=order,
+                business=request.business,
+            )
+            if order.payment_status != Order.PaymentStatus.REFUNDED or not refunds.exists():
+                raise Http404("No completed refund exists for this order.")
+            if refunds.count() != 1:
+                raise ValidationError(
+                    "Multiple refund records exist for this order; review its financial history."
+                )
+            refund = refunds.first()
+            response = Response(self._refund_response(refund))
+            response["Cache-Control"] = "no-store"
+            return response
+
+    def post(self, request, order_id):
+        _require_financial_access(request, "You do not have permission to manage refunds.")
+
+        serializer = OrderRefundInputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        refund = OrderService.refund_order(
+            business=request.business,
+            order_id=order_id,
+            user=request.user,
+            **serializer.validated_data,
+        )
+        response = Response(
+            self._refund_response(refund), status=status.HTTP_200_OK
+        )
+        response["Cache-Control"] = "no-store"
+        return response
+
 class OrderUpdateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
+        if PermissionCode.ORDERS_UPDATE not in request.permissions:
+            raise PermissionDenied("You do not have permission to update orders.")
+
         serializer = UpdateOrderInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        if {"customer", "items", "discount", "tax"}.intersection(serializer.validated_data):
+            _require_financial_access(
+                request, "You do not have permission to change order financials."
+            )
 
         order = OrderService.update_order(
             business=request.business,
@@ -870,6 +969,9 @@ class CustomerCreditAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, customer_id):
+        _require_financial_access(
+            request, "You do not have permission to change customer balances."
+        )
 
         serializer = CustomerBalanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -912,6 +1014,9 @@ class CustomerDebitAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, customer_id):
+        _require_financial_access(
+            request, "You do not have permission to change customer balances."
+        )
 
         serializer = CustomerBalanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -943,6 +1048,9 @@ class CustomerAdjustAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, customer_id):
+        _require_financial_access(
+            request, "You do not have permission to change customer balances."
+        )
 
         serializer = CustomerBalanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

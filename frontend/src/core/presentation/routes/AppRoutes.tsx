@@ -26,6 +26,7 @@ import {OrdersPage} from "../pages/order/OrdersPage.tsx";
 import {CreateOrderPage} from "../pages/order/CreateOrderPage.tsx";
 import {UpdateOrderPage} from "../pages/order/UpdateOrderPage.tsx";
 import {CustomersPage} from "../pages/customer/CustomersPage.tsx";
+import {InventoryBalancesPage} from "../pages/InventoryBalancesPage.tsx";
 
 export const AppRoutes = () => {
     return (
@@ -58,6 +59,7 @@ export const AppRoutes = () => {
                             <Route path="/dashboard" element={<ManagerDashboard/>}/>
 
                             <Route path="/ingredients" element={<IngredientsListPage/>}/>
+                            <Route path="/inventory" element={<InventoryBalancesPage/>}/>
                             <Route path="/ingredients/create" element={<CreateIngredientPage/>}/>
 
                             <Route path="/menus" element={<MenuPage/>}/>

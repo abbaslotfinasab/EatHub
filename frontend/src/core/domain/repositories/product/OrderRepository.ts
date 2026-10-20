@@ -1,6 +1,7 @@
 // core/domain/repositories/sales/OrderRepository.ts
 import type {OrderWithItems} from "../../entities/product/order/OrderWithItems.ts";
 import type {UpdateOrderStatusInput} from "../../entities/product/order/UpdateOrderStatusInput.ts";
+import type {RefundOrderInput, RefundOrderResult} from "../../entities/product/order/RefundOrderInput.ts";
 import type {OrderFilters} from "../../objects/filters/OrderFilters.ts";
 import type {PaginatedResult} from "../../objects/PaginatedResult.ts";
 
@@ -28,7 +29,11 @@ export interface OrderRepository {
     // حذف سفارش (فقط در وضعیت‌های خاص مثل PENDING یا CANCELLED)
     delete(id: string): Promise<void>;
 
-     updateStatus(
+    updateStatus(
         input: UpdateOrderStatusInput,
     ): Promise<void>;
+
+    refund(input: RefundOrderInput): Promise<RefundOrderResult>;
+
+    getRefund(orderId: string): Promise<RefundOrderResult>;
 }

@@ -2,12 +2,16 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 
+from purchase.domain.enums.purchase_unit import PurchaseUnit
+
 
 @dataclass
 class GoodsReceiptItem:
     purchase_order_item_id: int
     received_quantity: Decimal
     rejected_quantity: Decimal = Decimal("0")
+    id: int | None = None
+    purchase_unit: PurchaseUnit | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -23,6 +27,14 @@ class GoodsReceiptItem:
 
         if self.rejected_quantity < 0:
             raise ValueError("Rejected quantity cannot be negative.")
+        if self.id is not None and (
+            isinstance(self.id, bool) or not isinstance(self.id, int) or self.id <= 0
+        ):
+            raise ValueError("Goods receipt item ID must be a positive integer.")
+        if self.purchase_unit is not None and not isinstance(
+            self.purchase_unit, PurchaseUnit
+        ):
+            raise ValueError("Goods receipt purchase unit is invalid.")
 
         if self.received_quantity == 0 and self.rejected_quantity == 0:
             raise ValueError(
@@ -51,6 +63,7 @@ class GoodsReceipt:
     received_date: datetime
 
     notes: str = ""
+    warehouse_id: int | None = None
     items: list[GoodsReceiptItem] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -67,6 +80,12 @@ class GoodsReceipt:
 
         if not isinstance(self.received_by_id, int) or self.received_by_id <= 0:
             raise ValueError("Received by ID must be a positive integer.")
+        if self.warehouse_id is not None and (
+            isinstance(self.warehouse_id, bool)
+            or not isinstance(self.warehouse_id, int)
+            or self.warehouse_id <= 0
+        ):
+            raise ValueError("Warehouse ID must be a positive integer or None.")
 
         self.notes = self.notes.strip()
 
@@ -79,6 +98,7 @@ class GoodsReceipt:
         purchase_order_item_id: int,
         received_quantity: Decimal,
         rejected_quantity: Decimal = Decimal("0"),
+        purchase_unit: PurchaseUnit | None = None,
     ) -> GoodsReceiptItem:
         if self._has_purchase_order_item(purchase_order_item_id):
             raise ValueError(
@@ -89,6 +109,7 @@ class GoodsReceipt:
             purchase_order_item_id=purchase_order_item_id,
             received_quantity=received_quantity,
             rejected_quantity=rejected_quantity,
+            purchase_unit=purchase_unit,
         )
         self.items.append(item)
 

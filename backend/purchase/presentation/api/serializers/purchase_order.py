@@ -2,6 +2,8 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
+from purchase.domain.enums.purchase_unit import PurchaseUnit
+
 
 class PurchaseOrderItemWriteSerializer(serializers.Serializer):
     ingredient_id = serializers.IntegerField(min_value=1)
@@ -15,6 +17,7 @@ class PurchaseOrderItemWriteSerializer(serializers.Serializer):
         decimal_places=2,
         min_value=Decimal("0"),
     )
+    purchase_unit = serializers.ChoiceField(choices=[unit.value for unit in PurchaseUnit])
 
 
 class PurchaseOrderCreateSerializer(serializers.Serializer):
@@ -61,6 +64,7 @@ class PurchaseOrderItemSerializer(serializers.Serializer):
     ingredient_id = serializers.IntegerField()
     quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
     unit_price = serializers.DecimalField(max_digits=14, decimal_places=2)
+    purchase_unit = serializers.CharField(allow_null=True)
 
 
 class PurchaseOrderSerializer(serializers.Serializer):

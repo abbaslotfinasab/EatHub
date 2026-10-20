@@ -1,0 +1,1 @@
+"""Pure Inventory domain tests."""

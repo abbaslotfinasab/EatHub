@@ -9,6 +9,7 @@ def reject_existing_duplicate_order_debits(apps, schema_editor):
         .values("order_id")
         .annotate(row_count=models.Count("id"))
         .filter(row_count__gt=1)
+        .order_by("order_id")
         .first()
     )
     if duplicate:

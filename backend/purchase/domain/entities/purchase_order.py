@@ -5,6 +5,7 @@ from decimal import Decimal
 from purchase.domain.enums.purchase_order_status import (
     PurchaseOrderStatus,
 )
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 
 
 @dataclass
@@ -12,6 +13,7 @@ class PurchaseOrderItem:
     ingredient_id: int
     quantity: Decimal
     unit_price: Decimal
+    purchase_unit: PurchaseUnit | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.ingredient_id, int) or self.ingredient_id <= 0:
@@ -26,6 +28,10 @@ class PurchaseOrderItem:
             raise ValueError(
                 "Purchase order item unit price cannot be negative."
             )
+        if self.purchase_unit is not None and not isinstance(
+            self.purchase_unit, PurchaseUnit
+        ):
+            raise ValueError("Purchase unit is invalid.")
 
     @property
     def line_total(self) -> Decimal:
@@ -95,6 +101,7 @@ class PurchaseOrder:
         ingredient_id: int,
         quantity: Decimal,
         unit_price: Decimal,
+        purchase_unit: PurchaseUnit,
     ) -> PurchaseOrderItem:
         self._ensure_editable()
 
@@ -102,6 +109,7 @@ class PurchaseOrder:
             ingredient_id=ingredient_id,
             quantity=quantity,
             unit_price=unit_price,
+            purchase_unit=purchase_unit,
         )
         self.items.append(item)
 

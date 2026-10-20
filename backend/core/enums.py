@@ -8,6 +8,7 @@ class PermissionCode(models.TextChoices):
     ORDERS_CREATE = "orders.create", "Create Orders"
     ORDERS_UPDATE = "orders.update", "Update Orders"
     ORDERS_CANCEL = "orders.cancel", "Cancel Orders"
+    PAYMENTS_MANAGE = "payments.manage", "Manage Payments and Refunds"
 
     # Products
     PRODUCTS_VIEW = "products.view", "View Products"

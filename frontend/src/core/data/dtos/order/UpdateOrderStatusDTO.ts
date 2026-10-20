@@ -1,9 +1,9 @@
 export interface UpdateOrderStatusDTO {
 
-    status: string;
+    status?: string;
 
-    payment_status: string;
+    payment_status?: string;
 
-    payment_method: string;
+    payment_method?: string;
 
 }

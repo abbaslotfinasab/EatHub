@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 
 from core.models import BaseModel
@@ -168,7 +170,47 @@ class CustomerAccount(BaseModel):
     business = models.ForeignKey(Business, on_delete=models.CASCADE)
     customer = models.OneToOneField(Customer, on_delete=models.CASCADE, related_name="account")
     balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    ledger_opening_balance = models.DecimalField(
+        max_digits=12, decimal_places=2, default=Decimal("0")
+    )
+    ledger_opening_balance_verified = models.BooleanField(default=False)
 
+
+
+class OrderRefund(BaseModel):
+    """Auditable record of a completed full refund for an order."""
+
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="refunds")
+    business = models.ForeignKey(
+        Business, on_delete=models.PROTECT, related_name="order_refunds"
+    )
+    customer = models.ForeignKey(
+        Customer,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="order_refunds",
+    )
+    payment_method = models.CharField(max_length=30, choices=Order.PaymentMethod.choices)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    reason = models.TextField()
+    reference = models.CharField(max_length=200, blank=True)
+    idempotency_key = models.UUIDField(unique=True)
+    actor = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_refunds",
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(amount__gt=0),
+                name="order_refund_positive_amt",
+            ),
+        ]
 
 
 class CustomerTransaction(BaseModel):
@@ -197,14 +239,31 @@ class CustomerTransaction(BaseModel):
         default=0,
     )
 
+    # Marks ledger entries that form the immutable settlement history for an order.
+    # Ordinary customer credits/debits may also carry an order reference and must
+    # not be mistaken for payment reconciliation. Historical rows may have been
+    # classified by migration heuristics, so reconciliation also requires the
+    # explicit verification marker below.
+    is_order_settlement = models.BooleanField(default=False)
+
+    is_order_settlement_verified = models.BooleanField(default=False)
+
+    refund = models.ForeignKey(
+        OrderRefund,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="transactions",
+    )
+
     description = models.TextField(null=True, blank=True)
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["order"],
-                condition=models.Q(type="debit", order__isnull=False),
-                name="uniq_wallet_debit_per_order",
+                fields=("refund",),
+                condition=models.Q(refund__isnull=False),
+                name="uniq_txn_refund",
             ),
         ]
 

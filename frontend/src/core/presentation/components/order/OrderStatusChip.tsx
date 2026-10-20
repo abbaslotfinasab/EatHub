@@ -34,6 +34,10 @@ const STATUS_CONFIG = {
         label: "لغو شده",
         color: "error",
     },
+    [OrderStatus.FAILED]: {
+        label: "ناموفق",
+        color: "error",
+    },
 } satisfies Record<
     OrderStatusType,
     {

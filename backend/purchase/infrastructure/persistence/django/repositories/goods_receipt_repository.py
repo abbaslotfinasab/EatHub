@@ -6,7 +6,6 @@ from decimal import Decimal
 from django.db import transaction
 from django.db.models import Prefetch, Sum
 
-from inventory.models import Ingredient
 from purchase.domain.entities.goods_receipt import GoodsReceipt
 from purchase.domain.repositories.goods_receipt_repository import (
     GoodsReceiptRepository,
@@ -130,11 +129,13 @@ class DjangoGoodsReceiptRepository(GoodsReceiptRepository):
                 item_model.purchase_order_item_id = item.purchase_order_item_id
                 item_model.received_quantity = item.received_quantity
                 item_model.rejected_quantity = item.rejected_quantity
+                item_model.purchase_unit = item.purchase_unit.value if item.purchase_unit else None
                 item_model.save(
                     update_fields=[
                         "purchase_order_item",
                         "received_quantity",
                         "rejected_quantity",
+                        "purchase_unit",
                         "updated_at",
                     ]
                 )
@@ -168,6 +169,7 @@ class DjangoGoodsReceiptRepository(GoodsReceiptRepository):
             id__in=item_ids,
             purchase_order_id=purchase_order.id,
             purchase_order__business_id=goods_receipt.business_id,
+            ingredient__business_id=goods_receipt.business_id,
         )
         valid_item_rows = list(
             valid_items.values("id", "ingredient_id")
@@ -175,16 +177,4 @@ class DjangoGoodsReceiptRepository(GoodsReceiptRepository):
         if {row["id"] for row in valid_item_rows} != item_ids:
             raise ValueError(
                 "All goods receipt items must belong to its purchase order."
-            )
-
-        ingredient_ids = {row["ingredient_id"] for row in valid_item_rows}
-        valid_ingredient_ids = set(
-            Ingredient.objects.filter(
-                id__in=ingredient_ids,
-                business_id=goods_receipt.business_id,
-            ).values_list("id", flat=True)
-        )
-        if valid_ingredient_ids != ingredient_ids:
-            raise ValueError(
-                "All goods receipt ingredients must belong to its business."
             )

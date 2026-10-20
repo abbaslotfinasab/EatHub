@@ -7,7 +7,8 @@ from rest_framework.test import APITestCase
 
 from accounts.enums import RoleCode
 from accounts.models import Business, Membership, Role, User
-from inventory.models import Ingredient, StockTransaction, Warehouse
+from inventory.models import Ingredient, Warehouse
+from inventory.infrastructure.django.models import InventoryV1StockMovement
 from purchase.models import (
     GoodsReceipt as DjangoGoodsReceipt,
     PurchaseOrder as DjangoPurchaseOrder,
@@ -107,6 +108,7 @@ class GoodsReceiptAPITests(APITestCase):
             ingredient=ingredient,
             quantity=Decimal("10"),
             unit_price=Decimal("500.00"),
+            purchase_unit="kg",
         )
         return order, item
 
@@ -123,6 +125,7 @@ class GoodsReceiptAPITests(APITestCase):
                     "purchase_order_item_id": self.order[1].id,
                     "received_quantity": "4.000",
                     "rejected_quantity": "0.000",
+                    "purchase_unit": "kg",
                 }
             ],
         }
@@ -157,6 +160,20 @@ class GoodsReceiptAPITests(APITestCase):
         self.assertEqual(listed.status_code, status.HTTP_200_OK)
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
         self.assertEqual(detail.data["id"], created.data["id"])
+
+    def test_optional_warehouse_is_persisted_and_passed_to_inventory(self):
+        destination = Warehouse.objects.create(
+            business=self.business,
+            name="Secondary",
+            is_default=False,
+        )
+
+        response = self.create_receipt(warehouse_id=destination.id)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["warehouse_id"], destination.id)
+        movement = InventoryV1StockMovement.objects.get()
+        self.assertEqual(movement.stock.warehouse_id, destination.id)
 
     def test_cross_business_detail_returns_not_found(self):
         other_receipt = DjangoGoodsReceipt.objects.create(
@@ -208,6 +225,15 @@ class GoodsReceiptAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_legacy_po_line_without_unit_is_rejected_for_receipt(self):
+        self.order[1].purchase_unit = None
+        self.order[1].save(update_fields=["purchase_unit", "updated_at"])
+        response = self.create_receipt()
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("legacy purchase order line has no purchase unit", str(response.data))
+        self.assertFalse(DjangoGoodsReceipt.objects.filter(purchase_order=self.order[0]).exists())
+
     def test_foreign_purchase_order_is_not_found(self):
         response = self.create_receipt(purchase_order_id=self.other_order[0].id)
 
@@ -218,6 +244,7 @@ class GoodsReceiptAPITests(APITestCase):
             "purchase_order_item_id": self.other_order[1].id,
             "received_quantity": "1.000",
             "rejected_quantity": "0.000",
+            "purchase_unit": "kg",
         }])
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -227,6 +254,7 @@ class GoodsReceiptAPITests(APITestCase):
             "purchase_order_item_id": 999999,
             "received_quantity": "1.000",
             "rejected_quantity": "0.000",
+            "purchase_unit": "kg",
         }])
         duplicate = self.create_receipt(items=[
             self.payload()["items"][0],
@@ -241,6 +269,7 @@ class GoodsReceiptAPITests(APITestCase):
             "purchase_order_item_id": self.order[1].id,
             "received_quantity": "11.000",
             "rejected_quantity": "0.000",
+            "purchase_unit": "kg",
         }])
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -250,6 +279,7 @@ class GoodsReceiptAPITests(APITestCase):
             "purchase_order_item_id": self.order[1].id,
             "received_quantity": "10.000",
             "rejected_quantity": "0.000",
+            "purchase_unit": "kg",
         }])
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -296,12 +326,11 @@ class GoodsReceiptAPITests(APITestCase):
             status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
-    def test_stock_details_are_not_exposed(self):
+    def test_inventory_projection_details_are_not_exposed(self):
         response = self.create_receipt()
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertNotIn("stock_transaction_id", response.data)
-        self.assertNotIn("warehouse_id", response.data)
         self.assertNotIn("stock_quantity", response.data)
 
     def test_received_by_filter_remains_business_scoped(self):
@@ -321,12 +350,18 @@ class GoodsReceiptAPITests(APITestCase):
             "purchase_order_item_id": self.order[1].id,
             "received_quantity": "4.000",
             "rejected_quantity": "3.000",
+            "purchase_unit": "kg",
         }])
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.order[0].refresh_from_db()
         self.assertEqual(self.order[0].status, DjangoPurchaseOrder.Status.PARTIAL)
-        self.assertEqual(StockTransaction.objects.get().quantity, Decimal("4"))
+        movement = InventoryV1StockMovement.objects.get()
+        self.assertEqual(movement.quantity, Decimal("4"))
+        self.assertEqual(movement.unit, "kg")
+        self.assertEqual(movement.source_type, "goods_receipt")
+        self.assertEqual(movement.source_document_id, response.data["id"])
+        self.assertEqual(movement.source_line_id, response.data["items"][0]["id"])
 
     def test_list_filters_are_scoped_and_forwarded(self):
         created = self.create_receipt()

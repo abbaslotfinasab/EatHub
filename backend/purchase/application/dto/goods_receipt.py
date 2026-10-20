@@ -2,11 +2,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from purchase.domain.enums.purchase_unit import PurchaseUnit
+
 
 @dataclass(frozen=True)
 class CreateGoodsReceiptItemDTO:
     purchase_order_item_id: int
     received_quantity: Decimal
+    purchase_unit: PurchaseUnit
     rejected_quantity: Decimal = Decimal("0")
 
 
@@ -18,6 +21,7 @@ class CreateGoodsReceiptDTO:
     received_date: datetime
     items: list[CreateGoodsReceiptItemDTO]
     notes: str = ""
+    warehouse_id: int | None = None
 
 
 @dataclass(frozen=True)

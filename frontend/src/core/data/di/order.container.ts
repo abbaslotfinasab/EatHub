@@ -7,6 +7,7 @@ import {DeleteOrder} from "../../domain/use-cases/product/order/DeleteOrder";
 import {GetAllOrdersWithItems} from "../../domain/use-cases/product/order/GetAllOrdersWithItems.ts";
 import {GetOrderByIdWithItems} from "../../domain/use-cases/product/order/GetOrderByIdWithItems.ts";
 import {UpdateOrderStatus} from "../../domain/use-cases/product/order/UpdateOrderStatus.ts";
+import {RefundOrder} from "../../domain/use-cases/product/order/RefundOrder.ts";
 
 export const createOrderContainer = () => {
     const remote = new OrderRemoteDataSource();
@@ -28,5 +29,7 @@ export const createOrderContainer = () => {
             new UpdateOrderStatus(
                 repository,
             ),
+
+        refundOrderUseCase: new RefundOrder(repository),
     };
 };

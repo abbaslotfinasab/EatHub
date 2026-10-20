@@ -9,6 +9,7 @@ export const OrderStatusFormSchema = z.object({
         "ready",
         "completed",
         "cancelled",
+        "failed",
     ]),
 
     paymentStatus: z.enum([

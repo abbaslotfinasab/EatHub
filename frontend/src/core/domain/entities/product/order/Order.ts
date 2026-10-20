@@ -28,6 +28,8 @@ export const OrderStatus = {
 
     CANCELLED: "cancelled",
 
+    FAILED: "failed",
+
 } as const;
 
 

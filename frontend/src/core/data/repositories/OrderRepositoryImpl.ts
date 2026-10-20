@@ -8,6 +8,8 @@ import type {UpdateOrderStatusInput} from "../../domain/entities/product/order/U
 import type {UpdateOrderStatusDTO} from "../dtos/order/UpdateOrderStatusDTO.ts";
 import type {OrderFilters} from "../../domain/objects/filters/OrderFilters.ts";
 import type {PaginatedResult} from "../../domain/objects/PaginatedResult.ts";
+import type {RefundOrderInput, RefundOrderResult} from "../../domain/entities/product/order/RefundOrderInput.ts";
+import type {OrderRefundDTO} from "../dtos/order/OrderRefundDTO.ts";
 
 export class OrderRepositoryImpl implements OrderRepository {
 
@@ -96,5 +98,20 @@ export class OrderRepositoryImpl implements OrderRepository {
             input.orderId,
             dto,
         );
+    }
+
+    async refund(input: RefundOrderInput): Promise<RefundOrderResult> {
+        const dto: OrderRefundDTO = {
+            idempotency_key: input.idempotencyKey,
+            reason: input.reason,
+            reference: input.reference,
+            amount: input.amount?.toFixed(2),
+            confirm_external_refund: input.confirmExternalRefund,
+        };
+        return this.remote.refundOrder(input.orderId, dto);
+    }
+
+    async getRefund(orderId: string): Promise<RefundOrderResult> {
+        return this.remote.getOrderRefund(orderId);
     }
 }

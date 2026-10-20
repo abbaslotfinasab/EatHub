@@ -95,6 +95,12 @@ export const sidebarSections: SidebarSectionConfig[] = [
             },
 
             {
+                title: "موجودی انبار",
+                path: "/inventory",
+                icon: WarehouseRoundedIcon,
+            },
+
+            {
                 title: "مواد مرکب",
                 path: "/warehouses",
                 icon: WarehouseRoundedIcon,

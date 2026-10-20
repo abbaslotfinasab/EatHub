@@ -9,6 +9,7 @@ from purchase.application.dto.goods_receipt import (
     CreateGoodsReceiptItemDTO,
     ListGoodsReceiptsQuery,
 )
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.application.use_cases.goods_receipt.create_goods_receipt import (
     CreateGoodsReceiptUseCase,
 )
@@ -30,9 +31,17 @@ from purchase.infrastructure.persistence.django.repositories.purchase_order_repo
 from purchase.infrastructure.persistence.transaction import (
     DjangoTransactionManager,
 )
-from purchase.infrastructure.services.stock_transaction_gateway import (
-    DjangoStockTransactionGateway,
+from purchase.infrastructure.services.inventory_receipt_gateway import (
+    DjangoInventoryReceiptGateway,
 )
+from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
+from inventory.infrastructure.django.repositories import (
+    DjangoIngredientRepository,
+    DjangoStockMovementRepository,
+    DjangoStockRepository,
+    DjangoWarehouseRepository,
+)
+from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from purchase.presentation.api.serializers.goods_receipt import (
     CreateGoodsReceiptSerializer,
     GoodsReceiptSerializer,
@@ -44,11 +53,18 @@ def _goods_receipt_repository() -> DjangoGoodsReceiptRepository:
 
 
 def _create_goods_receipt_use_case() -> CreateGoodsReceiptUseCase:
+    inventory_use_case = ReceiveStockUseCase(
+        DjangoWarehouseRepository(),
+        DjangoIngredientRepository(),
+        DjangoStockRepository(),
+        DjangoStockMovementRepository(),
+        DjangoInventoryUnitOfWork(),
+    )
     return CreateGoodsReceiptUseCase(
         _goods_receipt_repository(),
         DjangoPurchaseOrderRepository(),
         DjangoPurchaseOrderLineReader(),
-        DjangoStockTransactionGateway(),
+        DjangoInventoryReceiptGateway(inventory_use_case),
         DjangoTransactionManager(),
     )
 
@@ -96,6 +112,7 @@ def _item_dtos(items: list[dict]) -> list[CreateGoodsReceiptItemDTO]:
             purchase_order_item_id=item["purchase_order_item_id"],
             received_quantity=item["received_quantity"],
             rejected_quantity=item.get("rejected_quantity", 0),
+            purchase_unit=PurchaseUnit(item["purchase_unit"]),
         )
         for item in items
     ]
@@ -147,6 +164,7 @@ class GoodsReceiptListCreateAPIView(TenantAPIView):
                     received_by_id=request.user.id,
                     received_date=data["received_date"],
                     notes=data.get("notes", ""),
+                    warehouse_id=data.get("warehouse_id"),
                     items=_item_dtos(data["items"]),
                 )
             )

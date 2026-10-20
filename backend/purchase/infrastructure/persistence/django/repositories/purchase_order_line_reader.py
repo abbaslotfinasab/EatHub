@@ -1,4 +1,5 @@
 from purchase.application.ports.goods_receipt import PurchaseOrderLine
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.models import PurchaseOrderItem as DjangoPurchaseOrderItem
 
 
@@ -16,6 +17,8 @@ class DjangoPurchaseOrderLineReader:
             "id",
             "ingredient_id",
             "quantity",
+            "purchase_unit",
+            "unit_price",
         ).order_by("id")
 
         return {
@@ -23,6 +26,11 @@ class DjangoPurchaseOrderLineReader:
                 purchase_order_item_id=row["id"],
                 ingredient_id=row["ingredient_id"],
                 ordered_quantity=row["quantity"],
+                purchase_unit=(
+                    PurchaseUnit(row["purchase_unit"])
+                    if row["purchase_unit"] is not None else None
+                ),
+                unit_price=row["unit_price"],
             )
             for row in rows
         }

@@ -20,6 +20,7 @@ ROLE_PERMISSIONS = {
         PermissionCode.ORDERS_VIEW,
         PermissionCode.ORDERS_CREATE,
         PermissionCode.ORDERS_UPDATE,
+        PermissionCode.PAYMENTS_MANAGE,
 
         PermissionCode.INVENTORY_VIEW,
         PermissionCode.INVENTORY_ADJUST,
@@ -44,6 +45,7 @@ ROLE_PERMISSIONS = {
 
     RoleCode.ACCOUNTANT: [
         PermissionCode.REPORTS_VIEW_SALES,
+        PermissionCode.PAYMENTS_MANAGE,
     ],
 }
 

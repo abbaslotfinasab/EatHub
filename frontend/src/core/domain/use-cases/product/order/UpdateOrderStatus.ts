@@ -25,30 +25,8 @@ export class UpdateOrderStatus {
         }
 
 
-        if (!input.status) {
-
-            throw new Error(
-                "Order status is required",
-            );
-
-        }
-
-
-        if (!input.paymentStatus) {
-
-            throw new Error(
-                "Payment status is required",
-            );
-
-        }
-
-
-        if (!input.paymentMethod) {
-
-            throw new Error(
-                "Payment method is required",
-            );
-
+        if (!input.status && !input.paymentStatus && !input.paymentMethod) {
+            throw new Error("At least one order field is required");
         }
 
 

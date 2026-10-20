@@ -6,6 +6,8 @@ import type {UpdateOrderDTO} from "../dtos/order/UpdateOrderDTO";
 import type {UpdateOrderStatusDTO} from "../dtos/order/UpdateOrderStatusDTO.ts";
 import type {OrderFilters} from "../../domain/objects/filters/OrderFilters.ts";
 import type {PaginatedResult} from "../../domain/objects/PaginatedResult.ts";
+import type {OrderRefundDTO} from "../dtos/order/OrderRefundDTO.ts";
+import type {RefundOrderResult} from "../../domain/entities/product/order/RefundOrderInput.ts";
 
 export class OrderRemoteDataSource {
 
@@ -135,6 +137,21 @@ export class OrderRemoteDataSource {
             input,
         );
 
+    }
+
+    async refundOrder(orderId: string, input: OrderRefundDTO): Promise<RefundOrderResult> {
+        const {data} = await apiClient.post<RefundOrderResult>(
+            `/products/orders/${orderId}/refund/`,
+            input,
+        );
+        return data;
+    }
+
+    async getOrderRefund(orderId: string): Promise<RefundOrderResult> {
+        const {data} = await apiClient.get<RefundOrderResult>(
+            `/products/orders/${orderId}/refund/`,
+        );
+        return data;
     }
 
 

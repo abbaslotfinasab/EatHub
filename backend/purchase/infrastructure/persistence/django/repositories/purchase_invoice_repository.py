@@ -2,7 +2,6 @@ from datetime import date
 from django.db import transaction
 from django.db.models import Prefetch
 
-from inventory.models import Ingredient
 from purchase.domain.entities.purchase_invoice import PurchaseInvoice
 from purchase.domain.enums.purchase_invoice_status import PurchaseInvoiceStatus
 from purchase.domain.repositories.purchase_invoice_repository import PurchaseInvoiceRepository
@@ -205,9 +204,11 @@ class DjangoPurchaseInvoiceRepository(PurchaseInvoiceRepository):
         if order.supplier_id != invoice.supplier_id:
             raise ValueError("Purchase order supplier does not match invoice supplier.")
         ingredient_ids = {item.ingredient_id for item in invoice.items}
-        valid = set(Ingredient.objects.filter(
-            id__in=ingredient_ids, business_id=invoice.business_id,
-        ).values_list("id", flat=True))
+        valid = set(DjangoPurchaseOrderItem.objects.filter(
+            purchase_order__business_id=invoice.business_id,
+            ingredient_id__in=ingredient_ids,
+            ingredient__business_id=invoice.business_id,
+        ).values_list("ingredient_id", flat=True))
         if valid != ingredient_ids:
             raise ValueError("All invoice ingredients must belong to the invoice business.")
         po_item_ids = {item.purchase_order_item_id for item in invoice.items}
@@ -217,6 +218,7 @@ class DjangoPurchaseInvoiceRepository(PurchaseInvoiceRepository):
                 id__in=po_item_ids,
                 purchase_order_id=order.id,
                 purchase_order__business_id=invoice.business_id,
+                ingredient__business_id=invoice.business_id,
             )
         }
         if set(po_items) != po_item_ids:
@@ -226,7 +228,3 @@ class DjangoPurchaseInvoiceRepository(PurchaseInvoiceRepository):
             purchase_order_business_id=order.business_id,
             item_ingredient_ids={po_item.id: po_item.ingredient_id for po_item in po_items.values()},
         )
-        for item in invoice.items:
-            po_item = po_items[item.purchase_order_item_id]
-            if po_item.ingredient.business_id != invoice.business_id:
-                raise ValueError("Purchase order item ingredient does not belong to the invoice business.")

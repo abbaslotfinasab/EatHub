@@ -27,6 +27,7 @@ from purchase.domain.entities.purchase_order import PurchaseOrder
 from purchase.domain.entities.requisition import PurchaseRequisition
 from purchase.domain.entities.supplier import Supplier
 from purchase.domain.enums.requisition_status import RequisitionStatus
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 
 
 class FakePurchaseOrderRepository:
@@ -156,6 +157,7 @@ class PurchaseOrderApplicationTests(TestCase):
                     ingredient_id=1,
                     quantity=Decimal("2"),
                     unit_price=Decimal("3"),
+                    purchase_unit=PurchaseUnit.KG,
                 )
             ],
         }
@@ -168,6 +170,19 @@ class PurchaseOrderApplicationTests(TestCase):
         self.assertEqual(order.business_id, 1)
         self.assertEqual(order.supplier_id, 1)
         self.assertEqual(order.total_amount(), Decimal("6"))
+        self.assertEqual(order.items[0].purchase_unit, PurchaseUnit.KG)
+
+    def test_new_purchase_order_item_requires_supported_unit(self) -> None:
+        command = self.create_command(
+            items=[CreatePurchaseOrderItemDTO(
+                ingredient_id=1,
+                quantity=Decimal("2"),
+                unit_price=Decimal("3"),
+                purchase_unit=None,
+            )]
+        )
+        with self.assertRaisesRegex(ValueError, "Purchase unit is required"):
+            self.create_use_case.execute(command)
 
     def test_rejects_supplier_from_another_business(self) -> None:
         with self.assertRaises(ValueError):
@@ -201,6 +216,7 @@ class PurchaseOrderApplicationTests(TestCase):
                         ingredient_id=2,
                         quantity=Decimal("3"),
                         unit_price=Decimal("4"),
+                        purchase_unit=PurchaseUnit.KG,
                     )
                 ],
                 discount=Decimal("1"),

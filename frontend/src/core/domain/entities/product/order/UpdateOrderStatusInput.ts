@@ -11,12 +11,12 @@ export interface UpdateOrderStatusInput {
     orderId: string;
 
 
-    status: OrderStatusType;
+    status?: OrderStatusType;
 
 
-    paymentStatus: PaymentStatusType;
+    paymentStatus?: PaymentStatusType;
 
 
-    paymentMethod: PaymentMethodType;
+    paymentMethod?: PaymentMethodType;
 
 }

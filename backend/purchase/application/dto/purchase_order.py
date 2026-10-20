@@ -5,6 +5,7 @@ from decimal import Decimal
 from purchase.domain.enums.purchase_order_status import (
     PurchaseOrderStatus,
 )
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,7 @@ class CreatePurchaseOrderItemDTO:
     ingredient_id: int
     quantity: Decimal
     unit_price: Decimal
+    purchase_unit: PurchaseUnit
 
 
 @dataclass(frozen=True)

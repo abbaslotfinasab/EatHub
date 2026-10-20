@@ -3,9 +3,9 @@ from decimal import Decimal
 
 from purchase.application.dto.goods_receipt import CreateGoodsReceiptDTO
 from purchase.application.ports.goods_receipt import (
+    InventoryReceiptGateway,
+    InventoryReceiptRequest,
     PurchaseOrderLineReader,
-    StockInRequest,
-    StockTransactionGateway,
     TransactionManager,
 )
 from purchase.domain.entities.goods_receipt import (
@@ -27,13 +27,13 @@ class CreateGoodsReceiptUseCase:
         goods_receipt_repository: GoodsReceiptRepository,
         purchase_order_repository: PurchaseOrderRepository,
         purchase_order_line_reader: PurchaseOrderLineReader,
-        stock_transaction_gateway: StockTransactionGateway,
+        inventory_receipt_gateway: InventoryReceiptGateway,
         transaction_manager: TransactionManager,
     ) -> None:
         self._goods_receipt_repository = goods_receipt_repository
         self._purchase_order_repository = purchase_order_repository
         self._purchase_order_line_reader = purchase_order_line_reader
-        self._stock_transaction_gateway = stock_transaction_gateway
+        self._inventory_receipt_gateway = inventory_receipt_gateway
         self._transaction_manager = transaction_manager
 
     def execute(self, command: CreateGoodsReceiptDTO) -> GoodsReceipt:
@@ -102,6 +102,7 @@ class CreateGoodsReceiptUseCase:
                 received_by_id=received_by_id,
                 received_date=received_date,
                 notes=notes,
+                warehouse_id=command.warehouse_id,
                 items=receipt_items,
             )
             receipt.validate()
@@ -112,11 +113,8 @@ class CreateGoodsReceiptUseCase:
                 purchase_order.mark_partially_received()
 
             saved_receipt = self._goods_receipt_repository.save(receipt)
-            self._create_stock_in_requests(
+            self._create_inventory_receipts(
                 saved_receipt,
-                business_id,
-                purchase_order_id,
-                receipt_items,
                 lines,
             )
             self._purchase_order_repository.save(purchase_order)
@@ -180,11 +178,22 @@ class CreateGoodsReceiptUseCase:
                 raise ValueError(
                     "Receipt item does not belong to the purchase order."
                 )
+            line = lines[item.purchase_order_item_id]
+            if line.purchase_unit is None:
+                raise ValueError(
+                    "This legacy purchase order line has no purchase unit. "
+                    "Correct the line explicitly before receiving it."
+                )
+            if item.purchase_unit != line.purchase_unit:
+                raise ValueError(
+                    "Goods receipt unit must match the purchase order line unit."
+                )
             receipt_items.append(
                 GoodsReceiptItem(
                     purchase_order_item_id=item.purchase_order_item_id,
                     received_quantity=item.received_quantity,
                     rejected_quantity=item.rejected_quantity,
+                    purchase_unit=item.purchase_unit,
                 )
             )
         return receipt_items
@@ -230,18 +239,15 @@ class CreateGoodsReceiptUseCase:
             for line_id, line in lines.items()
         )
 
-    def _create_stock_in_requests(
+    def _create_inventory_receipts(
         self,
         receipt: GoodsReceipt,
-        business_id: int,
-        purchase_order_id: int,
-        items: list[GoodsReceiptItem],
         lines: dict,
     ) -> None:
         # Stock rows are locked by the gateway; visit them in a stable order
         # so multi-line receipts do not acquire stock locks in payload order.
         for item in sorted(
-            items,
+            receipt.items,
             key=lambda row: (
                 lines[row.purchase_order_item_id].ingredient_id,
                 row.purchase_order_item_id,
@@ -249,14 +255,30 @@ class CreateGoodsReceiptUseCase:
         ):
             if item.received_quantity <= 0:
                 continue
-            self._stock_transaction_gateway.create_stock_in(
-                StockInRequest(
-                    business_id=business_id,
-                    purchase_order_id=purchase_order_id,
-                    goods_receipt_id=receipt.id,
-                    purchase_order_item_id=item.purchase_order_item_id,
+            if receipt.id is None or item.id is None or item.purchase_unit is None:
+                raise ValueError(
+                    "Persisted Goods Receipt and line identities and unit are required "
+                    "before Inventory can receive stock."
+                )
+            line = lines[item.purchase_order_item_id]
+            if line.purchase_unit is None:
+                raise ValueError(
+                    "This legacy purchase order line has no purchase unit. "
+                    "Correct the line explicitly before receiving it."
+                )
+            self._inventory_receipt_gateway.receive_line(
+                InventoryReceiptRequest(
+                    business_id=receipt.business_id,
                     ingredient_id=lines[item.purchase_order_item_id].ingredient_id,
-                    quantity=item.received_quantity,
+                    warehouse_id=receipt.warehouse_id,
+                    quantity_amount=item.received_quantity,
+                    quantity_unit=item.purchase_unit,
+                    unit_cost_amount=line.unit_price,
+                    unit_cost_unit=line.purchase_unit,
+                    source_document_id=receipt.id,
+                    source_line_id=item.id,
+                    operation_kind="receive_stock",
+                    actor_id=receipt.received_by_id,
                 )
             )
 

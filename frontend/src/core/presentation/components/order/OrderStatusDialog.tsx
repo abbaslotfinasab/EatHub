@@ -1,4 +1,4 @@
-import {useEffect} from "react";
+import {useEffect, useRef, useState} from "react";
 
 import {
     Button,
@@ -29,6 +29,8 @@ import type {
     PaymentMethodType,
     PaymentStatusType,
 } from "../../../domain/entities/product/order/Order";
+import type {RefundOrderInput} from "../../../domain/entities/product/order/RefundOrderInput.ts";
+import type {RefundOrderResult} from "../../../domain/entities/product/order/RefundOrderInput.ts";
 
 import {
     OrderStatusFormSchema,
@@ -42,29 +44,55 @@ interface Props {
 
     loading?: boolean;
 
+    refundLoading?: boolean;
+
+    canManagePayments?: boolean;
+
     error?: string | null;
+
+    refundError?: string | null;
+
+    refundResult?: RefundOrderResult | null;
+
+    refundRecoveryLoading?: boolean;
+
+    refundRecoveryError?: string | null;
 
     onClose(): void;
 
     onSubmit(data: {
-        status: OrderStatusType;
-        paymentStatus: PaymentStatusType;
-        paymentMethod: PaymentMethodType;
+        status?: OrderStatusType;
+        paymentStatus?: PaymentStatusType;
+        paymentMethod?: PaymentMethodType;
     }): void;
+
+    onRefund(data: Omit<RefundOrderInput, "orderId">): Promise<void>;
 }
 
 export function OrderStatusDialog({
                                       open,
                                       order,
                                       loading = false,
+                                      refundLoading = false,
+                                      canManagePayments = false,
                                       error = null,
+                                      refundError = null,
+                                      refundResult = null,
+                                      refundRecoveryLoading = false,
+                                      refundRecoveryError = null,
                                       onClose,
                                       onSubmit,
+                                      onRefund,
                                   }: Props) {
+    const [refundOpen, setRefundOpen] = useState(false);
+    const [refundReason, setRefundReason] = useState("");
+    const [refundReference, setRefundReference] = useState("");
+    const refundAttempt = useRef<{intent: string; key: string} | null>(null);
     const {
         control,
         handleSubmit,
         reset,
+        formState: {dirtyFields, isDirty},
     } = useForm<OrderStatusFormInput>({
         resolver: zodResolver(OrderStatusFormSchema),
 
@@ -92,19 +120,48 @@ export function OrderStatusDialog({
     }
 
     return (
+        <>
         <Dialog
             open={open}
             onClose={onClose}
             fullWidth
             maxWidth="sm"
         >
-            <form onSubmit={handleSubmit(onSubmit)}>
+            <form onSubmit={handleSubmit((data) => onSubmit({
+                ...(dirtyFields.status ? {status: data.status} : {}),
+                ...(canManagePayments && dirtyFields.paymentStatus
+                    ? {paymentStatus: data.paymentStatus}
+                    : {}),
+                ...(canManagePayments && dirtyFields.paymentMethod
+                    ? {paymentMethod: data.paymentMethod}
+                    : {}),
+            }))}>
 
                 <DialogTitle>
                     تغییر وضعیت سفارش
                 </DialogTitle>
 
                 <DialogContent>
+
+                    {refundRecoveryLoading && (
+                        <Alert severity="info" sx={{mb: 2}}>
+                            در حال بازیابی رسید بازپرداخت ثبت‌شده...
+                        </Alert>
+                    )}
+
+                    {refundRecoveryError && (
+                        <Alert severity="error" sx={{mb: 2}}>
+                            بازیابی رسید بازپرداخت انجام نشد: {refundRecoveryError}
+                        </Alert>
+                    )}
+
+                    {refundResult && (
+                        <Alert severity="success" sx={{mb: 2}}>
+                            بازپرداخت ثبت‌شده: {Number(refundResult.amount).toLocaleString()} —
+                            شناسه {refundResult.id} — {new Date(refundResult.created_at).toLocaleString()}
+                            {refundResult.reference ? ` — مرجع: ${refundResult.reference}` : ""}
+                        </Alert>
+                    )}
 
                     {error && (
                         <Alert severity="error" sx={{mb: 2}}>
@@ -203,6 +260,7 @@ export function OrderStatusDialog({
 
                         </Paper>
 
+                        {canManagePayments && <>
                         {/* وضعیت پرداخت */}
 
                         <Paper
@@ -241,7 +299,7 @@ export function OrderStatusDialog({
                                     variant="body2"
                                     color="text.secondary"
                                 >
-                                    مشخص کنید پرداخت انجام شده است یا خیر.
+                                    تکمیل سفارش به‌تنهایی پرداخت را تأیید نمی‌کند؛ فقط پس از دریافت وجه، وضعیت پرداخت را «پرداخت‌شده» انتخاب کنید.
                                 </Typography>
 
                                 <Controller
@@ -271,9 +329,9 @@ export function OrderStatusDialog({
                                                 ناموفق
                                             </MenuItem>
 
-                                            <MenuItem value="refunded">
-                                                برگشت داده شده
-                                            </MenuItem>
+                                            {order.paymentStatus === "refunded" && <MenuItem value="refunded" disabled>
+                                                برگشت داده شده؛ فقط از سابقه بازپرداخت
+                                            </MenuItem>}
 
                                         </TextField>
 
@@ -327,6 +385,10 @@ export function OrderStatusDialog({
                                     روش تسویه سفارش را انتخاب کنید.
                                 </Typography>
 
+                                <Typography variant="body2" color="text.secondary">
+                                    برای سفارش دارای سابقه حساب مشتری، هنگام تغییر روش پرداخت، وضعیت اصلاح‌شده پرداخت را نیز انتخاب کنید.
+                                </Typography>
+
                                 <Controller
                                     control={control}
                                     name="paymentMethod"
@@ -358,6 +420,7 @@ export function OrderStatusDialog({
                             </Stack>
 
                         </Paper>
+                        </>}
 
                     </Stack>
 
@@ -378,9 +441,20 @@ export function OrderStatusDialog({
                         انصراف
                     </Button>
 
+                    {canManagePayments && order.paymentStatus === "paid" && (
+                        <Button
+                            color="warning"
+                            onClick={() => setRefundOpen(true)}
+                            disabled={loading || refundLoading}
+                        >
+                            ثبت بازپرداخت کامل
+                        </Button>
+                    )}
+
                     <LoadingButton
                         type="submit"
                         loading={loading}
+                        disabled={!isDirty}
                         variant="contained"
                         size="large"
                         sx={{
@@ -394,5 +468,85 @@ export function OrderStatusDialog({
 
             </form>
         </Dialog>
+
+        <Dialog open={refundOpen} onClose={() => setRefundOpen(false)} fullWidth maxWidth="sm">
+            <form onSubmit={async (event) => {
+                event.preventDefault();
+                if (order.paymentMethod !== "customer_account") {
+                    return;
+                }
+                const reason = refundReason.trim();
+                const reference = refundReference.trim();
+                const intent = JSON.stringify([
+                    order.id,
+                    order.paymentMethod,
+                    reason,
+                    reference,
+                ]);
+                const key = refundAttempt.current?.intent === intent
+                    ? refundAttempt.current.key
+                    : crypto.randomUUID();
+                refundAttempt.current = {intent, key};
+                try {
+                    await onRefund({
+                        idempotencyKey: key,
+                        reason,
+                        reference,
+                    });
+                    if (refundAttempt.current?.key === key) {
+                        refundAttempt.current = null;
+                    }
+                    setRefundOpen(false);
+                    setRefundReason("");
+                    setRefundReference("");
+                } catch {
+                    // The parent surfaces the backend validation message.
+                }
+            }}>
+                <DialogTitle>ثبت بازپرداخت کامل</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} sx={{mt: 1}}>
+                        <Alert severity="warning">
+                            لغو یا تکمیل سفارش به‌تنهایی بازپرداخت انجام نمی‌دهد. مبلغ کیف پول از سابقه تسویه محاسبه می‌شود.
+                        </Alert>
+                        {order.paymentMethod === "customer_account" ? (
+                            <>
+                                <TextField
+                                    label="علت بازپرداخت"
+                                    value={refundReason}
+                                    onChange={(event) => setRefundReason(event.target.value)}
+                                    required
+                                    multiline
+                                    minRows={2}
+                                />
+                                <TextField
+                                    label="شماره مرجع (اختیاری)"
+                                    value={refundReference}
+                                    onChange={(event) => setRefundReference(event.target.value)}
+                                />
+                            </>
+                        ) : (
+                            <Alert severity="error">
+                                ایت‌هاب سابقه تغییرناپذیر مبلغ پرداخت نقدی/کارتی ندارد؛ بنابراین بازپرداخت را نمی‌توان در برنامه نهایی یا به‌عنوان پرداخت تأییدشده ثبت کرد. بازپرداخت واقعی باید خارج از ایت‌هاب انجام و در سامانه مالی معتبر ثبت شود.
+                            </Alert>
+                        )}
+                        {refundError && <Alert severity="error">{refundError}</Alert>}
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{px: 3, pb: 3}}>
+                    <Button onClick={() => setRefundOpen(false)}>انصراف</Button>
+                    <LoadingButton
+                        type="submit"
+                        loading={refundLoading}
+                        disabled={!refundReason.trim() || order.paymentMethod !== "customer_account"}
+                        color="warning"
+                        variant="contained"
+                    >
+                        تأیید و ثبت بازپرداخت
+                    </LoadingButton>
+                </DialogActions>
+            </form>
+        </Dialog>
+        </>
     );
 }

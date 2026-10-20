@@ -18,6 +18,7 @@ class ActivityLog(BaseModel):
         ORDER_CREATED = "order_created", "Order Created"
         ORDER_COMPLETED = "order_completed", "Order Completed"
         ORDER_CANCELLED = "order_cancelled", "Order Cancelled"
+        ORDER_REFUNDED = "order_refunded", "Order Refunded"
 
         STOCK_LOW = "stock_low", "Stock Low"
 

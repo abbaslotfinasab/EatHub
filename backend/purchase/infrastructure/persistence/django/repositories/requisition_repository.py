@@ -1,6 +1,5 @@
 from django.db import transaction
 
-from inventory.models import Ingredient
 from purchase.domain.entities.requisition import PurchaseRequisition
 from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.domain.repositories.requisition_repository import (
@@ -65,8 +64,6 @@ class DjangoRequisitionRepository(RequisitionRepository):
         requisition: PurchaseRequisition,
     ) -> PurchaseRequisition:
         with transaction.atomic():
-            self._ensure_item_ingredients_belong_to_business(requisition)
-
             if requisition.id is None:
                 model = PurchaseRequisitionMapper.to_model(requisition)
             else:
@@ -96,6 +93,11 @@ class DjangoRequisitionRepository(RequisitionRepository):
                 PurchaseRequisitionMapper.item_to_model(item, model)
                 for item in requisition.items
             ])
+            self._ensure_item_ingredients_belong_to_business(
+                model,
+                requisition.business_id,
+                {item.ingredient_id for item in requisition.items},
+            )
 
             saved_model = self._aggregate_queryset().get(
                 id=model.id,
@@ -106,15 +108,15 @@ class DjangoRequisitionRepository(RequisitionRepository):
 
     @staticmethod
     def _ensure_item_ingredients_belong_to_business(
-        requisition: PurchaseRequisition,
+        model: DjangoPurchaseRequisition,
+        business_id: int,
+        ingredient_ids: set[int],
     ) -> None:
-        ingredient_ids = {item.ingredient_id for item in requisition.items}
-        valid_ingredient_ids = set(
-            Ingredient.objects.filter(
-                business_id=requisition.business_id,
-                id__in=ingredient_ids,
-            ).values_list("id", flat=True)
-        )
+        valid_ingredient_ids = set(DjangoPurchaseRequisitionItem.objects.filter(
+            requisition=model,
+            ingredient_id__in=ingredient_ids,
+            ingredient__business_id=business_id,
+        ).values_list("ingredient_id", flat=True))
 
         if valid_ingredient_ids != ingredient_ids:
             raise ValueError(

@@ -1117,6 +1117,7 @@ class PurchaseOrderAPITests(APITestCase):
                     "ingredient_id": self.ingredient.id,
                     "quantity": "2.000",
                     "unit_price": "3.00",
+                    "purchase_unit": "kg",
                 }
             ],
         }
@@ -1144,6 +1145,14 @@ class PurchaseOrderAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["business_id"], self.business.id)
         self.assertEqual(response.data["status"], "draft")
+
+    def test_create_purchase_order_requires_explicit_purchase_unit(self) -> None:
+        payload = self.create_payload()
+        del payload["items"][0]["purchase_unit"]
+
+        response = self.client.post(self.endpoint, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_client_business_id_and_status_cannot_override_tenant_or_lifecycle(self) -> None:
         response = self.create_order(
@@ -1181,6 +1190,7 @@ class PurchaseOrderAPITests(APITestCase):
                         "ingredient_id": self.ingredient.id,
                         "quantity": "4.000",
                         "unit_price": "5.00",
+                        "purchase_unit": "kg",
                     }
                 ],
                 discount="2.00",

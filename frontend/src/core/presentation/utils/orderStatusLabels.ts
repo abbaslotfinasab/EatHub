@@ -14,4 +14,6 @@ export const orderStatusLabels: Record<OrderStatusType, string> = {
 
     cancelled: "لغو شده",
 
+    failed: "ناموفق",
+
 };

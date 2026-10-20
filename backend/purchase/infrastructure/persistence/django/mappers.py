@@ -24,6 +24,7 @@ from purchase.domain.enums.purchase_invoice_status import PurchaseInvoiceStatus
 from purchase.domain.enums.purchase_invoice_matching_status import PurchaseInvoiceMatchingStatus
 from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.domain.enums.purchase_order_status import PurchaseOrderStatus
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.models import (
     AccountsPayable as DjangoAccountsPayable,
     PurchaseRequisition as DjangoPurchaseRequisition,
@@ -248,6 +249,10 @@ class PurchaseOrderMapper:
                     ingredient_id=item.ingredient_id,
                     quantity=item.quantity,
                     unit_price=item.unit_price,
+                    purchase_unit=(
+                        PurchaseUnit(item.purchase_unit)
+                        if item.purchase_unit is not None else None
+                    ),
                 )
                 for item in model.items.all()
             ],
@@ -289,6 +294,7 @@ class PurchaseOrderMapper:
             ingredient_id=item.ingredient_id,
             quantity=item.quantity,
             unit_price=item.unit_price,
+            purchase_unit=item.purchase_unit.value if item.purchase_unit else None,
         )
 
 
@@ -302,11 +308,17 @@ class GoodsReceiptMapper:
             received_by_id=model.received_by_id,
             received_date=model.received_date,
             notes=model.notes,
+            warehouse_id=model.warehouse_id,
             items=[
                 GoodsReceiptItem(
+                    id=item.id,
                     purchase_order_item_id=item.purchase_order_item_id,
                     received_quantity=item.received_quantity,
                     rejected_quantity=item.rejected_quantity,
+                    purchase_unit=(
+                        PurchaseUnit(item.purchase_unit)
+                        if item.purchase_unit is not None else None
+                    ),
                 )
                 for item in model.items.all()
             ],
@@ -328,6 +340,7 @@ class GoodsReceiptMapper:
         model.received_by_id = entity.received_by_id
         model.received_date = entity.received_date
         model.notes = entity.notes
+        model.warehouse_id = entity.warehouse_id
         model.created_at = entity.created_at
         model.updated_at = entity.updated_at
 
@@ -343,6 +356,7 @@ class GoodsReceiptMapper:
             purchase_order_item_id=item.purchase_order_item_id,
             received_quantity=item.received_quantity,
             rejected_quantity=item.rejected_quantity,
+            purchase_unit=item.purchase_unit.value if item.purchase_unit else None,
         )
 
 

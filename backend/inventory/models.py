@@ -346,3 +346,11 @@ class RecipeOutput(BaseModel):
                 name="unique_primary_output_per_recipe",
             ),
         ]
+
+
+# Register additive V1 persistence models with Django's standard app model loader.
+# The legacy models above remain unchanged and retain their existing tables.
+from inventory.infrastructure.django.models import (  # noqa: E402
+    InventoryV1Stock,
+    InventoryV1StockMovement,
+)

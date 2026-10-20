@@ -31,6 +31,7 @@ from purchase.application.use_cases.purchase_order.update_purchase_order import 
     UpdatePurchaseOrderUseCase,
 )
 from purchase.domain.enums.purchase_order_status import PurchaseOrderStatus
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.infrastructure.persistence.django.repositories.purchase_order_repository import (
     DjangoPurchaseOrderRepository,
 )
@@ -117,6 +118,7 @@ def _item_dtos(items: list[dict]) -> list[CreatePurchaseOrderItemDTO]:
             ingredient_id=item["ingredient_id"],
             quantity=item["quantity"],
             unit_price=item["unit_price"],
+            purchase_unit=PurchaseUnit(item["purchase_unit"]),
         )
         for item in items
     ]

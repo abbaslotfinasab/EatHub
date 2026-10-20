@@ -7,6 +7,7 @@ from purchase.domain.entities.purchase_order import (
     PurchaseOrderItem,
 )
 from purchase.domain.enums.requisition_status import RequisitionStatus
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.domain.repositories.purchase_order_repository import (
     PurchaseOrderRepository,
 )
@@ -120,9 +121,16 @@ class CreatePurchaseOrderUseCase:
                     item.unit_price,
                     "Unit price",
                 ),
+                purchase_unit=cls._validate_purchase_unit(item.purchase_unit),
             )
             for item in commands
         ]
+
+    @staticmethod
+    def _validate_purchase_unit(value: PurchaseUnit) -> PurchaseUnit:
+        if not isinstance(value, PurchaseUnit):
+            raise ValueError("Purchase unit is required and must be supported.")
+        return value
 
     @staticmethod
     def _validate_positive_id(value: int, field_name: str) -> int:

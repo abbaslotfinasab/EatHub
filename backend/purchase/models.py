@@ -3,6 +3,7 @@ from django.db import models
 from accounts.models import Business, User
 from core.models import BaseModel
 from inventory.models import Ingredient
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 
 
 class Supplier(BaseModel):
@@ -203,6 +204,16 @@ class PurchaseOrderItem(BaseModel):
         decimal_places=2
     )
 
+    # Purchase unit price is per one purchase_unit in the Business accounting
+    # currency. Inventory performs any canonical-unit cost normalization.
+    # NULL is retained only for legacy rows. Receipt use cases reject it.
+    purchase_unit = models.CharField(
+        max_length=2,
+        choices=[(unit.value, unit.value) for unit in PurchaseUnit],
+        null=True,
+        blank=True,
+    )
+
 
 class GoodsReceipt(BaseModel):
 
@@ -226,6 +237,9 @@ class GoodsReceipt(BaseModel):
 
 
     received_date = models.DateTimeField()
+
+    # Optional Inventory destination; resolution remains owned by Inventory.
+    warehouse_id = models.PositiveBigIntegerField(null=True, blank=True)
 
 
     notes = models.TextField(
@@ -258,6 +272,14 @@ class GoodsReceiptItem(BaseModel):
         max_digits=12,
         decimal_places=3,
         default=0
+    )
+
+    # Snapshot of the explicitly supplied Purchase unit; legacy rows may be NULL.
+    purchase_unit = models.CharField(
+        max_length=2,
+        choices=[(unit.value, unit.value) for unit in PurchaseUnit],
+        null=True,
+        blank=True,
     )
 
 

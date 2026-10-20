@@ -4,7 +4,6 @@ from datetime import date
 
 from django.db import transaction
 
-from inventory.models import Ingredient
 from purchase.domain.entities.purchase_order import PurchaseOrder
 from purchase.domain.enums.purchase_order_status import PurchaseOrderStatus
 from purchase.domain.repositories.purchase_order_repository import (
@@ -172,6 +171,11 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
 
             model.save()
             self._synchronize_items(model, purchase_order, existing_items)
+            self._validate_persisted_item_ingredients_belong_to_business(
+                model,
+                purchase_order.business_id,
+                {item.ingredient_id for item in purchase_order.items},
+            )
 
             saved_model = self._aggregate_queryset().get(
                 id=model.id,
@@ -183,11 +187,16 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
     @staticmethod
     def _same_commercial_terms(model, existing_items, purchase_order: PurchaseOrder) -> bool:
         persisted_items = [
-            (item.ingredient_id, item.quantity, item.unit_price)
+            (item.ingredient_id, item.quantity, item.unit_price, item.purchase_unit)
             for item in existing_items
         ]
         proposed_items = [
-            (item.ingredient_id, item.quantity, item.unit_price)
+            (
+                item.ingredient_id,
+                item.quantity,
+                item.unit_price,
+                item.purchase_unit.value if item.purchase_unit else None,
+            )
             for item in purchase_order.items
         ]
         return (
@@ -223,11 +232,13 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
             item_model.ingredient_id = item.ingredient_id
             item_model.quantity = item.quantity
             item_model.unit_price = item.unit_price
+            item_model.purchase_unit = item.purchase_unit.value if item.purchase_unit else None
             item_model.save(
                 update_fields=[
                     "ingredient",
                     "quantity",
                     "unit_price",
+                    "purchase_unit",
                     "updated_at",
                 ]
             )
@@ -254,15 +265,17 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
                 "Requisition does not exist in the purchase order business."
             )
 
-        ingredient_ids = {
-            item.ingredient_id for item in purchase_order.items
-        }
-        valid_ingredient_ids = set(
-            Ingredient.objects.filter(
-                id__in=ingredient_ids,
-                business_id=purchase_order.business_id,
-            ).values_list("id", flat=True)
-        )
+    @staticmethod
+    def _validate_persisted_item_ingredients_belong_to_business(
+        model: DjangoPurchaseOrder,
+        business_id: int,
+        ingredient_ids: set[int],
+    ) -> None:
+        valid_ingredient_ids = set(DjangoPurchaseOrderItem.objects.filter(
+            purchase_order=model,
+            ingredient_id__in=ingredient_ids,
+            ingredient__business_id=business_id,
+        ).values_list("ingredient_id", flat=True))
         if valid_ingredient_ids != ingredient_ids:
             raise ValueError(
                 "All purchase order ingredients must belong to the purchase order business."

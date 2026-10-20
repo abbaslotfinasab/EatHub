@@ -6,6 +6,7 @@ from purchase.domain.entities.purchase_order import (
     PurchaseOrder,
     PurchaseOrderItem,
 )
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.domain.repositories.purchase_order_repository import (
     PurchaseOrderRepository,
 )
@@ -46,6 +47,7 @@ class UpdatePurchaseOrderUseCase:
                     item.ingredient_id,
                     item.quantity,
                     item.unit_price,
+                    item.purchase_unit,
                 )
             purchase_order.set_discount(discount)
             purchase_order.set_tax(tax)
@@ -59,6 +61,9 @@ class UpdatePurchaseOrderUseCase:
                 ingredient_id=item.ingredient_id,
                 quantity=item.quantity,
                 unit_price=item.unit_price,
+                purchase_unit=UpdatePurchaseOrderUseCase._validate_purchase_unit(
+                    item.purchase_unit
+                ),
             )
             for item in commands
         ]
@@ -73,4 +78,10 @@ class UpdatePurchaseOrderUseCase:
     def _validate_decimal(value: Decimal, field_name: str) -> Decimal:
         if not isinstance(value, Decimal):
             raise ValueError(f"{field_name} must be a decimal.")
+        return value
+
+    @staticmethod
+    def _validate_purchase_unit(value: PurchaseUnit) -> PurchaseUnit:
+        if not isinstance(value, PurchaseUnit):
+            raise ValueError("Purchase unit is required and must be supported.")
         return value

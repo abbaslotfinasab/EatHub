@@ -117,6 +117,7 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
 
     status = serializers.ChoiceField(
         choices=Order.Status.choices,
+        required=False,
     )
 
     payment_status = serializers.ChoiceField(
@@ -128,6 +129,21 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
         choices=Order.PaymentMethod.choices,
         required=False,
     )
+
+    def validate(self, attrs):
+        if not attrs:
+            raise serializers.ValidationError("At least one order field must be provided.")
+        return attrs
+
+
+class OrderRefundInputSerializer(serializers.Serializer):
+    idempotency_key = serializers.UUIDField()
+    reason = serializers.CharField(required=True, allow_blank=False, trim_whitespace=True)
+    reference = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, required=False, min_value=0
+    )
+    confirm_external_refund = serializers.BooleanField(required=False, default=False)
 
 
 class UpdateOrderInputSerializer(serializers.Serializer):
@@ -150,6 +166,20 @@ class UpdateOrderInputSerializer(serializers.Serializer):
     items = OrderItemCreateInputSerializer(
         many=True,
         required=False
+    )
+
+    discount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        min_value=0,
+    )
+
+    tax = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        min_value=0,
     )
 
     notes = serializers.CharField(

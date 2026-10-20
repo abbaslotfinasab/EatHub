@@ -85,6 +85,11 @@ urlpatterns = [
         OrderStatusUpdateAPIView.as_view(),
         name="order-status-update",
     ),
+    path(
+        "orders/<int:order_id>/refund/",
+        OrderRefundAPIView.as_view(),
+        name="order-refund",
+    ),
 
     path(
         "orders/<int:pk>/update/",

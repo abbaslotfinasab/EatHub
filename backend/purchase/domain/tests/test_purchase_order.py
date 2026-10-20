@@ -9,6 +9,7 @@ from purchase.domain.entities.purchase_order import (
 from purchase.domain.enums.purchase_order_status import (
     PurchaseOrderStatus,
 )
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 
 
 class PurchaseOrderDomainTests(TestCase):
@@ -37,6 +38,7 @@ class PurchaseOrderDomainTests(TestCase):
             ingredient_id=4,
             quantity=Decimal("2"),
             unit_price=Decimal("3.50"),
+            purchase_unit=PurchaseUnit.KG,
         )
 
         self.assertEqual(order.items, [item])
@@ -48,6 +50,7 @@ class PurchaseOrderDomainTests(TestCase):
                 ingredient_id=1,
                 quantity=Decimal("0"),
                 unit_price=Decimal("1"),
+                purchase_unit=PurchaseUnit.KG,
             )
 
     def test_rejects_negative_unit_price(self) -> None:
@@ -56,6 +59,7 @@ class PurchaseOrderDomainTests(TestCase):
                 ingredient_id=1,
                 quantity=Decimal("1"),
                 unit_price=Decimal("-1"),
+                purchase_unit=PurchaseUnit.KG,
             )
 
     def test_calculates_line_total(self) -> None:
@@ -63,6 +67,7 @@ class PurchaseOrderDomainTests(TestCase):
             ingredient_id=1,
             quantity=Decimal("2.5"),
             unit_price=Decimal("4"),
+            purchase_unit=PurchaseUnit.KG,
         )
 
         self.assertEqual(item.line_total, Decimal("10.0"))
@@ -70,8 +75,8 @@ class PurchaseOrderDomainTests(TestCase):
     def test_calculates_total_amount(self) -> None:
         order = self.create_order(
             items=[
-                PurchaseOrderItem(1, Decimal("2"), Decimal("3")),
-                PurchaseOrderItem(2, Decimal("1"), Decimal("4")),
+                PurchaseOrderItem(1, Decimal("2"), Decimal("3"), PurchaseUnit.KG),
+                PurchaseOrderItem(2, Decimal("1"), Decimal("4"), PurchaseUnit.KG),
             ],
             discount=Decimal("1"),
             tax=Decimal("2"),
@@ -85,7 +90,7 @@ class PurchaseOrderDomainTests(TestCase):
 
     def test_valid_lifecycle_transitions(self) -> None:
         order = self.create_order()
-        order.add_item(1, Decimal("1"), Decimal("1"))
+        order.add_item(1, Decimal("1"), Decimal("1"), PurchaseUnit.KG)
 
         order.send()
         order.mark_partially_received()
@@ -106,7 +111,7 @@ class PurchaseOrderDomainTests(TestCase):
 
     def test_received_order_cannot_be_cancelled_or_modified(self) -> None:
         order = self.create_order()
-        order.add_item(1, Decimal("1"), Decimal("1"))
+        order.add_item(1, Decimal("1"), Decimal("1"), PurchaseUnit.KG)
         order.send()
         order.mark_received()
 
@@ -114,11 +119,11 @@ class PurchaseOrderDomainTests(TestCase):
             order.cancel()
 
         with self.assertRaises(ValueError):
-            order.add_item(2, Decimal("1"), Decimal("1"))
+            order.add_item(2, Decimal("1"), Decimal("1"), PurchaseUnit.KG)
 
     def test_partially_received_order_can_be_cancelled(self) -> None:
         order = self.create_order()
-        order.add_item(1, Decimal("1"), Decimal("1"))
+        order.add_item(1, Decimal("1"), Decimal("1"), PurchaseUnit.KG)
         order.send()
         order.mark_partially_received()
 
@@ -127,8 +132,8 @@ class PurchaseOrderDomainTests(TestCase):
 
     def test_remove_and_clear_items_are_aggregate_operations(self) -> None:
         order = self.create_order()
-        order.add_item(1, Decimal("1"), Decimal("1"))
-        order.add_item(2, Decimal("1"), Decimal("1"))
+        order.add_item(1, Decimal("1"), Decimal("1"), PurchaseUnit.KG)
+        order.add_item(2, Decimal("1"), Decimal("1"), PurchaseUnit.KG)
 
         order.remove_item(1)
         self.assertEqual([item.ingredient_id for item in order.items], [2])

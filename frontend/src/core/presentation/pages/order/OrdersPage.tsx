@@ -48,6 +48,9 @@ import {OrderDetailsDialog} from "../../components/order/OrderDetailsDialog.tsx"
 import {OrderStatusDialog} from "../../components/order/OrderStatusDialog.tsx";
 import {useDeleteOrder} from "../../hooks/order/useDeleteOrder.ts";
 import {useGetOrderById} from "../../hooks/order/useGetOrderById.ts";
+import {useRefundOrder} from "../../hooks/order/useRefundOrder.ts";
+import {useGetOrderRefund} from "../../hooks/order/useGetOrderRefund.ts";
+import {useAuthStore} from "../../store/auth.store.ts";
 
 
 const getDeleteOrderErrorMessage = (error: unknown): string => {
@@ -88,6 +91,10 @@ const getOrderStatusErrorMessage = (error: unknown): string => {
 export const OrdersPage = () => {
 
     const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
+    const me = useAuthStore((state) => state.me);
+    const canManagePayments = ["OWNER", "MANAGER", "ACCOUNTANT"].includes(
+        me?.active_business?.role ?? "",
+    );
 
 
     const navigate = useNavigate();
@@ -223,6 +230,15 @@ export const OrdersPage = () => {
 
     const updateStatusMutation =
         useUpdateOrderStatus();
+
+    const refundOrderMutation = useRefundOrder();
+
+    const refundReceiptQuery = useGetOrderRefund(
+        selectedOrderId ?? undefined,
+        statusDialogOpen
+            && canManagePayments
+            && orderDetail?.order.paymentStatus === "refunded",
+    );
 
 
     /*
@@ -599,7 +615,21 @@ export const OrdersPage = () => {
                     updateStatusMutation.isPending
                 }
 
+                refundLoading={refundOrderMutation.isPending}
+
+                canManagePayments={canManagePayments}
+
                 error={statusUpdateError}
+
+                refundError={statusUpdateError}
+
+                refundResult={refundReceiptQuery.data ?? null}
+
+                refundRecoveryLoading={refundReceiptQuery.isLoading}
+
+                refundRecoveryError={refundReceiptQuery.isError
+                    ? getOrderStatusErrorMessage(refundReceiptQuery.error)
+                    : null}
 
 
                 onClose={() => {
@@ -634,6 +664,22 @@ export const OrdersPage = () => {
                     }
 
 
+                }}
+
+                onRefund={async (data) => {
+                    if (!selectedOrderId) return;
+                    setStatusUpdateError(null);
+                    try {
+                        await refundOrderMutation.mutateAsync({
+                            orderId: selectedOrderId,
+                            ...data,
+                        });
+                        setStatusDialogOpen(false);
+                        setSelectedOrderId(null);
+                    } catch (error) {
+                        setStatusUpdateError(getOrderStatusErrorMessage(error));
+                        throw error;
+                    }
                 }}
 
 
