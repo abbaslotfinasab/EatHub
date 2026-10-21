@@ -3,4 +3,5 @@ export interface ActiveBusiness {
     name: string;
     role: string;
     slug? : string
+    permissions: string[];
 }

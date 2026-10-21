@@ -20,6 +20,11 @@ class MeService:
                 "name": active_membership.business.name,
                 "role": active_membership.role.code,
                 "slug": active_membership.business.slug,
+                "permissions": list(
+                    active_membership.role.role_permissions
+                    .select_related("permission")
+                    .values_list("permission__code", flat=True)
+                ),
 
             }
         #

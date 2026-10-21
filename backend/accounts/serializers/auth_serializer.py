@@ -115,6 +115,7 @@ class ActiveBusinessSerializer(serializers.Serializer):
     role = serializers.CharField()
     qr = serializers.URLField(allow_null=True, required=False)
     slug = serializers.CharField()
+    permissions = serializers.ListField(child=serializers.CharField())
 
 
 

@@ -51,6 +51,10 @@ import {useGetOrderById} from "../../hooks/order/useGetOrderById.ts";
 import {useRefundOrder} from "../../hooks/order/useRefundOrder.ts";
 import {useGetOrderRefund} from "../../hooks/order/useGetOrderRefund.ts";
 import {useAuthStore} from "../../store/auth.store.ts";
+import {
+    getOrderStatusControlState,
+    hasPermission,
+} from "../../components/order/orderStatusUpdatePayload.ts";
 
 
 const getDeleteOrderErrorMessage = (error: unknown): string => {
@@ -92,9 +96,12 @@ export const OrdersPage = () => {
 
     const [statusUpdateError, setStatusUpdateError] = useState<string | null>(null);
     const me = useAuthStore((state) => state.me);
+    const activeBusiness = me?.active_business;
+    const activePermissions: unknown = activeBusiness?.permissions;
     const canManagePayments = ["OWNER", "MANAGER", "ACCOUNTANT"].includes(
-        me?.active_business?.role ?? "",
-    );
+        activeBusiness?.role ?? "",
+    ) && hasPermission(activePermissions, "payments.manage");
+    const canUpdateOrders = !getOrderStatusControlState(activePermissions).disabled;
 
 
     const navigate = useNavigate();
@@ -618,6 +625,7 @@ export const OrdersPage = () => {
                 refundLoading={refundOrderMutation.isPending}
 
                 canManagePayments={canManagePayments}
+                canUpdateOrders={canUpdateOrders}
 
                 error={statusUpdateError}
 

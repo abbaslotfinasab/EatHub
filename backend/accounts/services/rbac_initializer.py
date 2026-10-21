@@ -7,6 +7,7 @@ from accounts.models import (
     RolePermission,
 )
 from core.enums import PermissionCode
+from django.db import transaction
 
 ROLE_PERMISSIONS = {
 
@@ -53,7 +54,44 @@ ROLE_PERMISSIONS = {
 class RBACInitializer:
 
     @staticmethod
+    @transaction.atomic
     def initialize(business):
+
+        reserved_role_codes = [role_code.value for role_code in ROLE_PERMISSIONS]
+        conflicting_roles = list(
+            Role.objects.filter(
+                business=business,
+                code__in=reserved_role_codes,
+                is_system=False,
+            ).values_list("code", flat=True)
+        )
+        if conflicting_roles:
+            codes = ", ".join(sorted(conflicting_roles))
+            raise ValueError(
+                f"Cannot initialize default roles; non-system roles use reserved codes: {codes}."
+            )
+
+        required_permission_codes = set()
+        for permission_codes in ROLE_PERMISSIONS.values():
+            if permission_codes == "__all__":
+                required_permission_codes.update(permission.value for permission in PermissionCode)
+            else:
+                required_permission_codes.update(
+                    permission.value if isinstance(permission, PermissionCode) else permission
+                    for permission in permission_codes
+                )
+
+        permission_labels = {
+            permission.value: permission.label
+            for permission in PermissionCode
+        }
+        permissions_by_code = {}
+        for permission_code in required_permission_codes:
+            permission, _ = Permission.objects.get_or_create(
+                code=permission_code,
+                defaults={"name": permission_labels.get(permission_code, permission_code)},
+            )
+            permissions_by_code[permission_code] = permission
 
         for role_code, permission_codes in ROLE_PERMISSIONS.items():
 
@@ -64,22 +102,21 @@ class RBACInitializer:
                 is_system=True
             )
 
-            if permission_codes == "__all__":
-                permissions = Permission.objects.all()
-
-            else:
-                permissions = Permission.objects.filter(
-                    code__in=permission_codes
+            if not role.is_system:
+                raise ValueError(
+                    f"Cannot initialize default role {role.code}; it is not a system role."
                 )
 
-            role_permissions = [
-                RolePermission(
-                    role=role,
-                    permission=permission
-                )
-                for permission in permissions
-            ]
-
-            RolePermission.objects.bulk_create(
-                role_permissions
+            role_permission_codes = (
+                [permission.value for permission in PermissionCode]
+                if permission_codes == "__all__"
+                else [
+                    permission.value if isinstance(permission, PermissionCode) else permission
+                    for permission in permission_codes
+                ]
             )
+            for permission_code in role_permission_codes:
+                RolePermission.objects.get_or_create(
+                    role=role,
+                    permission=permissions_by_code[permission_code],
+                )

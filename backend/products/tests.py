@@ -379,6 +379,118 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
                 self.order.payment_status = Order.PaymentStatus.PENDING
                 self.order.save(update_fields=["payment_method", "payment_status"])
 
+    def test_accountant_can_update_payment_only_but_not_status_or_combined_fields(self):
+        user = self.user_for("ACCOUNTANT")
+        self.client.force_authenticate(user)
+
+        payment_response = self.client.patch(
+            f"/api/products/orders/{self.order.id}/status/",
+            {"payment_status": "paid"},
+            format="json",
+        )
+        self.assertEqual(payment_response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+
+        status_response = self.client.patch(
+            f"/api/products/orders/{self.order.id}/status/",
+            {"status": "ready"},
+            format="json",
+        )
+        combined_response = self.client.patch(
+            f"/api/products/orders/{self.order.id}/status/",
+            {"status": "completed", "payment_status": "paid"},
+            format="json",
+        )
+        self.assertEqual(status_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(combined_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PENDING)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+
+    def test_chef_can_update_order_status(self):
+        user = self.user_for("CHEF")
+        self.client.force_authenticate(user)
+        response = self.client.patch(
+            f"/api/products/orders/{self.order.id}/status/",
+            {"status": "ready"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.READY)
+
+    def test_me_response_exposes_active_membership_permissions(self):
+        user = self.user_for("ACCOUNTANT")
+        self.client.force_authenticate(user)
+        response = self.client.get("/api/accounts/auth/me/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(
+            PermissionCode.PAYMENTS_MANAGE,
+            response.data["active_business"]["permissions"],
+        )
+        self.assertNotIn(
+            PermissionCode.ORDERS_UPDATE,
+            response.data["active_business"]["permissions"],
+        )
+
+    def test_role_initializer_preserves_extra_default_role_permissions(self):
+        accountant = Role.objects.get(business=self.business, code="ACCOUNTANT")
+        extra_permission = Permission.objects.get(code=PermissionCode.PRODUCTS_DELETE)
+        RolePermission.objects.create(role=accountant, permission=extra_permission)
+
+        RBACInitializer.initialize(self.business)
+
+        accountant_permissions = set(
+            accountant.role_permissions.values_list("permission__code", flat=True)
+        )
+        self.assertTrue({
+            PermissionCode.REPORTS_VIEW_SALES,
+            PermissionCode.PAYMENTS_MANAGE,
+            PermissionCode.PRODUCTS_DELETE,
+        }.issubset(accountant_permissions))
+
+    def test_chef_combined_status_and_payment_update_is_denied(self):
+        user = self.user_for("CHEF")
+        self.client.force_authenticate(user)
+
+        response = self.client.patch(
+            f"/api/products/orders/{self.order.id}/status/",
+            {"status": "ready", "payment_status": "paid"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PENDING)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+
+    def test_custom_role_with_orders_update_can_change_status(self):
+        user = User.objects.create_user(
+            email="custom-order-updater@example.com",
+            password="password",
+            number=str(7000 + User.objects.count()),
+        )
+        role = Role.objects.create(
+            business=self.business,
+            name="Custom Order Updater",
+            code="CUSTOM_ORDER_UPDATER",
+        )
+        Membership.objects.create(user=user, business=self.business, role=role, is_active=True)
+        permission = Permission.objects.get(code=PermissionCode.ORDERS_UPDATE)
+        RolePermission.objects.create(role=role, permission=permission)
+        self.client.force_authenticate(user)
+
+        response = self.client.patch(
+            f"/api/products/orders/{self.order.id}/status/",
+            {"status": "ready"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.READY)
+
     def test_owner_manager_and_accountant_can_confirm_refunds(self):
         for role_code in ("OWNER", "MANAGER", "ACCOUNTANT"):
             with self.subTest(role=role_code):
@@ -651,6 +763,7 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
         self.assertEqual(recovered.data["id"], retry.data["id"])
         self.order.refresh_from_db()
         self.account.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.CANCELLED)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.REFUNDED)
         self.assertEqual(self.account.balance, Decimal("100.00"))
         self.assertEqual(
@@ -1272,6 +1385,58 @@ class OrderWalletPaymentTests(TestCase):
         self.assertEqual(refund_credit.order_id, self.order.id)
         self.assertEqual(refund_credit.account_id, self.account.id)
         self.assertEqual(refund_credit.amount, refund.amount)
+
+    def test_partial_wallet_refund_is_rejected_without_cancelling_order(self):
+        self.update(payment_status=Order.PaymentStatus.PAID)
+
+        with self.assertRaises(ValidationError):
+            self.record_refund(amount=Decimal("10.00"))
+
+        self.order.refresh_from_db()
+        self.account.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PENDING)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(self.account.balance, Decimal("74.50"))
+        self.assertFalse(OrderRefund.objects.filter(order=self.order).exists())
+        self.assertFalse(
+            CustomerTransaction.objects.filter(
+                order=self.order,
+                type=CustomerTransaction.Type.CREDIT,
+                is_order_settlement=True,
+            ).exists()
+        )
+
+    def test_refund_exception_rolls_back_cancellation_and_accounting(self):
+        self.update(payment_status=Order.PaymentStatus.PAID)
+
+        with patch(
+            "products.services.order_service.ActivityLogService.record",
+            side_effect=RuntimeError("refund audit failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "refund audit failed"):
+                self.record_refund()
+
+        self.order.refresh_from_db()
+        self.account.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PENDING)
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(self.account.balance, Decimal("74.50"))
+        self.assertFalse(OrderRefund.objects.filter(order=self.order).exists())
+        self.assertEqual(
+            CustomerTransaction.objects.filter(
+                order=self.order,
+                type=CustomerTransaction.Type.CREDIT,
+                is_order_settlement=True,
+            ).count(),
+            0,
+        )
+        self.assertFalse(
+            ActivityLog.objects.filter(
+                action=ActivityLog.Action.ORDER_REFUNDED,
+                entity_type="order",
+                entity_id=self.order.id,
+            ).exists()
+        )
 
     def test_order_settlement_credit_without_refund_link_fails_closed(self):
         self.account.balance = Decimal("110.00")

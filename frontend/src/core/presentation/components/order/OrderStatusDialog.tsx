@@ -36,6 +36,10 @@ import {
     OrderStatusFormSchema,
     type OrderStatusFormInput,
 } from "../../forms/order/order-status/OrderStatusFormInput";
+import {
+    buildOrderStatusUpdatePayload,
+    getOrderStatusControlState,
+} from "./orderStatusUpdatePayload";
 
 interface Props {
     open: boolean;
@@ -47,6 +51,7 @@ interface Props {
     refundLoading?: boolean;
 
     canManagePayments?: boolean;
+    canUpdateOrders?: boolean;
 
     error?: string | null;
 
@@ -75,6 +80,7 @@ export function OrderStatusDialog({
                                       loading = false,
                                       refundLoading = false,
                                       canManagePayments = false,
+                                      canUpdateOrders = false,
                                       error = null,
                                       refundError = null,
                                       refundResult = null,
@@ -102,6 +108,13 @@ export function OrderStatusDialog({
             paymentMethod: "cash",
         },
     });
+    const hasAuthorizedChanges = Boolean(
+        (canUpdateOrders === true && dirtyFields.status)
+        || (canManagePayments && (dirtyFields.paymentStatus || dirtyFields.paymentMethod))
+    );
+    const statusControl = getOrderStatusControlState(
+        canUpdateOrders === true ? ["orders.update"] : [],
+    );
 
     useEffect(() => {
         if (!open || !order) {
@@ -127,15 +140,16 @@ export function OrderStatusDialog({
             fullWidth
             maxWidth="sm"
         >
-            <form onSubmit={handleSubmit((data) => onSubmit({
-                ...(dirtyFields.status ? {status: data.status} : {}),
-                ...(canManagePayments && dirtyFields.paymentStatus
-                    ? {paymentStatus: data.paymentStatus}
-                    : {}),
-                ...(canManagePayments && dirtyFields.paymentMethod
-                    ? {paymentMethod: data.paymentMethod}
-                    : {}),
-            }))}>
+            <form onSubmit={handleSubmit((data) => {
+                const payload = buildOrderStatusUpdatePayload(
+                    data,
+                    dirtyFields,
+                    {canUpdateOrders: canUpdateOrders === true, canManagePayments},
+                );
+                if (Object.keys(payload).length > 0) {
+                    onSubmit(payload);
+                }
+            })}>
 
                 <DialogTitle>
                     تغییر وضعیت سفارش
@@ -216,7 +230,7 @@ export function OrderStatusDialog({
                                     مرحله فعلی سفارش را انتخاب کنید.
                                 </Typography>
 
-                                <Controller
+                                {statusControl.visible && <Controller
                                     control={control}
                                     name="status"
                                     render={({field}) => (
@@ -225,6 +239,9 @@ export function OrderStatusDialog({
                                             {...field}
                                             fullWidth
                                             select
+                                            disabled={statusControl.disabled}
+                                            label="وضعیت سفارش"
+                                            helperText={statusControl.helperText}
                                         >
 
                                             <MenuItem value="pending">
@@ -254,7 +271,7 @@ export function OrderStatusDialog({
                                         </TextField>
 
                                     )}
-                                />
+                                />}
 
                             </Stack>
 
@@ -454,7 +471,7 @@ export function OrderStatusDialog({
                     <LoadingButton
                         type="submit"
                         loading={loading}
-                        disabled={!isDirty}
+                        disabled={!isDirty || !hasAuthorizedChanges}
                         variant="contained"
                         size="large"
                         sx={{

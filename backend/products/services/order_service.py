@@ -578,8 +578,9 @@ class OrderService:
                 refund=refund,
             )
 
+        order.status = Order.Status.CANCELLED
         order.payment_status = Order.PaymentStatus.REFUNDED
-        order.save(update_fields=["payment_status"])
+        order.save(update_fields=["status", "payment_status"])
         ActivityLogService.record(
             business=business,
             user=user,
