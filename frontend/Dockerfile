@@ -4,11 +4,13 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY . .
 
-RUN npm run build
+ARG VITE_API_BASE_URL
+ARG VITE_BASE_URL
+RUN test -n "$VITE_API_BASE_URL" && test -n "$VITE_BASE_URL" && npm run build
 
 # Production stage
 FROM nginx:alpine

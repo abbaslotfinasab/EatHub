@@ -15,7 +15,11 @@ services:
       - eathub
 
   frontend:
-    build: ../frontend
+    build:
+      context: ../frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_BASE_URL: ${VITE_BASE_URL:-}
     container_name: eathub_frontend
     expose:
       - "80"

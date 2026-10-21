@@ -30,3 +30,29 @@ db.sqlite3-journal
 
 # Media
 media/
+# Python bytecode and common test/tool caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*$py.class
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+.dmypy.json
+
+# Local virtual environments
+.venv/
+env/
+
+# Local environment files; keep safe templates trackable
+.env.*
+!.env.example
+!.env.*.example
