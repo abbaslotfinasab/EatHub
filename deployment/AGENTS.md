@@ -396,6 +396,15 @@ Do NOT expose:
 
 Only public configuration may be exposed to the frontend.
 
+The production frontend is built by Docker Compose. Its Vite build requires these public inputs:
+
+- `VITE_API_BASE_URL`: browser-reachable API origin with the `/api` prefix.
+- `VITE_BASE_URL`: browser-reachable frontend origin, without a trailing slash.
+
+Compose passes both values as build arguments. The Dockerfile rejects the frontend build if either is empty, while unrelated Compose operations can run without them. Vite embeds them in the browser bundle; never put credentials or private values in them. Supply them through the deployment Compose interpolation environment. `deployment/.env.frontend.example` documents the variable names but contains no deployment values.
+
+The checked-in Nginx config currently names `eathub.ir` and proxies `/api/` to Django. Confirm the active public hostname with the deployment operator before setting either value; the repository does not verify the live hostname.
+
 ---
 
 # 15. Secrets
