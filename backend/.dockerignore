@@ -1,8 +1,42 @@
+# Python bytecode and local tool caches
 __pycache__/
+*.py[cod]
 *.pyo
-../deployment/.env
+*.pyd
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+.dmypy.json
+
+# Local Python environments
 venv/
 .venv/
+env/
+
+# Local configuration and data; paths are relative to the backend build context
+.env
+.env.*
+!.env.example
 db.sqlite3
-.git
+*.sqlite3-journal
+
+# Generated Django output and logs
+staticfiles/
+logs/
+*.log
+tmp/
+temp/
+
+# Editor and operating-system files
+.git/
 .idea/
+.vscode/
+.DS_Store
+Thumbs.db
