@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: ../backend
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:?required}
+        VITE_BASE_URL: ${VITE_BASE_URL:?required}
+        EATHUB_RELEASE_ID: success-${STATIC_ASSET_ATTEMPT:?required}
+
+  static-collector:
+    image: eathub-backend-${DEPLOYMENT_NAMESPACE:?required}:${STATIC_ASSET_ATTEMPT:?required}
+    command: ["python", "manage.py", "collectstatic", "--noinput"]
+    env_file:
+      - ../backend/.env
+    environment:
+      EATHUB_RELEASE_ID: success-${STATIC_ASSET_ATTEMPT:?required}
+    restart: "no"
+    volumes:
+      - static_assets:/app/staticfiles
+    networks:
+      - eathub
+
+  nginx:
+    depends_on:
+      static-collector:
+        condition: service_completed_successfully

@@ -23,9 +23,9 @@ env/
 # Local configuration and data; paths are relative to the backend build context
 .env
 .env.*
-!.env.example
 db.sqlite3
 *.sqlite3-journal
+media/
 
 # Generated Django output and logs
 staticfiles/

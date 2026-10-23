@@ -1,0 +1,13 @@
+services:
+  backend:
+    pull_policy: never
+  frontend:
+    pull_policy: never
+  celery:
+    pull_policy: never
+  db:
+    pull_policy: never
+  redis:
+    pull_policy: never
+  nginx:
+    pull_policy: never

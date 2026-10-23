@@ -20,8 +20,7 @@ RUN pip install -r requirements.txt
 # copy project
 COPY . /app/
 
-# collect static (optional in build)
-RUN python manage.py collectstatic --noinput || true
+# Static files are collected by the deployment's one-shot static-collector service.
 
 # run gunicorn
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000",  "--workers", "3"]
+CMD ["gunicorn", "EatHub.wsgi:application", "--bind", "0.0.0.0:8000",  "--workers", "3"]
