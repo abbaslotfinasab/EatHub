@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
+from core.enums import PermissionCode
 from purchase.application.dto.requisition import (
     CreateRequisitionDTO,
     CreateRequisitionItemDTO,
@@ -34,6 +35,11 @@ from purchase.infrastructure.persistence.django.repositories.requisition_reposit
 from purchase.presentation.api.serializers.requisition import (
     CreateRequisitionSerializer,
     RequisitionSerializer,
+)
+from purchase.presentation.api.permissions import (
+    has_purchase_permission,
+    require_any_purchase_permission,
+    require_purchase_permission,
 )
 
 
@@ -66,6 +72,16 @@ class RequisitionListCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        require_any_purchase_permission(
+            request,
+            PermissionCode.PURCHASE_VIEW,
+            PermissionCode.PURCHASE_REQUISITION_VIEW_OWN,
+        )
+        requested_by_id = (
+            None
+            if has_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
+            else request.user.id
+        )
         try:
             requisitions = ListRequisitionsUseCase(
                 _requisition_repository()
@@ -73,6 +89,7 @@ class RequisitionListCreateAPIView(TenantAPIView):
                 ListRequisitionsQuery(
                     business_id=request.business.id,
                     status=_parse_status(request.query_params.get("status")),
+                    requested_by_id=requested_by_id,
                 )
             )
         except ValueError as error:
@@ -81,6 +98,7 @@ class RequisitionListCreateAPIView(TenantAPIView):
         return Response(RequisitionSerializer(requisitions, many=True).data)
 
     def post(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_REQUISITION_CREATE)
         serializer = CreateRequisitionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -117,6 +135,11 @@ class RequisitionDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_any_purchase_permission(
+            request,
+            PermissionCode.PURCHASE_VIEW,
+            PermissionCode.PURCHASE_REQUISITION_VIEW_OWN,
+        )
         try:
             requisition = GetRequisitionUseCase(
                 _requisition_repository()
@@ -127,6 +150,12 @@ class RequisitionDetailAPIView(TenantAPIView):
         except ValueError as error:
             _handle_requisition_error(error)
 
+        if (
+            not has_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
+            and requisition.requested_by_id != request.user.id
+        ):
+            raise NotFound({"detail": "Requisition does not exist in this business."})
+
         return Response(RequisitionSerializer(requisition).data)
 
 
@@ -134,28 +163,39 @@ class RequisitionSubmitAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        return _transition_response(
-            SubmitRequisitionUseCase,
-            requisition_id=pk,
-            business_id=request.business.id,
-        )
+        require_purchase_permission(request, PermissionCode.PURCHASE_REQUISITION_SUBMIT)
+        try:
+            requisition = SubmitRequisitionUseCase(_requisition_repository()).execute(
+                requisition_id=pk,
+                business_id=request.business.id,
+                requester_id=request.user.id,
+            )
+        except ValueError as error:
+            _handle_requisition_error(error)
+        return Response(RequisitionSerializer(requisition).data)
 
 
 class RequisitionApproveAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        return _transition_response(
-            ApproveRequisitionUseCase,
-            requisition_id=pk,
-            business_id=request.business.id,
-        )
+        require_purchase_permission(request, PermissionCode.PURCHASE_REQUISITION_APPROVE)
+        try:
+            requisition = ApproveRequisitionUseCase(_requisition_repository()).execute(
+                requisition_id=pk,
+                business_id=request.business.id,
+                approver_id=request.user.id,
+            )
+        except ValueError as error:
+            _handle_requisition_error(error)
+        return Response(RequisitionSerializer(requisition).data)
 
 
 class RequisitionRejectAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_REQUISITION_APPROVE)
         return _transition_response(
             RejectRequisitionUseCase,
             requisition_id=pk,

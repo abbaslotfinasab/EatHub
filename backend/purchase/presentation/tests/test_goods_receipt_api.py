@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 
 from accounts.enums import RoleCode
 from accounts.models import Business, Membership, Role, User
+from accounts.services.rbac_initializer import RBACInitializer
 from inventory.models import Ingredient, Warehouse
 from inventory.infrastructure.django.models import InventoryV1StockMovement
 from purchase.models import (
@@ -41,11 +42,13 @@ class GoodsReceiptAPITests(APITestCase):
             business=self.business,
             name="Owner",
             code=RoleCode.OWNER,
+            is_system=True,
         )
         other_role = Role.objects.create(
             business=self.other_business,
             name="Owner",
             code=RoleCode.OWNER,
+            is_system=True,
         )
         Membership.objects.create(
             user=self.user,
@@ -59,6 +62,8 @@ class GoodsReceiptAPITests(APITestCase):
             role=other_role,
             is_active=True,
         )
+        RBACInitializer.initialize(self.business)
+        RBACInitializer.initialize(self.other_business)
         self.supplier = DjangoSupplier.objects.create(
             business=self.business,
             name="Supplier",

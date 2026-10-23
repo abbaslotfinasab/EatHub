@@ -8,7 +8,9 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.enums import RoleCode
-from accounts.models import Business, Membership, Role, User
+from accounts.models import Business, Membership, Permission, Role, RolePermission, User
+from accounts.services.rbac_initializer import RBACInitializer
+from core.enums import PermissionCode
 from purchase.domain.entities.supplier import Supplier
 from purchase.domain.entities.requisition import (
     PurchaseRequisition,
@@ -450,11 +452,13 @@ class SupplierAPITests(APITestCase):
             business=self.business,
             name="Owner",
             code=RoleCode.OWNER,
+            is_system=True,
         )
         self.other_role = Role.objects.create(
             business=self.other_business,
             name="Owner",
             code=RoleCode.OWNER,
+            is_system=True,
         )
 
         Membership.objects.create(
@@ -469,6 +473,8 @@ class SupplierAPITests(APITestCase):
             role=self.other_role,
             is_active=True,
         )
+        RBACInitializer.initialize(self.business)
+        RBACInitializer.initialize(self.other_business)
 
         self.client.force_authenticate(self.user)
 
@@ -1061,11 +1067,13 @@ class PurchaseOrderAPITests(APITestCase):
             business=self.business,
             name="Owner",
             code=RoleCode.OWNER,
+            is_system=True,
         )
         self.other_role = Role.objects.create(
             business=self.other_business,
             name="Owner",
             code=RoleCode.OWNER,
+            is_system=True,
         )
         Membership.objects.create(
             user=self.user,
@@ -1079,6 +1087,8 @@ class PurchaseOrderAPITests(APITestCase):
             role=self.other_role,
             is_active=True,
         )
+        RBACInitializer.initialize(self.business)
+        RBACInitializer.initialize(self.other_business)
         self.supplier = DjangoSupplier.objects.create(
             business=self.business,
             name="PO Supplier",
@@ -1130,6 +1140,35 @@ class PurchaseOrderAPITests(APITestCase):
             self.create_payload(**overrides),
             format="json",
         )
+
+    def test_order_creation_permission_does_not_authorize_dispatch(self) -> None:
+        manager = User.objects.create_user(
+            email="purchase-manager@example.com",
+            password="password",
+            name="Purchase Manager",
+            number="5010",
+        )
+        manager_role = Role.objects.get(
+            business=self.business,
+            code=RoleCode.MANAGER,
+        )
+        Membership.objects.create(
+            user=manager,
+            business=self.business,
+            role=manager_role,
+            is_active=True,
+        )
+        self.client.force_authenticate(manager)
+        created = self.create_order()
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(
+            self.action_endpoint(created.data["id"], "send"),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def create_other_business_order(self) -> DjangoPurchaseOrder:
         return DjangoPurchaseOrder.objects.create(
@@ -1361,11 +1400,13 @@ class RequisitionAPITests(APITestCase):
             business=self.business,
             name="Owner",
             code=RoleCode.OWNER,
+            is_system=True,
         )
         self.other_role = Role.objects.create(
             business=self.other_business,
             name="Owner",
             code=RoleCode.OWNER,
+            is_system=True,
         )
         Membership.objects.create(
             user=self.user,
@@ -1379,6 +1420,8 @@ class RequisitionAPITests(APITestCase):
             role=self.other_role,
             is_active=True,
         )
+        RBACInitializer.initialize(self.business)
+        RBACInitializer.initialize(self.other_business)
         self.ingredient = Ingredient.objects.create(
             business=self.business,
             name="Flour",
@@ -1419,6 +1462,21 @@ class RequisitionAPITests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def create_same_business_member(self) -> User:
+        user = User.objects.create_user(
+            email="same-business-requester@example.com",
+            password="password",
+            name="Same Business Requester",
+            number="3011",
+        )
+        Membership.objects.create(
+            user=user,
+            business=self.business,
+            role=self.role,
+            is_active=True,
+        )
+        return user
+
     def test_create_requisition_uses_current_business_and_user(self) -> None:
         response = self.create_requisition(
             business_id=self.other_business.id,
@@ -1449,6 +1507,64 @@ class RequisitionAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["id"], created.data["id"])
 
+    def _restrict_role_to_own_requisition_reads(self) -> None:
+        RolePermission.objects.filter(
+            role=self.role,
+            permission__code=PermissionCode.PURCHASE_VIEW.value,
+        ).delete()
+
+    def test_own_read_permission_lists_only_requesters_requisitions(self) -> None:
+        created = self.create_requisition()
+        other_requester = self.create_same_business_member()
+        other_requisition = DjangoPurchaseRequisition.objects.create(
+            business=self.business,
+            requested_by=other_requester,
+            reason="Other requester's requisition",
+        )
+        self._restrict_role_to_own_requisition_reads()
+
+        response = self.client.get(self.endpoint)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["id"] for item in response.data], [created.data["id"]])
+        self.assertNotIn(other_requisition.id, [item["id"] for item in response.data])
+
+    def test_own_read_permission_hides_another_requesters_detail(self) -> None:
+        other_requester = self.create_same_business_member()
+        other_requisition = DjangoPurchaseRequisition.objects.create(
+            business=self.business,
+            requested_by=other_requester,
+            reason="Other requester's requisition",
+        )
+        self._restrict_role_to_own_requisition_reads()
+
+        response = self.client.get(self.detail_endpoint(other_requisition.id))
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_own_read_permission_does_not_allow_cross_business_detail(self) -> None:
+        foreign_requisition = DjangoPurchaseRequisition.objects.create(
+            business=self.other_business,
+            requested_by=self.user,
+            reason="Foreign business requisition",
+        )
+        self._restrict_role_to_own_requisition_reads()
+
+        response = self.client.get(self.detail_endpoint(foreign_requisition.id))
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_requisition_list_requires_a_read_permission(self) -> None:
+        self._restrict_role_to_own_requisition_reads()
+        RolePermission.objects.filter(
+            role=self.role,
+            permission__code=PermissionCode.PURCHASE_REQUISITION_VIEW_OWN.value,
+        ).delete()
+
+        response = self.client.get(self.endpoint)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_cross_business_get_returns_not_found(self) -> None:
         requisition = DjangoPurchaseRequisition.objects.create(
             business=self.other_business,
@@ -1472,9 +1588,47 @@ class RequisitionAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "submitted")
 
+    def test_submit_ignores_client_claimed_requester_identity(self) -> None:
+        created = self.create_requisition()
+        other_member = self.create_same_business_member()
+        self.client.force_authenticate(other_member)
+
+        response = self.client.post(
+            self.action_endpoint(created.data["id"], "submit"),
+            {"requester_id": self.user.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        requisition = DjangoPurchaseRequisition.objects.get(id=created.data["id"])
+        self.assertEqual(requisition.status, DjangoPurchaseRequisition.Status.DRAFT)
+
+    def test_requisition_creation_requires_its_permission(self) -> None:
+        permission = Permission.objects.get(
+            code=PermissionCode.PURCHASE_REQUISITION_CREATE.value,
+        )
+        RolePermission.objects.filter(role=self.role, permission=permission).delete()
+
+        response = self.create_requisition()
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_approve_requisition(self) -> None:
         created = self.create_requisition()
         self.submit_requisition(created.data["id"])
+        approver = User.objects.create_user(
+            email="approver@example.com",
+            password="password",
+            name="Approver",
+            number="3010",
+        )
+        Membership.objects.create(
+            user=approver,
+            business=self.business,
+            role=self.role,
+            is_active=True,
+        )
+        self.client.force_authenticate(approver)
 
         response = self.client.post(
             self.action_endpoint(created.data["id"], "approve"),
@@ -1484,6 +1638,19 @@ class RequisitionAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "approved")
+
+    def test_requester_cannot_approve_own_requisition(self) -> None:
+        created = self.create_requisition()
+        self.submit_requisition(created.data["id"])
+
+        response = self.client.post(
+            self.action_endpoint(created.data["id"], "approve"),
+            {"approver_id": self.other_user.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("cannot approve their own", response.data["detail"])
 
     def test_reject_requisition(self) -> None:
         created = self.create_requisition()

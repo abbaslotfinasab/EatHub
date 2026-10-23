@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
+from core.enums import PermissionCode
 from purchase.application.dto.supplier_payment import (
     CreateSupplierPaymentDTO,
     ListSupplierPaymentsQuery,
@@ -30,6 +31,7 @@ from purchase.presentation.api.serializers.supplier_payment import (
     CreateSupplierPaymentSerializer,
     SupplierPaymentSerializer,
 )
+from purchase.presentation.api.permissions import require_purchase_permission
 
 
 def _payment_repository() -> DjangoSupplierPaymentRepository:
@@ -68,6 +70,7 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         method = request.query_params.get("method")
         try:
             parsed_method = PaymentMethod(method) if method else None
@@ -98,6 +101,7 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
         return Response(SupplierPaymentSerializer(payments, many=True).data)
 
     def post(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_PAYMENT_CREATE)
         if "invoice_id" in request.data:
             raise ValidationError({
                 "invoice_id": "Invoice allocation is not supported in this phase."
@@ -130,6 +134,7 @@ class SupplierPaymentDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             payment = GetSupplierPaymentUseCase(_payment_repository()).execute(
                 pk,

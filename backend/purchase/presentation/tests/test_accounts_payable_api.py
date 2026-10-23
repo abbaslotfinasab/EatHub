@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from accounts.enums import RoleCode
 from accounts.models import Business, Membership, Role, User
+from accounts.services.rbac_initializer import RBACInitializer
 from purchase.models import (
     AccountsPayable,
     PaymentAllocation,
@@ -27,8 +28,11 @@ class AccountsPayableAPITests(APITestCase):
         )
         self.business = Business.objects.create(name="AP API Business")
         self.other_business = Business.objects.create(name="Other AP API Business")
-        role = Role.objects.create(business=self.business, name="Owner", code=RoleCode.OWNER)
+        role = Role.objects.create(
+            business=self.business, name="Owner", code=RoleCode.OWNER, is_system=True,
+        )
         Membership.objects.create(user=self.user, business=self.business, role=role, is_active=True)
+        RBACInitializer.initialize(self.business)
         self.supplier = Supplier.objects.create(business=self.business, name="Supplier")
         self.other_supplier = Supplier.objects.create(business=self.other_business, name="Other Supplier")
         self.client.force_authenticate(self.user)

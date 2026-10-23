@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
+from core.enums import PermissionCode
 from purchase.application.dto.purchase_invoice import (
     ApprovePurchaseInvoiceDTO,
     CancelPurchaseInvoiceDTO,
@@ -38,6 +39,7 @@ from purchase.presentation.api.serializers.purchase_invoice_posting import (
     PostPurchaseInvoiceRequestSerializer,
     PostPurchaseInvoiceResponseSerializer,
 )
+from purchase.presentation.api.permissions import require_purchase_permission
 
 
 def _repository() -> DjangoPurchaseInvoiceRepository:
@@ -100,6 +102,7 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             result = ListPurchaseInvoicesUseCase(_repository()).execute(
                 ListPurchaseInvoicesQuery(
@@ -115,6 +118,7 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
         return Response(PurchaseInvoiceSerializer(result, many=True).data)
 
     def post(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_CREATE)
         serializer = CreatePurchaseInvoiceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -140,6 +144,7 @@ class PurchaseInvoiceDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             result = GetPurchaseInvoiceUseCase(_repository()).execute(pk, request.business.id)
         except ValueError as error:
@@ -147,6 +152,7 @@ class PurchaseInvoiceDetailAPIView(TenantAPIView):
         return Response(PurchaseInvoiceSerializer(result).data)
 
     def put(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_UPDATE)
         serializer = UpdatePurchaseInvoiceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -176,6 +182,7 @@ class PurchaseInvoiceApproveAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_APPROVE)
         try:
             result = ApprovePurchaseInvoiceUseCase(
                 _repository(),
@@ -197,6 +204,7 @@ class PurchaseInvoiceMatchAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             result = _matching_use_case().execute(
                 request.business.id, pk, persist=False,
@@ -206,6 +214,7 @@ class PurchaseInvoiceMatchAPIView(TenantAPIView):
         return Response(PurchaseInvoiceMatchResponseSerializer(result).data)
 
     def post(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_MATCH)
         try:
             result = _matching_use_case().execute(
                 request.business.id, pk, persist=True,
@@ -219,6 +228,7 @@ class PurchaseInvoicePostAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_POST)
         serializer = PostPurchaseInvoiceRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -256,6 +266,7 @@ class PurchaseInvoiceCancelAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_CANCEL)
         serializer = CancelPurchaseInvoiceRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:

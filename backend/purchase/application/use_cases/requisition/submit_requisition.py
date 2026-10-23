@@ -5,6 +5,12 @@ from purchase.domain.repositories.requisition_repository import (
 
 
 class SubmitRequisitionUseCase:
+    """Submission rule; requester_id is an identifier, not proof of identity.
+
+    HTTP adapters must pass the authenticated request user. Non-HTTP callers
+    need a shared trusted-actor/authorization design before using this case.
+    """
+
     def __init__(
         self,
         requisition_repository: RequisitionRepository,
@@ -15,11 +21,19 @@ class SubmitRequisitionUseCase:
         self,
         requisition_id: int,
         business_id: int,
+        requester_id: int,
     ) -> PurchaseRequisition:
         requisition = self._get_requisition_for_business(
             requisition_id,
             business_id,
         )
+
+        validated_requester_id = self._validate_positive_id(
+            requester_id,
+            "Requester ID",
+        )
+        if requisition.requested_by_id != validated_requester_id:
+            raise ValueError("Only the requester can submit this requisition.")
 
         requisition.submit()
 

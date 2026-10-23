@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
+from core.enums import PermissionCode
 from purchase.application.dto.supplier import (
     CreateSupplierDTO,
     ListSuppliersQuery,
@@ -29,6 +30,7 @@ from purchase.presentation.api.serializers.supplier import (
     SupplierSerializer,
     SupplierUpdateSerializer,
 )
+from purchase.presentation.api.permissions import require_purchase_permission
 
 
 def _supplier_repository() -> DjangoSupplierRepository:
@@ -63,6 +65,7 @@ class SupplierListCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             suppliers = ListSuppliersUseCase(_supplier_repository()).execute(
                 ListSuppliersQuery(
@@ -81,6 +84,7 @@ class SupplierListCreateAPIView(TenantAPIView):
         )
 
     def post(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_SUPPLIER_MANAGE)
         serializer = SupplierCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -111,6 +115,7 @@ class SupplierDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             supplier = GetSupplierUseCase(_supplier_repository()).execute(
                 supplier_id=pk,
@@ -122,6 +127,7 @@ class SupplierDetailAPIView(TenantAPIView):
         return Response(SupplierSerializer(supplier).data)
 
     def put(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_SUPPLIER_MANAGE)
         serializer = SupplierUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

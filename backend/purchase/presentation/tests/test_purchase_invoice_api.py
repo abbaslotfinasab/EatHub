@@ -6,7 +6,9 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.enums import RoleCode
-from accounts.models import Business, Membership, Role, User
+from accounts.models import Business, Membership, Role, RolePermission, User
+from accounts.services.rbac_initializer import RBACInitializer
+from core.enums import PermissionCode
 from inventory.models import Ingredient
 from purchase.models import (
     GoodsReceipt,
@@ -31,8 +33,11 @@ class PurchaseInvoiceAPITests(APITestCase):
         )
         self.business = Business.objects.create(name="API Business")
         self.other_business = Business.objects.create(name="Other API Business")
-        role = Role.objects.create(business=self.business, name="Owner", code=RoleCode.OWNER)
+        role = Role.objects.create(
+            business=self.business, name="Owner", code=RoleCode.OWNER, is_system=True,
+        )
         Membership.objects.create(user=self.user, business=self.business, role=role, is_active=True)
+        RBACInitializer.initialize(self.business)
         self.supplier = Supplier.objects.create(business=self.business, name="Supplier")
         self.other_supplier = Supplier.objects.create(business=self.other_business, name="Other")
         self.ingredient = Ingredient.objects.create(
@@ -569,6 +574,47 @@ class PurchaseInvoiceAPITests(APITestCase):
         invoice.refresh_from_db()
         self.assertEqual(invoice.status, DjangoPurchaseInvoice.Status.APPROVED)
         self.assertEqual(invoice.matching_status, "not_matched")
+        self.assertFalse(AccountsPayable.objects.filter(source_invoice=invoice).exists())
+
+    def test_supplier_payment_permission_does_not_authorize_invoice_posting(self):
+        invoice = self.approved_invoice("PAYMENT-PERMISSION-ONLY")
+        accountant_role = Role.objects.get(
+            business=self.business,
+            code="ACCOUNTANT",
+        )
+        self.assertTrue(
+            RolePermission.objects.filter(
+                role=accountant_role,
+                permission__code=PermissionCode.PAYMENTS_MANAGE.value,
+            ).exists()
+        )
+        self.assertFalse(
+            RolePermission.objects.filter(
+                role=accountant_role,
+                permission__code=PermissionCode.PURCHASE_INVOICE_POST.value,
+            ).exists()
+        )
+        accountant = User.objects.create_user(
+            email="payment-only@example.com",
+            password="password",
+            name="Payment Only",
+            number="9102",
+        )
+        Membership.objects.create(
+            user=accountant,
+            business=self.business,
+            role=accountant_role,
+            is_active=True,
+        )
+        self.client.force_authenticate(accountant)
+
+        response = self.client.post(
+            f"{self.endpoint}{invoice.id}/post/",
+            {"due_date": "2026-10-01"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(AccountsPayable.objects.filter(source_invoice=invoice).exists())
 
     def test_posted_invoice_is_not_editable_and_post_fields_are_read_only(self):

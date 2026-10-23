@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
+from core.enums import PermissionCode
 from purchase.application.dto.goods_receipt import (
     CreateGoodsReceiptDTO,
     CreateGoodsReceiptItemDTO,
@@ -46,6 +47,7 @@ from purchase.presentation.api.serializers.goods_receipt import (
     CreateGoodsReceiptSerializer,
     GoodsReceiptSerializer,
 )
+from purchase.presentation.api.permissions import require_purchase_permission
 
 
 def _goods_receipt_repository() -> DjangoGoodsReceiptRepository:
@@ -122,6 +124,7 @@ class GoodsReceiptListCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             receipts = ListGoodsReceiptsUseCase(
                 _goods_receipt_repository()
@@ -152,6 +155,7 @@ class GoodsReceiptListCreateAPIView(TenantAPIView):
         return Response(GoodsReceiptSerializer(receipts, many=True).data)
 
     def post(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_RECEIPT_CREATE)
         serializer = CreateGoodsReceiptSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -181,6 +185,7 @@ class GoodsReceiptDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             receipt = GetGoodsReceiptUseCase(
                 _goods_receipt_repository()

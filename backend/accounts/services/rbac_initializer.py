@@ -26,27 +26,48 @@ ROLE_PERMISSIONS = {
         PermissionCode.INVENTORY_VIEW,
         PermissionCode.INVENTORY_ADJUST,
 
+        PermissionCode.PURCHASE_VIEW,
+        PermissionCode.PURCHASE_REQUISITION_CREATE,
+        PermissionCode.PURCHASE_REQUISITION_SUBMIT,
+        PermissionCode.PURCHASE_SUPPLIER_MANAGE,
+        PermissionCode.PURCHASE_ORDER_CREATE,
+        PermissionCode.PURCHASE_ORDER_UPDATE,
+        PermissionCode.PURCHASE_RECEIPT_CREATE,
+
         PermissionCode.REPORTS_VIEW_SALES,
     ],
 
     RoleCode.CASHIER: [
         PermissionCode.ORDERS_VIEW,
         PermissionCode.ORDERS_CREATE,
+        PermissionCode.PURCHASE_REQUISITION_VIEW_OWN,
+        PermissionCode.PURCHASE_REQUISITION_CREATE,
+        PermissionCode.PURCHASE_REQUISITION_SUBMIT,
     ],
 
     RoleCode.CHEF: [
         PermissionCode.ORDERS_VIEW,
         PermissionCode.ORDERS_UPDATE,
+        PermissionCode.PURCHASE_REQUISITION_VIEW_OWN,
+        PermissionCode.PURCHASE_REQUISITION_CREATE,
+        PermissionCode.PURCHASE_REQUISITION_SUBMIT,
     ],
 
     RoleCode.WAITER: [
         PermissionCode.ORDERS_VIEW,
         PermissionCode.ORDERS_CREATE,
+        PermissionCode.PURCHASE_REQUISITION_VIEW_OWN,
+        PermissionCode.PURCHASE_REQUISITION_CREATE,
+        PermissionCode.PURCHASE_REQUISITION_SUBMIT,
     ],
 
     RoleCode.ACCOUNTANT: [
         PermissionCode.REPORTS_VIEW_SALES,
         PermissionCode.PAYMENTS_MANAGE,
+        PermissionCode.PURCHASE_VIEW,
+        PermissionCode.PURCHASE_INVOICE_CREATE,
+        PermissionCode.PURCHASE_INVOICE_UPDATE,
+        PermissionCode.PURCHASE_INVOICE_MATCH,
     ],
 }
 

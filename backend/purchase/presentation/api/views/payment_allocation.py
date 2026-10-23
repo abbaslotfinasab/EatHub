@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 
 from accounts.views import TenantAPIView
+from core.enums import PermissionCode
 from purchase.application.dto.payment_allocation import (
     CreatePaymentAllocationCommand,
     ListPaymentAllocationsQuery,
@@ -32,6 +33,7 @@ from purchase.presentation.api.serializers.payment_allocation import (
     CreatePaymentAllocationSerializer,
     PaymentAllocationSerializer,
 )
+from purchase.presentation.api.permissions import require_purchase_permission
 
 
 def _handle(error: ValueError) -> None:
@@ -54,6 +56,7 @@ class PaymentAllocationListCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             allocations = ListPaymentAllocations(
                 DjangoPaymentAllocationRepository(),
@@ -67,6 +70,7 @@ class PaymentAllocationListCreateAPIView(TenantAPIView):
         return Response(PaymentAllocationSerializer(allocations, many=True).data)
 
     def post(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_PAYMENT_ALLOCATE)
         serializer = CreatePaymentAllocationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -102,6 +106,7 @@ class PaymentAllocationDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             allocation = GetPaymentAllocation(
                 DjangoPaymentAllocationRepository(),

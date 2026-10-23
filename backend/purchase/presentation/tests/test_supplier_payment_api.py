@@ -6,7 +6,9 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.enums import RoleCode
-from accounts.models import Business, Membership, Role, User
+from accounts.models import Business, Membership, Role, RolePermission, User
+from accounts.services.rbac_initializer import RBACInitializer
+from core.enums import PermissionCode
 from purchase.models import Supplier, SupplierPayment as DjangoSupplierPayment
 
 
@@ -26,6 +28,7 @@ class SupplierPaymentAPITests(APITestCase):
             business=self.business,
             name="Owner",
             code=RoleCode.OWNER,
+            is_system=True,
         )
         Membership.objects.create(
             user=self.user,
@@ -33,6 +36,7 @@ class SupplierPaymentAPITests(APITestCase):
             role=role,
             is_active=True,
         )
+        RBACInitializer.initialize(self.business)
         self.supplier = Supplier.objects.create(
             business=self.business,
             name="Supplier",
@@ -74,6 +78,41 @@ class SupplierPaymentAPITests(APITestCase):
         self.assertEqual(self.client.put(url, self.payload(), format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertEqual(self.client.patch(url, self.payload(), format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertEqual(self.client.delete(url).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_customer_payment_permission_does_not_authorize_supplier_payment(self):
+        accountant_role = Role.objects.get(
+            business=self.business,
+            code="ACCOUNTANT",
+        )
+        self.assertTrue(
+            RolePermission.objects.filter(
+                role=accountant_role,
+                permission__code=PermissionCode.PAYMENTS_MANAGE.value,
+            ).exists()
+        )
+        self.assertFalse(
+            RolePermission.objects.filter(
+                role=accountant_role,
+                permission__code=PermissionCode.PURCHASE_PAYMENT_CREATE.value,
+            ).exists()
+        )
+        accountant = User.objects.create_user(
+            email="customer-payment-only@example.com",
+            password="password",
+            name="Customer Payment Only",
+            number="9202",
+        )
+        Membership.objects.create(
+            user=accountant,
+            business=self.business,
+            role=accountant_role,
+            is_active=True,
+        )
+        self.client.force_authenticate(accountant)
+
+        response = self.client.post(self.endpoint, self.payload(), format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_client_business_is_ignored_and_invoice_id_is_rejected(self):
         ignored = self.client.post(

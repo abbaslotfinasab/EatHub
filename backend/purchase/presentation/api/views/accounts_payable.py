@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
+from core.enums import PermissionCode
 from purchase.application.dto.accounts_payable import ListAccountsPayablesQuery
 from purchase.application.dto.accounts_payable_payment_eligibility import (
     GetAccountsPayablePaymentEligibilityQuery,
@@ -26,6 +27,7 @@ from purchase.presentation.api.serializers.accounts_payable import AccountsPayab
 from purchase.presentation.api.serializers.accounts_payable_payment_eligibility import (
     AccountsPayablePaymentEligibilitySerializer,
 )
+from purchase.presentation.api.permissions import require_purchase_permission
 
 
 def _repository() -> DjangoAccountsPayableRepository:
@@ -43,6 +45,7 @@ class AccountsPayableListAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             payables = ListAccountsPayablesUseCase(_repository()).execute(
                 ListAccountsPayablesQuery(business_id=request.business.id),
@@ -55,6 +58,7 @@ class AccountsPayableDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             payable = GetAccountsPayableUseCase(_repository()).execute(
                 pk,
@@ -69,6 +73,7 @@ class AccountsPayablePaymentEligibilityAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             result = GetAccountsPayablePaymentEligibility(
                 _repository(),

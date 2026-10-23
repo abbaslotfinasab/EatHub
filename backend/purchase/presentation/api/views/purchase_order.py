@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
+from core.enums import PermissionCode
 from purchase.application.dto.purchase_order import (
     CreatePurchaseOrderDTO,
     CreatePurchaseOrderItemDTO,
@@ -47,6 +48,7 @@ from purchase.presentation.api.serializers.purchase_order import (
     PurchaseOrderSerializer,
     PurchaseOrderUpdateSerializer,
 )
+from purchase.presentation.api.permissions import require_purchase_permission
 
 
 def _purchase_order_repository() -> DjangoPurchaseOrderRepository:
@@ -128,6 +130,7 @@ class PurchaseOrderListCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             orders = ListPurchaseOrdersUseCase(
                 _purchase_order_repository()
@@ -159,6 +162,7 @@ class PurchaseOrderListCreateAPIView(TenantAPIView):
         return Response(PurchaseOrderSerializer(orders, many=True).data)
 
     def post(self, request):
+        require_purchase_permission(request, PermissionCode.PURCHASE_ORDER_CREATE)
         serializer = PurchaseOrderCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -193,6 +197,7 @@ class PurchaseOrderDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
             order = GetPurchaseOrderUseCase(
                 _purchase_order_repository()
@@ -206,6 +211,7 @@ class PurchaseOrderDetailAPIView(TenantAPIView):
         return Response(PurchaseOrderSerializer(order).data)
 
     def put(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_ORDER_UPDATE)
         serializer = PurchaseOrderUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -233,6 +239,7 @@ class PurchaseOrderSendAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_ORDER_DISPATCH)
         return _transition_response(SendPurchaseOrderUseCase, request, pk)
 
 
@@ -240,6 +247,7 @@ class PurchaseOrderCancelAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_ORDER_CANCEL)
         return _transition_response(CancelPurchaseOrderUseCase, request, pk)
 
 
