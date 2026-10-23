@@ -44,7 +44,9 @@ services:
 
   celery:
     image: eathub-backend-${DEPLOYMENT_NAMESPACE:?required}:${STATIC_ASSET_ATTEMPT:?required}
-    command: celery -A config worker -l info
+    command: celery -A EatHub.celery:app worker -l info
+    env_file:
+      - ../backend/.env
     environment:
       EATHUB_RELEASE_ID: success-${STATIC_ASSET_ATTEMPT:?required}
     depends_on:

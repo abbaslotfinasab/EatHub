@@ -56,6 +56,40 @@ It does not report database, Redis, Celery, or general application dependency
 health. The frontend image receives the same release ID as an image label; the
 wrapper checks the label and the exact image ID used by the running container.
 
+### Celery worker foundation
+
+The canonical Celery application is `EatHub.celery:app`, in
+`backend/EatHub/celery.py`. The Compose worker runs
+`celery -A EatHub.celery:app worker -l info` from the backend image, whose
+working directory is `/app`. It receives the same backend environment file as
+the Django service. Celery loads Django settings with the `CELERY_` namespace;
+the default broker and result backend use the Compose Redis service at
+`redis://redis:6379/0`, and deployment-provided `CELERY_BROKER_URL` and
+`CELERY_RESULT_BACKEND` values can override those defaults.
+
+Celery autodiscovers `tasks.py` modules in installed Django applications. No
+application business tasks are currently implemented. For a future task, add
+an illustrative task to an appropriate installed app, for example:
+
+```python
+from celery import shared_task
+
+
+@shared_task
+def example_task(value: str) -> str:
+    return value
+```
+
+Test task logic directly or with a Celery unit test; calling `.delay()` or
+`.apply_async()` publishes through Redis and therefore needs a reachable broker.
+For example, a caller can enqueue the illustrative task with
+`example_task.delay("value")`; its unit test can call
+`example_task.run("value")` without a broker.
+The infrastructure test `EatHub.tests.test_celery` checks app import,
+configuration, task discovery, and the Compose target without connecting to
+Redis. The readiness endpoint does not claim that the Celery worker or broker
+is healthy.
+
 After activation, the wrapper polls the local Nginx HTTPS route for up to 60
 seconds and requires the response body to equal the exact expected release ID.
 A generic
