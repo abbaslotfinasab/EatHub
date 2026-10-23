@@ -5,8 +5,9 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.enums import RoleCode
-from accounts.models import Business, Membership, Role, User
+from accounts.models import Business, Membership, Role, RolePermission, User
 from accounts.services.rbac_initializer import RBACInitializer
+from core.enums import PermissionCode
 from purchase.models import AccountsPayable, PaymentAllocation, PurchaseInvoice, Supplier, SupplierPayment
 
 
@@ -72,6 +73,26 @@ class PaymentAllocationAPITests(APITestCase):
         self.assertTrue(summary.data["eligible"])
         self.assertEqual(summary.data["allocated_amount"], "60.00")
         self.assertEqual(summary.data["outstanding_amount"], "40.00")
+
+    def test_allocation_creation_requires_allocation_permission(self):
+        payable = self.create_payable(self.business, self.supplier, "API-ALLOC-DENIED")
+        payment = self.create_payment(self.business, self.supplier, "25.00")
+        RolePermission.objects.filter(
+            role__business=self.business,
+            role__code=RoleCode.OWNER,
+            permission__code=PermissionCode.PURCHASE_PAYMENT_ALLOCATE.value,
+        ).delete()
+
+        response = self.client.post(self.endpoint, {
+            "accounts_payable_id": payable.id,
+            "supplier_payment_id": payment.id,
+            "amount": "10.00",
+        }, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(PaymentAllocation.objects.count(), 0)
+        payable.refresh_from_db()
+        self.assertEqual(payable.status, AccountsPayable.Status.OPEN)
 
     def test_list_detail_and_creation_are_tenant_scoped(self):
         own = self.create_payable(self.business, self.supplier, "API-ALLOC-OWN")

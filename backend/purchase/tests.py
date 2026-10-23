@@ -511,6 +511,26 @@ class SupplierAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["name"], "Created Supplier")
 
+    def test_supplier_creation_requires_supplier_permission(self) -> None:
+        RolePermission.objects.filter(
+            role=self.role,
+            permission__code=PermissionCode.PURCHASE_SUPPLIER_MANAGE.value,
+        ).delete()
+
+        response = self.client.post(
+            self.endpoint,
+            {"name": "Unauthorized Supplier"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            DjangoSupplier.objects.filter(
+                business=self.business,
+                name="Unauthorized Supplier",
+            ).exists()
+        )
+
     def test_business_id_cannot_be_supplied_by_client_to_create(self) -> None:
         response = self.client.post(
             self.endpoint,
@@ -602,6 +622,24 @@ class SupplierAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(supplier.name, "Updated Supplier")
         self.assertFalse(supplier.is_active)
+
+    def test_supplier_update_requires_supplier_permission(self) -> None:
+        supplier = self.create_supplier(name="Original Supplier")
+        RolePermission.objects.filter(
+            role=self.role,
+            permission__code=PermissionCode.PURCHASE_SUPPLIER_MANAGE.value,
+        ).delete()
+
+        response = self.client.put(
+            self.detail_endpoint(supplier.id),
+            {"name": "Unauthorized Update", "is_active": False},
+            format="json",
+        )
+
+        supplier.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(supplier.name, "Original Supplier")
+        self.assertTrue(supplier.is_active)
 
     def test_user_cannot_update_supplier_belonging_to_another_business(self) -> None:
         supplier = self.create_supplier(
@@ -1241,6 +1279,50 @@ class PurchaseOrderAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["items"][0]["quantity"], "4.000")
 
+    def test_update_draft_purchase_order_requires_update_permission(self) -> None:
+        created = self.create_order()
+        order = DjangoPurchaseOrder.objects.get(id=created.data["id"])
+        original_quantity = order.items.get().quantity
+        RolePermission.objects.filter(
+            role=self.role,
+            permission__code=PermissionCode.PURCHASE_ORDER_UPDATE.value,
+        ).delete()
+
+        response = self.client.put(
+            self.detail_endpoint(order.id),
+            self.create_payload(
+                items=[{
+                    "ingredient_id": self.ingredient.id,
+                    "quantity": "4.000",
+                    "unit_price": "5.00",
+                    "purchase_unit": "kg",
+                }],
+            ),
+            format="json",
+        )
+
+        order.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(order.items.get().quantity, original_quantity)
+
+    def test_cancel_purchase_order_requires_cancel_permission(self) -> None:
+        created = self.create_order()
+        order = DjangoPurchaseOrder.objects.get(id=created.data["id"])
+        RolePermission.objects.filter(
+            role=self.role,
+            permission__code=PermissionCode.PURCHASE_ORDER_CANCEL.value,
+        ).delete()
+
+        response = self.client.post(
+            self.action_endpoint(order.id, "cancel"),
+            {},
+            format="json",
+        )
+
+        order.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(order.status, DjangoPurchaseOrder.Status.DRAFT)
+
     def test_send_purchase_order(self) -> None:
         created = self.create_order()
 
@@ -1638,6 +1720,46 @@ class RequisitionAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "approved")
+
+    def test_approve_requisition_requires_approval_permission(self) -> None:
+        created = self.create_requisition()
+        self.submit_requisition(created.data["id"])
+        approver = self.create_same_business_member()
+        self.client.force_authenticate(approver)
+        RolePermission.objects.filter(
+            role=self.role,
+            permission__code=PermissionCode.PURCHASE_REQUISITION_APPROVE.value,
+        ).delete()
+
+        response = self.client.post(
+            self.action_endpoint(created.data["id"], "approve"),
+            {},
+            format="json",
+        )
+
+        requisition = DjangoPurchaseRequisition.objects.get(id=created.data["id"])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(requisition.status, DjangoPurchaseRequisition.Status.SUBMITTED)
+
+    def test_reject_requisition_requires_approval_permission(self) -> None:
+        created = self.create_requisition()
+        self.submit_requisition(created.data["id"])
+        approver = self.create_same_business_member()
+        self.client.force_authenticate(approver)
+        RolePermission.objects.filter(
+            role=self.role,
+            permission__code=PermissionCode.PURCHASE_REQUISITION_APPROVE.value,
+        ).delete()
+
+        response = self.client.post(
+            self.action_endpoint(created.data["id"], "reject"),
+            {"reason": "Insufficient justification"},
+            format="json",
+        )
+
+        requisition = DjangoPurchaseRequisition.objects.get(id=created.data["id"])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(requisition.status, DjangoPurchaseRequisition.Status.SUBMITTED)
 
     def test_requester_cannot_approve_own_requisition(self) -> None:
         created = self.create_requisition()

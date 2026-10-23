@@ -6,8 +6,9 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.enums import RoleCode
-from accounts.models import Business, Membership, Role, User
+from accounts.models import Business, Membership, Role, RolePermission, User
 from accounts.services.rbac_initializer import RBACInitializer
+from core.enums import PermissionCode
 from inventory.models import Ingredient, Warehouse
 from inventory.infrastructure.django.models import InventoryV1StockMovement
 from purchase.models import (
@@ -154,6 +155,23 @@ class GoodsReceiptAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["business_id"], self.business.id)
         self.assertEqual(response.data["received_by_id"], self.user.id)
+
+    def test_receipt_creation_requires_receipt_permission(self):
+        RolePermission.objects.filter(
+            role__business=self.business,
+            role__code=RoleCode.OWNER,
+            permission__code=PermissionCode.PURCHASE_RECEIPT_CREATE.value,
+        ).delete()
+
+        response = self.create_receipt()
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            DjangoGoodsReceipt.objects.filter(purchase_order=self.order[0]).exists()
+        )
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
+        self.order[0].refresh_from_db()
+        self.assertEqual(self.order[0].status, DjangoPurchaseOrder.Status.SENT)
 
     def test_list_and_detail_are_available(self):
         created = self.create_receipt()

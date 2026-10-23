@@ -173,6 +173,24 @@ class PurchaseInvoiceAPITests(APITestCase):
         self.assertEqual(response.data["approved_by_id"], self.user.id)
         self.assertIsNotNone(response.data["approved_at"])
 
+    def test_invoice_approval_requires_approval_permission(self):
+        created = self.client.post(self.endpoint, self.payload(), format="json")
+        RolePermission.objects.filter(
+            role__business=self.business,
+            role__code=RoleCode.OWNER,
+            permission__code=PermissionCode.PURCHASE_INVOICE_APPROVE.value,
+        ).delete()
+
+        response = self.client.post(
+            f"{self.endpoint}{created.data['id']}/approve/", {}, format="json",
+        )
+
+        invoice = DjangoPurchaseInvoice.objects.get(id=created.data["id"])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(invoice.status, DjangoPurchaseInvoice.Status.DRAFT)
+        self.assertIsNone(invoice.approved_by_id)
+        self.assertIsNone(invoice.approved_at)
+
     def test_approve_endpoint_rejects_second_approval(self):
         created = self.client.post(self.endpoint, self.payload(), format="json")
         approve_url = f"{self.endpoint}{created.data['id']}/approve/"
@@ -254,6 +272,26 @@ class PurchaseInvoiceAPITests(APITestCase):
         self.assertEqual(result.data["status"], "cancelled")
         self.assertEqual(result.data["total_price"], str(approved.total_price))
         self.assertFalse(AccountsPayable.objects.filter(source_invoice_id=approved.id).exists())
+
+    def test_invoice_cancellation_requires_cancellation_permission(self):
+        created = self.client.post(self.endpoint, self.payload(), format="json")
+        RolePermission.objects.filter(
+            role__business=self.business,
+            role__code=RoleCode.OWNER,
+            permission__code=PermissionCode.PURCHASE_INVOICE_CANCEL.value,
+        ).delete()
+
+        response = self.client.post(
+            f"{self.endpoint}{created.data['id']}/cancel/",
+            {"reason": "Duplicate"},
+            format="json",
+        )
+
+        invoice = DjangoPurchaseInvoice.objects.get(id=created.data["id"])
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(invoice.status, DjangoPurchaseInvoice.Status.DRAFT)
+        self.assertIsNone(invoice.cancelled_by_id)
+        self.assertIsNone(invoice.cancelled_at)
 
     def test_cancellation_rejects_blank_unknown_and_client_controlled_fields(self):
         created = self.client.post(self.endpoint, self.payload(), format="json")
@@ -393,6 +431,7 @@ class PurchaseInvoiceAPITests(APITestCase):
         self.assertEqual(pending.data["last_persisted"]["status"], "pending_receipt")
         stored = DjangoPurchaseInvoice.objects.get(id=invoice_id)
         self.assertEqual(stored.matching_status, "pending_receipt")
+
         self.assertIsNotNone(stored.matched_at)
         persisted_time = stored.matched_at
 
@@ -413,6 +452,23 @@ class PurchaseInvoiceAPITests(APITestCase):
         stored.refresh_from_db()
         self.assertEqual(stored.matching_status, "pending_receipt")
         self.assertEqual(stored.matched_at, persisted_time)
+
+    def test_invoice_matching_requires_match_permission(self):
+        invoice = self.approved_invoice("MATCH-DENIED")
+        RolePermission.objects.filter(
+            role__business=self.business,
+            role__code=RoleCode.OWNER,
+            permission__code=PermissionCode.PURCHASE_INVOICE_MATCH.value,
+        ).delete()
+
+        response = self.client.post(
+            f"{self.endpoint}{invoice.id}/match/", {}, format="json",
+        )
+
+        invoice.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(invoice.matching_status, "not_matched")
+        self.assertIsNone(invoice.matched_at)
 
     def test_match_endpoint_rejects_draft_and_hides_other_tenant_invoice(self):
         created = self.client.post(self.endpoint, self.payload(), format="json")
