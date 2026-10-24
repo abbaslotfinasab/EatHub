@@ -1,4 +1,6 @@
 from django.db import models
+from django.db.models.functions import Length
+from django.db.models.lookups import LessThanOrEqual
 
 from accounts.models import Business, User
 from core.models import BaseModel
@@ -76,6 +78,68 @@ class PurchaseRequisition(BaseModel):
     reason = models.TextField(
         blank=True
     )
+
+
+class PurchaseRequisitionDecision(models.Model):
+    class Decision(models.TextChoices):
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    requisition = models.ForeignKey(
+        PurchaseRequisition,
+        on_delete=models.PROTECT,
+        related_name="decisions",
+    )
+    decision = models.CharField(max_length=10, choices=Decision.choices)
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="purchase_requisition_decisions",
+    )
+    decided_at = models.DateTimeField(auto_now_add=True)
+    previous_status = models.CharField(
+        max_length=30,
+        choices=PurchaseRequisition.Status.choices,
+    )
+    resulting_status = models.CharField(
+        max_length=30,
+        choices=PurchaseRequisition.Status.choices,
+    )
+    rejection_reason = models.TextField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["decided_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["requisition"],
+                name="pur_req_decision_uq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        decision="approved",
+                        previous_status=PurchaseRequisition.Status.SUBMITTED,
+                        resulting_status=PurchaseRequisition.Status.APPROVED,
+                        rejection_reason__isnull=True,
+                    )
+                    | models.Q(
+                        decision="rejected",
+                        previous_status=PurchaseRequisition.Status.SUBMITTED,
+                        resulting_status=PurchaseRequisition.Status.REJECTED,
+                    )
+                ),
+                name="pur_req_decision_ck",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(rejection_reason__isnull=True)
+                    | models.Q(
+                        LessThanOrEqual(Length("rejection_reason"), 2000)
+                    )
+                ),
+                name="pur_req_reason_len_ck",
+            ),
+        ]
 
 
 class PurchaseRequisitionItem(BaseModel):

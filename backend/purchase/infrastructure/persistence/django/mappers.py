@@ -1,5 +1,6 @@
 from purchase.domain.entities.supplier import Supplier
 from purchase.domain.entities.requisition import (
+    PurchaseRequisitionDecision as PurchaseRequisitionDecisionEntity,
     PurchaseRequisition,
     PurchaseRequisitionItem,
 )
@@ -28,6 +29,7 @@ from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.models import (
     AccountsPayable as DjangoAccountsPayable,
     PurchaseRequisition as DjangoPurchaseRequisition,
+    PurchaseRequisitionDecision as DjangoPurchaseRequisitionDecision,
     PurchaseRequisitionItem as DjangoPurchaseRequisitionItem,
     PurchaseOrder as DjangoPurchaseOrder,
     PurchaseOrderItem as DjangoPurchaseOrderItem,
@@ -228,6 +230,23 @@ class PurchaseRequisitionMapper:
             ingredient_id=item.ingredient_id,
             quantity=item.quantity,
             note=item.note,
+        )
+
+
+class PurchaseRequisitionDecisionMapper:
+    @staticmethod
+    def to_domain(
+        model: DjangoPurchaseRequisitionDecision,
+    ) -> PurchaseRequisitionDecisionEntity:
+        return PurchaseRequisitionDecisionEntity(
+            id=model.id,
+            decision=model.decision,
+            actor_id=model.actor_id,
+            actor_name=model.actor.name,
+            decided_at=model.decided_at,
+            previous_status=RequisitionStatus(model.previous_status),
+            resulting_status=RequisitionStatus(model.resulting_status),
+            rejection_reason=model.rejection_reason,
         )
 
 

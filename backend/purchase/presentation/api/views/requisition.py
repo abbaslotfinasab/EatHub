@@ -19,6 +19,9 @@ from purchase.application.use_cases.requisition.create_requisition import (
 from purchase.application.use_cases.requisition.get_requisition import (
     GetRequisitionUseCase,
 )
+from purchase.application.use_cases.requisition.get_requisition_decision_history import (
+    GetRequisitionDecisionHistoryUseCase,
+)
 from purchase.application.use_cases.requisition.list_requisitions import (
     ListRequisitionsUseCase,
 )
@@ -34,6 +37,8 @@ from purchase.infrastructure.persistence.django.repositories.requisition_reposit
 )
 from purchase.presentation.api.serializers.requisition import (
     CreateRequisitionSerializer,
+    RejectRequisitionSerializer,
+    RequisitionDecisionSerializer,
     RequisitionSerializer,
 )
 from purchase.presentation.api.permissions import (
@@ -66,6 +71,30 @@ def _handle_requisition_error(error: ValueError) -> None:
         raise NotFound({"detail": detail})
 
     raise ValidationError({"detail": detail})
+
+
+def _get_readable_requisition(request, requisition_id: int):
+    require_any_purchase_permission(
+        request,
+        PermissionCode.PURCHASE_VIEW,
+        PermissionCode.PURCHASE_REQUISITION_VIEW_OWN,
+    )
+    try:
+        requisition = GetRequisitionUseCase(
+            _requisition_repository()
+        ).execute(
+            requisition_id=requisition_id,
+            business_id=request.business.id,
+        )
+    except ValueError as error:
+        _handle_requisition_error(error)
+
+    if (
+        not has_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
+        and requisition.requested_by_id != request.user.id
+    ):
+        raise NotFound({"detail": "Requisition does not exist in this business."})
+    return requisition
 
 
 class RequisitionListCreateAPIView(TenantAPIView):
@@ -135,27 +164,7 @@ class RequisitionDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        require_any_purchase_permission(
-            request,
-            PermissionCode.PURCHASE_VIEW,
-            PermissionCode.PURCHASE_REQUISITION_VIEW_OWN,
-        )
-        try:
-            requisition = GetRequisitionUseCase(
-                _requisition_repository()
-            ).execute(
-                requisition_id=pk,
-                business_id=request.business.id,
-            )
-        except ValueError as error:
-            _handle_requisition_error(error)
-
-        if (
-            not has_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
-            and requisition.requested_by_id != request.user.id
-        ):
-            raise NotFound({"detail": "Requisition does not exist in this business."})
-
+        requisition = _get_readable_requisition(request, pk)
         return Response(RequisitionSerializer(requisition).data)
 
 
@@ -184,7 +193,7 @@ class RequisitionApproveAPIView(TenantAPIView):
             requisition = ApproveRequisitionUseCase(_requisition_repository()).execute(
                 requisition_id=pk,
                 business_id=request.business.id,
-                approver_id=request.user.id,
+                actor_id=request.user.id,
             )
         except ValueError as error:
             _handle_requisition_error(error)
@@ -196,25 +205,31 @@ class RequisitionRejectAPIView(TenantAPIView):
 
     def post(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_REQUISITION_APPROVE)
-        return _transition_response(
-            RejectRequisitionUseCase,
-            requisition_id=pk,
+        serializer = RejectRequisitionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            requisition = RejectRequisitionUseCase(
+                _requisition_repository()
+            ).execute(
+                requisition_id=pk,
+                business_id=request.business.id,
+                actor_id=request.user.id,
+                reason=serializer.validated_data["reason"],
+            )
+        except ValueError as error:
+            _handle_requisition_error(error)
+        return Response(RequisitionSerializer(requisition).data)
+
+
+class RequisitionDecisionHistoryAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        requisition = _get_readable_requisition(request, pk)
+        decisions = GetRequisitionDecisionHistoryUseCase(
+            _requisition_repository()
+        ).execute(
+            requisition_id=requisition.id,
             business_id=request.business.id,
         )
-
-
-def _transition_response(
-    use_case_type,
-    *,
-    requisition_id: int,
-    business_id: int,
-) -> Response:
-    try:
-        requisition = use_case_type(_requisition_repository()).execute(
-            requisition_id=requisition_id,
-            business_id=business_id,
-        )
-    except ValueError as error:
-        _handle_requisition_error(error)
-
-    return Response(RequisitionSerializer(requisition).data)
+        return Response(RequisitionDecisionSerializer(decisions, many=True).data)

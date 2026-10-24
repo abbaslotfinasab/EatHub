@@ -30,6 +30,24 @@ class InMemoryRequisitionRepository:
         self.saved = True
         return requisition
 
+    def record_decision(
+        self,
+        requisition_id,
+        business_id,
+        actor_id,
+        decision,
+        rejection_reason=None,
+    ):
+        requisition = self.get_by_id_for_business(requisition_id, business_id)
+        if requisition is None:
+            raise ValueError("Requisition does not exist in this business.")
+        if decision == "approved":
+            requisition.approve(actor_id)
+        elif decision == "rejected":
+            requisition.reject()
+        self.saved = True
+        return requisition
+
 
 class ApproveRequisitionActorTests(TestCase):
     def make_requisition(self):
@@ -48,7 +66,7 @@ class ApproveRequisitionActorTests(TestCase):
             ValueError,
             r"^A requester cannot approve their own requisition\.$",
         ):
-            use_case.execute(21, 7, approver_id=42)
+            use_case.execute(21, 7, actor_id=42)
 
         self.assertFalse(repository.saved)
 
@@ -56,7 +74,7 @@ class ApproveRequisitionActorTests(TestCase):
         repository = InMemoryRequisitionRepository(self.make_requisition())
         use_case = ApproveRequisitionUseCase(repository)
 
-        approved = use_case.execute(21, 7, approver_id=99)
+        approved = use_case.execute(21, 7, actor_id=99)
 
         self.assertEqual(approved.status, RequisitionStatus.APPROVED)
         self.assertTrue(repository.saved)

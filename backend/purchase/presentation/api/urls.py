@@ -6,6 +6,7 @@ from purchase.presentation.api.views.supplier import (
 )
 from purchase.presentation.api.views.requisition import (
     RequisitionApproveAPIView,
+    RequisitionDecisionHistoryAPIView,
     RequisitionDetailAPIView,
     RequisitionListCreateAPIView,
     RequisitionRejectAPIView,
@@ -140,6 +141,11 @@ urlpatterns = [
         "requisitions/<int:pk>/",
         RequisitionDetailAPIView.as_view(),
         name="requisition-detail",
+    ),
+    path(
+        "requisitions/<int:pk>/decisions/",
+        RequisitionDecisionHistoryAPIView.as_view(),
+        name="requisition-decision-history",
     ),
     path(
         "requisitions/<int:pk>/submit/",

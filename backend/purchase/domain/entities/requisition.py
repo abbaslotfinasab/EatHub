@@ -114,7 +114,10 @@ class PurchaseRequisition:
 
         self.status = RequisitionStatus.SUBMITTED
 
-    def approve(self) -> None:
+    def approve(self, approver_id: int) -> None:
+
+        if self.requested_by_id == approver_id:
+            raise ValueError("A requester cannot approve their own requisition.")
 
         self._ensure_status(
             RequisitionStatus.SUBMITTED
@@ -165,3 +168,15 @@ class PurchaseRequisition:
                 f"Invalid requisition status transition: "
                 f"{self.status} -> {expected_status}."
             )
+
+
+@dataclass(frozen=True)
+class PurchaseRequisitionDecision:
+    id: int
+    decision: str
+    actor_id: int
+    actor_name: str
+    decided_at: datetime
+    previous_status: RequisitionStatus
+    resulting_status: RequisitionStatus
+    rejection_reason: str | None = None

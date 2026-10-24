@@ -5,6 +5,12 @@ from purchase.domain.repositories.requisition_repository import (
 
 
 class RejectRequisitionUseCase:
+    """Apply a decision; actor_id is an identifier, not proof of identity.
+
+    HTTP adapters must provide the authenticated request user. Non-HTTP
+    callers need a trusted actor and authorization boundary of their own.
+    """
+
     def __init__(
         self,
         requisition_repository: RequisitionRepository,
@@ -15,20 +21,8 @@ class RejectRequisitionUseCase:
         self,
         requisition_id: int,
         business_id: int,
-    ) -> PurchaseRequisition:
-        requisition = self._get_requisition_for_business(
-            requisition_id,
-            business_id,
-        )
-
-        requisition.reject()
-
-        return self._requisition_repository.save(requisition)
-
-    def _get_requisition_for_business(
-        self,
-        requisition_id: int,
-        business_id: int,
+        actor_id: int,
+        reason: str | None = None,
     ) -> PurchaseRequisition:
         validated_requisition_id = self._validate_positive_id(
             requisition_id,
@@ -38,16 +32,22 @@ class RejectRequisitionUseCase:
             business_id,
             "Business ID",
         )
+        validated_actor_id = self._validate_positive_id(actor_id, "Actor ID")
+        if reason is not None and not isinstance(reason, str):
+            raise ValueError("Rejection reason must be a string.")
+        if reason is not None and len(reason) > 2000:
+            raise ValueError("Rejection reason cannot exceed 2000 characters.")
+        normalized_reason = reason.strip() if reason else None
+        if normalized_reason == "":
+            normalized_reason = None
 
-        requisition = self._requisition_repository.get_by_id_for_business(
-            validated_requisition_id,
-            validated_business_id,
+        return self._requisition_repository.record_decision(
+            requisition_id=validated_requisition_id,
+            business_id=validated_business_id,
+            actor_id=validated_actor_id,
+            decision="rejected",
+            rejection_reason=normalized_reason,
         )
-
-        if requisition is None:
-            raise ValueError("Requisition does not exist in this business.")
-
-        return requisition
 
     @staticmethod
     def _validate_positive_id(value: int, field_name: str) -> int:

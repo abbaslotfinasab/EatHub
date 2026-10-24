@@ -1,17 +1,90 @@
-from django.db import transaction
+import sqlite3
 
-from purchase.domain.entities.requisition import PurchaseRequisition
+from django.db import IntegrityError, OperationalError, transaction
+
+from purchase.domain.entities.requisition import (
+    PurchaseRequisition,
+    PurchaseRequisitionDecision as PurchaseRequisitionDecisionEntity,
+)
 from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.domain.repositories.requisition_repository import (
     RequisitionRepository,
 )
 from purchase.infrastructure.persistence.django.mappers import (
+    PurchaseRequisitionDecisionMapper,
     PurchaseRequisitionMapper,
 )
 from purchase.models import (
     PurchaseRequisition as DjangoPurchaseRequisition,
+    PurchaseRequisitionDecision,
     PurchaseRequisitionItem as DjangoPurchaseRequisitionItem,
 )
+
+
+_POSTGRES_DECISION_CONFLICT_SQLSTATES = frozenset(
+    {
+        "40001",  # serialization_failure
+        "40P01",  # deadlock_detected
+        "55P03",  # lock_not_available, including lock_timeout
+    }
+)
+_POSTGRES_UNIQUE_VIOLATION_SQLSTATE = "23505"
+_DECISION_UNIQUE_CONSTRAINT = "pur_req_decision_uq"
+
+
+def _exception_causes(error: Exception):
+    """Yield the explicit cause chain without consulting implicit context."""
+    current = error
+    seen = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = current.__cause__
+
+
+def _is_supported_decision_conflict(error: OperationalError) -> bool:
+    """Recognize only documented lock/serialization codes for configured DBs.
+
+    EatHub configures SQLite and PostgreSQL. Django wraps driver exceptions in
+    ``__cause__``; psycopg2 exposes SQLSTATE as ``pgcode`` and SQLite exposes
+    primary/extended result codes as ``sqlite_errorcode``.
+    """
+    for current in _exception_causes(error):
+        sqlstate = getattr(current, "sqlstate", None) or getattr(
+            current, "pgcode", None
+        )
+        if sqlstate is None:
+            sqlstate = getattr(getattr(current, "diag", None), "sqlstate", None)
+        if sqlstate in _POSTGRES_DECISION_CONFLICT_SQLSTATES:
+            return True
+
+        sqlite_errorcode = getattr(current, "sqlite_errorcode", None)
+        if isinstance(sqlite_errorcode, int) and (
+            sqlite_errorcode & 0xFF
+        ) in (sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED):
+            return True
+
+    return False
+
+
+def _is_expected_decision_integrity_conflict(error: IntegrityError) -> bool:
+    """Recognize only the requisition-decision uniqueness invariant."""
+    for current in _exception_causes(error):
+        sqlstate = getattr(current, "sqlstate", None) or getattr(
+            current, "pgcode", None
+        )
+        if sqlstate == _POSTGRES_UNIQUE_VIOLATION_SQLSTATE:
+            constraint_name = getattr(
+                getattr(current, "diag", None), "constraint_name", None
+            )
+            if constraint_name == _DECISION_UNIQUE_CONSTRAINT:
+                return True
+
+        sqlite_errorcode = getattr(current, "sqlite_errorcode", None)
+        if sqlite_errorcode == getattr(sqlite3, "SQLITE_CONSTRAINT_UNIQUE", None):
+            return True
+
+    return False
 
 
 class DjangoRequisitionRepository(RequisitionRepository):
@@ -105,6 +178,82 @@ class DjangoRequisitionRepository(RequisitionRepository):
             )
 
         return PurchaseRequisitionMapper.to_domain(saved_model)
+
+    def record_decision(
+        self,
+        requisition_id: int,
+        business_id: int,
+        actor_id: int,
+        decision: str,
+        rejection_reason: str | None = None,
+    ) -> PurchaseRequisition:
+        try:
+            with transaction.atomic():
+                model = (
+                    DjangoPurchaseRequisition.objects.select_for_update()
+                    .filter(id=requisition_id, business_id=business_id)
+                    .first()
+                )
+                if model is None:
+                    raise ValueError(
+                        "Requisition does not exist in this business."
+                    )
+
+                entity = PurchaseRequisitionMapper.to_domain(model)
+                if decision == PurchaseRequisitionDecision.Decision.APPROVED:
+                    entity.approve(actor_id)
+                elif decision == PurchaseRequisitionDecision.Decision.REJECTED:
+                    entity.reject()
+                else:
+                    raise ValueError("Unsupported requisition decision.")
+
+                model.status = entity.status
+                model.save(update_fields=["status", "updated_at"])
+                PurchaseRequisitionDecision.objects.create(
+                    requisition=model,
+                    decision=decision,
+                    actor_id=actor_id,
+                    previous_status=DjangoPurchaseRequisition.Status.SUBMITTED,
+                    resulting_status=entity.status,
+                    rejection_reason=(
+                        rejection_reason
+                        if decision == PurchaseRequisitionDecision.Decision.REJECTED
+                        else None
+                    ),
+                )
+                saved_model = self._aggregate_queryset().get(
+                    id=model.id,
+                    business_id=business_id,
+                )
+        except IntegrityError as error:
+            if _is_expected_decision_integrity_conflict(error):
+                raise ValueError(
+                    "The requisition decision conflicts with the current record."
+                ) from error
+            raise
+        except OperationalError as error:
+            if _is_supported_decision_conflict(error):
+                raise ValueError(
+                    "The requisition decision conflicted with another update."
+                ) from error
+            raise
+
+        return PurchaseRequisitionMapper.to_domain(saved_model)
+
+    def list_decisions_for_business(
+        self,
+        requisition_id: int,
+        business_id: int,
+    ) -> list[PurchaseRequisitionDecisionEntity]:
+        models = (
+            PurchaseRequisitionDecision.objects.filter(
+                requisition_id=requisition_id,
+                requisition__business_id=business_id,
+            )
+            .select_related("actor")
+            .order_by("decided_at", "id")
+        )
+        return [PurchaseRequisitionDecisionMapper.to_domain(model) for model in models]
 
     @staticmethod
     def _ensure_item_ingredients_belong_to_business(

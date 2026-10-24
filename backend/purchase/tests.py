@@ -1,7 +1,9 @@
 from datetime import date, timedelta
 from decimal import Decimal
 import inspect
+from unittest.mock import patch
 
+from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
@@ -35,6 +37,7 @@ from purchase.models import (
     PurchaseOrder as DjangoPurchaseOrder,
     PurchaseOrderItem as DjangoPurchaseOrderItem,
     PurchaseRequisition as DjangoPurchaseRequisition,
+    PurchaseRequisitionDecision,
     PurchaseRequisitionItem as DjangoPurchaseRequisitionItem,
     Supplier as DjangoSupplier,
 )
@@ -1522,6 +1525,9 @@ class RequisitionAPITests(APITestCase):
     def action_endpoint(self, requisition_id: int, action: str) -> str:
         return f"{self.detail_endpoint(requisition_id)}{action}/"
 
+    def decisions_endpoint(self, requisition_id: int) -> str:
+        return f"{self.detail_endpoint(requisition_id)}decisions/"
+
     def create_requisition(self, **data: object):
         payload = {
             "reason": "Stock replenishment",
@@ -1720,6 +1726,301 @@ class RequisitionAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["status"], "approved")
+
+    def test_approval_records_authenticated_actor_and_transition(self) -> None:
+        created = self.create_requisition()
+        self.submit_requisition(created.data["id"])
+        approver = self.create_same_business_member()
+        self.client.force_authenticate(approver)
+
+        response = self.client.post(
+            self.action_endpoint(created.data["id"], "approve"),
+            {"actor_id": self.user.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        decision = PurchaseRequisitionDecision.objects.get(
+            requisition_id=created.data["id"],
+        )
+        self.assertEqual(
+            decision.decision,
+            PurchaseRequisitionDecision.Decision.APPROVED,
+        )
+        self.assertEqual(decision.actor_id, approver.id)
+        self.assertIsNotNone(decision.decided_at)
+        self.assertEqual(
+            decision.previous_status,
+            DjangoPurchaseRequisition.Status.SUBMITTED,
+        )
+        self.assertEqual(
+            decision.resulting_status,
+            DjangoPurchaseRequisition.Status.APPROVED,
+        )
+        self.assertIsNone(decision.rejection_reason)
+
+    def test_rejection_is_optional_and_preserves_requisition_reason(self) -> None:
+        created = self.create_requisition(reason="Weekly stock replenishment")
+        self.submit_requisition(created.data["id"])
+
+        response = self.client.post(
+            self.action_endpoint(created.data["id"], "reject"),
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        requisition = DjangoPurchaseRequisition.objects.get(id=created.data["id"])
+        decision = PurchaseRequisitionDecision.objects.get(requisition=requisition)
+        self.assertEqual(requisition.reason, "Weekly stock replenishment")
+        self.assertEqual(
+            decision.decision,
+            PurchaseRequisitionDecision.Decision.REJECTED,
+        )
+        self.assertEqual(decision.actor_id, self.user.id)
+        self.assertEqual(
+            decision.previous_status,
+            DjangoPurchaseRequisition.Status.SUBMITTED,
+        )
+        self.assertEqual(
+            decision.resulting_status,
+            DjangoPurchaseRequisition.Status.REJECTED,
+        )
+        self.assertIsNone(decision.rejection_reason)
+
+    def test_rejection_persists_optional_reason_and_normalizes_blank(self) -> None:
+        for index, submitted_reason, expected_reason in (
+            (1, "  Insufficient stock  ", "Insufficient stock"),
+            (2, " \t ", None),
+            (3, None, None),
+            (4, "", None),
+        ):
+            with self.subTest(index=index, reason=submitted_reason):
+                created = self.create_requisition(reason=f"Request {index}")
+                self.submit_requisition(created.data["id"])
+                response = self.client.post(
+                    self.action_endpoint(created.data["id"], "reject"),
+                    {"reason": submitted_reason, "actor_id": self.other_user.id},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                decision = PurchaseRequisitionDecision.objects.get(
+                    requisition_id=created.data["id"],
+                )
+                self.assertEqual(decision.rejection_reason, expected_reason)
+                self.assertEqual(decision.actor_id, self.user.id)
+                history_response = self.client.get(
+                    self.decisions_endpoint(created.data["id"])
+                )
+                self.assertEqual(
+                    history_response.data[0]["rejection_reason"],
+                    expected_reason,
+                )
+
+    def test_rejection_reason_validates_type_and_maximum_length(self) -> None:
+        invalid_reasons = (
+            ("non_string", 123),
+            ("non_whitespace_over_limit", "x" * 2001),
+            ("whitespace_over_limit", " " * 2001),
+        )
+        for case, reason in invalid_reasons:
+            with self.subTest(case=case):
+                created = self.create_requisition()
+                self.submit_requisition(created.data["id"])
+                response = self.client.post(
+                    self.action_endpoint(created.data["id"], "reject"),
+                    {"reason": reason},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(
+                    DjangoPurchaseRequisition.objects.get(
+                        id=created.data["id"],
+                    ).status,
+                    DjangoPurchaseRequisition.Status.SUBMITTED,
+                )
+                self.assertFalse(
+                    PurchaseRequisitionDecision.objects.filter(
+                        requisition_id=created.data["id"],
+                    ).exists()
+                )
+
+    def test_repeated_decision_does_not_create_additional_history(self) -> None:
+        created = self.create_requisition()
+        self.submit_requisition(created.data["id"])
+        approver = self.create_same_business_member()
+        self.client.force_authenticate(approver)
+        first = self.client.post(
+            self.action_endpoint(created.data["id"], "approve"), {}, format="json"
+        )
+        second = self.client.post(
+            self.action_endpoint(created.data["id"], "reject"), {}, format="json"
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            PurchaseRequisitionDecision.objects.filter(
+                requisition_id=created.data["id"],
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            DjangoPurchaseRequisition.objects.get(id=created.data["id"]).status,
+            DjangoPurchaseRequisition.Status.APPROVED,
+        )
+
+    def test_database_rejects_a_second_decision_record(self) -> None:
+        created = self.create_requisition()
+        self.submit_requisition(created.data["id"])
+        approver = self.create_same_business_member()
+        self.client.force_authenticate(approver)
+        response = self.client.post(
+            self.action_endpoint(created.data["id"], "approve"), {}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        requisition = DjangoPurchaseRequisition.objects.get(id=created.data["id"])
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                PurchaseRequisitionDecision.objects.create(
+                    requisition=requisition,
+                    decision=PurchaseRequisitionDecision.Decision.REJECTED,
+                    actor=approver,
+                    previous_status=DjangoPurchaseRequisition.Status.SUBMITTED,
+                    resulting_status=DjangoPurchaseRequisition.Status.REJECTED,
+                )
+
+    def test_decision_and_status_roll_back_together(self) -> None:
+        created = self.create_requisition()
+        self.submit_requisition(created.data["id"])
+        approver = self.create_same_business_member()
+        self.client.force_authenticate(approver)
+
+        with patch.object(
+            PurchaseRequisitionDecision,
+            "save",
+            side_effect=IntegrityError("simulated decision write failure"),
+        ):
+            with self.assertRaises(IntegrityError):
+                self.client.post(
+                    self.action_endpoint(created.data["id"], "approve"),
+                    {},
+                    format="json",
+                )
+
+        self.assertEqual(
+            DjangoPurchaseRequisition.objects.get(id=created.data["id"]).status,
+            DjangoPurchaseRequisition.Status.SUBMITTED,
+        )
+        self.assertFalse(
+            PurchaseRequisitionDecision.objects.filter(
+                requisition_id=created.data["id"],
+            ).exists()
+        )
+
+    def test_decision_history_obeys_requisition_visibility(self) -> None:
+        own = self.create_requisition()
+        self.submit_requisition(own.data["id"])
+        self.client.post(self.action_endpoint(own.data["id"], "reject"), {}, format="json")
+        other_requester = self.create_same_business_member()
+        other = DjangoPurchaseRequisition.objects.create(
+            business=self.business,
+            requested_by=other_requester,
+            status=DjangoPurchaseRequisition.Status.REJECTED,
+        )
+        PurchaseRequisitionDecision.objects.create(
+            requisition=other,
+            decision=PurchaseRequisitionDecision.Decision.REJECTED,
+            actor=self.user,
+            previous_status=DjangoPurchaseRequisition.Status.SUBMITTED,
+            resulting_status=DjangoPurchaseRequisition.Status.REJECTED,
+        )
+        broad_response = self.client.get(self.decisions_endpoint(other.id))
+        self._restrict_role_to_own_requisition_reads()
+
+        own_response = self.client.get(self.decisions_endpoint(own.data["id"]))
+        other_response = self.client.get(self.decisions_endpoint(other.id))
+
+        self.assertEqual(own_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            set(own_response.data[0]),
+            {
+                "decision",
+                "actor_id",
+                "actor_name",
+                "decided_at",
+                "previous_status",
+                "resulting_status",
+                "rejection_reason",
+            },
+        )
+        self.assertEqual(own_response.data[0]["actor_name"], self.user.name)
+        self.assertEqual(own_response.data[0]["actor_id"], self.user.id)
+        self.assertEqual(broad_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(other_response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_decision_history_requires_a_read_permission(self) -> None:
+        created = self.create_requisition()
+        self.submit_requisition(created.data["id"])
+        self.client.post(
+            self.action_endpoint(created.data["id"], "reject"), {}, format="json"
+        )
+        self._restrict_role_to_own_requisition_reads()
+        RolePermission.objects.filter(
+            role=self.role,
+            permission__code=PermissionCode.PURCHASE_REQUISITION_VIEW_OWN.value,
+        ).delete()
+
+        response = self.client.get(self.decisions_endpoint(created.data["id"]))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_decision_history_hides_cross_business_requisition(self) -> None:
+        foreign = DjangoPurchaseRequisition.objects.create(
+            business=self.other_business,
+            requested_by=self.other_user,
+            status=DjangoPurchaseRequisition.Status.REJECTED,
+        )
+        PurchaseRequisitionDecision.objects.create(
+            requisition=foreign,
+            decision=PurchaseRequisitionDecision.Decision.REJECTED,
+            actor=self.other_user,
+            previous_status=DjangoPurchaseRequisition.Status.SUBMITTED,
+            resulting_status=DjangoPurchaseRequisition.Status.REJECTED,
+        )
+
+        response = self.client.get(self.decisions_endpoint(foreign.id))
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_decision_history_is_read_only(self) -> None:
+        created = self.create_requisition()
+        self.submit_requisition(created.data["id"])
+        self.client.post(
+            self.action_endpoint(created.data["id"], "reject"), {}, format="json"
+        )
+        url = self.decisions_endpoint(created.data["id"])
+
+        responses = [
+            self.client.post(url, {"decision": "approved"}, format="json"),
+            self.client.put(url, {"decision": "approved"}, format="json"),
+            self.client.patch(url, {"decision": "approved"}, format="json"),
+            self.client.delete(url),
+        ]
+
+        self.assertTrue(
+            all(
+                response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+                for response in responses
+            )
+        )
+        self.assertEqual(
+            PurchaseRequisitionDecision.objects.filter(
+                requisition_id=created.data["id"],
+            ).count(),
+            1,
+        )
 
     def test_approve_requisition_requires_approval_permission(self) -> None:
         created = self.create_requisition()
