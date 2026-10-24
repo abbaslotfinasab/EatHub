@@ -1,7 +1,20 @@
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from uuid import UUID
 
-from purchase.application.dto.goods_receipt import CreateGoodsReceiptDTO
+from purchase.application.dto.goods_receipt import (
+    CreateGoodsReceiptDTO,
+    CreateGoodsReceiptItemDTO,
+    GoodsReceiptCreationResult,
+)
+from purchase.application.exceptions import (
+    GoodsReceiptIdempotencyKeyRace,
+    GoodsReceiptIdempotencyPayloadMismatch,
+)
+from purchase.application.use_cases.goods_receipt.canonicalization import (
+    CANONICALIZATION_VERSION,
+    goods_receipt_payload_fingerprint,
+)
 from purchase.application.ports.goods_receipt import (
     InventoryReceiptGateway,
     InventoryReceiptRequest,
@@ -13,6 +26,7 @@ from purchase.domain.entities.goods_receipt import (
     GoodsReceiptItem,
 )
 from purchase.domain.enums.purchase_order_status import PurchaseOrderStatus
+from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.domain.repositories.goods_receipt_repository import (
     GoodsReceiptRepository,
 )
@@ -36,7 +50,7 @@ class CreateGoodsReceiptUseCase:
         self._inventory_receipt_gateway = inventory_receipt_gateway
         self._transaction_manager = transaction_manager
 
-    def execute(self, command: CreateGoodsReceiptDTO) -> GoodsReceipt:
+    def execute(self, command: CreateGoodsReceiptDTO) -> GoodsReceiptCreationResult:
         business_id = self._validate_positive_id(command.business_id, "Business ID")
         purchase_order_id = self._validate_positive_id(
             command.purchase_order_id,
@@ -52,74 +66,132 @@ class CreateGoodsReceiptUseCase:
         )
         notes = self._validate_notes(command.notes)
         item_commands = self._validate_item_commands(command.items)
+        idempotency_key = self._validate_idempotency_key(command.idempotency_key)
+        self._validate_optional_id(command.warehouse_id, "Warehouse ID")
+        normalized_command = CreateGoodsReceiptDTO(
+            business_id=business_id,
+            purchase_order_id=purchase_order_id,
+            received_by_id=received_by_id,
+            received_date=received_date,
+            items=item_commands,
+            idempotency_key=idempotency_key,
+            notes=notes,
+            warehouse_id=command.warehouse_id,
+        )
+        fingerprint = goods_receipt_payload_fingerprint(normalized_command)
 
-        with self._transaction_manager.atomic():
-            purchase_order = (
-                self._purchase_order_repository.get_by_id_for_business_for_update(
+        try:
+            with self._transaction_manager.atomic():
+                existing = self._goods_receipt_repository.get_by_idempotency_key_for_business(
+                    idempotency_key,
+                    business_id,
+                )
+                if existing is not None:
+                    return self._replay_result(existing, fingerprint)
+
+                purchase_order = (
+                    self._purchase_order_repository.get_by_id_for_business_for_update(
+                        purchase_order_id,
+                        business_id,
+                    )
+                )
+                if purchase_order is None:
+                    raise ValueError("Purchase order does not exist in this business.")
+                if purchase_order.business_id != business_id:
+                    raise ValueError("Purchase order does not belong to this business.")
+
+                # A competing request for this PO may have committed while we
+                # waited for its row lock. Resolve its key before validating
+                # the PO's now-updated status.
+                existing = self._goods_receipt_repository.get_by_idempotency_key_for_business(
+                    idempotency_key,
+                    business_id,
+                )
+                if existing is not None:
+                    return self._replay_result(existing, fingerprint)
+
+                if purchase_order.status not in (
+                    PurchaseOrderStatus.SENT,
+                    PurchaseOrderStatus.PARTIAL,
+                ):
+                    raise ValueError(
+                        "Goods receipt is only allowed for sent or partially received purchase orders."
+                    )
+
+                lines = self._purchase_order_line_reader.get_lines(
                     purchase_order_id,
                     business_id,
                 )
-            )
-            if purchase_order is None:
-                raise ValueError("Purchase order does not exist in this business.")
-            if purchase_order.business_id != business_id:
-                raise ValueError("Purchase order does not belong to this business.")
-
-            if purchase_order.status not in (
-                PurchaseOrderStatus.SENT,
-                PurchaseOrderStatus.PARTIAL,
-            ):
-                raise ValueError(
-                    "Goods receipt is only allowed for sent or partially received purchase orders."
+                if not lines:
+                    raise ValueError("Purchase order has no receivable items.")
+                receipt_items = self._build_receipt_items(item_commands, lines)
+                previous_received = self._previously_received_quantities(
+                    business_id,
+                    purchase_order_id,
+                )
+                current_received = self._validate_quantities(
+                    receipt_items,
+                    lines,
+                    previous_received,
                 )
 
-            lines = self._purchase_order_line_reader.get_lines(
-                purchase_order_id,
-                business_id,
-            )
-            if not lines:
-                raise ValueError("Purchase order has no receivable items.")
-            receipt_items = self._build_receipt_items(item_commands, lines)
-            previous_received = self._previously_received_quantities(
-                business_id,
-                purchase_order_id,
-            )
-            current_received = self._validate_quantities(
-                receipt_items,
-                lines,
-                previous_received,
-            )
+                if not any(item.received_quantity > 0 for item in receipt_items):
+                    raise ValueError(
+                        "Goods receipt must contain a positive received quantity."
+                    )
 
-            if not any(item.received_quantity > 0 for item in receipt_items):
-                raise ValueError(
-                    "Goods receipt must contain a positive received quantity."
+                receipt = GoodsReceipt(
+                    id=None,
+                    business_id=business_id,
+                    purchase_order_id=purchase_order_id,
+                    received_by_id=received_by_id,
+                    received_date=received_date,
+                    notes=notes,
+                    warehouse_id=command.warehouse_id,
+                    items=receipt_items,
+                    idempotency_key=idempotency_key,
+                    payload_fingerprint=fingerprint,
+                    payload_version=CANONICALIZATION_VERSION,
                 )
+                receipt.validate()
 
-            receipt = GoodsReceipt(
-                id=None,
-                business_id=business_id,
-                purchase_order_id=purchase_order_id,
-                received_by_id=received_by_id,
-                received_date=received_date,
-                notes=notes,
-                warehouse_id=command.warehouse_id,
-                items=receipt_items,
+                if self._is_fully_received(lines, previous_received, current_received):
+                    purchase_order.mark_received()
+                elif purchase_order.status == PurchaseOrderStatus.SENT:
+                    purchase_order.mark_partially_received()
+
+                saved_receipt = self._goods_receipt_repository.save(receipt)
+                self._create_inventory_receipts(
+                    saved_receipt,
+                    lines,
+                )
+                self._purchase_order_repository.save(purchase_order)
+                return GoodsReceiptCreationResult(saved_receipt, replayed=False)
+        except GoodsReceiptIdempotencyKeyRace as race:
+            # The repository has already rolled back the failed header-insert
+            # savepoint. Leaving this outer atomic block rolls back the whole
+            # losing attempt before this scoped recovery query runs.
+            winner = self._goods_receipt_repository.get_by_idempotency_key_for_business(
+                idempotency_key,
+                business_id,
             )
-            receipt.validate()
+            if winner is None:
+                raise race.original_error
+            return self._replay_result(winner, fingerprint)
 
-            if self._is_fully_received(lines, previous_received, current_received):
-                purchase_order.mark_received()
-            elif purchase_order.status == PurchaseOrderStatus.SENT:
-                purchase_order.mark_partially_received()
-
-            saved_receipt = self._goods_receipt_repository.save(receipt)
-            self._create_inventory_receipts(
-                saved_receipt,
-                lines,
+    @staticmethod
+    def _replay_result(
+        existing: GoodsReceipt,
+        fingerprint: str,
+    ) -> GoodsReceiptCreationResult:
+        if (
+            existing.payload_version != CANONICALIZATION_VERSION
+            or existing.payload_fingerprint != fingerprint
+        ):
+            raise GoodsReceiptIdempotencyPayloadMismatch(
+                "This idempotency key was already used with different receipt data."
             )
-            self._purchase_order_repository.save(purchase_order)
-
-        return saved_receipt
+        return GoodsReceiptCreationResult(existing, replayed=True)
 
     def _previously_received_quantities(
         self,
@@ -286,7 +358,39 @@ class CreateGoodsReceiptUseCase:
     def _validate_item_commands(cls, items: list) -> list:
         if not items:
             raise ValueError("Goods receipt must contain at least one item.")
+        item_ids: set[int] = set()
+        received_total = Decimal("0")
+        for item in items:
+            if not isinstance(item, CreateGoodsReceiptItemDTO):
+                raise ValueError("Goods receipt items are invalid.")
+            cls._validate_positive_id(item.purchase_order_item_id, "Purchase order item ID")
+            cls._validate_decimal(item.received_quantity, "Received quantity")
+            cls._validate_decimal(item.rejected_quantity, "Rejected quantity")
+            if item.received_quantity < 0 or item.rejected_quantity < 0:
+                raise ValueError("Receipt quantities cannot be negative.")
+            if not isinstance(item.purchase_unit, PurchaseUnit):
+                raise ValueError("Goods receipt purchase unit is invalid.")
+            if item.purchase_order_item_id in item_ids:
+                raise ValueError("A purchase order item cannot appear more than once in a receipt.")
+            item_ids.add(item.purchase_order_item_id)
+            if item.received_quantity == 0 and item.rejected_quantity == 0:
+                raise ValueError("Received or rejected quantity must be greater than zero.")
+            received_total += item.received_quantity
+        if received_total <= 0:
+            raise ValueError("Goods receipt must contain a positive received quantity.")
         return items
+
+    @staticmethod
+    def _validate_idempotency_key(value: UUID) -> UUID:
+        if not isinstance(value, UUID):
+            raise ValueError("Idempotency key must be a UUID.")
+        return value
+
+    @staticmethod
+    def _validate_optional_id(value: int | None, field_name: str) -> int | None:
+        if value is not None and (not isinstance(value, int) or value <= 0):
+            raise ValueError(f"{field_name} must be a positive integer or None.")
+        return value
 
     @staticmethod
     def _validate_positive_id(value: int, field_name: str) -> int:
@@ -304,10 +408,27 @@ class CreateGoodsReceiptUseCase:
     def _validate_notes(value: str) -> str:
         if not isinstance(value, str):
             raise ValueError("Notes must be a string.")
-        return value
+        return value.strip()
 
     @staticmethod
     def _validate_decimal(value: Decimal, field_name: str) -> Decimal:
         if not isinstance(value, Decimal):
             raise ValueError(f"{field_name} must be a decimal.")
+        if not value.is_finite():
+            raise ValueError(f"{field_name} must be a finite decimal.")
+        try:
+            normalized = value.quantize(Decimal("0.001"))
+        except InvalidOperation as error:
+            raise ValueError(
+                f"{field_name} must fit the supported precision."
+            ) from error
+        decimal_places = max(0, -value.as_tuple().exponent)
+        if (
+            value != normalized
+            or decimal_places > 3
+            or abs(value) >= Decimal("1000000000")
+        ):
+            raise ValueError(
+                f"{field_name} must fit 12 digits with at most 3 decimal places."
+            )
         return value

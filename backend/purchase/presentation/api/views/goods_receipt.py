@@ -1,15 +1,24 @@
 from rest_framework import serializers, status
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import APIException, NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
 from core.enums import PermissionCode
+from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
+from inventory.infrastructure.django.repositories import (
+    DjangoIngredientRepository,
+    DjangoStockMovementRepository,
+    DjangoStockRepository,
+    DjangoWarehouseRepository,
+)
+from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from purchase.application.dto.goods_receipt import (
     CreateGoodsReceiptDTO,
     CreateGoodsReceiptItemDTO,
     ListGoodsReceiptsQuery,
 )
+from purchase.application.exceptions import GoodsReceiptIdempotencyPayloadMismatch
 from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.application.use_cases.goods_receipt.create_goods_receipt import (
     CreateGoodsReceiptUseCase,
@@ -35,19 +44,20 @@ from purchase.infrastructure.persistence.transaction import (
 from purchase.infrastructure.services.inventory_receipt_gateway import (
     DjangoInventoryReceiptGateway,
 )
-from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
-from inventory.infrastructure.django.repositories import (
-    DjangoIngredientRepository,
-    DjangoStockMovementRepository,
-    DjangoStockRepository,
-    DjangoWarehouseRepository,
-)
-from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
+from purchase.presentation.api.permissions import require_purchase_permission
 from purchase.presentation.api.serializers.goods_receipt import (
     CreateGoodsReceiptSerializer,
     GoodsReceiptSerializer,
 )
-from purchase.presentation.api.permissions import require_purchase_permission
+
+
+class GoodsReceiptIdempotencyConflictAPIException(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = {
+        "code": "idempotency_key_reused",
+        "detail": "This idempotency key was already used with different receipt data.",
+    }
+    default_code = "idempotency_key_reused"
 
 
 def _goods_receipt_repository() -> DjangoGoodsReceiptRepository:
@@ -161,7 +171,7 @@ class GoodsReceiptListCreateAPIView(TenantAPIView):
         data = serializer.validated_data
 
         try:
-            receipt = _create_goods_receipt_use_case().execute(
+            result = _create_goods_receipt_use_case().execute(
                 CreateGoodsReceiptDTO(
                     business_id=request.business.id,
                     purchase_order_id=data["purchase_order_id"],
@@ -170,14 +180,21 @@ class GoodsReceiptListCreateAPIView(TenantAPIView):
                     notes=data.get("notes", ""),
                     warehouse_id=data.get("warehouse_id"),
                     items=_item_dtos(data["items"]),
+                    idempotency_key=data["idempotency_key"],
                 )
             )
+        except GoodsReceiptIdempotencyPayloadMismatch as error:
+            raise GoodsReceiptIdempotencyConflictAPIException() from error
         except ValueError as error:
             _handle_goods_receipt_error(error)
 
         return Response(
-            GoodsReceiptSerializer(receipt).data,
-            status=status.HTTP_201_CREATED,
+            GoodsReceiptSerializer(result.receipt).data,
+            status=(
+                status.HTTP_200_OK
+                if result.replayed
+                else status.HTTP_201_CREATED
+            ),
         )
 
 

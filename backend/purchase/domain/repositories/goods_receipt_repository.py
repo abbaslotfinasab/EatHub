@@ -1,10 +1,20 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from uuid import UUID
 
 from purchase.domain.entities.goods_receipt import GoodsReceipt
 
 
 class GoodsReceiptRepository(ABC):
+
+    @abstractmethod
+    def get_by_idempotency_key_for_business(
+        self,
+        idempotency_key: UUID,
+        business_id: int,
+    ) -> GoodsReceipt | None:
+        """Return a keyed receipt only within the specified business."""
+        raise NotImplementedError
 
     @abstractmethod
     def get_by_id_for_business(

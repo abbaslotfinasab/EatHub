@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 from purchase.domain.enums.purchase_unit import PurchaseUnit
 
@@ -67,6 +68,9 @@ class GoodsReceipt:
     items: list[GoodsReceiptItem] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    idempotency_key: UUID | None = None
+    payload_fingerprint: str | None = None
+    payload_version: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.business_id, int) or self.business_id <= 0:

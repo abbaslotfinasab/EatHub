@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 from purchase.domain.enums.purchase_unit import PurchaseUnit
+from purchase.domain.entities.goods_receipt import GoodsReceipt
 
 
 @dataclass(frozen=True)
@@ -20,8 +22,15 @@ class CreateGoodsReceiptDTO:
     received_by_id: int
     received_date: datetime
     items: list[CreateGoodsReceiptItemDTO]
+    idempotency_key: UUID
     notes: str = ""
     warehouse_id: int | None = None
+
+
+@dataclass(frozen=True)
+class GoodsReceiptCreationResult:
+    receipt: GoodsReceipt
+    replayed: bool
 
 
 @dataclass(frozen=True)

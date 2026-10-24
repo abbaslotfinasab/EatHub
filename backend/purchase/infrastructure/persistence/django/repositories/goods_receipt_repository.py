@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Prefetch, Sum
 
+from purchase.application.exceptions import GoodsReceiptIdempotencyKeyRace
 from purchase.domain.entities.goods_receipt import GoodsReceipt
 from purchase.domain.repositories.goods_receipt_repository import (
     GoodsReceiptRepository,
@@ -50,6 +52,17 @@ class DjangoGoodsReceiptRepository(GoodsReceiptRepository):
             return None
 
         return GoodsReceiptMapper.to_domain(model)
+
+    def get_by_idempotency_key_for_business(
+        self,
+        idempotency_key: UUID,
+        business_id: int,
+    ) -> GoodsReceipt | None:
+        model = self._aggregate_queryset().filter(
+            business_id=business_id,
+            idempotency_key=idempotency_key,
+        ).first()
+        return None if model is None else GoodsReceiptMapper.to_domain(model)
 
     def list(
         self,
@@ -101,13 +114,32 @@ class DjangoGoodsReceiptRepository(GoodsReceiptRepository):
             goods_receipt.validate()
             if goods_receipt.id is not None:
                 raise ValueError("Goods receipts are immutable once created.")
+            if (
+                goods_receipt.idempotency_key is None
+                or goods_receipt.payload_fingerprint is None
+                or goods_receipt.payload_version is None
+                or goods_receipt.payload_version < 1
+            ):
+                raise ValueError(
+                    "New goods receipts require an idempotency key and payload fingerprint."
+                )
             self._validate_cross_aggregate_ownership(goods_receipt)
 
             if goods_receipt.id is None:
                 model = GoodsReceiptMapper.to_model(goods_receipt)
                 existing_items: list[DjangoGoodsReceiptItem] = []
 
-            model.save()
+            try:
+                # Isolate only the header insert: this is the database claim
+                # for the (business, key) identity. The application resolves a
+                # recognized collision only after its outer transaction rolls
+                # back; this broken savepoint is never queried.
+                with transaction.atomic():
+                    model.save(force_insert=True)
+            except IntegrityError as error:
+                if self._is_receipt_idempotency_unique_conflict(error):
+                    raise GoodsReceiptIdempotencyKeyRace(error) from error
+                raise
             self._synchronize_items(model, goods_receipt, existing_items)
 
             saved_model = self._aggregate_queryset().get(
@@ -116,6 +148,30 @@ class DjangoGoodsReceiptRepository(GoodsReceiptRepository):
             )
 
         return GoodsReceiptMapper.to_domain(saved_model)
+
+
+    @staticmethod
+    def _is_receipt_idempotency_unique_conflict(error: IntegrityError) -> bool:
+        """Recognize only the receipt-key constraint on the header INSERT.
+
+        PostgreSQL exposes the named constraint through psycopg diagnostics.
+        SQLite does not expose constraint names, so its extended UNIQUE result
+        code is accepted only around this header insert (the other unique key
+        is the generated primary key, reported separately as PRIMARYKEY).
+        """
+        driver_error = error.__cause__
+        if driver_error is None:
+            return False
+
+        diagnostic = getattr(driver_error, "diag", None)
+        if getattr(diagnostic, "constraint_name", None) == "pur_gr_business_idem_uq":
+            return True
+
+        sqlite_name = getattr(driver_error, "sqlite_errorname", None)
+        sqlite_code = getattr(driver_error, "sqlite_errorcode", None)
+        return sqlite_name == "SQLITE_CONSTRAINT_UNIQUE" or (
+            sqlite_name is None and sqlite_code == 2067
+        )
 
     @staticmethod
     def _synchronize_items(

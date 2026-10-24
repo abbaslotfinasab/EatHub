@@ -23,6 +23,9 @@ class CreateGoodsReceiptItemSerializer(serializers.Serializer):
 
 
 class CreateGoodsReceiptSerializer(serializers.Serializer):
+    idempotency_key = serializers.UUIDField(
+        help_text="Client-generated UUID reused for retries of this receipt request."
+    )
     purchase_order_id = serializers.IntegerField(min_value=1)
     received_date = serializers.DateTimeField()
     notes = serializers.CharField(required=False, allow_blank=True, default="")

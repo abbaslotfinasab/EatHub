@@ -1,5 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
+from unittest.mock import patch
+from uuid import uuid4
 
 from django.test import TestCase
 from rest_framework import status
@@ -9,10 +11,12 @@ from accounts.enums import RoleCode
 from accounts.models import Business, Membership, Role, RolePermission, User
 from accounts.services.rbac_initializer import RBACInitializer
 from core.enums import PermissionCode
-from inventory.models import Ingredient, Warehouse
+from inventory.application.exceptions import InvalidApplicationInput
 from inventory.infrastructure.django.models import InventoryV1StockMovement
+from inventory.models import Ingredient, Warehouse
 from purchase.models import (
     GoodsReceipt as DjangoGoodsReceipt,
+    GoodsReceiptItem as DjangoGoodsReceiptItem,
     PurchaseOrder as DjangoPurchaseOrder,
     PurchaseOrderItem as DjangoPurchaseOrderItem,
     Supplier as DjangoSupplier,
@@ -35,6 +39,12 @@ class GoodsReceiptAPITests(APITestCase):
             name="Other Receiver",
             number="7002",
         )
+        self.same_business_user = User.objects.create_user(
+            email="second-receiver@example.com",
+            password="password",
+            name="Second Receiver",
+            number="7003",
+        )
         self.business = Business.objects.create(name="Goods Receipt Business")
         self.other_business = Business.objects.create(
             name="Other Goods Receipt Business"
@@ -53,6 +63,12 @@ class GoodsReceiptAPITests(APITestCase):
         )
         Membership.objects.create(
             user=self.user,
+            business=self.business,
+            role=role,
+            is_active=True,
+        )
+        Membership.objects.create(
+            user=self.same_business_user,
             business=self.business,
             role=role,
             is_active=True,
@@ -123,6 +139,7 @@ class GoodsReceiptAPITests(APITestCase):
 
     def payload(self, **overrides: object) -> dict:
         payload = {
+            "idempotency_key": str(uuid4()),
             "purchase_order_id": self.order[0].id,
             "received_date": "2026-09-08T12:00:00Z",
             "notes": "Received shipment",
@@ -155,6 +172,125 @@ class GoodsReceiptAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["business_id"], self.business.id)
         self.assertEqual(response.data["received_by_id"], self.user.id)
+
+    def test_same_key_and_payload_replays_without_duplicate_inventory_posting(self):
+        key = str(uuid4())
+        first = self.create_receipt(idempotency_key=key)
+        self.order[0].refresh_from_db()
+        status_after_create = self.order[0].status
+        receipt_count = DjangoGoodsReceipt.objects.count()
+        line_count = DjangoGoodsReceiptItem.objects.count()
+        movement_count = InventoryV1StockMovement.objects.count()
+
+        replay = self.create_receipt(idempotency_key=key)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(replay.status_code, status.HTTP_200_OK)
+        self.assertEqual(replay.data, first.data)
+        self.assertEqual(DjangoGoodsReceipt.objects.count(), receipt_count)
+        self.assertEqual(DjangoGoodsReceiptItem.objects.count(), line_count)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), movement_count)
+        self.order[0].refresh_from_db()
+        self.assertEqual(self.order[0].status, status_after_create)
+
+    def test_same_key_with_changed_payload_returns_conflict_without_mutation(self):
+        key = str(uuid4())
+        first = self.create_receipt(idempotency_key=key)
+        receipt_count = DjangoGoodsReceipt.objects.count()
+        line_count = DjangoGoodsReceiptItem.objects.count()
+        movement_count = InventoryV1StockMovement.objects.count()
+        self.order[0].refresh_from_db()
+        prior_status = self.order[0].status
+
+        conflict = self.create_receipt(
+            idempotency_key=key,
+            items=[{
+                "purchase_order_item_id": self.order[1].id,
+                "received_quantity": "5.000",
+                "rejected_quantity": "0.000",
+                "purchase_unit": "kg",
+            }],
+        )
+
+        self.assertEqual(conflict.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(conflict.data["code"], "idempotency_key_reused")
+        self.assertEqual(DjangoGoodsReceipt.objects.count(), receipt_count)
+        self.assertEqual(DjangoGoodsReceiptItem.objects.count(), line_count)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), movement_count)
+        self.order[0].refresh_from_db()
+        self.assertEqual(self.order[0].status, prior_status)
+        self.assertTrue(DjangoGoodsReceipt.objects.filter(pk=first.data["id"]).exists())
+
+    def test_same_key_retried_by_another_authorized_user_replays_receipt(self):
+        key = str(uuid4())
+        first = self.create_receipt(idempotency_key=key)
+        self.client.force_authenticate(self.same_business_user)
+
+        replay = self.create_receipt(idempotency_key=key)
+
+        self.assertEqual(replay.status_code, status.HTTP_200_OK)
+        self.assertEqual(replay.data["id"], first.data["id"])
+        self.assertEqual(replay.data["received_by_id"], self.user.id)
+        self.assertEqual(DjangoGoodsReceipt.objects.count(), 1)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    def test_same_key_is_independent_and_scoped_to_another_business(self):
+        key = str(uuid4())
+        first = self.create_receipt(idempotency_key=key)
+        self.client.force_authenticate(self.other_user)
+        other_payload = self.payload(
+            idempotency_key=key,
+            purchase_order_id=self.other_order[0].id,
+            items=[{
+                "purchase_order_item_id": self.other_order[1].id,
+                "received_quantity": "4.000",
+                "rejected_quantity": "0.000",
+                "purchase_unit": "kg",
+            }],
+        )
+
+        response = self.client.post(self.endpoint, other_payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertNotEqual(response.data["id"], first.data["id"])
+        self.assertEqual(response.data["business_id"], self.other_business.id)
+        self.assertEqual(DjangoGoodsReceipt.objects.count(), 2)
+
+    def test_idempotency_key_is_required_and_must_be_a_uuid(self):
+        missing = self.payload()
+        missing.pop("idempotency_key")
+        missing_response = self.client.post(self.endpoint, missing, format="json")
+        invalid_response = self.client.post(
+            self.endpoint,
+            self.payload(idempotency_key="not-a-uuid"),
+            format="json",
+        )
+
+        self.assertEqual(missing_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(DjangoGoodsReceipt.objects.count(), 0)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
+
+    def test_inventory_failure_rolls_back_receipt_and_key_for_retry(self):
+        key = str(uuid4())
+        with patch(
+            "purchase.presentation.api.views.goods_receipt.ReceiveStockUseCase.execute",
+            side_effect=InvalidApplicationInput("temporary inventory failure"),
+        ):
+            failed = self.create_receipt(idempotency_key=key)
+
+        self.assertEqual(failed.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(DjangoGoodsReceipt.objects.exists())
+        self.assertFalse(DjangoGoodsReceiptItem.objects.exists())
+        self.assertFalse(InventoryV1StockMovement.objects.exists())
+        self.order[0].refresh_from_db()
+        self.assertEqual(self.order[0].status, DjangoPurchaseOrder.Status.SENT)
+
+        retry = self.create_receipt(idempotency_key=key)
+
+        self.assertEqual(retry.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(DjangoGoodsReceipt.objects.count(), 1)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
 
     def test_receipt_creation_requires_receipt_permission(self):
         RolePermission.objects.filter(
@@ -286,6 +422,18 @@ class GoodsReceiptAPITests(APITestCase):
 
         self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_quantity_precision_beyond_three_decimal_places_is_rejected(self):
+        response = self.create_receipt(items=[{
+            "purchase_order_item_id": self.order[1].id,
+            "received_quantity": "1.0001",
+            "rejected_quantity": "0.000",
+            "purchase_unit": "kg",
+        }])
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(DjangoGoodsReceipt.objects.exists())
+        self.assertFalse(InventoryV1StockMovement.objects.exists())
 
     def test_over_receiving_is_bad_request(self):
         response = self.create_receipt(items=[{

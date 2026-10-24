@@ -343,6 +343,9 @@ class GoodsReceiptMapper:
             ],
             created_at=model.created_at,
             updated_at=model.updated_at,
+            idempotency_key=model.idempotency_key,
+            payload_fingerprint=model.payload_fingerprint,
+            payload_version=model.payload_version,
         )
 
     @staticmethod
@@ -360,6 +363,9 @@ class GoodsReceiptMapper:
         model.received_date = entity.received_date
         model.notes = entity.notes
         model.warehouse_id = entity.warehouse_id
+        model.idempotency_key = entity.idempotency_key
+        model.payload_fingerprint = entity.payload_fingerprint
+        model.payload_version = entity.payload_version
         model.created_at = entity.created_at
         model.updated_at = entity.updated_at
 

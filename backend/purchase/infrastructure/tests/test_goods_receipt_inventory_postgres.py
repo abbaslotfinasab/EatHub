@@ -1,8 +1,11 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime
 from decimal import Decimal
+from threading import Barrier
 from unittest import skipUnless
+from uuid import uuid4
 
-from django.db import connection
+from django.db import connection, connections
 from django.test import TransactionTestCase
 
 from accounts.models import Business, User
@@ -24,6 +27,7 @@ from purchase.application.dto.goods_receipt import (
     CreateGoodsReceiptItemDTO,
 )
 from purchase.application.exceptions import PurchaseInventoryIntegrationError
+from purchase.application.exceptions import GoodsReceiptIdempotencyPayloadMismatch
 from purchase.application.use_cases.goods_receipt.create_goods_receipt import (
     CreateGoodsReceiptUseCase,
 )
@@ -42,6 +46,7 @@ from purchase.infrastructure.services.inventory_receipt_gateway import (
     DjangoInventoryReceiptGateway,
 )
 from purchase.models import (
+    GoodsReceipt,
     GoodsReceiptItem,
     PurchaseOrder,
     PurchaseOrderItem,
@@ -94,6 +99,9 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         )
 
     def _use_case(self) -> CreateGoodsReceiptUseCase:
+        return self._use_case_with_repository(DjangoGoodsReceiptRepository())
+
+    def _use_case_with_repository(self, receipt_repository) -> CreateGoodsReceiptUseCase:
         inventory = ReceiveStockUseCase(
             DjangoWarehouseRepository(),
             DjangoIngredientRepository(),
@@ -102,32 +110,59 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
             DjangoInventoryUnitOfWork(),
         )
         return CreateGoodsReceiptUseCase(
-            DjangoGoodsReceiptRepository(),
+            receipt_repository,
             DjangoPurchaseOrderRepository(),
             DjangoPurchaseOrderLineReader(),
             DjangoInventoryReceiptGateway(inventory),
             DjangoTransactionManager(),
         )
 
-    def _command(self, item: PurchaseOrderItem, *, unit: PurchaseUnit) -> CreateGoodsReceiptDTO:
+    def _command(
+        self,
+        item: PurchaseOrderItem,
+        *,
+        unit: PurchaseUnit,
+        key=None,
+        quantity: str = "500",
+        order: PurchaseOrder | None = None,
+    ) -> CreateGoodsReceiptDTO:
         return CreateGoodsReceiptDTO(
             business_id=self.business.id,
-            purchase_order_id=self.order.id,
+            purchase_order_id=(order or self.order).id,
             received_by_id=self.user.id,
             received_date=datetime(2026, 10, 2, 12),
+            idempotency_key=key or uuid4(),
             items=[
                 CreateGoodsReceiptItemDTO(
                     purchase_order_item_id=item.id,
-                    received_quantity=Decimal("500"),
+                    received_quantity=Decimal(quantity),
                     purchase_unit=unit,
                 )
             ],
         )
 
+    def _run_concurrently(self, workers):
+        barrier = Barrier(len(workers))
+
+        def run(worker):
+            connections.close_all()
+            try:
+                barrier.wait(timeout=15)
+                return worker()
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=len(workers)) as executor:
+            futures = [executor.submit(run, worker) for worker in workers]
+            return [future.result(timeout=30) for future in futures]
+
     def test_receipt_and_inventory_movement_commit_atomically(self) -> None:
         item = self._item(unit="g")
 
-        receipt = self._use_case().execute(self._command(item, unit=PurchaseUnit.G))
+        result = self._use_case().execute(self._command(item, unit=PurchaseUnit.G))
+        receipt = result.receipt
 
         stock = InventoryV1Stock.objects.get(
             business=self.business,
@@ -144,9 +179,12 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
 
     def test_inventory_failure_rolls_back_goods_receipt_and_purchase_state(self) -> None:
         item = self._item(unit="l")
+        key = uuid4()
 
         with self.assertRaises(PurchaseInventoryIntegrationError):
-            self._use_case().execute(self._command(item, unit=PurchaseUnit.L))
+            self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.L, key=key)
+            )
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, PurchaseOrder.Status.SENT)
@@ -154,3 +192,97 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(GoodsReceiptItem.objects.count(), 0)
         self.assertEqual(InventoryV1Stock.objects.count(), 0)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
+
+        item.purchase_unit = "kg"
+        item.save(update_fields=["purchase_unit", "updated_at"])
+        retry = self._use_case().execute(
+            self._command(item, unit=PurchaseUnit.KG, key=key)
+        )
+        self.assertFalse(retry.replayed)
+        self.assertEqual(self.order.receipts.count(), 1)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    def test_concurrent_same_key_same_payload_creates_one_receipt_and_movement(self) -> None:
+        item = self._item(unit="g")
+        key = uuid4()
+        command = self._command(item, unit=PurchaseUnit.G, key=key)
+        results = self._run_concurrently([
+            lambda: self._use_case().execute(command),
+            lambda: self._use_case().execute(command),
+        ])
+
+        self.assertFalse(any(isinstance(result, Exception) for result in results))
+        self.assertEqual(sum(result.replayed for result in results), 1)
+        self.assertEqual(results[0].receipt.id, results[1].receipt.id)
+        self.assertEqual(self.order.receipts.count(), 1)
+        self.assertEqual(GoodsReceiptItem.objects.count(), 1)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    def test_concurrent_same_key_different_payload_conflicts_without_duplicate_posting(self) -> None:
+        item = self._item(unit="g")
+        key = uuid4()
+        results = self._run_concurrently([
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, key=key, quantity="400")
+            ),
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, key=key, quantity="500")
+            ),
+        ])
+
+        self.assertEqual(sum(not isinstance(result, Exception) for result in results), 1)
+        self.assertEqual(
+            sum(isinstance(result, GoodsReceiptIdempotencyPayloadMismatch) for result in results),
+            1,
+        )
+        self.assertEqual(self.order.receipts.count(), 1)
+        self.assertEqual(GoodsReceiptItem.objects.count(), 1)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    def test_concurrent_key_claim_race_across_orders_recovers_winner_after_rollback(self) -> None:
+        first_item = self._item(unit="g")
+        other_order = PurchaseOrder.objects.create(
+            business=self.business,
+            supplier=self.supplier,
+            order_date=date(2026, 10, 1),
+            status=PurchaseOrder.Status.SENT,
+        )
+        second_item = PurchaseOrderItem.objects.create(
+            purchase_order=other_order,
+            ingredient=self.ingredient,
+            quantity=Decimal("1000"),
+            unit_price=Decimal("150"),
+            purchase_unit="g",
+        )
+        key = uuid4()
+        insert_barrier = Barrier(2)
+
+        class BarrierRepository(DjangoGoodsReceiptRepository):
+            def save(inner_self, receipt):
+                insert_barrier.wait(timeout=15)
+                return super(BarrierRepository, inner_self).save(receipt)
+
+        def execute(item, order, quantity):
+            return self._use_case_with_repository(BarrierRepository()).execute(
+                self._command(
+                    item,
+                    unit=PurchaseUnit.G,
+                    key=key,
+                    quantity=quantity,
+                    order=order,
+                )
+            )
+
+        results = self._run_concurrently([
+            lambda: execute(first_item, self.order, "400"),
+            lambda: execute(second_item, other_order, "500"),
+        ])
+
+        self.assertEqual(sum(not isinstance(result, Exception) for result in results), 1)
+        self.assertEqual(
+            sum(isinstance(result, GoodsReceiptIdempotencyPayloadMismatch) for result in results),
+            1,
+        )
+        self.assertEqual(GoodsReceipt.objects.filter(business=self.business).count(), 1)
+        self.assertEqual(GoodsReceiptItem.objects.count(), 1)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)

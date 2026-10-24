@@ -310,6 +310,35 @@ class GoodsReceipt(BaseModel):
         blank=True
     )
 
+    # Nullable only for receipts created before request idempotency existed.
+    idempotency_key = models.UUIDField(null=True, blank=True)
+    payload_fingerprint = models.CharField(max_length=64, null=True, blank=True)
+    payload_version = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("business", "idempotency_key"),
+                name="pur_gr_business_idem_uq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        idempotency_key__isnull=True,
+                        payload_fingerprint__isnull=True,
+                        payload_version__isnull=True,
+                    )
+                    | models.Q(
+                        idempotency_key__isnull=False,
+                        payload_fingerprint__isnull=False,
+                        payload_version__isnull=False,
+                        payload_version__gte=1,
+                    )
+                ),
+                name="pur_gr_key_fp_pair_ck",
+            ),
+        ]
+
 
 class GoodsReceiptItem(BaseModel):
 

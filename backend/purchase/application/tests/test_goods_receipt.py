@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from unittest import TestCase
+from uuid import uuid4
 
 from purchase.application.dto.goods_receipt import (
     CreateGoodsReceiptDTO,
@@ -11,6 +12,7 @@ from purchase.application.ports.goods_receipt import (
     InventoryReceiptRequest,
     PurchaseOrderLine,
 )
+from purchase.application.exceptions import GoodsReceiptIdempotencyPayloadMismatch
 from purchase.application.use_cases.goods_receipt.create_goods_receipt import (
     CreateGoodsReceiptUseCase,
 )
@@ -103,6 +105,17 @@ class FakeGoodsReceiptRepository:
             None,
         )
 
+    def get_by_idempotency_key_for_business(self, idempotency_key, business_id):
+        return next(
+            (
+                receipt
+                for receipt in self.receipts
+                if receipt.business_id == business_id
+                and receipt.idempotency_key == idempotency_key
+            ),
+            None,
+        )
+
     def list(self, business_id, *, purchase_order_id=None, **kwargs):
         return [
             receipt
@@ -122,6 +135,7 @@ class FakeGoodsReceiptRepository:
         for index, item in enumerate(goods_receipt.items, start=1):
             item.id = item.id or (goods_receipt.id * 100 + index)
         self.saved.append(goods_receipt)
+        self.receipts.append(goods_receipt)
         return goods_receipt
 
 
@@ -167,6 +181,7 @@ class GoodsReceiptApplicationTests(TestCase):
             "purchase_order_id": 10,
             "received_by_id": 3,
             "received_date": datetime(2026, 9, 8, 12),
+            "idempotency_key": uuid4(),
             "items": [
                 CreateGoodsReceiptItemDTO(
                     purchase_order_item_id=20,
@@ -179,9 +194,11 @@ class GoodsReceiptApplicationTests(TestCase):
         return CreateGoodsReceiptDTO(**values)
 
     def test_creates_valid_receipt_and_partial_po(self) -> None:
-        receipt = self.create_use_case.execute(self.command())
+        result = self.create_use_case.execute(self.command(notes="  delivery note  "))
+        receipt = result.receipt
 
         self.assertEqual(receipt.business_id, 1)
+        self.assertEqual(receipt.notes, "delivery note")
         self.assertEqual(self.order.status, PurchaseOrderStatus.PARTIAL)
         self.assertEqual(self.stock_gateway.requests[0].quantity_amount, Decimal("4"))
         self.assertEqual(self.stock_gateway.requests[0].quantity_unit, PurchaseUnit.KG)
@@ -191,6 +208,60 @@ class GoodsReceiptApplicationTests(TestCase):
         self.assertEqual(self.stock_gateway.requests[0].actor_id, 3)
         self.assertTrue(self.transaction_manager.committed)
         self.assertEqual(self.purchase_order_repository.locked_lookup_calls, [(10, 1)])
+
+    def test_same_key_and_payload_replays_without_inventory_or_po_changes(self) -> None:
+        key = uuid4()
+        command = self.command(idempotency_key=key)
+
+        first = self.create_use_case.execute(command)
+        saved_order_count = len(self.purchase_order_repository.saved)
+        replay = self.create_use_case.execute(command)
+
+        self.assertFalse(first.replayed)
+        self.assertTrue(replay.replayed)
+        self.assertEqual(replay.receipt.id, first.receipt.id)
+        self.assertEqual(len(self.goods_receipt_repository.saved), 1)
+        self.assertEqual(len(self.stock_gateway.requests), 1)
+        self.assertEqual(len(self.purchase_order_repository.saved), saved_order_count)
+
+    def test_replay_succeeds_after_original_receipt_completes_purchase_order(self) -> None:
+        command = self.command(
+            idempotency_key=uuid4(),
+            items=[CreateGoodsReceiptItemDTO(20, Decimal("10"), PurchaseUnit.KG)],
+        )
+
+        first = self.create_use_case.execute(command)
+        self.assertEqual(self.order.status, PurchaseOrderStatus.RECEIVED)
+        order_save_count = len(self.purchase_order_repository.saved)
+        lock_count = len(self.purchase_order_repository.locked_lookup_calls)
+
+        replay = self.create_use_case.execute(command)
+
+        self.assertTrue(replay.replayed)
+        self.assertEqual(replay.receipt.id, first.receipt.id)
+        self.assertEqual(self.order.status, PurchaseOrderStatus.RECEIVED)
+        self.assertEqual(len(self.goods_receipt_repository.saved), 1)
+        self.assertEqual(len(self.stock_gateway.requests), 1)
+        self.assertEqual(len(self.purchase_order_repository.saved), order_save_count)
+        self.assertEqual(len(self.purchase_order_repository.locked_lookup_calls), lock_count)
+
+    def test_same_key_with_different_payload_conflicts_without_mutation(self) -> None:
+        key = uuid4()
+        first = self.create_use_case.execute(self.command(idempotency_key=key))
+        order_save_count = len(self.purchase_order_repository.saved)
+
+        with self.assertRaises(GoodsReceiptIdempotencyPayloadMismatch):
+            self.create_use_case.execute(
+                self.command(
+                    idempotency_key=key,
+                    items=[CreateGoodsReceiptItemDTO(20, Decimal("5"), PurchaseUnit.KG)],
+                )
+            )
+
+        self.assertEqual(len(self.goods_receipt_repository.saved), 1)
+        self.assertEqual(len(self.stock_gateway.requests), 1)
+        self.assertEqual(len(self.purchase_order_repository.saved), order_save_count)
+        self.assertEqual(self.goods_receipt_repository.saved[0].id, first.receipt.id)
 
     def test_missing_po_is_rejected_through_tenant_scoped_locked_lookup(self) -> None:
         with self.assertRaises(ValueError):
@@ -275,6 +346,29 @@ class GoodsReceiptApplicationTests(TestCase):
                 CreateGoodsReceiptItemDTO(20, Decimal("1"), PurchaseUnit.KG, Decimal("-1")),
             ]))
 
+    def test_quantities_must_fit_persisted_decimal_precision(self) -> None:
+        for accepted, rejected in (
+            (Decimal("1.0001"), Decimal("0")),
+            (Decimal("1.0000"), Decimal("0")),
+            (Decimal("1"), Decimal("0.0001")),
+            (Decimal("1000000000"), Decimal("0")),
+            (Decimal("NaN"), Decimal("0")),
+        ):
+            with self.subTest(accepted=accepted, rejected=rejected):
+                with self.assertRaises(ValueError):
+                    self.create_use_case.execute(
+                        self.command(
+                            items=[
+                                CreateGoodsReceiptItemDTO(
+                                    20,
+                                    accepted,
+                                    PurchaseUnit.KG,
+                                    rejected,
+                                )
+                            ]
+                        )
+                    )
+
     def test_over_receiving_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             self.create_use_case.execute(self.command(items=[
@@ -282,11 +376,11 @@ class GoodsReceiptApplicationTests(TestCase):
             ]))
 
     def test_full_receipt_transitions_po_to_received(self) -> None:
-        receipt = self.create_use_case.execute(self.command(items=[
+        result = self.create_use_case.execute(self.command(items=[
             CreateGoodsReceiptItemDTO(20, Decimal("10"), PurchaseUnit.KG),
         ]))
 
-        self.assertIsNotNone(receipt)
+        self.assertIsNotNone(result.receipt)
         self.assertEqual(self.order.status, PurchaseOrderStatus.RECEIVED)
 
     def test_previous_receipts_are_counted(self) -> None:
