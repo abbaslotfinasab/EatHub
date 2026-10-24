@@ -1,73 +1,77 @@
-# React + TypeScript + Vite
+# EatHub
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+EatHub is a multi-tenant ERP platform for restaurant and hospitality
+operations. The repository contains a Django REST API, a React and TypeScript
+web client, and Docker-based deployment configuration.
 
-Currently, two official plugins are available:
+## Repository layout
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `backend/` — Django project and applications, including accounts, products,
+  inventory, purchase, customer, financial, and shared core functionality.
+- `frontend/` — React and TypeScript application built with Vite.
+- `deployment/` — Docker Compose, Nginx, release, and static-asset integrity
+  documentation and configuration.
 
-## React Compiler
+The backend project settings are in `backend/EatHub/settings.py`. The Purchase
+application uses domain, application, infrastructure, and presentation layers;
+other backend applications may follow their existing Django conventions.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Backend development
 
-## Expanding the ESLint configuration
+Use a Python version compatible with the packages in `backend/requirements.txt`.
+From the repository root, create and activate a virtual environment, then
+install the backend requirements:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Configure the backend environment and a local development database according
+to `backend/EatHub/settings.py` before running Django management commands. Run
+migrations only against the intended development database. To initialize and
+start the local Django development server:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```powershell
+python manage.py migrate
+python manage.py runserver
 ```
+
+Run backend tests from `backend/` with the configured interpreter:
+
+```powershell
+python manage.py test
+```
+
+Ensure the test database is isolated from persistent development data before
+running tests.
+
+## Frontend development
+
+From `frontend/`, install the versions recorded in the npm lockfile and start
+the Vite development server:
+
+```sh
+npm ci
+npm run dev
+```
+
+The available validation scripts are:
+
+```sh
+npm run lint
+npm run build
+```
+
+`deployment/.env.frontend.example` documents public frontend build settings.
+Values exposed to the browser must not contain credentials or other secrets.
+Keep real environment files and local configuration out of Git.
+
+## Deployment
+
+Review [deployment/STATIC_ASSETS.md](deployment/STATIC_ASSETS.md) for the
+repository's documented release, rollback, and static-asset integrity process.
+Deployment procedures have operational prerequisites; do not run them against
+a live environment without the required review and authorization.
