@@ -118,3 +118,75 @@ class PurchasePermissionMigrationForwardTests(TransactionTestCase):
 
         self.assertEqual(Permission.objects.count(), permission_count)
         self.assertEqual(RolePermission.objects.count(), assignment_count)
+
+
+class InventoryMasterPermissionMigrationTests(SimpleTestCase):
+    def test_inventory_master_permission_migration_is_non_destructive_on_reverse(self):
+        migration_module = import_module(
+            "accounts.migrations.0010_inventory_master_permissions"
+        )
+        operation = migration_module.Migration.operations[0]
+        self.assertIsNotNone(operation.reverse_code)
+
+
+class InventoryMasterPermissionMigrationForwardTests(TransactionTestCase):
+    reset_sequences = True
+
+    def test_master_permissions_are_added_only_to_system_owners_and_managers(self):
+        migration_module = import_module(
+            "accounts.migrations.0010_inventory_master_permissions"
+        )
+        businesses = [
+            Business.objects.create(name="Inventory permission business one"),
+            Business.objects.create(name="Inventory permission business two"),
+        ]
+        roles = {}
+        for business in businesses:
+            roles[business.pk] = {
+                code: Role.objects.create(
+                    business=business,
+                    name=code.title(),
+                    code=code,
+                    is_system=True,
+                )
+                for code in ("OWNER", "MANAGER", "CASHIER")
+            }
+        custom_owner = Role.objects.create(
+            business=businesses[0], name="Custom owner", code="CUSTOM_OWNER", is_system=False
+        )
+        unrelated = Permission.objects.create(name="Unrelated", code="test.unrelated")
+        RolePermission.objects.create(role=custom_owner, permission=unrelated)
+        operation = migration_module.Migration.operations[0]
+
+        with connection.schema_editor() as schema_editor:
+            operation.code(apps, schema_editor)
+
+        expected = set(migration_module.PERMISSIONS)
+        for business in businesses:
+            owner_codes = set(
+                roles[business.pk]["OWNER"].role_permissions.values_list(
+                    "permission__code", flat=True
+                )
+            )
+            manager_codes = set(
+                roles[business.pk]["MANAGER"].role_permissions.values_list(
+                    "permission__code", flat=True
+                )
+            )
+            cashier_codes = set(
+                roles[business.pk]["CASHIER"].role_permissions.values_list(
+                    "permission__code", flat=True
+                )
+            )
+            self.assertTrue(expected.issubset(owner_codes))
+            self.assertEqual(manager_codes, expected)
+            self.assertTrue(expected.isdisjoint(cashier_codes))
+        self.assertEqual(
+            set(custom_owner.role_permissions.values_list("permission__code", flat=True)),
+            {unrelated.code},
+        )
+
+        counts = (Permission.objects.count(), RolePermission.objects.count())
+        with connection.schema_editor() as schema_editor:
+            operation.code(apps, schema_editor)
+        self.assertEqual((Permission.objects.count(), RolePermission.objects.count()), counts)

@@ -1,3 +1,4 @@
+import builtins
 import sqlite3
 
 from django.db import IntegrityError, OperationalError, transaction
@@ -244,7 +245,7 @@ class DjangoRequisitionRepository(RequisitionRepository):
         self,
         requisition_id: int,
         business_id: int,
-    ) -> list[PurchaseRequisitionDecisionEntity]:
+    ) -> builtins.list[PurchaseRequisitionDecisionEntity]:
         models = (
             PurchaseRequisitionDecision.objects.filter(
                 requisition_id=requisition_id,

@@ -4,4 +4,5 @@ import type {RecipeComponents} from "./RecipeComponents.ts";
 export interface RecipeResult {
     recipe: Recipe;
     ingredients: RecipeComponents[];
+    outputs: RecipeComponents[];
 }

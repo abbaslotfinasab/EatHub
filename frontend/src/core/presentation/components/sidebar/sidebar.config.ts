@@ -18,14 +18,13 @@ import Inventory2RoundedIcon
 import WarehouseRoundedIcon
     from "@mui/icons-material/WarehouseRounded";
 
-import ShoppingCartRoundedIcon
-    from "@mui/icons-material/ShoppingCartRounded";
-
 import AssessmentRoundedIcon
     from "@mui/icons-material/AssessmentRounded";
 
 import AccountBalanceWalletRoundedIcon
     from "@mui/icons-material/AccountBalanceWalletRounded";
+
+import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 
 import PeopleRoundedIcon
     from "@mui/icons-material/PeopleRounded";
@@ -61,7 +60,7 @@ export const dashboardItem: SidebarMenuItem = {
 
 export const sidebarSections: SidebarSectionConfig[] = [
     {
-        title: "عملیات",
+        title: "فروش",
 
         items: [
             {
@@ -81,6 +80,8 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 path: "/reserve",
                 icon: PointOfSaleRoundedIcon,
             },
+
+
         ],
     },
 
@@ -88,31 +89,59 @@ export const sidebarSections: SidebarSectionConfig[] = [
         title: "انبار",
 
         items: [
+
+             {
+                title: "موجودی",
+                path: "/inventory",
+                icon: AssessmentRoundedIcon,
+            },
+
             {
                 title: "مواد اولیه",
                 path: "/ingredients",
                 icon: Inventory2RoundedIcon,
             },
-
-            {
-                title: "موجودی انبار",
-                path: "/inventory",
-                icon: WarehouseRoundedIcon,
-            },
-
             {
                 title: "مواد مرکب",
-                path: "/warehouses",
-                icon: WarehouseRoundedIcon,
+                path: "/materials",
+                icon: Inventory2RoundedIcon,
+                requiredPermission: "inventory.view",
             },
 
             {
-                title: "رسپی ها",
-                path: "/purchases",
-                icon: ShoppingCartRoundedIcon,
+                title: "رسپی‌ها",
+                path: "/recipes",
+                icon: MenuBookRoundedIcon,
+            },
+
+        ],
+    },
+    {
+        title: "خرید",
+
+        items: [
+
+            {
+                title: "سفارش‌های خرید",
+                path: "/purchase/orders",
+                icon: ReceiptLongRoundedIcon,
+                requiredPermission: "purchase.view",
+            },
+
+             {
+                title: "فاکتور ها",
+                path: "/facture",
+                icon: PointOfSaleRoundedIcon,
+            },
+
+            {
+                title: "حسابداری",
+                path: "/accounting",
+                icon: AccountBalanceWalletRoundedIcon,
             },
         ],
     },
+
 
     {
         title: "مالی",
@@ -126,9 +155,22 @@ export const sidebarSections: SidebarSectionConfig[] = [
             },
 
             {
-                title: "یاشگاه مشتریان",
+                title: "حسابداری",
+                path: "/accounting",
+                icon: AccountBalanceWalletRoundedIcon,
+            },
+        ],
+    },
+
+      {
+        title: "مشتری",
+
+        items: [
+
+             {
+                title: "کیف پول",
                 path: "/customers",
-                icon: AssessmentRoundedIcon,
+                icon: PointOfSaleRoundedIcon,
             },
 
             {
@@ -140,11 +182,11 @@ export const sidebarSections: SidebarSectionConfig[] = [
     },
 
     {
-        title: "مدیریت",
+        title: "کاربران",
 
         items: [
             {
-                title: "کاربران",
+                title: "کارمندان",
                 path: "/users",
                 icon: PeopleRoundedIcon,
             },
@@ -153,6 +195,12 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 title: "تنظیمات",
                 path: "/settings",
                 icon: SettingsRoundedIcon,
+            },
+
+             {
+                title: "انبارها",
+                path: "/warehouses",
+                icon: WarehouseRoundedIcon,
             },
         ],
     },

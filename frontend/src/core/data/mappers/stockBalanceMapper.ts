@@ -11,6 +11,7 @@ const toStockBalance = (dto: StockBalanceDTO): StockBalance => ({
     id: dto.id,
     ingredientId: dto.ingredient_id,
     ingredientName: dto.ingredient_name,
+    materialType: dto.material_type,
     warehouseId: dto.warehouse_id,
     warehouseName: dto.warehouse_name,
     quantity: dto.quantity,

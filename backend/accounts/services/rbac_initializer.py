@@ -25,6 +25,11 @@ ROLE_PERMISSIONS = {
 
         PermissionCode.INVENTORY_VIEW,
         PermissionCode.INVENTORY_ADJUST,
+        PermissionCode.INVENTORY_ORDER_FULFILL,
+        PermissionCode.INVENTORY_ITEM_MANAGE,
+        PermissionCode.INVENTORY_WAREHOUSE_MANAGE,
+        PermissionCode.INVENTORY_RECIPE_MANAGE,
+        PermissionCode.INVENTORY_COMPOUND_MANAGE,
 
         PermissionCode.PURCHASE_VIEW,
         PermissionCode.PURCHASE_REQUISITION_CREATE,
@@ -48,6 +53,7 @@ ROLE_PERMISSIONS = {
     RoleCode.CHEF: [
         PermissionCode.ORDERS_VIEW,
         PermissionCode.ORDERS_UPDATE,
+        PermissionCode.INVENTORY_ORDER_FULFILL,
         PermissionCode.PURCHASE_REQUISITION_VIEW_OWN,
         PermissionCode.PURCHASE_REQUISITION_CREATE,
         PermissionCode.PURCHASE_REQUISITION_SUBMIT,

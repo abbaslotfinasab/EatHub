@@ -1,0 +1,164 @@
+name: eathub-manual-dev
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${DEV_DB_NAME:?Set DEV_DB_NAME in the private development env file}
+      POSTGRES_USER: ${DEV_DB_USER:?Set DEV_DB_USER in the private development env file}
+      POSTGRES_PASSWORD: ${DEV_DB_PASSWORD:?Set DEV_DB_PASSWORD in the private development env file}
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready --username="$${POSTGRES_USER}" --dbname="$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    working_dir: /app
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    init: true
+    environment:
+      PYTHON_DOTENV_DISABLED: "1"
+      USE_SQLITE: "False"
+      DEBUG: "True"
+      SECRET_KEY: ${DEV_DJANGO_SECRET_KEY:?Set DEV_DJANGO_SECRET_KEY in the private development env file}
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DEV_DB_NAME:?Set DEV_DB_NAME in the private development env file}
+      DB_USER: ${DEV_DB_USER:?Set DEV_DB_USER in the private development env file}
+      DB_PASSWORD: ${DEV_DB_PASSWORD:?Set DEV_DB_PASSWORD in the private development env file}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - type: bind
+        source: ../backend/manage.py
+        target: /app/manage.py
+        read_only: true
+      - type: bind
+        source: ../backend/EatHub/__init__.py
+        target: /app/EatHub/__init__.py
+        read_only: true
+      - type: bind
+        source: ../backend/EatHub/asgi.py
+        target: /app/EatHub/asgi.py
+        read_only: true
+      - type: bind
+        source: ../backend/EatHub/celery.py
+        target: /app/EatHub/celery.py
+        read_only: true
+      - type: bind
+        source: ../backend/EatHub/readiness.py
+        target: /app/EatHub/readiness.py
+        read_only: true
+      - type: bind
+        source: ../backend/EatHub/settings.py
+        target: /app/EatHub/settings.py
+        read_only: true
+      - type: bind
+        source: ../backend/EatHub/urls.py
+        target: /app/EatHub/urls.py
+        read_only: true
+      - type: bind
+        source: ../backend/EatHub/wsgi.py
+        target: /app/EatHub/wsgi.py
+        read_only: true
+      - type: bind
+        source: ../backend/accounts
+        target: /app/accounts
+        read_only: true
+      - type: bind
+        source: ../backend/core
+        target: /app/core
+        read_only: true
+      - type: bind
+        source: ../backend/inventory
+        target: /app/inventory
+        read_only: true
+      - type: bind
+        source: ../backend/products
+        target: /app/products
+        read_only: true
+      - type: bind
+        source: ../backend/purchase
+        target: /app/purchase
+        read_only: true
+      - dev_media:/app/media
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import socket; s=socket.create_connection(('127.0.0.1', 8000), 2); s.close()
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    command: ["npm", "run", "dev", "--", "--config", "vite.config.docker.ts"]
+    init: true
+    environment:
+      VITE_API_BASE_URL: http://127.0.0.1:8000/api
+      VITE_BASE_URL: http://127.0.0.1:5173
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5173:5173"
+    volumes:
+      - type: bind
+        source: ../frontend/src
+        target: /workspace/src
+        read_only: true
+      - type: bind
+        source: ../frontend/index.html
+        target: /workspace/index.html
+        read_only: true
+      - frontend_node_modules:/workspace/node_modules
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5173/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+volumes:
+  dev_postgres_data:
+    labels:
+      com.eathub.environment: local-development
+  dev_media:
+    labels:
+      com.eathub.environment: local-development
+  frontend_node_modules:
+    labels:
+      com.eathub.environment: local-development

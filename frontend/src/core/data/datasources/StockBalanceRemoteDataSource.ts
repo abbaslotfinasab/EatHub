@@ -4,7 +4,7 @@ import type { StockBalancePageDTO } from "../dtos/inventory/StockBalanceDTO";
 
 export class StockBalanceRemoteDataSource {
     async list(filters: StockBalanceFilters): Promise<StockBalancePageDTO> {
-        const params: Record<string, number> = {
+        const params: Record<string, string | number> = {
             page: filters.page,
             page_size: filters.pageSize,
         };
@@ -14,6 +14,8 @@ export class StockBalanceRemoteDataSource {
         if (filters.warehouseId !== undefined) {
             params.warehouse_id = filters.warehouseId;
         }
+        if (filters.materialType !== undefined) params.material_type = filters.materialType;
+        if (filters.search?.trim()) params.search = filters.search.trim();
         const response = await apiClient.get<StockBalancePageDTO>(
             "/inventory/balances/",
             { params },

@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/auth.store';
+import { orderQueryKeys } from '../hooks/order/orderQueryKeys';
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -30,6 +31,9 @@ export const QueryProvider = ({ children }: { children: React.ReactNode }) => {
         ) {
             if (previous.userId !== null && previous.businessId !== null) {
                 queryClient.removeQueries({
+                    queryKey: orderQueryKeys.business(previous.userId, previous.businessId),
+                });
+                queryClient.removeQueries({
                     queryKey: [
                         'inventory-stock-balances',
                         previous.userId,
@@ -37,6 +41,7 @@ export const QueryProvider = ({ children }: { children: React.ReactNode }) => {
                     ],
                 });
             } else if (userId === null || businessId === null) {
+                queryClient.removeQueries({queryKey: orderQueryKeys.all});
                 // Also clear any balance entries when leaving an authenticated context.
                 queryClient.removeQueries({
                     queryKey: ['inventory-stock-balances'],

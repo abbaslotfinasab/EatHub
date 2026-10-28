@@ -31,6 +31,8 @@ import type {
 } from "../../../domain/entities/product/order/Order";
 import type {RefundOrderInput} from "../../../domain/entities/product/order/RefundOrderInput.ts";
 import type {RefundOrderResult} from "../../../domain/entities/product/order/RefundOrderInput.ts";
+import {OrderActualConsumptionPanel} from "./OrderActualConsumptionPanel.tsx";
+import {useOrderConsumptionRequirements} from "../../hooks/order/useOrderConsumptionRequirements.ts";
 
 import {
     OrderStatusFormSchema,
@@ -52,6 +54,8 @@ interface Props {
 
     canManagePayments?: boolean;
     canUpdateOrders?: boolean;
+    canFulfillInventory?: boolean;
+    businessId?: number | null;
 
     error?: string | null;
 
@@ -81,6 +85,8 @@ export function OrderStatusDialog({
                                       refundLoading = false,
                                       canManagePayments = false,
                                       canUpdateOrders = false,
+                                       canFulfillInventory = false,
+                                      businessId = null,
                                       error = null,
                                       refundError = null,
                                       refundResult = null,
@@ -115,6 +121,10 @@ export function OrderStatusDialog({
     const statusControl = getOrderStatusControlState(
         canUpdateOrders === true ? ["orders.update"] : [],
     );
+    const consumptionRequirementsQuery = useOrderConsumptionRequirements(
+        order?.status === "preparing" ? order.id : undefined,
+        open && order?.status === "preparing",
+    );
 
     useEffect(() => {
         if (!open || !order) {
@@ -127,6 +137,15 @@ export function OrderStatusDialog({
             paymentMethod: order.paymentMethod ?? "cash",
         });
     }, [open, order, reset]);
+
+    const consumptionReady = Boolean(
+        order
+        && businessId !== null
+        && consumptionRequirementsQuery.isSuccess
+        && !consumptionRequirementsQuery.isFetching
+        && consumptionRequirementsQuery.data.requirements.length > 0
+        && consumptionRequirementsQuery.data.requirements.every((line) => line.hasActualRecord),
+    );
 
     if (!order) {
         return null;
@@ -227,7 +246,7 @@ export function OrderStatusDialog({
                                     variant="body2"
                                     color="text.secondary"
                                 >
-                                    مرحله فعلی سفارش را انتخاب کنید.
+                                    مرحله سفارش را انتخاب کنید. برای آماده تحویل شدن سفارش، مصرف واقعی همه مواد باید ثبت شده باشد.
                                 </Typography>
 
                                 {statusControl.visible && <Controller
@@ -241,7 +260,15 @@ export function OrderStatusDialog({
                                             select
                                             disabled={statusControl.disabled}
                                             label="وضعیت سفارش"
-                                            helperText={statusControl.helperText}
+                                            helperText={statusControl.helperText ?? (
+                                                !canFulfillInventory
+                                                    ? "برای تغییر وضعیت مؤثر بر موجودی، مجوز inventory.order.fulfill لازم است."
+                                                    : order.status === "preparing" && !consumptionReady
+                                                        ? "ابتدا مصرف واقعی را برای تمام مواد سفارش ثبت کنید."
+                                                        : order.status !== "preparing" && order.status !== "ready"
+                                                            ? "برای آماده تحویل شدن، ابتدا سفارش را در وضعیت آماده‌سازی قرار دهید."
+                                                            : undefined
+                                            )}
                                         >
 
                                             <MenuItem value="pending">
@@ -256,7 +283,10 @@ export function OrderStatusDialog({
                                                 در حال آماده سازی
                                             </MenuItem>
 
-                                            <MenuItem value="ready">
+                                            <MenuItem
+                                                value="ready"
+                                                disabled={order.status !== "preparing" || !canFulfillInventory || !consumptionReady}
+                                            >
                                                 آماده تحویل
                                             </MenuItem>
 
@@ -272,6 +302,13 @@ export function OrderStatusDialog({
 
                                     )}
                                 />}
+
+                                {open && order.status === "preparing" && canUpdateOrders && canFulfillInventory && (
+                                    <OrderActualConsumptionPanel
+                                        orderId={order.id}
+                                        requirementsQuery={consumptionRequirementsQuery}
+                                    />
+                                )}
 
                             </Stack>
 

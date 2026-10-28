@@ -14,6 +14,7 @@ class PurchaseOrderItem:
     quantity: Decimal
     unit_price: Decimal
     purchase_unit: PurchaseUnit | None = None
+    id: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.ingredient_id, int) or self.ingredient_id <= 0:

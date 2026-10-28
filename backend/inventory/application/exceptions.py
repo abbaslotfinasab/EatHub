@@ -29,3 +29,11 @@ class OperationConflict(InventoryApplicationError):
 
 class StockProjectionConflict(InventoryApplicationError):
     """Persisted Stock does not match the target movement's resulting balance."""
+
+
+class MasterDataConflict(InventoryApplicationError):
+    """A business-scoped Item or Warehouse identifier is already in use."""
+
+    def __init__(self, field: str, message: str):
+        self.field = field
+        super().__init__(message)

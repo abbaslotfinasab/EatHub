@@ -2,6 +2,7 @@ export interface StockBalanceDTO {
     id: number;
     ingredient_id: number;
     ingredient_name: string;
+    material_type: "raw" | "compound";
     warehouse_id: number;
     warehouse_name: string;
     quantity: string;

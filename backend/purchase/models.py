@@ -117,15 +117,15 @@ class PurchaseRequisitionDecision(models.Model):
             models.CheckConstraint(
                 condition=(
                     models.Q(
-                        decision="approved",
-                        previous_status=PurchaseRequisition.Status.SUBMITTED,
-                        resulting_status=PurchaseRequisition.Status.APPROVED,
-                        rejection_reason__isnull=True,
+                        ("decision", "approved"),
+                        ("previous_status", "submitted"),
+                        ("resulting_status", "approved"),
+                        ("rejection_reason__isnull", True),
                     )
                     | models.Q(
-                        decision="rejected",
-                        previous_status=PurchaseRequisition.Status.SUBMITTED,
-                        resulting_status=PurchaseRequisition.Status.REJECTED,
+                        ("decision", "rejected"),
+                        ("previous_status", "submitted"),
+                        ("resulting_status", "rejected"),
                     )
                 ),
                 name="pur_req_decision_ck",

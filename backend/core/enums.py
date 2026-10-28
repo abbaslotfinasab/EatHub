@@ -19,6 +19,11 @@ class PermissionCode(models.TextChoices):
     # Inventory
     INVENTORY_VIEW = "inventory.view", "View Inventory"
     INVENTORY_ADJUST = "inventory.adjust", "Adjust Inventory"
+    INVENTORY_ORDER_FULFILL = "inventory.order.fulfill", "Fulfill Order Inventory"
+    INVENTORY_ITEM_MANAGE = "inventory.item.manage", "Manage Inventory Items"
+    INVENTORY_WAREHOUSE_MANAGE = "inventory.warehouse.manage", "Manage Warehouses"
+    INVENTORY_RECIPE_MANAGE = "inventory.recipe.manage", "Manage Recipes"
+    INVENTORY_COMPOUND_MANAGE = "inventory.compound.manage", "Manage Compound Materials"
 
     # Purchase
     PURCHASE_VIEW = "purchase.view", "View Purchase Data"

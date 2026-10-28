@@ -102,6 +102,7 @@ export const OrdersPage = () => {
         activeBusiness?.role ?? "",
     ) && hasPermission(activePermissions, "payments.manage");
     const canUpdateOrders = !getOrderStatusControlState(activePermissions).disabled;
+    const canFulfillInventory = hasPermission(activePermissions, "inventory.order.fulfill");
 
 
     const navigate = useNavigate();
@@ -626,6 +627,8 @@ export const OrdersPage = () => {
 
                 canManagePayments={canManagePayments}
                 canUpdateOrders={canUpdateOrders}
+                canFulfillInventory={canFulfillInventory}
+                businessId={activeBusiness?.id ?? null}
 
                 error={statusUpdateError}
 

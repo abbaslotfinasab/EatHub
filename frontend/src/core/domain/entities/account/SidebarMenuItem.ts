@@ -6,6 +6,7 @@ export interface SidebarMenuItem {
     title: string;
     icon: SvgIconComponent;
     path: string;
+    requiredPermission?: string;
     badgeCount?:string,
     children?: SidebarMenuItem[];
 }

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 
 from accounts.models import Business
@@ -36,6 +38,11 @@ class Warehouse(BaseModel):
             models.UniqueConstraint(
                 fields=["business", "name"],
                 name="unique_warehouse_name_per_business",
+            ),
+            models.UniqueConstraint(
+                fields=["business"],
+                condition=models.Q(is_active=True, is_default=True),
+                name="inv_wh_active_default_uq",
             ),
         ]
 
@@ -96,10 +103,55 @@ class Ingredient(BaseModel):
                 fields=["business", "name"],
                 name="unique_ingredient_name_per_business",
             ),
+            models.UniqueConstraint(
+                fields=["business", "sku"],
+                condition=models.Q(sku__isnull=False) & ~models.Q(sku=""),
+                name="inv_item_business_sku_uq",
+            ),
         ]
 
     def __str__(self):
         return self.name
+
+
+UNIT_VALUES = tuple(value for value, _label in Ingredient.Unit.choices)
+
+
+class CompoundMaterialComponent(BaseModel):
+    """A non-stock recipe line defining the raw inputs of a compound material."""
+
+    compound = models.ForeignKey(
+        Ingredient,
+        on_delete=models.PROTECT,
+        related_name="compound_components",
+    )
+    ingredient = models.ForeignKey(
+        Ingredient,
+        on_delete=models.PROTECT,
+        related_name="used_in_compound_materials",
+    )
+    quantity = models.DecimalField(max_digits=36, decimal_places=12)
+    unit = models.CharField(max_length=2, choices=Ingredient.Unit.choices)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["compound", "ingredient"],
+                name="inv_compound_component_uq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(quantity__gt=0)
+                    & models.Q(quantity__lte=Decimal("999999999999999999999999.999999999999"))
+                ),
+                name="inv_compound_component_qty_ck",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(compound=models.F("ingredient")),
+                name="inv_compound_not_self_ck",
+            ),
+        ]
 
 
 
@@ -157,6 +209,8 @@ class StockTransaction(BaseModel):
 
         PURCHASE_RECEIVE = "purchase_receive"
 
+        PURCHASE = "purchase"
+
         PRODUCTION_IN = "production_in"
 
         PRODUCTION_OUT = "production_out"
@@ -207,13 +261,19 @@ class StockTransaction(BaseModel):
 
     reference_type = models.CharField(
         max_length=50,
-        blank=True
+        blank=True,
+        null=True,
     )
 
 
     reference_id = models.PositiveIntegerField(
         null=True,
         blank=True
+    )
+
+    description = models.TextField(
+        blank=True,
+        null=True,
     )
 
 
@@ -285,9 +345,11 @@ class RecipeInput(BaseModel):
     )
 
     quantity = models.DecimalField(
-        max_digits=12,
-        decimal_places=3,
+        max_digits=36,
+        decimal_places=12,
     )
+
+    unit = models.CharField(max_length=2, choices=Ingredient.Unit.choices)
 
     notes = models.CharField(
         max_length=255,
@@ -301,6 +363,17 @@ class RecipeInput(BaseModel):
             models.UniqueConstraint(
                 fields=["recipe", "ingredient"],
                 name="unique_recipe_input_ingredient",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(quantity__gt=0)
+                    & models.Q(quantity__lte=Decimal("999999999999999999999999.999999999999"))
+                ),
+                name="recipe_input_quantity_positive_ck",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(unit__in=UNIT_VALUES),
+                name="recipe_input_unit_supported_ck",
             ),
         ]
 
@@ -319,9 +392,11 @@ class RecipeOutput(BaseModel):
     )
 
     quantity = models.DecimalField(
-        max_digits=12,
-        decimal_places=3,
+        max_digits=36,
+        decimal_places=12,
     )
+
+    unit = models.CharField(max_length=2, choices=Ingredient.Unit.choices)
 
     is_primary = models.BooleanField(
         default=False,
@@ -340,6 +415,17 @@ class RecipeOutput(BaseModel):
                 fields=["recipe", "ingredient"],
                 name="unique_recipe_output_ingredient",
             ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(quantity__gt=0)
+                    & models.Q(quantity__lte=Decimal("999999999999999999999999.999999999999"))
+                ),
+                name="recipe_output_quantity_positive_ck",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(unit__in=UNIT_VALUES),
+                name="recipe_output_unit_supported_ck",
+            ),
             models.UniqueConstraint(
                 fields=["recipe"],
                 condition=models.Q(is_primary=True),
@@ -353,4 +439,8 @@ class RecipeOutput(BaseModel):
 from inventory.infrastructure.django.models import (  # noqa: E402
     InventoryV1Stock,
     InventoryV1StockMovement,
+    InventoryOperation,
+    InventoryOperationLine,
+    InventoryReservation,
+    InventoryReservationLine,
 )

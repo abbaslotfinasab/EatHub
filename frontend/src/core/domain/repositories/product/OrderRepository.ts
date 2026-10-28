@@ -2,6 +2,11 @@
 import type {OrderWithItems} from "../../entities/product/order/OrderWithItems.ts";
 import type {UpdateOrderStatusInput} from "../../entities/product/order/UpdateOrderStatusInput.ts";
 import type {RefundOrderInput, RefundOrderResult} from "../../entities/product/order/RefundOrderInput.ts";
+import type {
+    OrderConsumptionRequirements,
+    RecordOrderConsumptionInput,
+    RecordOrderConsumptionResult,
+} from "../../entities/product/order/OrderInventoryConsumption.ts";
 import type {OrderFilters} from "../../objects/filters/OrderFilters.ts";
 import type {PaginatedResult} from "../../objects/PaginatedResult.ts";
 
@@ -36,4 +41,8 @@ export interface OrderRepository {
     refund(input: RefundOrderInput): Promise<RefundOrderResult>;
 
     getRefund(orderId: string): Promise<RefundOrderResult>;
+
+    getConsumptionRequirements(orderId: string): Promise<OrderConsumptionRequirements>;
+
+    recordConsumption(input: RecordOrderConsumptionInput): Promise<RecordOrderConsumptionResult>;
 }

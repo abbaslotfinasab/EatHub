@@ -182,6 +182,38 @@ class Stock:
             occurred_at=occurred_at,
         )
 
+    def open_balance(
+        self,
+        quantity: Quantity,
+        unit_cost: UnitCost,
+        source_identity: SourceIdentity,
+        warehouse: Warehouse,
+        *,
+        actor_id: int,
+        reason: str | None = None,
+        occurred_at: datetime | None = None,
+    ) -> StockMovement:
+        """Initialize a never-used stock position from an audited opening count."""
+        self._validate_warehouse(warehouse)
+        warehouse.ensure_can_receive()
+        if self._quantity.amount != 0 or self._average_cost.amount != 0:
+            raise InvalidMovement("Opening balance requires an empty stock position.")
+        if isinstance(actor_id, bool) or not isinstance(actor_id, int) or actor_id <= 0:
+            raise InvalidMovement("Opening balance requires a positive actor ID.")
+        if not isinstance(unit_cost, UnitCost):
+            raise InvalidUnitCost("Opening balance requires a unit cost.")
+        return self._apply(
+            movement_type=MovementType.OPENING_BALANCE,
+            direction=MovementDirection.IN,
+            quantity=quantity,
+            unit_cost=unit_cost,
+            source_identity=source_identity,
+            warehouse=warehouse,
+            reason=reason,
+            actor_id=actor_id,
+            occurred_at=occurred_at,
+        )
+
     def adjust(
         self,
         quantity: Quantity,
@@ -191,6 +223,7 @@ class Stock:
         *,
         reason: str,
         actor_id: int,
+        unit_cost: UnitCost | None = None,
         occurred_at: datetime | None = None,
     ) -> StockMovement:
         if not isinstance(reason, str) or not reason.strip():
@@ -201,22 +234,99 @@ class Stock:
             or actor_id <= 0
         ):
             raise InvalidMovement("Adjustments require a positive actor ID.")
-        unit_cost = self._average_cost
+        adjustment_cost = unit_cost or self._average_cost
+        if not isinstance(adjustment_cost, UnitCost):
+            raise InvalidUnitCost("Adjustment unit cost must be a UnitCost.")
         if direction is MovementDirection.IN:
             self._validate_warehouse(warehouse)
             warehouse.ensure_can_receive()
         elif direction is MovementDirection.OUT:
-            unit_cost = self._average_cost
+            adjustment_cost = self._average_cost
         else:
             raise InvalidMovement("Adjustment direction must be IN or OUT.")
         return self._apply(
             movement_type=MovementType.ADJUSTMENT,
             direction=direction,
             quantity=quantity,
-            unit_cost=unit_cost,
+            unit_cost=adjustment_cost,
             source_identity=source_identity,
             warehouse=warehouse,
             reason=reason,
+            actor_id=actor_id,
+            occurred_at=occurred_at,
+        )
+
+    def issue(
+        self,
+        quantity: Quantity,
+        source_identity: SourceIdentity,
+        warehouse: Warehouse,
+        *,
+        reason: str,
+        actor_id: int,
+        occurred_at: datetime | None = None,
+    ) -> StockMovement:
+        if not isinstance(reason, str) or not reason.strip():
+            raise InvalidMovement("Issue reason is required.")
+        if isinstance(actor_id, bool) or not isinstance(actor_id, int) or actor_id <= 0:
+            raise InvalidMovement("Issues require a positive actor ID.")
+        self._validate_warehouse(warehouse)
+        warehouse.ensure_active()
+        return self._apply(
+            movement_type=MovementType.ISSUE,
+            direction=MovementDirection.OUT,
+            quantity=quantity,
+            unit_cost=self._average_cost,
+            source_identity=source_identity,
+            warehouse=warehouse,
+            reason=reason,
+            actor_id=actor_id,
+            occurred_at=occurred_at,
+        )
+
+    def transfer_out(
+        self,
+        quantity: Quantity,
+        source_identity: SourceIdentity,
+        warehouse: Warehouse,
+        *,
+        actor_id: int,
+        occurred_at: datetime | None = None,
+    ) -> StockMovement:
+        self._validate_warehouse(warehouse)
+        warehouse.ensure_active()
+        if isinstance(actor_id, bool) or not isinstance(actor_id, int) or actor_id <= 0:
+            raise InvalidMovement("Transfers require a positive actor ID.")
+        return self._apply(
+            movement_type=MovementType.TRANSFER_DISPATCH,
+            direction=MovementDirection.OUT,
+            quantity=quantity,
+            unit_cost=self._average_cost,
+            source_identity=source_identity,
+            warehouse=warehouse,
+            actor_id=actor_id,
+            occurred_at=occurred_at,
+        )
+
+    def transfer_in(
+        self,
+        quantity: Quantity,
+        unit_cost: UnitCost,
+        source_identity: SourceIdentity,
+        warehouse: Warehouse,
+        *,
+        actor_id: int,
+        occurred_at: datetime | None = None,
+    ) -> StockMovement:
+        self._validate_warehouse(warehouse)
+        warehouse.ensure_can_receive()
+        return self._apply(
+            movement_type=MovementType.TRANSFER_RECEIPT,
+            direction=MovementDirection.IN,
+            quantity=quantity,
+            unit_cost=unit_cost,
+            source_identity=source_identity,
+            warehouse=warehouse,
             actor_id=actor_id,
             occurred_at=occurred_at,
         )

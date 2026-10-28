@@ -4,6 +4,7 @@ export interface StockBalance {
     id: number;
     ingredientId: number;
     ingredientName: string;
+    materialType: "raw" | "compound";
     warehouseId: number;
     warehouseName: string;
     quantity: string;
@@ -23,4 +24,6 @@ export interface StockBalanceFilters {
     pageSize: number;
     ingredientId?: number;
     warehouseId?: number;
+    materialType?: "raw" | "compound";
+    search?: string;
 }

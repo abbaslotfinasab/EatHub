@@ -1,5 +1,4 @@
-
-
+import builtins
 from abc import ABC, abstractmethod
 
 from purchase.domain.entities.requisition import (
@@ -54,6 +53,6 @@ class RequisitionRepository(ABC):
         self,
         requisition_id: int,
         business_id: int,
-    ) -> list[PurchaseRequisitionDecision]:
+    ) -> builtins.list[PurchaseRequisitionDecision]:
         raise NotImplementedError
 

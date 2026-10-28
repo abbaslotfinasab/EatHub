@@ -272,6 +272,7 @@ class PurchaseOrderMapper:
                         PurchaseUnit(item.purchase_unit)
                         if item.purchase_unit is not None else None
                     ),
+                    id=item.id,
                 )
                 for item in model.items.all()
             ],

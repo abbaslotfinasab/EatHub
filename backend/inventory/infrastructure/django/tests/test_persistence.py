@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 
 from accounts.models import Business
@@ -80,6 +82,30 @@ class InventoryPersistenceTests(TestCase):
 
     def source(self, line_id: int, operation: str = "receive_stock") -> SourceIdentity:
         return SourceIdentity(self.business_id, "receipt", 200, line_id, operation)
+
+    def _receive_movement(self, line_id: int = 1):
+        stock = self.stocks.get_or_create_for_business(
+            self.business_id, self.warehouse, self.ingredient
+        )
+        movement = stock.receive(
+            Quantity(Decimal("1"), Unit.KG),
+            UnitCost("2"),
+            self.source(line_id),
+            self.warehouse,
+        )
+        self.stocks.save(stock)
+        return stock, movement
+
+    @staticmethod
+    def _integrity_error_with_driver_metadata(
+        sqlstate: str, constraint_name: str
+    ) -> IntegrityError:
+        error = IntegrityError("simulated database integrity error")
+        driver_error = Exception("simulated psycopg error")
+        driver_error.pgcode = sqlstate
+        driver_error.diag = SimpleNamespace(constraint_name=constraint_name)
+        error.__cause__ = driver_error
+        return error
 
     def test_master_repositories_are_business_scoped(self) -> None:
         self.assertIsNone(
@@ -343,8 +369,75 @@ class InventoryPersistenceTests(TestCase):
         )
         self.stocks.save(stock)
         self.movements.save(movement)
-        with self.assertRaises(OperationConflict):
+        # SQLite reports only a generic unique-constraint code, so the
+        # repository conservatively propagates it. PostgreSQL identifies the
+        # named source constraint and maps it to the domain conflict.
+        expected_error = (
+            OperationConflict if connection.vendor == "postgresql" else IntegrityError
+        )
+        with self.assertRaises(expected_error):
             self.movements.save(movement)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    def test_named_source_identity_constraint_becomes_operation_conflict(self) -> None:
+        _, movement = self._receive_movement()
+        database_error = self._integrity_error_with_driver_metadata(
+            "23505", "inv_v1_move_source_uq"
+        )
+
+        with patch.object(
+            InventoryV1StockMovement, "save", side_effect=database_error
+        ):
+            with self.assertRaises(OperationConflict) as raised:
+                self.movements.save(movement)
+
+        self.assertIs(raised.exception.__cause__, database_error)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
+
+    def test_named_reversal_target_constraint_becomes_operation_conflict(self) -> None:
+        stock, original = self._receive_movement()
+        self.movements.save(original)
+        reversal = stock.reverse(
+            original,
+            self.source(2, "reverse_stock"),
+            self.warehouse,
+            context=ReversalContext(original.source_identity, False),
+        )
+        self.stocks.save(stock)
+        database_error = self._integrity_error_with_driver_metadata(
+            "23505", "inv_v1_move_reverse_uq"
+        )
+
+        with patch.object(
+            InventoryV1StockMovement, "save", side_effect=database_error
+        ):
+            with self.assertRaises(OperationConflict) as raised:
+                self.movements.save(reversal)
+
+        self.assertIs(raised.exception.__cause__, database_error)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    def test_unrelated_movement_integrity_error_propagates_unchanged(self) -> None:
+        _, movement = self._receive_movement()
+        for sqlstate, constraint_name in (
+            ("23503", "unrelated_foreign_key"),
+            ("23514", "unrelated_check_constraint"),
+            ("23505", "unrelated_unique_constraint"),
+        ):
+            with self.subTest(sqlstate=sqlstate, constraint_name=constraint_name):
+                integrity_error = self._integrity_error_with_driver_metadata(
+                    sqlstate, constraint_name
+                )
+                with patch.object(
+                    InventoryV1StockMovement,
+                    "save",
+                    side_effect=integrity_error,
+                ):
+                    with self.assertRaises(IntegrityError) as raised:
+                        self.movements.save(movement)
+
+                self.assertIs(raised.exception, integrity_error)
+                self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
 
     def test_reversal_reference_is_persisted_as_a_new_immutable_movement(self) -> None:
         stock = self.stocks.get_or_create_for_business(

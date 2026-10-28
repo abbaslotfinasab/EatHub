@@ -8,6 +8,8 @@ import {GetAllOrdersWithItems} from "../../domain/use-cases/product/order/GetAll
 import {GetOrderByIdWithItems} from "../../domain/use-cases/product/order/GetOrderByIdWithItems.ts";
 import {UpdateOrderStatus} from "../../domain/use-cases/product/order/UpdateOrderStatus.ts";
 import {RefundOrder} from "../../domain/use-cases/product/order/RefundOrder.ts";
+import {GetOrderConsumptionRequirements} from "../../domain/use-cases/product/order/GetOrderConsumptionRequirements.ts";
+import {RecordOrderConsumption} from "../../domain/use-cases/product/order/RecordOrderConsumption.ts";
 
 export const createOrderContainer = () => {
     const remote = new OrderRemoteDataSource();
@@ -31,5 +33,9 @@ export const createOrderContainer = () => {
             ),
 
         refundOrderUseCase: new RefundOrder(repository),
+
+        getOrderConsumptionRequirementsUseCase: new GetOrderConsumptionRequirements(repository),
+
+        recordOrderConsumptionUseCase: new RecordOrderConsumption(repository),
     };
 };

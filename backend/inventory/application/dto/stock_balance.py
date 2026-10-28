@@ -14,6 +14,7 @@ class StockBalanceDTO:
     quantity: Decimal
     unit: Unit
     average_cost: Decimal
+    material_type: str = "raw"
 
 
 @dataclass(frozen=True)
@@ -31,3 +32,5 @@ class ListStockBalancesQuery:
     page_size: int = 20
     ingredient_id: int | None = None
     warehouse_id: int | None = None
+    material_type: str | None = None
+    search: str | None = None

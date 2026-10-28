@@ -1,5 +1,5 @@
 from django.db import IntegrityError, connection, transaction
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Sum
 
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from inventory.application.dto.stock_balance import (
@@ -24,6 +24,7 @@ from inventory.infrastructure.django.mappers import (
     warehouse_to_domain,
 )
 from inventory.infrastructure.django.models import (
+    InventoryReservationLine,
     InventoryV1Stock,
     InventoryV1StockMovement,
 )
@@ -154,7 +155,22 @@ class DjangoStockRepository:
             raise ResourceNotFound(
                 "Stock must be obtained through the business-scoped creation operation before saving."
             )
+        self._ensure_reservations_fit(stock)
         stock_to_orm(stock, row=row).save()
+
+    @staticmethod
+    def _ensure_reservations_fit(stock: Stock) -> None:
+        key = stock.key
+        reserved = InventoryReservationLine.objects.filter(
+            reservation__business_id=key.business_id,
+            reservation__warehouse_id=key.warehouse_id,
+            reservation__status="active",
+            ingredient_id=key.ingredient_id,
+        ).aggregate(total=Sum("quantity"))["total"] or 0
+        if stock.quantity.amount < reserved:
+            raise OperationConflict(
+                "The stock change would reduce physical quantity below active reservations."
+            )
 
 
 class DjangoStockBalanceRepository:
@@ -173,6 +189,12 @@ class DjangoStockBalanceRepository:
             rows = rows.filter(ingredient_id=query.ingredient_id)
         if query.warehouse_id is not None:
             rows = rows.filter(warehouse_id=query.warehouse_id)
+        if query.material_type is not None:
+            rows = rows.filter(ingredient__preparation_level=(
+                "raw" if query.material_type == "raw" else "semi_prepared"
+            ))
+        if query.search:
+            rows = rows.filter(ingredient__name__icontains=query.search.strip())
 
         count = rows.count()
         offset = (query.page - 1) * query.page_size
@@ -186,6 +208,7 @@ class DjangoStockBalanceRepository:
                     id=row.pk,
                     ingredient_id=row.ingredient_id,
                     ingredient_name=row.ingredient.name,
+                    material_type=("compound" if row.ingredient.preparation_level == "semi_prepared" else "raw"),
                     warehouse_id=row.warehouse_id,
                     warehouse_name=row.warehouse.name,
                     quantity=row.quantity,
@@ -250,6 +273,21 @@ class DjangoStockMovementRepository:
             reverses_operation_kind=original_source_identity.operation_kind,
         ).exists()
 
+    @staticmethod
+    def _is_movement_uniqueness_conflict(error: IntegrityError) -> bool:
+        """Return whether psycopg identifies one of the movement key constraints."""
+        driver_error = error.__cause__
+        if driver_error is None or getattr(driver_error, "pgcode", None) != "23505":
+            return False
+
+        constraint_name = getattr(
+            getattr(driver_error, "diag", None), "constraint_name", None
+        )
+        return constraint_name in {
+            "inv_v1_move_source_uq",
+            "inv_v1_move_reverse_uq",
+        }
+
     def save(self, movement: StockMovement) -> None:
         key = movement.stock_key
         stock_row = _stock_rows().filter(
@@ -269,6 +307,8 @@ class DjangoStockMovementRepository:
             with transaction.atomic():
                 row.save(force_insert=True)
         except IntegrityError as error:
+            if not self._is_movement_uniqueness_conflict(error):
+                raise
             raise OperationConflict(
                 "A movement already exists for this source identity or reversal target."
             ) from error

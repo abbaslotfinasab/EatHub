@@ -63,3 +63,7 @@ class TenantMismatch(InventoryDomainError):
 
 class InvalidRecipe(InventoryDomainError):
     """A Recipe or one of its lines violates a domain invariant."""
+
+
+class InvalidReservation(InventoryDomainError):
+    """A reservation request or lifecycle transition violates domain rules."""

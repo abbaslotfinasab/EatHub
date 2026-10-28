@@ -1,19 +1,19 @@
-// domain/repositories/IngredientRepository.ts
-import type {Ingredient} from '../../entities/inventory/Ingredient.ts';
-
-export interface IngredientRepository {
-    create(ingredient: Omit<Ingredient, 'id'>): Promise<Ingredient>;
-    findById(id: string): Promise<Ingredient | null>;
-    findByIds(ids: string[]): Promise<Ingredient[]>; // 👈 اضافه شد
-    findAll(filters?: IngredientFilters): Promise<Ingredient[]>;
-    update(id: string, data: Partial<Ingredient>): Promise<Ingredient>;
-    delete(id: string): Promise<void>;
-}
+import type { Ingredient, IngredientInput, IngredientPage, PreparationLevel, UnitType } from '../../entities/inventory/Ingredient.ts';
 
 export interface IngredientFilters {
-    categoryId?: string;
-    supplierId?: string;
-    isActive?: boolean;
-    lowStock?: boolean; // currentStock <= reorderLevel
+    page?: number;
+    pageSize?: number;
     search?: string;
+    isActive?: boolean;
+    unit?: UnitType;
+    preparationLevel?: PreparationLevel;
+}
+
+export interface IngredientRepository {
+    create(ingredient: IngredientInput): Promise<Ingredient>;
+    findById(id: string): Promise<Ingredient | null>;
+    findByIds(ids: string[]): Promise<Ingredient[]>;
+    findAll(filters?: IngredientFilters): Promise<IngredientPage>;
+    update(id: string, data: Partial<IngredientInput>): Promise<Ingredient>;
+    delete(id: string): Promise<void>;
 }

@@ -34,6 +34,9 @@ class ListStockBalancesUseCase:
         ):
             raise ValueError("Page size must be between 1 and 100.")
 
+        if query.material_type not in (None, "raw", "compound"):
+            raise ValueError("Material type must be raw or compound.")
+
         if query.ingredient_id is not None:
             if (
                 not isinstance(query.ingredient_id, int)

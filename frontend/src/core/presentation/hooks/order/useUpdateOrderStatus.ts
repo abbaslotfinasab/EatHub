@@ -32,14 +32,10 @@ export const useUpdateOrderStatus = () => {
         },
 
 
-        onSuccess: (_, variables) => {
+        onSuccess: () => {
 
             queryClient.invalidateQueries({
                 queryKey: ["orders"],
-            });
-
-            queryClient.invalidateQueries({
-                queryKey: ["orders", variables.orderId],
             });
 
         },

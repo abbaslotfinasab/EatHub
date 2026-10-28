@@ -3,11 +3,16 @@ import {container} from "../../../data/di/container.ts";
 
 
 import type {OrderFilters} from "../../../domain/objects/filters/OrderFilters";
+import {useAuthStore} from "../../store/auth.store";
+import {orderQueryKeys} from "./orderQueryKeys.ts";
 
 
 export const useGetAllOrders = (
     filters?: OrderFilters
 ) => {
+
+    const userId = useAuthStore((state) => state.me?.id ?? null);
+    const businessId = useAuthStore((state) => state.me?.active_business?.id ?? null);
 
     const {
         getAllOrdersUseCase
@@ -16,10 +21,7 @@ export const useGetAllOrders = (
 
     return useQuery({
 
-        queryKey:[
-            "orders",
-            filters,
-        ],
+        queryKey: orderQueryKeys.list(userId, businessId, filters),
 
 
         queryFn: () =>
@@ -27,9 +29,14 @@ export const useGetAllOrders = (
                 filters
             ),
 
+        enabled: businessId !== null,
 
-        placeholderData:
-            (previous) => previous,
+
+        placeholderData: (previous, previousQuery) =>
+            previousQuery?.queryKey[1] === userId
+            && previousQuery.queryKey[2] === businessId
+                ? previous
+                : undefined,
 
     });
 

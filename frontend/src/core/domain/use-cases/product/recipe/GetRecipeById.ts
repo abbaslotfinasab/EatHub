@@ -1,11 +1,10 @@
-// core/application/use-cases/recipe/GetRecipeById.ts
-import type { RecipeRepository } from '../../../repositories/product/RecipeRepository';
+import type { RecipeRepository } from "../../../repositories/product/RecipeRepository";
 
 export class GetRecipeById {
-    constructor(private recipeRepo: RecipeRepository) {}
+    constructor(private readonly recipeRepository: RecipeRepository) {}
 
-    async execute(id: string) {
-        if (!id) throw new Error('شناسه دستور پخت معتبر نیست');
-        return this.recipeRepo.findById(id);
+    execute(id: string) {
+        if (!id) throw new Error("شناسه رسپی معتبر نیست");
+        return this.recipeRepository.findById(id);
     }
 }

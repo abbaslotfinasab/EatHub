@@ -13,8 +13,13 @@ export interface RecipeComponents {
     recipeId?:string
     componentType?: ComponentType;   // 'ingredient' یا 'material'
     ingredientId?: string | null | undefined;          // ارجاع به Ingredient (اختیاری)
+    ingredientName?: string;
+    materialType?: "raw" | "compound";
     materialId?: string | null | undefined;            // ارجاع به Material (اختیاری)
-    quantity: number;
+    quantity: string | number;
+    unit?: string;
+    notes?: string | null;
+    isPrimary?: boolean;
     substituteIngredientId?: string | null;
     substituteMaterialId?: string | null;
     createdAt?: string;

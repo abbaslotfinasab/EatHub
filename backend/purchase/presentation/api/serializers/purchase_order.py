@@ -61,6 +61,7 @@ class PurchaseOrderUpdateSerializer(serializers.Serializer):
 
 
 class PurchaseOrderItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
     ingredient_id = serializers.IntegerField()
     quantity = serializers.DecimalField(max_digits=12, decimal_places=3)
     unit_price = serializers.DecimalField(max_digits=14, decimal_places=2)

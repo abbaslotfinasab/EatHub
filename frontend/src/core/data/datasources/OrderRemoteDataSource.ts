@@ -8,6 +8,11 @@ import type {OrderFilters} from "../../domain/objects/filters/OrderFilters.ts";
 import type {PaginatedResult} from "../../domain/objects/PaginatedResult.ts";
 import type {OrderRefundDTO} from "../dtos/order/OrderRefundDTO.ts";
 import type {RefundOrderResult} from "../../domain/entities/product/order/RefundOrderInput.ts";
+import type {
+    OrderConsumptionRequirementsDTO,
+    RecordOrderConsumptionDTO,
+    RecordOrderConsumptionResultDTO,
+} from "../dtos/order/OrderInventoryConsumptionDTO.ts";
 
 export class OrderRemoteDataSource {
 
@@ -150,6 +155,24 @@ export class OrderRemoteDataSource {
     async getOrderRefund(orderId: string): Promise<RefundOrderResult> {
         const {data} = await apiClient.get<RefundOrderResult>(
             `/products/orders/${orderId}/refund/`,
+        );
+        return data;
+    }
+
+    async getConsumptionRequirements(orderId: string): Promise<OrderConsumptionRequirementsDTO> {
+        const {data} = await apiClient.get<OrderConsumptionRequirementsDTO>(
+            `/products/orders/${orderId}/consumption/`,
+        );
+        return data;
+    }
+
+    async recordConsumption(
+        orderId: string,
+        payload: RecordOrderConsumptionDTO,
+    ): Promise<RecordOrderConsumptionResultDTO> {
+        const {data} = await apiClient.post<RecordOrderConsumptionResultDTO>(
+            `/products/orders/${orderId}/consumption/`,
+            payload,
         );
         return data;
     }

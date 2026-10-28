@@ -1,243 +1,177 @@
-// src/presentation/components/form/IngredientList.tsx
-import { useState, useMemo } from 'react';
-import { useFormContext, useFieldArray } from 'react-hook-form';
-import { useQuery } from '@tanstack/react-query';
-import { debounce } from 'lodash';
-import { Search, X, Trash2, Package, Coffee } from 'lucide-react';
-import { FormInput } from './FormInput';
+import { useEffect, useRef, useState } from "react";
+import { useFieldArray, useFormContext } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
+import { debounce } from "lodash";
+import { Search, Trash2, Coffee, Star } from "lucide-react";
+import { FormInput } from "./FormInput";
+import { apiClient } from "../../../data/http/http-client";
+import { useAuthStore } from "../../store/auth.store";
 
-// ---------- تایپ‌های جستجو ----------
-interface SearchIngredient {
-    id: string;
+interface InventoryItem {
+    id: number;
     name: string;
     unit: string;
+    preparation_level: "raw" | "semi_prepared";
 }
 
-interface SearchMaterial {
-    id: string;
-    name: string;
+interface InventoryPage {
+    results: InventoryItem[];
+}
+
+export interface RecipeLineFormValue {
+    ingredientId: string;
+    ingredientName?: string;
+    materialType?: "raw" | "compound";
+    quantity: string | number;
     unit: string;
+    isPrimary?: boolean;
 }
 
-interface SearchResponse {
-    ingredients: SearchIngredient[];
-    materials: SearchMaterial[];
+interface RecipeFormValues {
+    ingredients: RecipeLineFormValue[];
+    outputs: RecipeLineFormValue[];
 }
 
-// ---------- تایپ آیتم فرم ----------
-export interface IngredientFormItem {
-    ingredientId?: string;
-    materialId?: string;
-    quantity: number;
-    unit: string;
-    substituteIngredientId?: string | null;
-    substituteMaterialId?: string | null;
+interface IngredientListProps {
+    fieldName?: "ingredients" | "outputs";
+    heading?: string;
+    outputMode?: boolean;
+    quantityAsText?: boolean;
+    preventDuplicates?: boolean;
 }
 
-interface FormValues {
-    ingredients: IngredientFormItem[];
-}
-
-// ---------- تابع جستجو ----------
-const searchItems = async (searchTerm: string): Promise<SearchResponse> => {
-    if (!searchTerm) return { ingredients: [], materials: [] };
-    const [ingredientsRes, materialsRes] = await Promise.all([
-        fetch(`/api/ingredients?search=${encodeURIComponent(searchTerm)}`),
-        fetch(`/api/materials?search=${encodeURIComponent(searchTerm)}`),
-    ]);
-    const ingredients: SearchIngredient[] = await ingredientsRes.json();
-    const materials: SearchMaterial[] = await materialsRes.json();
-    return { ingredients, materials };
+const unitLabels: Record<string, string> = {
+    kg: "کیلوگرم", g: "گرم", l: "لیتر", ml: "میلی‌لیتر", pc: "عدد", pk: "بسته",
 };
 
-export const IngredientList = () => {
-    const { control } = useFormContext<FormValues>();
-    const { fields, append, remove } = useFieldArray<FormValues, 'ingredients', 'id'>({
-        control,
-        name: 'ingredients',
-    });
+export const IngredientList = ({ fieldName = "ingredients", heading, outputMode = false, quantityAsText = false, preventDuplicates = false }: IngredientListProps) => {
+    const { control, watch, setValue } = useFormContext<RecipeFormValues>();
+    const me = useAuthStore((state) => state.me);
+    const { fields, append, remove } = useFieldArray({ control, name: fieldName });
+    const lines = (watch(fieldName) ?? []) as RecipeLineFormValue[];
+    const [searchInput, setSearchInput] = useState("");
+    const [searchTerm, setSearchTerm] = useState("");
+    const debouncedSearch = useRef<ReturnType<typeof debounce> | null>(null);
+    useEffect(() => {
+        debouncedSearch.current = debounce((value: string) => setSearchTerm(value.trim()), 350);
+        return () => debouncedSearch.current?.cancel();
+    }, []);
 
-    const [searchTerm, setSearchTerm] = useState('');
-    const [isOpen, setIsOpen] = useState(false);
-
-    // ✅ استفاده از useMemo به جای useCallback (رفع خطای اول)
-    const debouncedSearch = useMemo(
-        () =>
-            debounce((value: string) => {
-                setSearchTerm(value);
-                setIsOpen(!!value);
-            }, 400),
-        [] // خالی: فقط یکبار ساخته شود
-    );
-
-    const { data, isLoading } = useQuery({
-        queryKey: ['search', searchTerm],
-        queryFn: () => searchItems(searchTerm),
+    const query = useQuery({
+        queryKey: ["recipe-inventory-items", me?.id ?? null, me?.active_business?.id ?? null, searchTerm],
         enabled: searchTerm.length > 0,
+        queryFn: async () => (await apiClient.get<InventoryPage>("/inventory/items/", {
+            params: { page_size: 50, is_active: true, search: searchTerm },
+        })).data.results,
     });
+    const selectedIds = new Set(lines.map((line) => line.ingredientId));
 
-    // ✅ محاسبه کش به عنوان مقدار مشتق شده (رفع خطای setState در effect)
-    const materialCache = useMemo(() => {
-        if (!data) return new Map<string, { name: string; unit: string }>();
-        const newCache = new Map<string, { name: string; unit: string }>();
-        data.ingredients.forEach((ing) => {
-            newCache.set(ing.id, { name: ing.name, unit: ing.unit });
-        });
-        data.materials.forEach((mat) => {
-            newCache.set(mat.id, { name: mat.name, unit: mat.unit });
-        });
-        return newCache;
-    }, [data]);
+    const handleSearch = (value: string) => {
+        setSearchInput(value);
+        debouncedSearch.current?.(value);
+    };
 
-    const handleAdd = (item: SearchIngredient | SearchMaterial, type: 'ingredient' | 'material') => {
-        const fieldName = type === 'ingredient' ? 'ingredientId' : 'materialId';
-        append({
-            [fieldName]: item.id,
-            quantity: 1,
+    const handleAdd = (item: InventoryItem) => {
+        const newLine: RecipeLineFormValue = {
+            ingredientId: String(item.id),
+            ingredientName: item.name,
+            materialType: item.preparation_level === "semi_prepared" ? "compound" : "raw",
+            quantity: quantityAsText ? "1" : 1,
             unit: item.unit,
-            substituteIngredientId: null,
-            substituteMaterialId: null,
-        });
-        setSearchTerm('');
-        setIsOpen(false);
+        };
+        append((outputMode ? { ...newLine, isPrimary: false } : newLine) as never);
+        setSearchInput("");
+        setSearchTerm("");
     };
 
-    const getMaterialName = (id: string): string => {
-        return materialCache.get(id)?.name || id;
-    };
-
-    const getMaterialUnit = (id: string): string => {
-        return materialCache.get(id)?.unit || '';
+    const setPrimary = (lineIndex: number) => {
+        const current = (watch("outputs") ?? []) as RecipeLineFormValue[];
+        setValue("outputs", current.map((line, index) => ({
+            ...line,
+            isPrimary: index === lineIndex ? !line.isPrimary : false,
+        })), { shouldDirty: true, shouldValidate: true });
     };
 
     return (
         <div className="space-y-5">
-            {/* بخش جستجو */}
+            {heading && <h2 className="text-lg font-semibold text-gray-800">{heading}</h2>}
             <div className="relative">
-                <div className="relative">
-                    <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="جستجوی ماده اولیه (Ingredient) یا مواد مرکب (Material)..."
-                        className="h-11 w-full rounded-lg border border-gray-300 bg-white pr-10 pl-10 text-sm shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        onChange={(e) => debouncedSearch(e.target.value)}
-                    />
-                    {searchTerm && (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSearchTerm('');
-                                setIsOpen(false);
-                            }}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
-                    )}
-                </div>
-
-                {isOpen && (isLoading || data) && (
+                <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                    type="text"
+                    placeholder={outputMode ? "جستجوی محصول خروجی از اقلام انبار..." : "جستجوی ماده اولیه انبار..."}
+                    aria-label={outputMode ? "جستجوی محصول خروجی" : "جستجوی ماده اولیه"}
+                    className="h-11 w-full rounded-lg border border-gray-300 bg-white pr-10 pl-4 text-sm shadow-sm focus:border-blue-500 focus:outline-none"
+                    value={searchInput}
+                    onChange={(event) => handleSearch(event.target.value)}
+                />
+                {!!searchTerm && (
                     <div className="absolute z-20 mt-2 max-h-80 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
-                        {isLoading && <div className="p-3 text-sm text-gray-500">جستجو...</div>}
-                        {data && (
-                            <>
-                                {data.ingredients.length > 0 && (
-                                    <div>
-                                        <div className="sticky top-0 flex items-center gap-2 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
-                                            <Coffee className="h-3.5 w-3.5" />
-                                            <span>مواد اولیه (Ingredient)</span>
-                                        </div>
-                                        {data.ingredients.map((ing) => (
-                                            <button
-                                                key={ing.id}
-                                                type="button"
-                                                onClick={() => handleAdd(ing, 'ingredient')}
-                                                className="flex w-full items-center justify-between px-3 py-2 text-right text-sm transition hover:bg-gray-50"
-                                            >
-                                                <span>{ing.name}</span>
-                                                <span className="text-xs text-gray-400">{ing.unit}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                {data.materials.length > 0 && (
-                                    <div className="border-t">
-                                        <div className="sticky top-0 flex items-center gap-2 bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
-                                            <Package className="h-3.5 w-3.5" />
-                                            <span>مواد مرکب (Material)</span>
-                                        </div>
-                                        {data.materials.map((mat) => (
-                                            <button
-                                                key={mat.id}
-                                                type="button"
-                                                onClick={() => handleAdd(mat, 'material')}
-                                                className="flex w-full items-center justify-between px-3 py-2 text-right text-sm transition hover:bg-gray-50"
-                                            >
-                                                <span>{mat.name}</span>
-                                                <span className="text-xs text-gray-400">{mat.unit}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                                {data.ingredients.length === 0 && data.materials.length === 0 && (
-                                    <div className="p-3 text-center text-sm text-gray-500">نتیجه‌ای یافت نشد</div>
-                                )}
-                            </>
+                        {query.isLoading && <div className="p-3 text-sm text-gray-500">جستجو...</div>}
+                        {query.isError && <div className="p-3 text-sm text-red-600">جستجوی اقلام ناموفق بود. دسترسی و اتصال را بررسی کنید.</div>}
+                        {query.data?.map((item) => {
+                            const alreadySelected = preventDuplicates && selectedIds.has(String(item.id));
+                            return (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    disabled={alreadySelected}
+                                    onClick={() => handleAdd(item)}
+                                    className="flex w-full items-center justify-between px-3 py-2 text-right text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <span>{item.name}{alreadySelected ? " — انتخاب شده" : ""}</span>
+                                    <span className="text-xs text-gray-400">{unitLabels[item.unit] ?? item.unit}</span>
+                                </button>
+                            );
+                        })}
+                        {!query.isLoading && !query.isError && query.data?.length === 0 && (
+                            <div className="p-3 text-center text-sm text-gray-500">نتیجه‌ای یافت نشد</div>
                         )}
                     </div>
                 )}
             </div>
 
-            {/* لیست مواد انتخاب شده */}
             <div className="space-y-3">
                 {fields.length === 0 && (
                     <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 py-8 text-center text-sm text-gray-400">
-                        <Package className="mb-2 h-8 w-8 text-gray-300" />
-                        <span>از قسمت جستجو، مواد مورد نظر را اضافه کنید</span>
+                        <Coffee className="mb-2 h-8 w-8 text-gray-300" />
+                        <span>{outputMode ? "محصول خروجی را از اقلام انبار انتخاب کنید" : "مواد اولیهٔ این دستور را از موجودی انبار انتخاب کنید"}</span>
                     </div>
                 )}
-
                 {fields.map((field, index) => {
-                    const isIngredient = 'ingredientId' in field && field.ingredientId;
-                    const itemId = isIngredient ? field.ingredientId : field.materialId;
-                    const itemName = itemId ? getMaterialName(itemId) : 'نامشخص';
-                    const itemUnit = itemId ? getMaterialUnit(itemId) : '';
-
+                    const line = lines[index] ?? field;
                     return (
-                        <div
-                            key={field.id}
-                            className="group rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition-all hover:shadow-md"
-                        >
+                        <div key={field.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                                 <div className="flex-1">
-                                    <div className="mb-1 flex items-center gap-2">
-                                        {isIngredient ? (
-                                            <Coffee className="h-4 w-4 text-amber-500" />
-                                        ) : (
-                                            <Package className="h-4 w-4 text-emerald-500" />
+                                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                                        <Coffee className="h-4 w-4 text-amber-500" />
+                                        <span className="text-sm font-medium text-gray-700">{line.ingredientName ?? `ماده #${line.ingredientId}`}</span>
+                                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-800">{line.materialType === "compound" ? "مواد مرکب" : "مواد اولیه"}</span>
+                                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">{unitLabels[line.unit] ?? line.unit}</span>
+                                        {outputMode && (
+                                            <button
+                                                type="button"
+                                                aria-pressed={Boolean(line.isPrimary)}
+                                                onClick={() => setPrimary(index)}
+                                                className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs ${line.isPrimary ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600"}`}
+                                            >
+                                                <Star className="h-3 w-3" />
+                                                {line.isPrimary ? "محصول اصلی" : "انتخاب به‌عنوان محصول اصلی"}
+                                            </button>
                                         )}
-                                        <span className="text-sm font-medium text-gray-700">{itemName}</span>
-                                        <span className="text-xs text-gray-400">({isIngredient ? 'Ingredient' : 'Material'})</span>
-                                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                                            {itemUnit}
-                                        </span>
                                     </div>
-                                    <div className="flex flex-wrap gap-3">
-                                        <div className="w-28">
-                                            <FormInput
-                                                name={`ingredients.${index}.quantity`}
-                                                label="مقدار"
-                                                type="number"
-                                                className="!py-1.5 !text-sm"
-                                            />
-                                        </div>
+                                    <div className="w-40">
+                                        <FormInput
+                                            name={`${fieldName}.${index}.quantity`}
+                                            label="مقدار"
+                                            type={quantityAsText ? "text" : "number"}
+                                            {...(quantityAsText ? { inputMode: "decimal" as const } : {})}
+                                            className="!py-1.5 !text-sm"
+                                        />
                                     </div>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => remove(index)}
-                                    className="self-start rounded-md p-2 text-gray-400 transition hover:bg-red-50 hover:text-red-500 sm:self-center"
-                                >
+                                <button type="button" onClick={() => remove(index)} aria-label="حذف ردیف" className="self-start rounded-md p-2 text-gray-400 hover:bg-red-50 hover:text-red-500 sm:self-center">
                                     <Trash2 className="h-5 w-5" />
                                 </button>
                             </div>

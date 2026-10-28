@@ -52,6 +52,23 @@ class StockTests(TestCase):
         self.assertEqual(self.stock.average_cost, UnitCost("5"))
         self.assertEqual(movement.balance_after, self.stock.quantity)
 
+    def test_opening_balance_initializes_only_an_empty_position(self) -> None:
+        movement = self.stock.open_balance(
+            Quantity("2.5", Unit.KG), UnitCost("3.25"),
+            SourceIdentity(1, "inventory_opening_stock", 500, 1, "post"),
+            self.warehouse, actor_id=99,
+        )
+        self.assertEqual(movement.movement_type, MovementType.OPENING_BALANCE)
+        self.assertEqual(movement.direction, MovementDirection.IN)
+        self.assertEqual(self.stock.quantity, Quantity("2.5", Unit.KG))
+        self.assertEqual(self.stock.average_cost, UnitCost("3.25"))
+        with self.assertRaises(InvalidMovement):
+            self.stock.open_balance(
+                Quantity("1", Unit.KG), UnitCost("3"),
+                SourceIdentity(1, "inventory_opening_stock", 501, 1, "post"),
+                self.warehouse, actor_id=99,
+            )
+
     def test_weighted_average_receipt_and_multiple_costs(self) -> None:
         self.stock.receive(
             Quantity(Decimal("20"), Unit.KG), UnitCost("4"), self.source(1), self.warehouse

@@ -1259,6 +1259,37 @@ class PurchaseOrderAPITests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["id"], created.data["id"])
+        persisted_line = DjangoPurchaseOrderItem.objects.get(
+            purchase_order_id=created.data["id"],
+        )
+        self.assertEqual(response.data["items"][0]["id"], persisted_line.id)
+
+    def test_order_line_read_identity_distinguishes_duplicate_ingredients(self) -> None:
+        created = self.create_order(items=[
+            {
+                "ingredient_id": self.ingredient.id,
+                "quantity": "2.000",
+                "unit_price": "3.00",
+                "purchase_unit": "kg",
+            },
+            {
+                "ingredient_id": self.ingredient.id,
+                "quantity": "1.000",
+                "unit_price": "4.00",
+                "purchase_unit": "kg",
+            },
+        ])
+
+        response = self.client.get(self.detail_endpoint(created.data["id"]))
+        persisted_ids = list(
+            DjangoPurchaseOrderItem.objects.filter(
+                purchase_order_id=created.data["id"],
+            ).order_by("id").values_list("id", flat=True)
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["id"] for item in response.data["items"]], persisted_ids)
+        self.assertEqual([item["ingredient_id"] for item in response.data["items"]], [self.ingredient.id] * 2)
 
     def test_update_draft_purchase_order(self) -> None:
         created = self.create_order()

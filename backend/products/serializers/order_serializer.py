@@ -146,6 +146,23 @@ class OrderRefundInputSerializer(serializers.Serializer):
     confirm_external_refund = serializers.BooleanField(required=False, default=False)
 
 
+class OrderActualConsumptionLineSerializer(serializers.Serializer):
+    requirement_id = serializers.IntegerField(min_value=1)
+    quantity = serializers.DecimalField(max_digits=36, decimal_places=12, min_value=0)
+    unit = serializers.ChoiceField(choices=("kg", "g", "l", "ml", "pc", "pk"), required=False)
+
+
+class OrderActualConsumptionSerializer(serializers.Serializer):
+    idempotency_key = serializers.UUIDField()
+    lines = OrderActualConsumptionLineSerializer(many=True, allow_empty=False)
+
+    def validate_lines(self, lines):
+        requirement_ids = [line["requirement_id"] for line in lines]
+        if len(requirement_ids) != len(set(requirement_ids)):
+            raise serializers.ValidationError("A requirement can appear only once per request.")
+        return lines
+
+
 class UpdateOrderInputSerializer(serializers.Serializer):
     customer = serializers.PrimaryKeyRelatedField(
         queryset=Customer.objects.all(),

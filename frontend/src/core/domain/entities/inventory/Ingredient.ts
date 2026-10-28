@@ -1,6 +1,3 @@
-// src/core/domain/inventory/entities/Ingredient.ts
-
-// unit.ts
 export const Unit = {
     KG: 'kg',
     G: 'g',
@@ -11,28 +8,30 @@ export const Unit = {
 } as const;
 
 export type UnitType = typeof Unit[keyof typeof Unit];
-
-export const UnitLabel: Record<UnitType, string> = {
-    [Unit.KG]: 'کیلوگرم',
-    [Unit.G]: 'گرم',
-    [Unit.L]: 'لیتر',
-    [Unit.ML]: 'میلی‌لیتر',
-    [Unit.PIECE]: 'عدد',
-    [Unit.PACK]: 'بسته',
-};
+export type PreparationLevel = 'raw' | 'semi_prepared';
 
 export interface Ingredient {
-    id?: string;
+    id: string;
     name: string;
+    sku: string | null;
     unit: UnitType;
-    currentStock: number;
-    reorderLevel: number;      // هشدار موجودی
-    reorderQuantity?: number;   // مقدار پیشنهادی برای خرید مجدد
-    costPrice?: number;         // قیمت تمام‌شده فعلی (به ازای هر واحد)
-    sku?: string | null;        // کد انبار (اختیاری)
+    preparationLevel: PreparationLevel;
     isActive: boolean;
-    categoryId?: string | null ;
-    complete: boolean;         // آماده با نبمه آماده
-    createdAt?: string;         // ISO
-    updatedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface IngredientInput {
+    name: string;
+    sku?: string | null;
+    unit: UnitType;
+    preparationLevel?: PreparationLevel;
+    isActive?: boolean;
+}
+
+export interface IngredientPage {
+    count: number;
+    page: number;
+    pageSize: number;
+    results: Ingredient[];
 }

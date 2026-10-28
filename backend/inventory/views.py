@@ -1,8 +1,10 @@
 from rest_framework import serializers, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import TenantAPIView
+from core.enums import PermissionCode
 from inventory.application.dto.stock_balance import ListStockBalancesQuery
 from inventory.application.use_cases.list_stock_balances import (
     ListStockBalancesUseCase,
@@ -22,12 +24,15 @@ class StockBalanceQuerySerializer(serializers.Serializer):
     )
     ingredient_id = serializers.IntegerField(min_value=1, required=False)
     warehouse_id = serializers.IntegerField(min_value=1, required=False)
+    material_type = serializers.ChoiceField(choices=("raw", "compound"), required=False)
+    search = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
 
 class StockBalanceSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     ingredient_id = serializers.IntegerField()
     ingredient_name = serializers.CharField()
+    material_type = serializers.ChoiceField(choices=("raw", "compound"))
     warehouse_id = serializers.IntegerField()
     warehouse_name = serializers.CharField()
     quantity = serializers.DecimalField(max_digits=36, decimal_places=12)
@@ -56,6 +61,9 @@ class StockBalanceListAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if PermissionCode.INVENTORY_VIEW.value not in request.permissions:
+            raise PermissionDenied("You do not have permission to view Inventory.")
+
         query_serializer = StockBalanceQuerySerializer(data=request.query_params)
         query_serializer.is_valid(raise_exception=True)
         values = query_serializer.validated_data
@@ -73,6 +81,8 @@ class StockBalanceListAPIView(TenantAPIView):
                     page_size=values["page_size"],
                     ingredient_id=values.get("ingredient_id"),
                     warehouse_id=values.get("warehouse_id"),
+                    material_type=values.get("material_type"),
+                    search=values.get("search"),
                 )
             )
         except ValueError as error:

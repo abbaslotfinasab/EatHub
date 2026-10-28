@@ -154,6 +154,19 @@ class StockMovement:
                 or actor_id <= 0
             ):
                 raise InvalidMovement("Adjustment movement requires an actor ID.")
+        if movement_type is MovementType.ISSUE and (
+            not isinstance(reason, str) or not reason.strip()
+        ):
+            raise InvalidMovement("Issue movement requires a reason.")
+        if movement_type in (
+            MovementType.ISSUE,
+            MovementType.TRANSFER_DISPATCH,
+            MovementType.TRANSFER_RECEIPT,
+            MovementType.OPENING_BALANCE,
+        ) and (
+            isinstance(actor_id, bool) or not isinstance(actor_id, int) or actor_id <= 0
+        ):
+            raise InvalidMovement("This movement requires a positive actor ID.")
         if movement_type is MovementType.REVERSAL:
             if not isinstance(reverses, SourceIdentity):
                 raise InvalidMovement("Reversal must identify the operation reversed.")
@@ -182,3 +195,18 @@ class StockMovement:
             and direction is not MovementDirection.IN
         ):
             raise InvalidMovement("Receipt movements must have IN direction.")
+        if (
+            movement_type in (MovementType.ISSUE, MovementType.TRANSFER_DISPATCH)
+            and direction is not MovementDirection.OUT
+        ):
+            raise InvalidMovement("Issue and transfer dispatch movements must be OUT.")
+        if (
+            movement_type is MovementType.TRANSFER_RECEIPT
+            and direction is not MovementDirection.IN
+        ):
+            raise InvalidMovement("Transfer receipt movements must be IN.")
+        if (
+            movement_type is MovementType.OPENING_BALANCE
+            and direction is not MovementDirection.IN
+        ):
+            raise InvalidMovement("Opening balance movements must be IN.")

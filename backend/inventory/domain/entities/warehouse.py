@@ -37,3 +37,7 @@ class Warehouse:
     def ensure_can_receive(self) -> None:
         if not self.is_active:
             raise InactiveWarehouse("Inactive warehouses cannot receive stock.")
+
+    def ensure_active(self) -> None:
+        if not self.is_active:
+            raise InactiveWarehouse("Inactive warehouses cannot change stock.")

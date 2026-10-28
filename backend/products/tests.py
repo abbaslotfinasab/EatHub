@@ -59,6 +59,11 @@ class OrderListPaginationTests(APITestCase):
             defaults={"name": "Manage Payments and Refunds"},
         )
         RolePermission.objects.create(role=role, permission=payment_permission)
+        inventory_fulfill_permission, _ = Permission.objects.get_or_create(
+            code=PermissionCode.INVENTORY_ORDER_FULFILL,
+            defaults={"name": "Fulfill Order Inventory"},
+        )
+        RolePermission.objects.create(role=role, permission=inventory_fulfill_permission)
         other_role = Role.objects.create(
             business=self.other_business,
             name="Owner",
@@ -117,8 +122,8 @@ class OrderListPaginationTests(APITestCase):
         self.assertIsNotNone(response.data["previous"])
         self.assertIsNotNone(response.data["next"])
 
-    def test_status_update_accepts_choice_values_and_returns_updated_state(self) -> None:
-        order = self.create_order(status=Order.Status.PREPARING)
+    def test_direct_pending_to_completed_is_rejected(self) -> None:
+        order = self.create_order()
 
         response = self.client.patch(
             f"/api/products/orders/{order.id}/status/",
@@ -126,9 +131,10 @@ class OrderListPaginationTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["status"], Order.Status.COMPLETED)
-        self.assertEqual(response.data["payment_status"], Order.PaymentStatus.PENDING)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PENDING)
+        self.assertEqual(order.payment_status, Order.PaymentStatus.PENDING)
 
     def test_status_update_rejects_invalid_status_choice(self) -> None:
         order = self.create_order()
@@ -155,7 +161,7 @@ class OrderListPaginationTests(APITestCase):
         self.assertEqual(order.status, Order.Status.PENDING)
 
     def test_status_payment_and_method_can_be_updated_independently(self) -> None:
-        order = self.create_order()
+        order = self.create_order(status=Order.Status.PREPARING)
 
         response = self.client.patch(
             f"/api/products/orders/{order.id}/status/",
@@ -245,6 +251,7 @@ class OrderListPaginationTests(APITestCase):
 
     def test_failed_cash_payment_can_be_completed_without_marking_it_paid(self) -> None:
         order = self.create_order(
+            status=Order.Status.READY,
             payment_status=Order.PaymentStatus.FAILED,
             payment_method=Order.PaymentMethod.CASH,
         )
@@ -411,6 +418,8 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
     def test_chef_can_update_order_status(self):
         user = self.user_for("CHEF")
         self.client.force_authenticate(user)
+        self.order.status = Order.Status.PREPARING
+        self.order.save(update_fields=("status",))
         response = self.client.patch(
             f"/api/products/orders/{self.order.id}/status/",
             {"status": "ready"},
@@ -465,7 +474,7 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
         self.assertEqual(self.order.status, Order.Status.PENDING)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
 
-    def test_custom_role_with_orders_update_can_change_status(self):
+    def test_custom_role_with_orders_update_but_no_inventory_fulfill_cannot_change_status(self):
         user = User.objects.create_user(
             email="custom-order-updater@example.com",
             password="password",
@@ -480,6 +489,8 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
         permission = Permission.objects.get(code=PermissionCode.ORDERS_UPDATE)
         RolePermission.objects.create(role=role, permission=permission)
         self.client.force_authenticate(user)
+        self.order.status = Order.Status.PREPARING
+        self.order.save(update_fields=("status",))
 
         response = self.client.patch(
             f"/api/products/orders/{self.order.id}/status/",
@@ -487,9 +498,9 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.order.refresh_from_db()
-        self.assertEqual(self.order.status, Order.Status.READY)
+        self.assertEqual(self.order.status, Order.Status.PREPARING)
 
     def test_owner_manager_and_accountant_can_confirm_refunds(self):
         for role_code in ("OWNER", "MANAGER", "ACCOUNTANT"):
@@ -1017,6 +1028,10 @@ class OrderRefundPostgresConcurrencyTests(TransactionTestCase):
 
 class OrderWalletPaymentTests(TestCase):
     def setUp(self):
+        self.actor = User.objects.create_user(
+            email="wallet-order-actor@example.test", password="test-password",
+            name="Wallet Operator", number="7006",
+        )
         self.business = Business.objects.create(name="Wallet Business")
         self.customer = Customer.objects.create(
             business=self.business, name="Wallet Customer", phone="12345"
@@ -1047,8 +1062,18 @@ class OrderWalletPaymentTests(TestCase):
 
     def update(self, status=None, **kwargs):
         return OrderService.update_status(
-            business=self.business, order_id=self.order.id, status=status, **kwargs
+            business=self.business, order_id=self.order.id, status=status, user=self.actor, **kwargs
         )
+
+    def complete_order(self, **kwargs):
+        """Wallet tests use empty legacy orders; place them at ready before completion."""
+        self.order.refresh_from_db()
+        if self.order.status == Order.Status.PENDING:
+            self.order.status = Order.Status.PREPARING
+            self.order.save(update_fields=("status",))
+        if self.order.status == Order.Status.PREPARING:
+            self.update(status=Order.Status.READY)
+        return self.update(status=Order.Status.COMPLETED, **kwargs)
 
     def edit_order_price(self, amount):
         self.menu_item.price = amount
@@ -1173,6 +1198,8 @@ class OrderWalletPaymentTests(TestCase):
                 self.order.payment_status = Order.PaymentStatus.PENDING
                 self.order.save(update_fields=["status", "payment_method", "payment_status"])
 
+                if initial_status == Order.Status.PREPARING:
+                    self.update(status=Order.Status.READY)
                 self.update(status=Order.Status.COMPLETED)
 
                 self.order.refresh_from_db()
@@ -1184,7 +1211,7 @@ class OrderWalletPaymentTests(TestCase):
         self.order.payment_status = Order.PaymentStatus.FAILED
         self.order.save(update_fields=["payment_status"])
 
-        self.update(status=Order.Status.COMPLETED)
+        self.complete_order()
 
         self.order.refresh_from_db()
         self.account.refresh_from_db()
@@ -1197,6 +1224,7 @@ class OrderWalletPaymentTests(TestCase):
         self.order.status = Order.Status.PREPARING
         self.order.payment_status = Order.PaymentStatus.FAILED
         self.order.save(update_fields=["status", "payment_status"])
+        self.update(status=Order.Status.READY)
         original_settle = WalletService.settle_order
 
         def settle_then_fail(**kwargs):
@@ -1212,7 +1240,7 @@ class OrderWalletPaymentTests(TestCase):
 
         self.order.refresh_from_db()
         self.account.refresh_from_db()
-        self.assertEqual(self.order.status, Order.Status.PREPARING)
+        self.assertEqual(self.order.status, Order.Status.READY)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.FAILED)
         self.assertEqual(self.account.balance, Decimal("100.00"))
         self.assertFalse(CustomerTransaction.objects.filter(
@@ -1227,7 +1255,7 @@ class OrderWalletPaymentTests(TestCase):
         self.order.payment_status = Order.PaymentStatus.FAILED
         self.order.save(update_fields=["payment_method", "payment_status"])
 
-        self.update(status=Order.Status.COMPLETED)
+        self.complete_order()
 
         self.order.refresh_from_db()
         self.account.refresh_from_db()
@@ -1237,9 +1265,9 @@ class OrderWalletPaymentTests(TestCase):
         self.assertFalse(CustomerTransaction.objects.filter(order=self.order).exists())
 
     def test_completion_charges_once_and_repeated_paid_request_is_idempotent(self):
-        self.update(status=Order.Status.COMPLETED)
-        self.update(status=Order.Status.COMPLETED)
-        self.update(status=Order.Status.COMPLETED, payment_status=Order.PaymentStatus.PAID)
+        self.complete_order()
+        self.complete_order()
+        self.complete_order(payment_status=Order.PaymentStatus.PAID)
         self.account.refresh_from_db()
         self.order.refresh_from_db()
         self.assertEqual(self.account.balance, Decimal("74.50"))
@@ -1519,7 +1547,7 @@ class OrderWalletPaymentTests(TestCase):
             Order.PaymentStatus.UNPAID,
         ):
             with self.subTest(payment_status=payment_status):
-                self.update(status=Order.Status.COMPLETED, payment_status=payment_status)
+                self.complete_order(payment_status=payment_status)
                 self.order.refresh_from_db()
                 self.account.refresh_from_db()
                 self.assertEqual(self.order.status, Order.Status.COMPLETED)
@@ -2024,7 +2052,7 @@ class OrderWalletPaymentTests(TestCase):
     def test_paid_wallet_order_with_matching_debit_validates_without_recharging(self):
         self.update(payment_status=Order.PaymentStatus.PAID)
         self.update(payment_status=Order.PaymentStatus.PAID)
-        self.update(status=Order.Status.COMPLETED)
+        self.complete_order()
         self.account.refresh_from_db()
         self.assertEqual(self.account.balance, Decimal("74.50"))
         self.assertEqual(CustomerTransaction.objects.filter(order=self.order, type="debit").count(), 1)
@@ -2098,10 +2126,11 @@ class OrderWalletPaymentTests(TestCase):
                 payment_method=method,
                 total_amount=Decimal("25.50"),
             )
+            order.status = Order.Status.READY
+            order.save(update_fields=("status",))
             OrderService.update_status(
                 business=self.business,
                 order_id=order.id,
-                status=Order.Status.PENDING,
                 payment_status=Order.PaymentStatus.PAID,
             )
             OrderService.update_status(

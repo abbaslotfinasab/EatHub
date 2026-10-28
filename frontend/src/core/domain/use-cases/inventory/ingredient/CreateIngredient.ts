@@ -1,31 +1,23 @@
-// domain/use-cases/CreateIngredient.ts
 import { z } from 'zod';
 import { Unit } from '../../../entities/inventory/Ingredient.ts';
+import type { IngredientInput } from '../../../entities/inventory/Ingredient.ts';
 import type { IngredientRepository } from '../../../repositories/inventory/IngredientRepository.ts';
 
 export const CreateIngredientSchema = z.object({
-    name: z.string().min(2, 'نام ماده حداقل ۲ کاراکتر است').trim(),
-    unit: z.nativeEnum(Unit, { message: 'واحد معتبر نیست' }),
-    currentStock: z.number().min(0),          // حذف .optional()
-    reorderLevel: z.number().min(0),
-    reorderQuantity: z.number().positive(),
-    costPrice: z.number().positive().optional(),
-    isActive: z.boolean(),                 // حذف .optional()
-    categoryId: z.string(),    // nullable با default(null)
-    complete: z.boolean(),                // حذف .optional()
-    sku: z.string().nullable().optional(),
+    name: z.string().trim().min(1, 'نام ماده الزامی است').max(120),
+    sku: z.string().trim().max(50).nullable().optional(),
+    unit: z.enum(Unit),
+    preparationLevel: z.enum(['raw', 'semi_prepared']).default('raw'),
+    isActive: z.boolean().default(true),
 });
 
-export type CreateIngredientInput = z.infer<typeof CreateIngredientSchema>;
+export type CreateIngredientInput = z.input<typeof CreateIngredientSchema>;
 
 export class CreateIngredient {
     constructor(private ingredientRepository: IngredientRepository) {}
 
-    async execute(input: CreateIngredientInput): Promise<void> {
-        // اعتبارسنجی ورودی
-        const validated = CreateIngredientSchema.parse(input);
-
-        // ارسال به ریپازیتوری (که درخواست POST به بک‌اند می‌دهد)
-        await this.ingredientRepository.create(validated);
+    async execute(input: CreateIngredientInput) {
+        const validated: IngredientInput = CreateIngredientSchema.parse(input);
+        return this.ingredientRepository.create(validated);
     }
 }

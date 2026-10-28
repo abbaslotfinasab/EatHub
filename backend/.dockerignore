@@ -23,6 +23,7 @@ env/
 # Local configuration and data; paths are relative to the backend build context
 .env
 .env.*
+EatHub/test_settings.py
 db.sqlite3
 *.sqlite3-journal
 media/

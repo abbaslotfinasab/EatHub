@@ -1,10 +1,12 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import Business, Membership, Role, User
+from accounts.models import Business, Membership, Permission, Role, RolePermission, User
+from core.enums import PermissionCode
 from inventory.domain.value_objects.unit import Unit
 from inventory.infrastructure.django.models import InventoryV1Stock
 from inventory.models import Ingredient, Warehouse
@@ -23,6 +25,14 @@ class StockBalanceListAPITests(APITestCase):
             name="Owner",
             code="OWNER",
         )
+        cls.inventory_view_permission = Permission.objects.create(
+            name=PermissionCode.INVENTORY_VIEW.label,
+            code=PermissionCode.INVENTORY_VIEW.value,
+        )
+        RolePermission.objects.create(
+            role=cls.role,
+            permission=cls.inventory_view_permission,
+        )
         cls.other_role = Role.objects.create(
             business=cls.other_business,
             name="Owner",
@@ -38,6 +48,23 @@ class StockBalanceListAPITests(APITestCase):
             user=cls.user,
             business=cls.business,
             role=cls.role,
+            is_active=True,
+        )
+        cls.no_inventory_permission_role = Role.objects.create(
+            business=cls.business,
+            name="No Inventory Access",
+            code="NO_INVENTORY_ACCESS",
+        )
+        cls.no_inventory_permission_user = User.objects.create_user(
+            email="inventory-denied@example.com",
+            password="unused-test-password",
+            name="Inventory Denied User",
+            number="8803",
+        )
+        Membership.objects.create(
+            user=cls.no_inventory_permission_user,
+            business=cls.business,
+            role=cls.no_inventory_permission_role,
             is_active=True,
         )
         cls.other_user = User.objects.create_user(
@@ -104,6 +131,24 @@ class StockBalanceListAPITests(APITestCase):
         self.client.force_authenticate(self.other_user)
         response = self.client.get(self.endpoint)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_active_member_without_inventory_view_is_denied_before_balance_query(self):
+        self.client.force_authenticate(self.no_inventory_permission_user)
+
+        with patch("inventory.views.ListStockBalancesUseCase") as use_case:
+            response = self.client.get(self.endpoint)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        use_case.assert_not_called()
+
+    def test_user_with_inventory_view_permission_can_read_balances(self):
+        self.create_stock(quantity="4.25")
+
+        response = self.client.get(self.endpoint)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["quantity"], "4.250000000000")
 
     def test_returns_only_active_business_data_and_ignores_client_business_id(self):
         own = self.create_stock(quantity="2.500000000000", average_cost="9.125")
@@ -199,3 +244,20 @@ class StockBalanceListAPITests(APITestCase):
             response.data,
             {"count": 0, "page": 1, "page_size": 20, "results": []},
         )
+
+    def test_material_type_filter_separates_raw_and_compound_balances(self):
+        compound = Ingredient.objects.create(
+            business=self.business, name="Sauce", unit="kg", preparation_level="semi_prepared"
+        )
+        raw = self.create_stock(quantity="3")
+        compound_stock = self.create_stock(ingredient=compound, quantity="2")
+
+        raw_page = self.client.get(self.endpoint, {"material_type": "raw"})
+        compound_page = self.client.get(self.endpoint, {"material_type": "compound"})
+        self.assertEqual(raw_page.status_code, status.HTTP_200_OK)
+        self.assertEqual(compound_page.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["id"] for row in raw_page.data["results"]], [raw.pk])
+        self.assertEqual(raw_page.data["results"][0]["material_type"], "raw")
+        self.assertEqual([row["id"] for row in compound_page.data["results"]], [compound_stock.pk])
+        self.assertEqual(compound_page.data["results"][0]["material_type"], "compound")
+        self.assertEqual(self.client.get(self.endpoint, {"material_type": "unknown"}).status_code, status.HTTP_400_BAD_REQUEST)

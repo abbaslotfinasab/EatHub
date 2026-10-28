@@ -8,10 +8,8 @@ export const useRefundOrder = () => {
 
     return useMutation({
         mutationFn: (input: RefundOrderInput) => refundOrderUseCase.execute(input),
-        onSuccess: (_, variables) => {
+        onSuccess: () => {
             queryClient.invalidateQueries({queryKey: ["orders"]});
-            queryClient.invalidateQueries({queryKey: ["orders", variables.orderId]});
-            queryClient.invalidateQueries({queryKey: ["orders", variables.orderId, "refund"]});
         },
     });
 };

@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from core.models import BaseModel
@@ -266,4 +267,145 @@ class CustomerTransaction(BaseModel):
                 name="uniq_txn_refund",
             ),
         ]
+
+
+INVENTORY_UNITS = (("kg", "kg"), ("g", "g"), ("l", "l"), ("ml", "ml"), ("pc", "pc"), ("pk", "pk"))
+
+
+class OrderItemRecipeSnapshot(models.Model):
+    """Immutable recipe/yield basis captured when an order is confirmed."""
+
+    business = models.ForeignKey(Business, on_delete=models.PROTECT, related_name="order_recipe_snapshots")
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="recipe_snapshots")
+    order_item = models.OneToOneField(
+        OrderItem, on_delete=models.PROTECT, related_name="inventory_recipe_snapshot"
+    )
+    recipe = models.ForeignKey("inventory.Recipe", on_delete=models.PROTECT, related_name="order_snapshots")
+    recipe_output_ingredient = models.ForeignKey(
+        "inventory.Ingredient", on_delete=models.PROTECT, related_name="order_output_snapshots"
+    )
+    recipe_updated_at = models.DateTimeField()
+    output_quantity = models.DecimalField(max_digits=36, decimal_places=12)
+    output_unit = models.CharField(max_length=2, choices=INVENTORY_UNITS)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "order_item_recipe_snapshot"
+        indexes = [models.Index(fields=("business", "order"), name="order_snapshot_scope_ix")]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(output_quantity__gt=0), name="order_recipe_snapshot_yield_ck"),
+            models.CheckConstraint(condition=models.Q(output_unit="pc"), name="order_recipe_snapshot_unit_ck"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Confirmed order recipe snapshots are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Confirmed order recipe snapshots are retained for audit.")
+
+
+class OrderItemIngredientRequirement(models.Model):
+    """Immutable canonical-unit requirement derived from a recipe snapshot."""
+
+    snapshot = models.ForeignKey(
+        OrderItemRecipeSnapshot, on_delete=models.PROTECT, related_name="requirements"
+    )
+    ingredient = models.ForeignKey(
+        "inventory.Ingredient", on_delete=models.PROTECT, related_name="order_requirements"
+    )
+    recipe_input_id = models.PositiveBigIntegerField()
+    standard_quantity = models.DecimalField(max_digits=36, decimal_places=12)
+    unit = models.CharField(max_length=2, choices=INVENTORY_UNITS)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "order_item_ingredient_requirement"
+        constraints = [
+            models.UniqueConstraint(fields=("snapshot", "ingredient"), name="order_req_snapshot_item_uq"),
+            models.CheckConstraint(condition=models.Q(standard_quantity__gt=0), name="order_req_qty_positive_ck"),
+            models.CheckConstraint(condition=models.Q(unit__in=("kg", "g", "l", "ml", "pc", "pk")), name="order_req_unit_ck"),
+            models.CheckConstraint(condition=models.Q(recipe_input_id__gt=0), name="order_req_input_id_ck"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Confirmed order ingredient requirements are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Confirmed order ingredient requirements are retained for audit.")
+
+
+class OrderInventoryConsumption(BaseModel):
+    """Idempotent actual-consumption posting for one order."""
+
+    business = models.ForeignKey(Business, on_delete=models.PROTECT, related_name="inventory_consumptions")
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="inventory_consumptions")
+    idempotency_key = models.UUIDField()
+    payload_fingerprint = models.CharField(max_length=64)
+    actor = models.ForeignKey(User, on_delete=models.PROTECT, related_name="inventory_consumptions")
+    inventory_operation = models.ForeignKey(
+        "inventory.InventoryOperation", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="order_consumptions",
+    )
+
+    class Meta:
+        db_table = "order_inventory_consumption"
+        constraints = [
+            models.UniqueConstraint(fields=("business", "idempotency_key"), name="order_consumption_idem_uq"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = type(self).objects.get(pk=self.pk)
+            immutable = (
+                "business_id", "order_id", "idempotency_key", "payload_fingerprint", "actor_id"
+            )
+            if any(getattr(previous, field) != getattr(self, field) for field in immutable):
+                raise ValidationError("Posted order consumption headers are immutable.")
+            if previous.inventory_operation_id and previous.inventory_operation_id != self.inventory_operation_id:
+                raise ValidationError("A consumption operation link cannot be changed.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Posted order consumption history is retained for audit.")
+
+
+class OrderInventoryConsumptionLine(models.Model):
+    consumption = models.ForeignKey(
+        OrderInventoryConsumption, on_delete=models.PROTECT, related_name="lines"
+    )
+    requirement = models.ForeignKey(
+        OrderItemIngredientRequirement, on_delete=models.PROTECT, related_name="consumption_lines"
+    )
+    actual_quantity = models.DecimalField(max_digits=36, decimal_places=12)
+    unit = models.CharField(max_length=2, choices=INVENTORY_UNITS)
+    inventory_movement = models.ForeignKey(
+        "inventory.InventoryV1StockMovement", null=True, blank=True, on_delete=models.PROTECT,
+        related_name="order_consumption_lines",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "order_inventory_consumption_line"
+        constraints = [
+            models.UniqueConstraint(fields=("consumption", "requirement"), name="order_consumption_req_uq"),
+            models.CheckConstraint(condition=models.Q(actual_quantity__gte=0), name="order_consumption_qty_nonneg_ck"),
+            models.CheckConstraint(condition=models.Q(unit__in=("kg", "g", "l", "ml", "pc", "pk")), name="order_consumption_unit_ck"),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = type(self).objects.get(pk=self.pk)
+            immutable = ("consumption_id", "requirement_id", "actual_quantity", "unit")
+            if any(getattr(previous, field) != getattr(self, field) for field in immutable):
+                raise ValidationError("Posted order consumption lines are immutable.")
+            if previous.inventory_movement_id and previous.inventory_movement_id != self.inventory_movement_id:
+                raise ValidationError("A consumption line's movement link cannot be changed.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Posted order consumption history is retained for audit.")
 

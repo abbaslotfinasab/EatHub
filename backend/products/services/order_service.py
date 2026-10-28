@@ -7,6 +7,7 @@ from django.db import IntegrityError, transaction
 from decimal import Decimal
 
 from products.services.wallet_service import WalletService
+from products.services.order_inventory_service import OrderInventoryService
 from core.models import ActivityLog
 from core.services.ActivityLogService import ActivityLogService
 
@@ -135,6 +136,9 @@ class OrderService:
         ):
             raise ValidationError("Paid orders cannot be financially modified.")
 
+        if "items" in validated_data and order.status != Order.Status.PENDING:
+            raise ValidationError("Order items cannot be changed after inventory requirements are confirmed.")
+
         items_data = validated_data.pop("items", None)
 
         customer = validated_data.get("customer", order.customer)
@@ -255,6 +259,10 @@ class OrderService:
     @transaction.atomic
     def delete_order(order, user=None):
         order = Order.objects.select_for_update().get(pk=order.pk)
+        from products.models import OrderItemRecipeSnapshot
+
+        if order.status != Order.Status.PENDING or OrderItemRecipeSnapshot.objects.filter(order_id=order.pk).exists():
+            raise ValidationError("Orders with inventory history must be cancelled, not deleted.")
         has_transactions = CustomerTransaction.objects.filter(order=order).exists()
         safely_deletable_payment_statuses = (
             Order.PaymentStatus.PENDING,
@@ -309,6 +317,31 @@ class OrderService:
         new_payment_status = (
             payment_status if payment_status is not None else previous_payment_status
         )
+        allowed_status_transitions = {
+            Order.Status.PENDING: {
+                Order.Status.PENDING, Order.Status.CONFIRMED,
+                Order.Status.CANCELLED, Order.Status.FAILED,
+            },
+            Order.Status.CONFIRMED: {
+                Order.Status.CONFIRMED, Order.Status.PREPARING,
+                Order.Status.CANCELLED, Order.Status.FAILED,
+            },
+            Order.Status.PREPARING: {
+                Order.Status.PREPARING, Order.Status.READY,
+                Order.Status.CANCELLED, Order.Status.FAILED,
+            },
+            Order.Status.READY: {
+                Order.Status.READY, Order.Status.COMPLETED,
+                Order.Status.CANCELLED, Order.Status.FAILED,
+            },
+            Order.Status.COMPLETED: {Order.Status.COMPLETED},
+            Order.Status.CANCELLED: {Order.Status.CANCELLED},
+            Order.Status.FAILED: {Order.Status.FAILED},
+        }
+        if new_status not in allowed_status_transitions.get(previous_status, set()):
+            raise ValidationError({
+                "status": f"Transition from {previous_status} to {new_status} is not allowed."
+            })
         if payment_status == Order.PaymentStatus.REFUNDED:
             raise ValidationError({
                 "payment_status": "Use the refund operation to record and complete a refund."
@@ -368,6 +401,26 @@ class OrderService:
         # Persist the explicit paid state inside this transaction before the
         # authoritative wallet settlement service validates the order.
         order.save(update_fields=["status", "payment_status", "payment_method"])
+
+        if new_status == Order.Status.CONFIRMED and previous_status != Order.Status.CONFIRMED:
+            if user is None or user.pk is None:
+                raise ValidationError("Confirming an order requires an authenticated actor.")
+            OrderInventoryService.confirm(order=order, actor_id=user.pk)
+        elif new_status == Order.Status.READY and previous_status != Order.Status.READY:
+            OrderInventoryService.ensure_consumption_complete(order)
+            if user is None or user.pk is None:
+                raise ValidationError("Releasing order reservations requires an authenticated actor.")
+            OrderInventoryService.release_remaining(
+                order=order, actor_id=user.pk, reason="Order is ready; unused reserved stock released"
+            )
+        elif new_status in (Order.Status.CANCELLED, Order.Status.FAILED) and new_status != previous_status:
+            if user is None or user.pk is None:
+                raise ValidationError("Releasing order reservations requires an authenticated actor.")
+            OrderInventoryService.release_remaining(
+                order=order, actor_id=user.pk, reason=f"Order {new_status}"
+            )
+        elif new_status == Order.Status.COMPLETED and previous_status != Order.Status.COMPLETED:
+            OrderInventoryService.ensure_consumption_complete(order)
 
         # Reconcile only when payment state or payment method was explicitly
         # changed. Completion alone never charges a wallet.
@@ -577,6 +630,16 @@ class OrderService:
                 previous_payment_status=Order.PaymentStatus.PAID,
                 refund=refund,
             )
+
+        # Refunds cancel the order through this path rather than update_status;
+        # release only the outstanding hold. Posted consumption remains in the
+        # append-only inventory ledger. This joins the refund transaction so a
+        # failed release also rolls back the refund and wallet reconciliation.
+        OrderInventoryService.release_remaining(
+            order=order,
+            actor_id=user.pk if user is not None else None,
+            reason="Order refunded; remaining reservation released",
+        )
 
         order.status = Order.Status.CANCELLED
         order.payment_status = Order.PaymentStatus.REFUNDED

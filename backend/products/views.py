@@ -17,11 +17,22 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from core.enums import PermissionCode
+from inventory.models import Ingredient
+from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, MenuSerializer, \
     PublicRestaurantSerializer, PublicMenuSerializer, UpdateMenuSerializer, MenuItemSerializer, \
     MenuItemCreateSerializer, MenuItemUpdateSerializer
 from products.services.menu_service import MenuService
-from products.models import Menu, Customer, CustomerAccount, Order, OrderRefund
+from products.services.order_inventory_service import OrderInventoryService
+from products.models import (
+    Menu,
+    Customer,
+    CustomerAccount,
+    Order,
+    OrderRefund,
+    OrderItemIngredientRequirement,
+    OrderInventoryConsumptionLine,
+)
 from products.services.wallet_service import WalletService
 from django.db.models import (
     Q,
@@ -539,6 +550,13 @@ class OrderStatusUpdateAPIView(TenantAPIView):
         changes = serializer.validated_data
         if "status" in changes and PermissionCode.ORDERS_UPDATE not in request.permissions:
             raise PermissionDenied("You do not have permission to update orders.")
+        if changes.get("status") in {
+            Order.Status.CONFIRMED,
+            Order.Status.READY,
+            Order.Status.CANCELLED,
+            Order.Status.FAILED,
+        } and PermissionCode.INVENTORY_ORDER_FULFILL not in request.permissions:
+            raise PermissionDenied("You do not have permission to fulfill order inventory.")
         if {"payment_status", "payment_method"}.intersection(changes):
             _require_financial_access(
                 request, "You do not have permission to manage order payments."
@@ -561,6 +579,118 @@ class OrderStatusUpdateAPIView(TenantAPIView):
                 "payment_method": order.payment_method,
             }
         )
+
+
+class OrderActualConsumptionAPIView(TenantAPIView):
+    """Record operator-entered actual use for a preparing, tenant-scoped order."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id):
+        if PermissionCode.ORDERS_UPDATE not in request.permissions:
+            raise PermissionDenied("You do not have permission to update orders.")
+        if PermissionCode.INVENTORY_ORDER_FULFILL not in request.permissions:
+            raise PermissionDenied("You do not have permission to view order inventory requirements.")
+
+        order = get_object_or_404(
+            Order.objects.filter(business=request.business), pk=order_id,
+        )
+        requirements = list(
+            OrderItemIngredientRequirement.objects.filter(
+                snapshot__business_id=request.business.id,
+                snapshot__order_id=order.pk,
+                snapshot__order__business_id=request.business.id,
+            ).select_related("snapshot__order_item").order_by(
+                "snapshot__order_item_id", "pk",
+            )
+        )
+        ingredient_ids = {item.ingredient_id for item in requirements}
+        ingredients = {
+            ingredient.pk: ingredient
+            for ingredient in Ingredient.objects.filter(
+                business_id=request.business.id,
+                pk__in=ingredient_ids,
+            )
+        }
+        if len(ingredients) != len(ingredient_ids):
+            raise Http404("An order requirement was not found in this business.")
+
+        actual_totals = {
+            row["requirement_id"]: {
+                "quantity": row["total"] or 0,
+                "count": row["entries"],
+            }
+            for row in OrderInventoryConsumptionLine.objects.filter(
+                consumption__business_id=request.business.id,
+                consumption__order_id=order.pk,
+                requirement_id__in=[item.pk for item in requirements],
+            ).values("requirement_id").annotate(
+                total=Sum("actual_quantity"),
+                entries=Count("pk"),
+            )
+        }
+        return Response({
+            "order_id": order.pk,
+            "requirements": [
+                {
+                    "requirement_id": item.pk,
+                    "order_item_id": item.snapshot.order_item_id,
+                    "menu_item_name": item.snapshot.order_item.menu_item_name,
+                    "ingredient_id": item.ingredient_id,
+                    "ingredient_name": ingredients[item.ingredient_id].name,
+                    "standard_quantity": format(item.standard_quantity, "f"),
+                    "actual_quantity": format(
+                        actual_totals.get(item.pk, {}).get("quantity", 0), "f",
+                    ),
+                    "unit": item.unit,
+                    "has_actual_record": item.pk in actual_totals,
+                }
+                for item in requirements
+            ],
+        })
+
+    def post(self, request, order_id):
+        if PermissionCode.ORDERS_UPDATE not in request.permissions:
+            raise PermissionDenied("You do not have permission to update orders.")
+        if PermissionCode.INVENTORY_ORDER_FULFILL not in request.permissions:
+            raise PermissionDenied("You do not have permission to post inventory consumption.")
+        serializer = OrderActualConsumptionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            event = OrderInventoryService.record_consumption(
+                business_id=request.business.id,
+                order_id=order_id,
+                actor_id=request.user.pk,
+                idempotency_key=serializer.validated_data["idempotency_key"],
+                lines=[
+                    {**line, "quantity": str(line["quantity"])}
+                    for line in serializer.validated_data["lines"]
+                ],
+            )
+        except ResourceNotFound as error:
+            raise Http404(str(error)) from error
+        except OperationConflict as error:
+            raise ValidationError({"detail": str(error)}) from error
+        return Response({
+            "id": event.pk,
+            "order_id": event.order_id,
+            "idempotency_key": str(event.idempotency_key),
+            "created_at": event.created_at,
+            "inventory_operation_id": event.inventory_operation_id,
+            "lines": [
+                {
+                    "requirement_id": line.requirement_id,
+                    "order_item_id": line.requirement.snapshot.order_item_id,
+                    "ingredient_id": line.requirement.ingredient_id,
+                    "actual_quantity": str(line.actual_quantity),
+                    "unit": line.unit,
+                    "movement_id": line.inventory_movement_id,
+                }
+                for line in event.lines.select_related(
+                    "requirement__snapshot__order_item", "requirement__ingredient", "inventory_movement"
+                ).order_by("pk")
+            ],
+        }, status=status.HTTP_201_CREATED)
 
 
 class OrderRefundAPIView(TenantAPIView):

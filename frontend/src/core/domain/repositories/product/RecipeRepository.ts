@@ -11,8 +11,8 @@ export interface RecipeRepository {
     // ذخیره یک رسپی به همراه لیست مواد مصرفی (atomic in backend)
     create(
         recipe: Omit<Recipe, 'id' | 'createdAt' | 'updatedAt'>,
-        // فقط فیلدهای ضروری بدون id, recipeId, createdAt, updatedAt
-        ingredients: Omit<RecipeComponents, 'id' | 'createdAt' | 'updatedAt'>[]
+        ingredients: Omit<RecipeComponents, 'id' | 'createdAt' | 'updatedAt'>[],
+        outputs: Omit<RecipeComponents, 'id' | 'createdAt' | 'updatedAt'>[],
     ): Promise<RecipeResult>;
     // پیدا کردن رسپی با شناسه (بدون ingredients)
     findById(id: string): Promise<RecipeResult | null>;
@@ -22,7 +22,12 @@ export interface RecipeRepository {
 
 
     // به‌روزرسانی رسپی و جایگزینی کامل مواد مصرفی (delete old + insert new)
-    update(recipeId: string, recipeData: Partial<Recipe>, ingredients: Omit<RecipeComponents, 'id' | 'createdAt' | 'updatedAt' | 'componentType' >[]): Promise<RecipeResult>;
+    update(
+        recipeId: string,
+        recipeData: Partial<Recipe>,
+        ingredients: Omit<RecipeComponents, 'id' | 'createdAt' | 'updatedAt' | 'componentType'>[],
+        outputs: Omit<RecipeComponents, 'id' | 'createdAt' | 'updatedAt' | 'componentType'>[],
+    ): Promise<RecipeResult>;
 
 
     delete(id: string): Promise<void>;

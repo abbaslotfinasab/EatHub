@@ -9,6 +9,7 @@ import {
 
 import { SidebarItem } from "./SidebarItem";
 import { SidebarSection } from "./SidebarSection";
+import { useAuthStore } from "../../store/auth.store";
 
 import {
         dashboardItem,
@@ -16,6 +17,7 @@ import {
 } from "./sidebar.config";
 
 export const SidebarMenu = () => {
+        const permissions = useAuthStore((state) => state.me?.active_business?.permissions ?? []);
         const DashboardIcon = dashboardItem.icon;
 
         return (
@@ -37,13 +39,19 @@ export const SidebarMenu = () => {
 
                     {/* Sections */}
 
-                    {sidebarSections.map((section) => (
+                    {sidebarSections.map((section) => {
+                        const visibleItems = section.items.filter(
+                            (item) => !item.requiredPermission || permissions.includes(item.requiredPermission),
+                        );
+                        if (visibleItems.length === 0) return null;
+
+                        return (
                         <Fragment key={section.title}>
                                 <SidebarSection
                                     title={section.title}
                                 />
 
-                                {section.items.map((item) => {
+                                {visibleItems.map((item) => {
                                         const Icon = item.icon;
 
                                         return (
@@ -64,7 +72,8 @@ export const SidebarMenu = () => {
                                     }}
                                 />
                         </Fragment>
-                    ))}
+                        );
+                    })}
             </Box>
         );
 };

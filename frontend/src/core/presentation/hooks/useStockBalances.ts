@@ -25,7 +25,9 @@ export const useStockBalances = (filters: StockBalanceFilters) => {
                 previousKey[2] === businessId &&
                 previousFilters?.pageSize === filters.pageSize &&
                 previousFilters?.ingredientId === filters.ingredientId &&
-                previousFilters?.warehouseId === filters.warehouseId;
+                previousFilters?.warehouseId === filters.warehouseId &&
+                previousFilters?.materialType === filters.materialType &&
+                previousFilters?.search === filters.search;
 
             // Keep the page count while changing pages, but never carry rows
             // across a user, business, or filter change.
