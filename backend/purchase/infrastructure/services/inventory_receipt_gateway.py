@@ -32,6 +32,7 @@ class DjangoInventoryReceiptGateway:
                 source_line_id=request.source_line_id,
                 operation_kind=request.operation_kind,
             ),
+            occurred_at=request.occurred_at,
         )
         context = InventoryExecutionContext(
             business_id=request.business_id,
