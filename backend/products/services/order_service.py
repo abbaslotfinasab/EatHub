@@ -26,7 +26,7 @@ class OrderService:
         order = Order.objects.create(
             business=business,
             customer=customer,
-            table=validated_data["table"],
+            table=validated_data.get("table"),
             order_type=validated_data["order_type"],
             notes=validated_data.get("notes"),
             status=Order.Status.PENDING,
@@ -51,7 +51,7 @@ class OrderService:
             menu_item = menu_items.get(item["menu_item_id"])
 
             if not menu_item:
-                raise ValueError("Invalid menu item")
+                raise ValidationError({"items": "Invalid menu item for this business."})
 
             quantity = item["quantity"]
             unit_price = menu_item.price
@@ -209,7 +209,7 @@ class OrderService:
             )
 
             if not menu_item:
-                raise ValueError("Invalid menu item")
+                raise ValidationError({"items": "Invalid menu item for this business."})
 
             quantity = item["quantity"]
 

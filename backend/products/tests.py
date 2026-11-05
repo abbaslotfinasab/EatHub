@@ -2293,3 +2293,77 @@ class WalletRefundMigrationTests(TestCase):
 
         self.assertTrue(Permission.objects.filter(pk=permission.pk).exists())
         self.assertTrue(RolePermission.objects.filter(pk=assignment.pk).exists())
+
+
+
+class OrderCreationValidationRegressionTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(name="Order Creation Validation Business")
+        self.menu = Menu.objects.create(
+            business=self.business,
+            name="Regression Menu",
+            category="Main",
+        )
+        self.menu_item = MenuItem.objects.create(
+            business=self.business,
+            menu=self.menu,
+            name="Regression Item",
+            price=Decimal("12.50"),
+        )
+
+    def test_takeaway_order_can_be_created_without_a_table(self):
+        order = OrderService.create_order(
+            business=self.business,
+            validated_data={
+                "order_type": Order.OrderType.TAKEAWAY,
+                "items": [{"menu_item_id": self.menu_item.id, "quantity": 2}],
+            },
+        )
+
+        self.assertIsNone(order.table)
+        self.assertEqual(order.items.count(), 1)
+        self.assertEqual(order.total_amount, Decimal("25.00"))
+
+    def test_create_order_rejects_invalid_menu_item_as_validation_error(self):
+        initial_order_count = Order.objects.filter(business=self.business).count()
+
+        with self.assertRaises(ValidationError):
+            OrderService.create_order(
+                business=self.business,
+                validated_data={
+                    "order_type": Order.OrderType.TAKEAWAY,
+                    "items": [{"menu_item_id": 99999999, "quantity": 1}],
+                },
+            )
+
+        self.assertEqual(
+            Order.objects.filter(business=self.business).count(),
+            initial_order_count,
+        )
+
+    def test_update_order_rejects_invalid_menu_item_as_validation_error(self):
+        order = Order.objects.create(
+            business=self.business,
+            order_type=Order.OrderType.TAKEAWAY,
+        )
+        original_item = OrderItem.objects.create(
+            order=order,
+            menu_item=self.menu_item,
+            menu_item_name=self.menu_item.name,
+            quantity=1,
+            unit_price=self.menu_item.price,
+            total_price=self.menu_item.price,
+        )
+
+        with self.assertRaises(ValidationError):
+            OrderService.update_order(
+                business=self.business,
+                order_id=order.id,
+                validated_data={
+                    "items": [{"menu_item_id": 99999999, "quantity": 1}],
+                },
+            )
+
+        order.refresh_from_db()
+        self.assertEqual(order.items.count(), 1)
+        self.assertEqual(order.items.get().pk, original_item.pk)
