@@ -2443,3 +2443,49 @@ class OrderCreationValidationRegressionTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.items.count(), 1)
         self.assertEqual(order.items.get().pk, original_item.pk)
+
+
+@skipUnless(connection.vendor == "postgresql", "Requires PostgreSQL unique-conflict semantics")
+class OrderCreationPostgresConcurrencyTests(TransactionTestCase):
+    """Verify concurrent retries for one create intent persist one order."""
+
+    def setUp(self):
+        self.business = Business.objects.create(name="Concurrent Order Creation Business")
+        self.menu = Menu.objects.create(
+            business=self.business, name="Concurrent Menu", category="Test"
+        )
+        self.menu_item = MenuItem.objects.create(
+            business=self.business,
+            menu=self.menu,
+            name="Concurrent Item",
+            price=Decimal("8.25"),
+        )
+
+    def test_concurrent_same_key_creates_one_order_and_one_order_item(self):
+        key = uuid4()
+        gate = Barrier(2)
+
+        def create_once():
+            close_old_connections()
+            try:
+                gate.wait(timeout=10)
+                order = OrderService.create_order(
+                    business=self.business,
+                    validated_data={
+                        "order_type": Order.OrderType.TAKEAWAY,
+                        "items": [{"menu_item_id": self.menu_item.id, "quantity": 2}],
+                    },
+                    idempotency_key=key,
+                )
+                return order.id
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            order_ids = list(executor.map(lambda _: create_once(), range(2)))
+
+        self.assertEqual(order_ids[0], order_ids[1])
+        self.assertEqual(
+            Order.objects.filter(business=self.business, idempotency_key=key).count(), 1
+        )
+        self.assertEqual(OrderItem.objects.filter(order_id=order_ids[0]).count(), 1)
