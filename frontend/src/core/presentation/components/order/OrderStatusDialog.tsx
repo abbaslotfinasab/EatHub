@@ -54,6 +54,7 @@ interface Props {
 
     canManagePayments?: boolean;
     canUpdateOrders?: boolean;
+    canCancelOrders?: boolean;
     canFulfillInventory?: boolean;
     businessId?: number | null;
 
@@ -85,7 +86,8 @@ export function OrderStatusDialog({
                                       refundLoading = false,
                                       canManagePayments = false,
                                       canUpdateOrders = false,
-                                       canFulfillInventory = false,
+                                      canCancelOrders = false,
+                                      canFulfillInventory = false,
                                       businessId = null,
                                       error = null,
                                       refundError = null,
@@ -275,7 +277,7 @@ export function OrderStatusDialog({
                                                 در انتظار
                                             </MenuItem>
 
-                                            <MenuItem value="confirmed">
+                                            <MenuItem value="confirmed" disabled={!canFulfillInventory}>
                                                 تایید شده
                                             </MenuItem>
 
@@ -294,7 +296,7 @@ export function OrderStatusDialog({
                                                 تکمیل شده
                                             </MenuItem>
 
-                                            <MenuItem value="cancelled">
+                                            <MenuItem value="cancelled" disabled={!canCancelOrders || !canFulfillInventory}>
                                                 لغو شده
                                             </MenuItem>
 
