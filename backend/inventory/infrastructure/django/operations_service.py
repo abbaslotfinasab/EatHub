@@ -5,7 +5,7 @@ always changed through the existing V1 Stock aggregate and appended ledger.
 """
 from decimal import Decimal
 
-from django.db.models import Q, Subquery
+from django.db.models import Q, Subquery, Sum
 from django.utils import timezone
 
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
@@ -22,8 +22,8 @@ from inventory.infrastructure.django.mappers import (
     warehouse_to_domain,
 )
 from inventory.infrastructure.django.models import (
-    InventoryOperation, InventoryOperationLine, InventoryV1Stock,
-    InventoryV1StockMovement,
+    InventoryOperation, InventoryOperationLine, InventoryReservation,
+    InventoryReservationLine, InventoryV1Stock, InventoryV1StockMovement,
 )
 from inventory.infrastructure.django.repositories import (
     DjangoIngredientRepository, DjangoStockMovementRepository,
@@ -261,6 +261,16 @@ def post_issue(*, business_id, actor_id, operation_id):
             if not line.ingredient.is_active:
                 raise OperationInputError("Inactive items cannot be issued.")
             row, stock = _stock(business_id, document.warehouse, line.ingredient)
+            reserved = InventoryReservationLine.objects.filter(
+                reservation__business_id=business_id,
+                reservation__warehouse_id=document.warehouse_id,
+                reservation__status=InventoryReservation.Status.ACTIVE,
+                ingredient_id=line.ingredient_id,
+            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+            if stock.quantity.amount - reserved < Decimal(line.quantity):
+                raise OperationConflict(
+                    "Issue quantity exceeds available stock after active reservations."
+                )
             movement = stock.issue(
                 Quantity(line.quantity, Unit(line.unit)), _identity(document, line, "post"),
                 warehouse, reason=document.reason or "Stock issue", actor_id=actor_id,
