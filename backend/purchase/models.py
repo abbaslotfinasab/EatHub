@@ -376,6 +376,35 @@ class GoodsReceiptItem(BaseModel):
         blank=True,
     )
 
+class GoodsReceiptInventoryMovementLink(models.Model):
+    """Protected, explicit bridge between a received line and its ledger entry."""
+
+    receipt_item = models.ForeignKey(
+        GoodsReceiptItem,
+        on_delete=models.PROTECT,
+        related_name="inventory_movement_links",
+    )
+    movement = models.ForeignKey(
+        "inventory.InventoryV1StockMovement",
+        on_delete=models.PROTECT,
+        related_name="goods_receipt_links",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "purchase_goods_receipt_inventory_movement"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("receipt_item",),
+                name="pur_gr_link_receipt_item_uq",
+            ),
+            models.UniqueConstraint(
+                fields=("movement",),
+                name="pur_gr_link_movement_uq",
+            ),
+        ]
+
+
 class PurchaseInvoice(BaseModel):
 
     class Status(models.TextChoices):
