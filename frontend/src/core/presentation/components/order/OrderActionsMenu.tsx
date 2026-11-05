@@ -23,6 +23,8 @@ interface OrderActionsMenuProps {
     onPrint?: () => void;
     onEdit?: () => void;
     onDelete?: () => void;
+    canUpdate?: boolean;
+    canDelete?: boolean;
 }
 
 export const OrderActionsMenu = ({
@@ -34,6 +36,8 @@ export const OrderActionsMenu = ({
                                      onPrint,
                                      onEdit,
                                      onDelete,
+                                     canUpdate = false,
+                                     canDelete = false,
                                  }: OrderActionsMenuProps) => {
     const handleAction = (callback?: () => void) => {
         onClose();
@@ -76,7 +80,7 @@ export const OrderActionsMenu = ({
                 </ListItemText>
             </MenuItem>
 
-            <MenuItem onClick={() => handleAction(onChangeStatus)}>
+            {canUpdate && <MenuItem onClick={() => handleAction(onChangeStatus)}>
                 <ListItemIcon>
                     <AutorenewRoundedIcon fontSize="small"/>
                 </ListItemIcon>
@@ -84,7 +88,7 @@ export const OrderActionsMenu = ({
                 <ListItemText>
                     تغییر وضعیت
                 </ListItemText>
-            </MenuItem>
+            </MenuItem>}
 
             <MenuItem onClick={() => handleAction(onPrint)}>
                 <ListItemIcon>
@@ -96,10 +100,9 @@ export const OrderActionsMenu = ({
                 </ListItemText>
             </MenuItem>
 
-            <Divider/>
+            {(canUpdate || canDelete) && <Divider/>}
 
-
-            <MenuItem
+            {canUpdate && <MenuItem
                 onClick={() => handleAction(onEdit)}
                 sx={{
                     color: "",
@@ -111,17 +114,14 @@ export const OrderActionsMenu = ({
                     }}
                 >
                     <EditRoundedIcon fontSize="small"/>
-
                 </ListItemIcon>
 
                 <ListItemText>
                     ویرایش سفارش
                 </ListItemText>
-            </MenuItem>
+            </MenuItem>}
 
-
-
-            <MenuItem
+            {canDelete && <MenuItem
                 onClick={() => handleAction(onDelete)}
                 sx={{
                     color: "error.main",
@@ -138,7 +138,7 @@ export const OrderActionsMenu = ({
                 <ListItemText>
                     حذف سفارش
                 </ListItemText>
-            </MenuItem>
+            </MenuItem>}
         </Menu>
     );
 };
