@@ -168,6 +168,7 @@ class ReceiveStockUseCase:
                 identity,
                 warehouse,
                 actor_id=context.actor_id,
+                occurred_at=command.occurred_at,
             )
             self._stocks.save(stock)
             self._movements.save(movement)
