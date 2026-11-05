@@ -261,7 +261,7 @@ class OrderService:
         order = Order.objects.select_for_update().get(pk=order.pk)
         from products.models import OrderItemRecipeSnapshot
 
-        if order.status != Order.Status.PENDING or OrderItemRecipeSnapshot.objects.filter(order_id=order.pk).exists():
+        if order.status not in (Order.Status.PENDING, Order.Status.CANCELLED, Order.Status.FAILED) or OrderItemRecipeSnapshot.objects.filter(order_id=order.pk).exists():
             raise ValidationError("Orders with inventory history must be cancelled, not deleted.")
         has_transactions = CustomerTransaction.objects.filter(order=order).exists()
         safely_deletable_payment_statuses = (
@@ -402,7 +402,7 @@ class OrderService:
         # authoritative wallet settlement service validates the order.
         order.save(update_fields=["status", "payment_status", "payment_method"])
 
-        if new_status == Order.Status.CONFIRMED and previous_status != Order.Status.CONFIRMED:
+        if new_status == Order.Status.CONFIRMED:
             if user is None or user.pk is None:
                 raise ValidationError("Confirming an order requires an authenticated actor.")
             OrderInventoryService.confirm(order=order, actor_id=user.pk)

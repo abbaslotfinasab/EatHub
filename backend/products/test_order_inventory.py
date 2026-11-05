@@ -508,6 +508,7 @@ class OrderInventoryRefundTests(TestCase):
         self.confirm()
         transaction_count = CustomerTransaction.objects.filter(order=self.order).count()
         account = self.customer.account
+        account.refresh_from_db()
         account_balance = account.balance
 
         with patch(
@@ -552,7 +553,7 @@ class OrderConsumptionRequirementsReadTests(TestCase):
         self.start_preparation()
         self.request = SimpleNamespace(
             business=self.business,
-            permissions={PermissionCode.ORDERS_UPDATE, PermissionCode.INVENTORY_ORDER_FULFILL},
+            permissions={PermissionCode.ORDERS_VIEW.value, PermissionCode.ORDERS_UPDATE.value, PermissionCode.INVENTORY_ORDER_FULFILL.value},
         )
 
     def test_read_contract_returns_snapshot_and_accumulated_actual_consumption(self):

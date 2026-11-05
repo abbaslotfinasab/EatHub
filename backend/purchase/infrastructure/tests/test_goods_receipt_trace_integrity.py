@@ -189,7 +189,7 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
 
     def _linked_records(self):
         result = self._receive()
-        receipt = GoodsReceipt.objects.get(pk=result.receipt.pk)
+        receipt = GoodsReceipt.objects.get(pk=result.receipt.id)
         item = receipt.items.get()
         link = GoodsReceiptInventoryMovementLink.objects.get(receipt_item=item)
         movement = InventoryV1StockMovement.objects.get(pk=link.movement_id)

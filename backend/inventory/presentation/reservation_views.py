@@ -66,7 +66,7 @@ class ReservationCreateSerializer(StrictSerializer):
     source_type = serializers.ChoiceField(
         choices=(MANUAL_RESERVATION_SOURCE,), required=False, default=MANUAL_RESERVATION_SOURCE
     )
-    source_id = PositiveBigIntegerIdentifierField(required=False, allow_null=True)
+    source_id = PositiveBigIntegerIdentifierField(required=False, allow_null=True, default=None)
     reason = serializers.CharField(max_length=500, allow_blank=False, trim_whitespace=True)
     idempotency_key = serializers.UUIDField()
     lines = ReservationLineInputSerializer(many=True, allow_empty=False)
