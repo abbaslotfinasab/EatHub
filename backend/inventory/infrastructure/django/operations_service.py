@@ -267,7 +267,12 @@ def post_issue(*, business_id, actor_id, operation_id):
                 reservation__status=InventoryReservation.Status.ACTIVE,
                 ingredient_id=line.ingredient_id,
             ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
-            if stock.quantity.amount - reserved < Decimal(line.quantity):
+            requested_quantity = Decimal(line.quantity)
+            if (
+                reserved > 0
+                and stock.quantity.amount >= requested_quantity
+                and stock.quantity.amount - reserved < requested_quantity
+            ):
                 raise OperationConflict(
                     "Issue quantity exceeds available stock after active reservations."
                 )
