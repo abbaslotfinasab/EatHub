@@ -40,7 +40,7 @@ class InventoryReservationsAPITests(APITestCase):
             RolePermission.objects.create(role=role, permission=permission)
         user = User.objects.create_user(
             email=f"{suffix}@example.test", password="unused-test-password",
-            name=suffix, number=f"res-{suffix}",
+            name=suffix, number=f"r-{suffix}",
         )
         Membership.objects.create(user=user, business=business, role=role, is_active=True)
         return user
