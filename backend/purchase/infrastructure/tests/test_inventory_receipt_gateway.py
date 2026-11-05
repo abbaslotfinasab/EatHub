@@ -35,7 +35,12 @@ class InventoryReceiptGatewayTests(TestCase):
             pk=777,
             movement_type="receipt",
             direction="in",
-            stock=MagicMock(ingredient_id=81),
+            stock=MagicMock(
+                ingredient_id=81,
+                business_id=7,
+                warehouse=MagicMock(business_id=7),
+                ingredient=MagicMock(business_id=7),
+            ),
         )
         receipt_item = MagicMock()
         link = MagicMock(movement_id=777)
