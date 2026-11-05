@@ -138,7 +138,7 @@ class OrderInventoryService:
 
         menu_items = {
             row.pk: row
-            for row in MenuItem.objects.select_for_update().filter(
+            for row in MenuItem.objects.select_for_update(of=("self",)).filter(
                 business_id=order.business_id,
                 pk__in=[item.menu_item_id for item in items if item.menu_item_id is not None],
             ).select_related("recipe").order_by("pk")
