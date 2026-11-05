@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from unittest import TestCase
 
@@ -42,6 +43,7 @@ class InventoryReceiptGatewayTests(TestCase):
                 source_line_id=901,
                 operation_kind="receive_stock",
                 actor_id=44,
+                occurred_at=datetime(2026, 10, 2, 12),
             )
         )
 
@@ -58,6 +60,7 @@ class InventoryReceiptGatewayTests(TestCase):
         self.assertEqual(command.source.source_document_id, 900)
         self.assertEqual(command.source.source_line_id, 901)
         self.assertEqual(command.source.operation_kind, "receive_stock")
+        self.assertEqual(command.occurred_at, datetime(2026, 10, 2, 12))
         self.assertEqual(context, InventoryExecutionContext(7, actor_id=44))
 
     def test_inventory_business_errors_become_purchase_integration_errors(self):
