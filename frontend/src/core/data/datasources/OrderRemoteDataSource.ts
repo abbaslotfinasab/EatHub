@@ -15,27 +15,17 @@ import type {
 } from "../dtos/order/OrderInventoryConsumptionDTO.ts";
 
 export class OrderRemoteDataSource {
-
-    // =========================
-    // Create
-    // =========================
-
     async createOrder(payload: CreateOrderDTO): Promise<OrderDTO> {
         const {data} = await apiClient.post<OrderDTO>(
             "/products/orders/",
             payload,
         );
-
         return data;
     }
 
-    // =========================
-    // Read
-    // =========================
-
     async getOrders(filters?: OrderFilters): Promise<PaginatedResult<OrderDTO>> {
         const {data} = await apiClient.get<PaginatedResult<OrderDTO>>(
-            "/products/orders/list",
+            "/products/orders/list/",
             {
                 params: {
                     search: filters?.search,
@@ -53,7 +43,6 @@ export class OrderRemoteDataSource {
                 },
             },
         );
-
         return data;
     }
 
@@ -61,47 +50,14 @@ export class OrderRemoteDataSource {
         const {data} = await apiClient.get<OrderDTO>(
             `/products/orders/${id}/`,
         );
-
         return data;
     }
 
-    // =========================
-    // Update
-    // =========================
-
-    async updateOrder(
-        id: string,
-        payload: UpdateOrderDTO,
-    ): Promise<OrderDTO> {
+    async updateOrder(id: string, payload: UpdateOrderDTO): Promise<OrderDTO> {
         const {data} = await apiClient.patch<OrderDTO>(
             `/products/orders/${id}/update/`,
             payload,
         );
-
-        return data;
-    }
-
-    async updateOrderStatus(
-        id: string,
-        status: string,
-    ): Promise<OrderDTO> {
-        const {data} = await apiClient.patch<OrderDTO>(
-            `/products/orders/${id}/status/`,
-            {status},
-        );
-
-        return data;
-    }
-
-    // =========================
-    // Delete / Cancel
-    // =========================
-
-    async cancelOrder(id: string): Promise<OrderDTO> {
-        const {data} = await apiClient.patch<OrderDTO>(
-            `/products/orders/${id}/cancel/`,
-        );
-
         return data;
     }
 
@@ -111,37 +67,14 @@ export class OrderRemoteDataSource {
         );
     }
 
-    // =========================
-    // Filters / Lists
-    // =========================
-
-    async getActiveOrders(): Promise<OrderDTO[]> {
-        const {data} = await apiClient.get<OrderDTO[]>(
-            "/products/orders/active/",
-        );
-
-        return data;
-    }
-
-    async getOrderHistory(): Promise<OrderDTO[]> {
-        const {data} = await apiClient.get<OrderDTO[]>(
-            "/products/orders/history/",
-        );
-
-        return data;
-    }
-
     async updateStatus(
         orderId: string,
         input: UpdateOrderStatusDTO,
     ): Promise<void> {
-
-
         await apiClient.patch(
             `/products/orders/${orderId}/status/`,
             input,
         );
-
     }
 
     async refundOrder(orderId: string, input: OrderRefundDTO): Promise<RefundOrderResult> {
@@ -176,6 +109,4 @@ export class OrderRemoteDataSource {
         );
         return data;
     }
-
-
 }
