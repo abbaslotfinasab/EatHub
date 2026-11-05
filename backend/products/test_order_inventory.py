@@ -407,6 +407,9 @@ class OrderInventoryLifecycleTests(TestCase):
 
 
 class OrderInventoryRefundTests(TestCase):
+    confirm = OrderInventoryLifecycleTests.confirm
+    start_preparation = OrderInventoryLifecycleTests.start_preparation
+    requirement = OrderInventoryLifecycleTests.requirement
     """Refund inventory release stays atomic with the existing wallet refund."""
 
     def setUp(self):
@@ -540,6 +543,9 @@ class OrderInventoryRefundTests(TestCase):
 
 
 class OrderConsumptionRequirementsReadTests(TestCase):
+    confirm = OrderInventoryLifecycleTests.confirm
+    start_preparation = OrderInventoryLifecycleTests.start_preparation
+    requirement = OrderInventoryLifecycleTests.requirement
     def setUp(self):
         OrderInventoryLifecycleTests.setUp(self)
         self.confirm()
