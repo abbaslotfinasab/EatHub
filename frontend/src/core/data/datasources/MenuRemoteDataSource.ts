@@ -2,6 +2,7 @@ import { apiClient } from "../http/http-client";
 
 import type { MenuDTO } from "../dtos/menu/MenuDto.ts";
 import type { CreateMenuDTO } from "../dtos/menu/CreateMenuDTO.ts";
+import type { UpdateMenuDTO } from "../dtos/menu/UpdateMenuDTO.ts";
 import type { PublicRestaurantMenuDto } from "../dtos/business/PublicRestaurantMenuDto.ts";
 
 export class MenuRemoteDataSource {
@@ -29,7 +30,7 @@ export class MenuRemoteDataSource {
 
     async updateMenu(
         id: number,
-        payload: CreateMenuDTO,
+        payload: UpdateMenuDTO,
     ): Promise<MenuDTO> {
         const { data } = await apiClient.patch<MenuDTO>(
             `/products/menus/${id}/update/`,
