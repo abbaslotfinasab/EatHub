@@ -20,7 +20,7 @@ from inventory.infrastructure.django.repositories import (
     DjangoStockRepository,
     DjangoWarehouseRepository,
 )
-from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
+from inventory.infrastructure.django.operations_service import post_issue\nfrom inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
 from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
 from purchase.application.dto.goods_receipt import (
@@ -335,3 +335,86 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(GoodsReceipt.objects.filter(business=self.business).count(), 1)
         self.assertEqual(GoodsReceiptItem.objects.count(), 1)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    def test_concurrent_goods_receipt_and_issue_serialize_on_one_stock_position(self) -> None:
+        item = self._item(unit="g", quantity="1000")
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.ingredient,
+            unit="kg",
+            quantity=Decimal("1.000000000000"),
+            average_cost=Decimal("100"),
+        )
+        issue = InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.ISSUE,
+            status=InventoryOperation.Status.DRAFT,
+            warehouse=self.warehouse,
+            reason="Concurrent kitchen issue",
+            created_by_id=self.user.id,
+        )
+        InventoryOperationLine.objects.create(
+            operation=issue,
+            ingredient=self.ingredient,
+            quantity=Decimal("0.200000000000"),
+            unit="kg",
+        )
+
+        results = self._run_concurrently([
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, quantity="500")
+            ),
+            lambda: post_issue(
+                business_id=self.business.id,
+                actor_id=self.user.id,
+                operation_id=issue.id,
+            ),
+        ])
+
+        self.assertFalse(
+            any(isinstance(result, Exception) for result in results),
+            msg=f"Concurrent receipt/issue failed: {results!r}",
+        )
+        receipt_result, issue_result = results
+        self.assertFalse(receipt_result.replayed)
+        self.assertEqual(issue_result.status, InventoryOperation.Status.POSTED)
+
+        stock.refresh_from_db()
+        self.assertEqual(stock.quantity, Decimal("1.300000000000"))
+
+        movements = list(
+            InventoryV1StockMovement.objects.filter(stock=stock).order_by("pk")
+        )
+        self.assertEqual(len(movements), 2)
+        self.assertEqual(
+            sorted(movement.movement_type for movement in movements),
+            ["issue", "receipt"],
+        )
+        self.assertEqual(
+            sum((movement.quantity for movement in movements), Decimal("0")),
+            Decimal("0.700000000000"),
+        )
+        self.assertEqual(
+            {movement.balance_after for movement in movements},
+            {Decimal("0.800000000000"), Decimal("1.300000000000")},
+        )
+        receipt_movement = next(
+            movement for movement in movements
+            if movement.movement_type == "receipt"
+        )
+        issue_movement = next(
+            movement for movement in movements
+            if movement.movement_type == "issue"
+        )
+        self.assertEqual(receipt_movement.source_type, "goods_receipt")
+        self.assertEqual(receipt_movement.source_document_id, receipt_result.receipt.id)
+        self.assertEqual(issue_movement.source_type, "inventory_issue")
+        self.assertEqual(issue_movement.source_document_id, issue.id)
+        self.assertEqual(
+            GoodsReceiptInventoryMovementLink.objects.filter(
+                receipt_item__receipt_id=receipt_result.receipt.id,
+                movement_id=receipt_movement.pk,
+            ).count(),
+            1,
+        )
