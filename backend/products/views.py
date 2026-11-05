@@ -287,6 +287,7 @@ class OrderCreateAPIView(TenantAPIView):
             business=request.business,
             validated_data=serializer.validated_data,
             user=request.user,
+            idempotency_key=serializer.validated_data["idempotency_key"],
         )
 
         return Response(
