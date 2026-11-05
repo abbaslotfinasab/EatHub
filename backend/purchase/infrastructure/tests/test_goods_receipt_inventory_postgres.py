@@ -212,6 +212,7 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(GoodsReceiptItem.objects.count(), 0)
         self.assertEqual(InventoryV1Stock.objects.count(), 0)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
+        self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 0)
 
         item.purchase_unit = "kg"
         item.save(update_fields=["purchase_unit", "updated_at"])
@@ -237,6 +238,7 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(self.order.receipts.count(), 1)
         self.assertEqual(GoodsReceiptItem.objects.count(), 1)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+        self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 1)
         self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 1)
         self.assertEqual(
             GoodsReceiptItem.objects.get().received_quantity,
