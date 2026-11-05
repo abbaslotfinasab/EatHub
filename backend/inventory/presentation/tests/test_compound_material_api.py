@@ -58,15 +58,33 @@ class CompoundMaterialAPITests(APITestCase):
         trace = {}
 
         def traced_list(business_id, **kwargs):
-            orm_count = Ingredient.objects.filter(
+            rows = Ingredient.objects.filter(
                 business_id=business_id,
                 preparation_level=Ingredient.PreparationLevel.SEMI_PREPARED,
-            ).count()
-            page = original_list(business_id, **kwargs)
+            )
+            if kwargs.get("search"):
+                from django.db.models import Q
+
+                search = kwargs["search"]
+                rows = rows.filter(Q(name__icontains=search) | Q(sku__icontains=search))
+            if kwargs.get("is_active") is not None:
+                rows = rows.filter(is_active=kwargs["is_active"])
+
             trace.update(
                 business_id=business_id,
-                orm_count=orm_count,
+                repository_kwargs=dict(kwargs),
+                orm_count=Ingredient.objects.filter(
+                    business_id=business_id,
+                    preparation_level=Ingredient.PreparationLevel.SEMI_PREPARED,
+                ).count(),
+                filtered_orm_count=rows.count(),
+                filtered_orm_ids=list(rows.order_by("name", "pk").values_list("pk", flat=True)),
+                filtered_orm_sql=str(rows.query),
+            )
+            page = original_list(business_id, **kwargs)
+            trace.update(
                 repository_count=page.count,
+                repository_ids=[item.id for item in page.results],
             )
             return page
 
@@ -76,8 +94,9 @@ class CompoundMaterialAPITests(APITestCase):
             side_effect=traced_list,
         ):
             response = self.client.get(
-                "/api/inventory/compound-materials/", query_params,
+                "/api/inventory/compound-materials/", data=query_params,
             )
+        trace["http_query_params"] = dict(response.wsgi_request.GET)
         return response, trace
 
     def test_create_list_detail_patch_and_deactivate_preserve_composition_and_stock_ledger(self):
