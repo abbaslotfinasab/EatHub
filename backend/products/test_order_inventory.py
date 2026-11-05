@@ -685,3 +685,127 @@ class ConcurrentOrderConfirmationTests(TransactionTestCase):
         self.assertEqual(
             Order.objects.filter(pk__in=self.orders, status=Order.Status.CONFIRMED).count(), 1
         )
+
+
+@skipUnless(connection.vendor == "postgresql", "Requires isolated PostgreSQL row-lock semantics")
+class ConcurrentOrderConfirmationReleaseTests(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.business = Business.objects.create(name="Confirm Release Race Business")
+        self.actor = User.objects.create_user(
+            email="confirm-release-race@example.test",
+            password="test-password",
+            name="Concurrent Operator",
+            number="7012",
+        )
+        warehouse = Warehouse.objects.create(
+            business=self.business, name="Main", is_active=True, is_default=True
+        )
+        flour = Ingredient.objects.create(
+            business=self.business, name="Flour", unit="kg"
+        )
+        dish = Ingredient.objects.create(
+            business=self.business, name="Dish", unit="pc"
+        )
+        self.stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=warehouse,
+            ingredient=flour,
+            unit="kg",
+            quantity=Decimal("3"),
+            average_cost=Decimal("1"),
+        )
+        recipe = Recipe.objects.create(
+            business=self.business, name="Race test recipe"
+        )
+        RecipeInput.objects.create(
+            recipe=recipe, ingredient=flour, quantity=Decimal("3"), unit="kg"
+        )
+        RecipeOutput.objects.create(
+            recipe=recipe, ingredient=dish, quantity=Decimal("1"),
+            unit="pc", is_primary=True,
+        )
+        menu = Menu.objects.create(
+            business=self.business, name="Race test menu", category="Test"
+        )
+        menu_item = MenuItem.objects.create(
+            business=self.business, menu=menu, name="Race test dish",
+            price=Decimal("1"), recipe=recipe,
+        )
+        self.order = Order.objects.create(
+            business=self.business,
+            order_type=Order.OrderType.TAKEAWAY,
+            payment_method=Order.PaymentMethod.CASH,
+        )
+        OrderItem.objects.create(
+            order=self.order, menu_item=menu_item,
+            menu_item_name=menu_item.name, quantity=1,
+            unit_price=Decimal("1"), total_price=Decimal("1"),
+        )
+
+    def test_concurrent_confirm_and_cancel_never_leave_an_active_reservation(self):
+        barrier = Barrier(2)
+
+        def confirm():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                OrderService.update_status(
+                    business=Business.objects.get(pk=self.business.pk),
+                    order_id=self.order.pk,
+                    status=Order.Status.CONFIRMED,
+                    user=User.objects.get(pk=self.actor.pk),
+                )
+                return "confirmed"
+            except APIValidationError:
+                return "rejected"
+            finally:
+                close_old_connections()
+
+        def cancel_and_release():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                OrderService.update_status(
+                    business=Business.objects.get(pk=self.business.pk),
+                    order_id=self.order.pk,
+                    status=Order.Status.CANCELLED,
+                    user=User.objects.get(pk=self.actor.pk),
+                )
+                return "released"
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            confirm_future = pool.submit(confirm)
+            release_future = pool.submit(cancel_and_release)
+            outcomes = [confirm_future.result(), release_future.result()]
+
+        self.assertIn(outcomes[0], ("confirmed", "rejected"))
+        self.assertEqual(outcomes[1], "released")
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.CANCELLED)
+
+        reservations = InventoryReservation.objects.filter(
+            business=self.business, source_type="order", source_id=self.order.pk
+        )
+        self.assertLessEqual(reservations.count(), 1)
+        self.assertFalse(
+            reservations.filter(status=InventoryReservation.Status.ACTIVE).exists()
+        )
+        if reservations.exists():
+            self.assertEqual(
+                reservations.get().status, InventoryReservation.Status.RELEASED
+            )
+
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("3"))
+        self.assertFalse(
+            InventoryV1StockMovement.objects.filter(
+                business=self.business, source_type="order",
+                source_document_id=self.order.pk,
+            ).exists()
+        )
+
