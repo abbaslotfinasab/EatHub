@@ -8,8 +8,10 @@ from inventory.application.exceptions import (
     InventoryDomainError,
 )
 from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
+from inventory.infrastructure.django.models import InventoryV1StockMovement
 from purchase.application.exceptions import PurchaseInventoryIntegrationError
 from purchase.application.ports.goods_receipt import InventoryReceiptRequest
+from purchase.models import GoodsReceiptItem
 
 
 class DjangoInventoryReceiptGateway:
@@ -42,3 +44,43 @@ class DjangoInventoryReceiptGateway:
             self._receive_stock.execute(command, context)
         except (InventoryApplicationError, InventoryDomainError) as error:
             raise PurchaseInventoryIntegrationError(str(error)) from error
+
+        # Resolve the persisted ledger row by its tenant-scoped source identity,
+        # then persist a protected FK from the receipt line back to that row.
+        movement = InventoryV1StockMovement.objects.select_related(
+            "stock"
+        ).get(
+            business_id=request.business_id,
+            source_type="goods_receipt",
+            source_document_id=request.source_document_id,
+            source_line_id=request.source_line_id,
+            operation_kind=request.operation_kind,
+        )
+        if movement.movement_type != "receipt" or movement.direction != "in":
+            raise PurchaseInventoryIntegrationError(
+                "Goods receipt source identity resolved to a non-receipt movement."
+            )
+
+        receipt_item = GoodsReceiptItem.objects.select_related(
+            "receipt", "purchase_order_item"
+        ).filter(
+            pk=request.source_line_id,
+            receipt_id=request.source_document_id,
+            receipt__business_id=request.business_id,
+            purchase_order_item__ingredient_id=request.ingredient_id,
+        ).first()
+        if receipt_item is None:
+            raise PurchaseInventoryIntegrationError(
+                "Goods receipt line does not match the persisted Inventory movement."
+            )
+        if receipt_item.inventory_movement_id not in (None, movement.pk):
+            raise PurchaseInventoryIntegrationError(
+                "Goods receipt line is already linked to a different Inventory movement."
+            )
+        if movement.stock.ingredient_id != request.ingredient_id:
+            raise PurchaseInventoryIntegrationError(
+                "Inventory movement ingredient does not match the goods receipt line."
+            )
+        if receipt_item.inventory_movement_id is None:
+            receipt_item.inventory_movement = movement
+            receipt_item.save(update_fields=("inventory_movement", "updated_at"))
