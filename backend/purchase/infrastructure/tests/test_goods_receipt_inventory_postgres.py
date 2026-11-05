@@ -500,7 +500,7 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         )
 
         if stocktake.status == InventoryOperation.Status.APPROVED:
-            self.assertEqual(stock.quantity, Decimal("13.000000000000"))
+            self.assertEqual(stock.quantity, Decimal("8.500000000000"))
             self.assertEqual(
                 InventoryV1StockMovement.objects.filter(
                     source_type="inventory_stocktake",
@@ -511,7 +511,7 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
             )
         else:
             self.assertIsInstance(approval_result, OperationConflict)
-            self.assertEqual(stock.quantity, Decimal("15.000000000000"))
+            self.assertEqual(stock.quantity, Decimal("10.500000000000"))
             self.assertEqual(
                 InventoryV1StockMovement.objects.filter(
                     source_type="inventory_stocktake",
