@@ -48,7 +48,8 @@ class DjangoInventoryReceiptGateway:
         # Resolve the persisted ledger row by its tenant-scoped source identity,
         # then persist a protected FK from the receipt line back to that row.
         movement = InventoryV1StockMovement.objects.select_related(
-            "stock"
+            "stock__warehouse",
+            "stock__ingredient",
         ).get(
             business_id=request.business_id,
             source_type="goods_receipt",
@@ -73,9 +74,14 @@ class DjangoInventoryReceiptGateway:
             raise PurchaseInventoryIntegrationError(
                 "Goods receipt line does not match the persisted Inventory movement."
             )
-        if movement.stock.ingredient_id != request.ingredient_id:
+        if (
+            movement.stock.business_id != request.business_id
+            or movement.stock.warehouse.business_id != request.business_id
+            or movement.stock.ingredient.business_id != request.business_id
+            or movement.stock.ingredient_id != request.ingredient_id
+        ):
             raise PurchaseInventoryIntegrationError(
-                "Inventory movement ingredient does not match the goods receipt line."
+                "Inventory movement stock references do not match the receipt Business and ingredient."
             )
         link, created = GoodsReceiptInventoryMovementLink.objects.get_or_create(
             receipt_item=receipt_item,
