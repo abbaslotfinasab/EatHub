@@ -6,6 +6,7 @@ from unittest import skipUnless
 from uuid import uuid4
 
 from django.db import connection, connections
+from django.db.models.deletion import ProtectedError
 from django.test import TransactionTestCase
 
 from accounts.models import Business, User
@@ -48,6 +49,7 @@ from purchase.infrastructure.services.inventory_receipt_gateway import (
 from purchase.models import (
     GoodsReceipt,
     GoodsReceiptItem,
+    GoodsReceiptInventoryMovementLink,
     PurchaseOrder,
     PurchaseOrderItem,
     Supplier,
@@ -182,6 +184,18 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(stock.average_cost, Decimal("150000"))
         self.assertEqual(movement.actor_id, self.user.id)
         self.assertEqual(movement.occurred_at, receipt.received_date)
+        link = GoodsReceiptInventoryMovementLink.objects.get(
+            receipt_item_id=receipt.items[0].id,
+            movement_id=movement.pk,
+        )
+        self.assertEqual(link.receipt_item.receipt_id, receipt.id)
+        self.assertEqual(link.movement_id, movement.pk)
+
+        persisted_receipt = GoodsReceipt.objects.get(pk=receipt.id)
+        with self.assertRaises(ProtectedError):
+            persisted_receipt.items.first().delete()
+        with self.assertRaises(ProtectedError):
+            persisted_receipt.delete()
 
     def test_inventory_failure_rolls_back_goods_receipt_and_purchase_state(self) -> None:
         item = self._item(unit="l")
