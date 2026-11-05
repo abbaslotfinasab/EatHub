@@ -22,7 +22,7 @@ def install_goods_receipt_history_guards(apps, schema_editor):
                     RAISE EXCEPTION 'Goods receipt stock movements are immutable'
                         USING ERRCODE = '55000';
                 END IF;
-            ELSIF TG_TABLE_NAME = 'purchase_goods_receiptitem' THEN
+            ELSIF TG_TABLE_NAME = 'purchase_goodsreceiptitem' THEN
                 IF TG_OP IN ('UPDATE', 'DELETE') AND (
                     EXISTS (
                         SELECT 1
@@ -45,7 +45,7 @@ def install_goods_receipt_history_guards(apps, schema_editor):
                 IF TG_OP IN ('UPDATE', 'DELETE') AND (
                     EXISTS (
                         SELECT 1
-                        FROM purchase_goods_receiptitem item
+                        FROM purchase_goodsreceiptitem item
                         JOIN purchase_goods_receipt_inventory_movement link
                           ON link.receipt_item_id = item.id
                         WHERE item.receipt_id = OLD.id
@@ -82,7 +82,7 @@ def install_goods_receipt_history_guards(apps, schema_editor):
         """,
         """
         CREATE TRIGGER purchase_goods_receipt_item_immutable
-        BEFORE UPDATE OR DELETE ON purchase_goods_receiptitem
+        BEFORE UPDATE OR DELETE ON purchase_goodsreceiptitem
         FOR EACH ROW EXECUTE FUNCTION purchase_guard_goods_receipt_history();
         """,
         """
@@ -101,7 +101,7 @@ def remove_goods_receipt_history_guards(apps, schema_editor):
         return
     statements = [
         "DROP TRIGGER IF EXISTS purchase_goods_receipt_immutable ON purchase_goodsreceipt;",
-        "DROP TRIGGER IF EXISTS purchase_goods_receipt_item_immutable ON purchase_goods_receiptitem;",
+        "DROP TRIGGER IF EXISTS purchase_goods_receipt_item_immutable ON purchase_goodsreceiptitem;",
         "DROP TRIGGER IF EXISTS purchase_goods_receipt_movement_immutable ON inventory_v1_stock_movement;",
         "DROP TRIGGER IF EXISTS purchase_goods_receipt_link_immutable ON purchase_goods_receipt_inventory_movement;",
         "DROP FUNCTION IF EXISTS purchase_guard_goods_receipt_history();",
