@@ -243,7 +243,7 @@ class OrderInventoryLifecycleTests(TestCase):
     def test_ready_requires_explicit_actual_consumption_and_releases_unused_remainder(self):
         self.confirm()
         self.start_preparation()
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(APIValidationError):
             OrderService.update_status(
                 business=self.business, order_id=self.order.pk,
                 status=Order.Status.READY, user=self.actor,
@@ -383,7 +383,7 @@ class OrderInventoryLifecycleTests(TestCase):
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.CONFIRMED)
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(APIValidationError):
             OrderService.update_order(
                 business=self.business, order_id=self.order.pk,
                 validated_data={"items": []},
