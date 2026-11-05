@@ -265,6 +265,22 @@ class GoodsReceiptStockMovementTraceAPIView(TenantAPIView):
         purchase_order_item = receipt_item.purchase_order_item
         supplier = purchase_order.supplier
 
+        if (
+            movement.source_document_id != receipt.pk
+            or movement.source_line_id != receipt_item.pk
+            or movement.stock.business_id != request.business.id
+            or movement.stock.warehouse.business_id != request.business.id
+            or movement.stock.ingredient.business_id != request.business.id
+            or receipt.business_id != request.business.id
+            or purchase_order.business_id != request.business.id
+            or supplier.business_id != request.business.id
+            or purchase_order_item.purchase_order_id != purchase_order.pk
+            or purchase_order_item.ingredient_id != movement.stock.ingredient_id
+        ):
+            raise GoodsReceiptTraceUnavailableAPIException(
+                "The linked receipt, purchase order, supplier, and stock references are inconsistent."
+            )
+
         return Response({
             "movement": {
                 "id": movement.pk,
