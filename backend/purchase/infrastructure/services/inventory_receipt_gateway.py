@@ -11,7 +11,7 @@ from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
 from inventory.infrastructure.django.models import InventoryV1StockMovement
 from purchase.application.exceptions import PurchaseInventoryIntegrationError
 from purchase.application.ports.goods_receipt import InventoryReceiptRequest
-from purchase.models import GoodsReceiptItem
+from purchase.models import GoodsReceiptInventoryMovementLink, GoodsReceiptItem
 
 
 class DjangoInventoryReceiptGateway:
@@ -73,14 +73,15 @@ class DjangoInventoryReceiptGateway:
             raise PurchaseInventoryIntegrationError(
                 "Goods receipt line does not match the persisted Inventory movement."
             )
-        if receipt_item.inventory_movement_id not in (None, movement.pk):
-            raise PurchaseInventoryIntegrationError(
-                "Goods receipt line is already linked to a different Inventory movement."
-            )
         if movement.stock.ingredient_id != request.ingredient_id:
             raise PurchaseInventoryIntegrationError(
                 "Inventory movement ingredient does not match the goods receipt line."
             )
-        if receipt_item.inventory_movement_id is None:
-            receipt_item.inventory_movement = movement
-            receipt_item.save(update_fields=("inventory_movement", "updated_at"))
+        link, created = GoodsReceiptInventoryMovementLink.objects.get_or_create(
+            receipt_item=receipt_item,
+            defaults={"movement": movement},
+        )
+        if not created and link.movement_id != movement.pk:
+            raise PurchaseInventoryIntegrationError(
+                "Goods receipt line is already linked to a different Inventory movement."
+            )
