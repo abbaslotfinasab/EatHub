@@ -173,6 +173,43 @@ class OrderInventoryLifecycleTests(TestCase):
         self.assertEqual(InventoryReservation.objects.filter(source_id=self.order.pk).count(), 1)
         self.assertEqual(InventoryReservation.objects.get(source_id=self.order.pk).pk, first_reservation)
 
+    def test_confirmation_retry_rejects_snapshots_without_active_reservation(self):
+        self.confirm()
+        OrderInventoryService.release_remaining(
+            order=self.order,
+            actor_id=self.actor.pk,
+            reason="Simulate a missing reservation during confirmation retry",
+        )
+
+        with self.assertRaises(APIValidationError):
+            self.confirm()
+
+        self.assertFalse(InventoryReservation.objects.filter(
+            source_type="order",
+            source_id=self.order.pk,
+            status=InventoryReservation.Status.ACTIVE,
+        ).exists())
+
+    def test_confirmation_retry_rejects_reservation_that_differs_from_remaining_requirements(self):
+        self.confirm()
+        reservation = InventoryReservation.objects.get(
+            source_type="order", source_id=self.order.pk,
+            status=InventoryReservation.Status.ACTIVE,
+        )
+        reservation.lines.update(quantity=Decimal("2"))
+
+        with self.assertRaises(APIValidationError):
+            self.confirm()
+
+        self.assertEqual(
+            InventoryReservation.objects.filter(
+                source_type="order",
+                source_id=self.order.pk,
+                status=InventoryReservation.Status.ACTIVE,
+            ).count(),
+            1,
+        )
+
     def test_actual_consumption_posts_issue_once_and_replaces_reservation_with_remainder(self):
         self.confirm()
         self.start_preparation()
