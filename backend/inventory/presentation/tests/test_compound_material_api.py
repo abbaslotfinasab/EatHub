@@ -1,10 +1,12 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
 from core.enums import PermissionCode
+from inventory.infrastructure.django.compound_material_repository import DjangoCompoundMaterialRepository
 from inventory.infrastructure.django.models import InventoryV1StockMovement
 from inventory.models import Ingredient, RecipeInput
 
@@ -51,6 +53,33 @@ class CompoundMaterialAPITests(APITestCase):
             **changes,
         }
 
+    def _get_list_with_repository_trace(self, **query_params):
+        original_list = DjangoCompoundMaterialRepository.list_for_business
+        trace = {}
+
+        def traced_list(business_id, **kwargs):
+            orm_count = Ingredient.objects.filter(
+                business_id=business_id,
+                preparation_level=Ingredient.PreparationLevel.SEMI_PREPARED,
+            ).count()
+            page = original_list(business_id, **kwargs)
+            trace.update(
+                business_id=business_id,
+                orm_count=orm_count,
+                repository_count=page.count,
+            )
+            return page
+
+        with patch.object(
+            DjangoCompoundMaterialRepository,
+            "list_for_business",
+            side_effect=traced_list,
+        ):
+            response = self.client.get(
+                "/api/inventory/compound-materials/", query_params,
+            )
+        return response, trace
+
     def test_create_list_detail_patch_and_deactivate_preserve_composition_and_stock_ledger(self):
         created = self.client.post("/api/inventory/compound-materials/", self._payload(), format="json")
         self.assertEqual(created.status_code, status.HTTP_201_CREATED, created.data)
@@ -68,8 +97,15 @@ class CompoundMaterialAPITests(APITestCase):
         )
         self.assertEqual(len(created.data["components"]), 2)
         self.assertEqual(created.data["components"][1]["quantity"], "100.000000000000")
-        listed = self.client.get("/api/inventory/compound-materials/?search=sauce")
+        direct_page = DjangoCompoundMaterialRepository.list_for_business(
+            self.business.pk, page=1, page_size=20, search="sauce",
+        )
+        self.assertEqual(direct_page.count, 1)
+        listed, trace = self._get_list_with_repository_trace(search="sauce")
         self.assertEqual(listed.status_code, status.HTTP_200_OK)
+        self.assertEqual(trace["business_id"], self.business.pk)
+        self.assertEqual(trace["orm_count"], 1)
+        self.assertEqual(trace["repository_count"], 1)
         self.assertEqual(listed.data["count"], 1)
         self.assertEqual([row["id"] for row in listed.data["results"]], [compound_id])
         self.assertEqual(self.client.get(f"/api/inventory/compound-materials/{compound_id}/").status_code, 200)
@@ -125,8 +161,15 @@ class CompoundMaterialAPITests(APITestCase):
             unit="kg",
             preparation_level="semi_prepared",
         )
-        listed = self.client.get("/api/inventory/compound-materials/")
+        direct_page = DjangoCompoundMaterialRepository.list_for_business(
+            self.business.pk, page=1, page_size=20,
+        )
+        self.assertEqual(direct_page.count, 1)
+        listed, trace = self._get_list_with_repository_trace()
         self.assertEqual(listed.status_code, status.HTTP_200_OK)
+        self.assertEqual(trace["business_id"], self.business.pk)
+        self.assertEqual(trace["orm_count"], 1)
+        self.assertEqual(trace["repository_count"], 1)
         self.assertEqual([row["id"] for row in listed.data["results"]], [created.data["id"]])
 
         no_viewer = self._member(self.business, "compound-no-view", (), "NO_INVENTORY_ACCESS")
