@@ -49,6 +49,11 @@ class OrderListPaginationTests(APITestCase):
             name="Owner",
             code="OWNER",
         )
+        view_permission, _ = Permission.objects.get_or_create(
+            code=PermissionCode.ORDERS_VIEW,
+            defaults={"name": "View Orders"},
+        )
+        RolePermission.objects.create(role=role, permission=view_permission)
         update_permission = Permission.objects.create(
             name="Update Orders",
             code=PermissionCode.ORDERS_UPDATE,
@@ -851,6 +856,11 @@ class HistoricalOrderItemTests(APITestCase):
             name="Owner",
             code="OWNER",
         )
+        view_permission, _ = Permission.objects.get_or_create(
+            code=PermissionCode.ORDERS_VIEW,
+            defaults={"name": "View Orders"},
+        )
+        RolePermission.objects.create(role=role, permission=view_permission)
         Membership.objects.create(
             user=self.user,
             business=self.business,
@@ -1225,6 +1235,9 @@ class OrderWalletPaymentTests(TestCase):
         self.order.payment_status = Order.PaymentStatus.FAILED
         self.order.save(update_fields=["status", "payment_status"])
         self.update(status=Order.Status.READY)
+        activity_count_before = ActivityLog.objects.filter(
+            entity_type="order", entity_id=self.order.id
+        ).count()
         original_settle = WalletService.settle_order
 
         def settle_then_fail(**kwargs):
@@ -1246,9 +1259,12 @@ class OrderWalletPaymentTests(TestCase):
         self.assertFalse(CustomerTransaction.objects.filter(
             order=self.order, type=CustomerTransaction.Type.DEBIT
         ).exists())
-        self.assertFalse(ActivityLog.objects.filter(
-            entity_type="order", entity_id=self.order.id
-        ).exists())
+        self.assertEqual(
+            ActivityLog.objects.filter(
+                entity_type="order", entity_id=self.order.id
+            ).count(),
+            activity_count_before,
+        )
 
     def test_failed_cash_payment_does_not_prevent_order_completion(self):
         self.order.payment_method = Order.PaymentMethod.CASH
