@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from accounts.views import TenantAPIView
 from core.enums import PermissionCode
 from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
+from inventory.infrastructure.django.models import InventoryV1StockMovement
 from inventory.infrastructure.django.repositories import (
     DjangoIngredientRepository,
     DjangoStockMovementRepository,
@@ -32,6 +33,7 @@ from purchase.application.use_cases.goods_receipt.list_goods_receipts import (
 from purchase.infrastructure.persistence.django.repositories.goods_receipt_repository import (
     DjangoGoodsReceiptRepository,
 )
+from purchase.models import GoodsReceiptInventoryMovementLink
 from purchase.infrastructure.persistence.django.repositories.purchase_order_line_reader import (
     DjangoPurchaseOrderLineReader,
 )
@@ -214,3 +216,107 @@ class GoodsReceiptDetailAPIView(TenantAPIView):
             _handle_goods_receipt_error(error)
 
         return Response(GoodsReceiptSerializer(receipt).data)
+
+
+class GoodsReceiptTraceUnavailableAPIException(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = {
+        "code": "goods_receipt_trace_unavailable",
+        "detail": "This historical receipt movement has no verified receipt-line link.",
+    }
+    default_code = "goods_receipt_trace_unavailable"
+
+
+class GoodsReceiptStockMovementTraceAPIView(TenantAPIView):
+    """Resolve a receipt movement through its protected link to its supplier."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, movement_id):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
+
+        movement = InventoryV1StockMovement.objects.filter(
+            pk=movement_id,
+            business_id=request.business.id,
+        ).select_related(
+            "stock__warehouse",
+            "stock__ingredient",
+        ).first()
+        if movement is None:
+            raise NotFound({"detail": "Stock movement does not exist in this business."})
+        if movement.source_type != "goods_receipt" or movement.movement_type != "receipt":
+            raise ValidationError(
+                {"detail": "The requested StockMovement is not a goods receipt movement."}
+            )
+
+        link = GoodsReceiptInventoryMovementLink.objects.select_related(
+            "receipt_item__receipt__purchase_order__supplier",
+            "receipt_item__purchase_order_item__ingredient",
+        ).filter(
+            movement_id=movement.pk,
+            receipt_item__receipt__business_id=request.business.id,
+        ).first()
+        if link is None:
+            raise GoodsReceiptTraceUnavailableAPIException()
+
+        receipt_item = link.receipt_item
+        receipt = receipt_item.receipt
+        purchase_order = receipt.purchase_order
+        purchase_order_item = receipt_item.purchase_order_item
+        supplier = purchase_order.supplier
+
+        return Response({
+            "movement": {
+                "id": movement.pk,
+                "business_id": movement.business_id,
+                "source_type": movement.source_type,
+                "source_document_id": movement.source_document_id,
+                "source_line_id": movement.source_line_id,
+                "operation_kind": movement.operation_kind,
+                "movement_type": movement.movement_type,
+                "direction": movement.direction,
+                "quantity": movement.quantity,
+                "unit": movement.unit,
+                "unit_cost": movement.unit_cost,
+                "occurred_at": movement.occurred_at,
+                "actor_id": movement.actor_id,
+                "stock_id": movement.stock_id,
+                "warehouse_id": movement.stock.warehouse_id,
+                "warehouse_name": movement.stock.warehouse.name,
+                "ingredient_id": movement.stock.ingredient_id,
+                "ingredient_name": movement.stock.ingredient.name,
+            },
+            "goods_receipt": {
+                "id": receipt.pk,
+                "business_id": receipt.business_id,
+                "received_date": receipt.received_date,
+                "received_by_id": receipt.received_by_id,
+                "purchase_order_id": receipt.purchase_order_id,
+            },
+            "goods_receipt_item": {
+                "id": receipt_item.pk,
+                "purchase_order_item_id": receipt_item.purchase_order_item_id,
+                "received_quantity": receipt_item.received_quantity,
+                "rejected_quantity": receipt_item.rejected_quantity,
+                "purchase_unit": receipt_item.purchase_unit,
+            },
+            "purchase_order": {
+                "id": purchase_order.pk,
+                "status": purchase_order.status,
+                "supplier_id": supplier.pk,
+                "supplier_name": supplier.name,
+            },
+            "purchase_order_item": {
+                "id": purchase_order_item.pk,
+                "ingredient_id": purchase_order_item.ingredient_id,
+                "ordered_quantity": purchase_order_item.quantity,
+                "purchase_unit": purchase_order_item.purchase_unit,
+                "unit_price": purchase_order_item.unit_price,
+            },
+            "supplier": {
+                "id": supplier.pk,
+                "name": supplier.name,
+            },
+        })
+
+
