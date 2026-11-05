@@ -22,16 +22,15 @@ class Command(BaseCommand):
         if limit < 1:
             raise CommandError("--limit must be greater than zero")
 
-        movements = InventoryV1StockMovement.objects.filter(
+        movements_qs = InventoryV1StockMovement.objects.filter(
             source_type="goods_receipt",
         ).select_related("stock__warehouse", "stock__ingredient").order_by("pk")
-        receipt_items = GoodsReceiptItem.objects.filter(
-            received_quantity__gt=0,
-        ).select_related(
+        all_items_qs = GoodsReceiptItem.objects.select_related(
             "receipt",
             "purchase_order_item__purchase_order__supplier",
         ).order_by("pk")
-        links = GoodsReceiptInventoryMovementLink.objects.select_related(
+        received_items_qs = all_items_qs.filter(received_quantity__gt=0)
+        links_qs = GoodsReceiptInventoryMovementLink.objects.select_related(
             "receipt_item__receipt",
             "receipt_item__purchase_order_item__purchase_order__supplier",
             "movement__stock__warehouse",
@@ -40,31 +39,49 @@ class Command(BaseCommand):
 
         business_id = options["business_id"]
         if business_id is not None:
-            movements = movements.filter(business_id=business_id)
-            receipt_items = receipt_items.filter(receipt__business_id=business_id)
-            links = links.filter(receipt_item__receipt__business_id=business_id)
+            movements_qs = movements_qs.filter(business_id=business_id)
+            all_items_qs = all_items_qs.filter(receipt__business_id=business_id)
+            received_items_qs = received_items_qs.filter(
+                receipt__business_id=business_id
+            )
+            links_qs = links_qs.filter(
+                receipt_item__receipt__business_id=business_id
+            )
+
+        movements = list(movements_qs)
+        all_items = list(all_items_qs)
+        received_items = list(received_items_qs)
+        links = list(links_qs)
+        items_by_id = {item.pk: item for item in all_items}
+        links_by_movement = {link.movement_id: link for link in links}
+        links_by_item = {link.receipt_item_id: link for link in links}
 
         issues = []
+        issue_count = 0
 
         def add_issue(code, *, movement_id=None, receipt_item_id=None, detail):
-            issues.append({
-                "code": code,
-                "movement_id": movement_id,
-                "receipt_item_id": receipt_item_id,
-                "detail": detail,
-            })
+            nonlocal issue_count
+            issue_count += 1
+            if len(issues) < limit:
+                issues.append({
+                    "code": code,
+                    "movement_id": movement_id,
+                    "receipt_item_id": receipt_item_id,
+                    "detail": detail,
+                })
 
-        movement_count = movements.count()
-        receipt_item_count = receipt_items.count()
-        link_count = links.count()
+        for movement in movements:
+            expected_item = items_by_id.get(movement.source_line_id)
+            if (
+                expected_item is not None
+                and (
+                    expected_item.receipt_id != movement.source_document_id
+                    or expected_item.receipt.business_id != movement.business_id
+                )
+            ):
+                expected_item = None
 
-        for movement in movements.iterator():
-            expected_item = receipt_items.filter(
-                pk=movement.source_line_id,
-                receipt_id=movement.source_document_id,
-            ).first()
-            link = links.filter(movement_id=movement.pk).first()
-
+            link = links_by_movement.get(movement.pk)
             if expected_item is None:
                 add_issue(
                     "movement_without_receipt_item",
@@ -127,16 +144,15 @@ class Command(BaseCommand):
                         detail="Receipt item ingredient, purchase order, supplier, or movement tenant is inconsistent.",
                     )
 
-        for item in receipt_items.iterator():
-            link = links.filter(receipt_item_id=item.pk).first()
-            if link is None:
+        for item in received_items:
+            if item.pk not in links_by_item:
                 add_issue(
                     "receipt_item_without_link",
                     receipt_item_id=item.pk,
                     detail="Receipt item has a positive received quantity but no explicit movement link.",
                 )
 
-        for link in links.iterator():
+        for link in links:
             movement = link.movement
             item = link.receipt_item
             if (
@@ -156,16 +172,17 @@ class Command(BaseCommand):
         report = {
             "scope": {"business_id": business_id},
             "checked": {
-                "goods_receipt_movements": movement_count,
-                "received_receipt_items": receipt_item_count,
-                "links": link_count,
+                "goods_receipt_movements": len(movements),
+                "receipt_items": len(all_items),
+                "received_receipt_items": len(received_items),
+                "links": len(links),
             },
-            "issue_count": len(issues),
-            "issues_truncated": len(issues) > limit,
-            "issues": issues[:limit],
+            "issue_count": issue_count,
+            "issues_truncated": issue_count > len(issues),
+            "issues": issues,
         }
         self.stdout.write(json.dumps(report, ensure_ascii=False, sort_keys=True))
-        if issues and options["fail_on_issues"]:
+        if issue_count and options["fail_on_issues"]:
             raise CommandError(
-                f"Goods receipt trace audit found {len(issues)} issue(s)."
+                f"Goods receipt trace audit found {issue_count} issue(s)."
             )
