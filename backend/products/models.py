@@ -130,6 +130,18 @@ class Order(BaseModel):
     )
 
     notes = models.TextField(null=True, blank=True)
+    idempotency_key = models.UUIDField(null=True, blank=True)
+    payload_fingerprint = models.CharField(max_length=64, null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("business", "idempotency_key"),
+                condition=models.Q(idempotency_key__isnull=False),
+                name="order_business_idem_key_uq",
+            ),
+        ]
+
 
 class OrderItem(BaseModel):
     order = models.ForeignKey(
