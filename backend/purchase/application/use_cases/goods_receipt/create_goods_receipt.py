@@ -351,6 +351,7 @@ class CreateGoodsReceiptUseCase:
                     source_line_id=item.id,
                     operation_kind="receive_stock",
                     actor_id=receipt.received_by_id,
+                    occurred_at=receipt.received_date,
                 )
             )
 
