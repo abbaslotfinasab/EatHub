@@ -57,7 +57,11 @@ class Command(BaseCommand):
         links_by_item = {link.receipt_item_id: link for link in links}
         movements_by_source = {}
         for movement in movements:
-            source_key = (\n                movement.business_id,\n                movement.source_document_id,\n                movement.source_line_id,\n            )
+            source_key = (
+                movement.business_id,
+                movement.source_document_id,
+                movement.source_line_id,
+            )
             movements_by_source.setdefault(source_key, []).append(movement)
 
         issues = []
