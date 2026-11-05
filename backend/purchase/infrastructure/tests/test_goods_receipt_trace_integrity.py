@@ -150,7 +150,7 @@ class GoodsReceiptTraceAuditTests(TransactionTestCase):
 
         report = json.loads(output.getvalue())
         self.assertEqual(report["issue_count"], 1)
-        self.assertEqual(report["issues"][0]["code"], "receipt_item_without_link")
+        self.assertEqual(report["issues"][0]["code"], "receipt_item_without_movement")
         self.assertEqual(report["issues"][0]["receipt_item_id"], item.id)
 
     def test_audit_reports_clean_linked_receipt(self):
