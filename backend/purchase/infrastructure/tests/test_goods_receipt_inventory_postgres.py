@@ -222,6 +222,33 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(self.order.receipts.count(), 1)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
 
+    def test_concurrent_distinct_keys_cannot_overreceive_one_purchase_line(self) -> None:
+        item = self._item(unit="g", quantity="1000")
+        results = self._run_concurrently([
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, quantity="600")
+            ),
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, quantity="600")
+            ),
+        ])
+
+        self.assertEqual(sum(not isinstance(result, Exception) for result in results), 1)
+        self.assertEqual(self.order.receipts.count(), 1)
+        self.assertEqual(GoodsReceiptItem.objects.count(), 1)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+        self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 1)
+        self.assertEqual(
+            GoodsReceiptItem.objects.get().received_quantity,
+            Decimal("600"),
+        )
+        stock = InventoryV1Stock.objects.get(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.ingredient,
+        )
+        self.assertEqual(stock.quantity, Decimal("0.600000000000"))
+
     def test_concurrent_same_key_same_payload_creates_one_receipt_and_movement(self) -> None:
         item = self._item(unit="g")
         key = uuid4()
