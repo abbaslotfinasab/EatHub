@@ -110,20 +110,23 @@ class Command(BaseCommand):
             raise CommandError("--business-id must be greater than zero.")
 
         checked = {}
+        issue_counts = {}
         issues = []
         issue_count = 0
 
         for rule_name, model_label, mismatch, scope_paths in RULES:
             model = apps.get_model(model_label)
-            queryset = model._default_manager.filter(mismatch)
+            base_queryset = model._default_manager.all()
             if business_id is not None:
                 scope = Q()
                 for path in scope_paths:
                     scope |= Q(**{path: business_id})
-                queryset = queryset.filter(scope)
+                base_queryset = base_queryset.filter(scope)
 
+            checked[rule_name] = base_queryset.count()
+            queryset = base_queryset.filter(mismatch)
             count = queryset.count()
-            checked[rule_name] = count
+            issue_counts[rule_name] = count
             if count:
                 remaining = max(0, limit - len(issues))
                 if remaining:
@@ -144,6 +147,7 @@ class Command(BaseCommand):
             "read_only": True,
             "checked_rules": len(RULES),
             "checked_counts": checked,
+            "issue_counts_by_rule": issue_counts,
             "issue_count": issue_count,
             "issues_returned": len(issues),
             "issues_truncated": issue_count > len(issues),
