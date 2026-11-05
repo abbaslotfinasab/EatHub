@@ -234,9 +234,15 @@ class Stock:
             or actor_id <= 0
         ):
             raise InvalidMovement("Adjustments require a positive actor ID.")
+        if unit_cost is not None and (
+            not isinstance(unit_cost, UnitCost)
+            or direction is not MovementDirection.IN
+            or self._average_cost.amount != 0
+        ):
+            raise InvalidUnitCost(
+                "A unit cost may only initialize an inbound adjustment on zero-cost stock."
+            )
         adjustment_cost = unit_cost or self._average_cost
-        if not isinstance(adjustment_cost, UnitCost):
-            raise InvalidUnitCost("Adjustment unit cost must be a UnitCost.")
         if direction is MovementDirection.IN:
             self._validate_warehouse(warehouse)
             warehouse.ensure_can_receive()
