@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 from inventory.application.commands import ReceiveStockCommand
 from inventory.application.context import InventoryExecutionContext
@@ -30,8 +31,22 @@ class InventoryReceiptGatewayTests(TestCase):
         use_case = RecordingReceiveStockUseCase()
         gateway = DjangoInventoryReceiptGateway(use_case)
 
-        gateway.receive_line(
-            InventoryReceiptRequest(
+        movement = MagicMock(
+            pk=777,
+            movement_type="receipt",
+            direction="in",
+            stock=MagicMock(ingredient_id=81),
+        )
+        receipt_item = MagicMock(inventory_movement_id=None)
+        with patch(
+            "purchase.infrastructure.services.inventory_receipt_gateway.InventoryV1StockMovement"
+        ) as movement_model, patch(
+            "purchase.infrastructure.services.inventory_receipt_gateway.GoodsReceiptItem"
+        ) as receipt_item_model:
+            movement_model.objects.select_related.return_value.get.return_value = movement
+            receipt_item_model.objects.select_related.return_value.filter.return_value.first.return_value = receipt_item
+            gateway.receive_line(
+                InventoryReceiptRequest(
                 business_id=7,
                 ingredient_id=81,
                 warehouse_id=None,
@@ -44,9 +59,13 @@ class InventoryReceiptGatewayTests(TestCase):
                 operation_kind="receive_stock",
                 actor_id=44,
                 occurred_at=datetime(2026, 10, 2, 12),
+                )
             )
-        )
 
+        self.assertEqual(receipt_item.inventory_movement, movement)
+        receipt_item.save.assert_called_once_with(
+            update_fields=("inventory_movement", "updated_at")
+        )
         self.assertEqual(len(use_case.calls), 1)
         command, context = use_case.calls[0]
         self.assertIsInstance(command, ReceiveStockCommand)
