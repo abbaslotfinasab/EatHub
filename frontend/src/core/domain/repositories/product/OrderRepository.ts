@@ -14,7 +14,8 @@ import type {PaginatedResult} from "../../objects/PaginatedResult.ts";
 export interface OrderRepository {
     // ذخیره سفارش به همراه آیتم‌ها (تراکنشی)
     create(
-        input: OrderWithItems
+        input: OrderWithItems,
+        idempotencyKey: string,
     ): Promise<void>;
 
 
