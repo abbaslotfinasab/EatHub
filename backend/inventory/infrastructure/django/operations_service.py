@@ -59,7 +59,10 @@ def _stock(business_id, warehouse, ingredient, *, create=False):
             business_id=business_id, warehouse=warehouse, ingredient=ingredient,
             defaults={"unit": ingredient.unit},
         )
-    row = InventoryV1Stock.objects.select_for_update().filter(
+    # Tenant-scope joins are validation predicates, not part of the stock
+    # serialization boundary. Lock only the projection row so callers that
+    # already hold Ingredient/Warehouse locks cannot form a reverse lock cycle.
+    row = InventoryV1Stock.objects.select_for_update(of=("self",)).filter(
         business_id=business_id, warehouse=warehouse, ingredient=ingredient,
         warehouse__business_id=business_id, ingredient__business_id=business_id,
     ).first()
