@@ -72,8 +72,9 @@ export const orderMapper = {
     // DOMAIN -> CREATE DTO
     // =====================================================
 
-    toCreateDTO(domain: OrderWithItems): CreateOrderDTO {
+    toCreateDTO(domain: OrderWithItems, idempotencyKey: string): CreateOrderDTO {
         return {
+            idempotency_key: idempotencyKey,
             customer_id: domain.order.customerId,
             table: domain.order.tableId,
             order_type: domain.order.orderType,
