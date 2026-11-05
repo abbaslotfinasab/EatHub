@@ -59,15 +59,16 @@ class DashboardRecentOrdersPaginationTests(APITestCase):
         self.client.force_authenticate(self.user)
 
     def create_order(self, business=None, created_at=None, **overrides):
-        order = Order.objects.create(
-            business=business or self.business,
-            order_type=Order.OrderType.DINE_IN,
-            status=Order.Status.PENDING,
-            payment_method=Order.PaymentMethod.CASH,
-            payment_status=Order.PaymentStatus.PENDING,
-            total_amount=10,
-            **overrides,
-        )
+        order_fields = {
+            "business": business or self.business,
+            "order_type": Order.OrderType.DINE_IN,
+            "status": Order.Status.PENDING,
+            "payment_method": Order.PaymentMethod.CASH,
+            "payment_status": Order.PaymentStatus.PENDING,
+            "total_amount": 10,
+        }
+        order_fields.update(overrides)
+        order = Order.objects.create(**order_fields)
         if created_at is not None:
             Order.objects.filter(id=order.id).update(
                 created_at=created_at,
