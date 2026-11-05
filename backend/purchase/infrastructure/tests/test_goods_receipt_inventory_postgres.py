@@ -400,10 +400,10 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         )
         balances_after = {movement.balance_after for movement in movements}
         self.assertEqual(
-            balances_after.intersection({
+            len(balances_after.intersection({
                 Decimal("0.800000000000"),
                 Decimal("1.500000000000"),
-            }).__len__(),
+            })),
             1,
         )
         self.assertIn(Decimal("1.300000000000"), balances_after)
