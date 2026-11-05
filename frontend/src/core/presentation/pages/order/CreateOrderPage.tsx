@@ -1,6 +1,7 @@
 import {useNavigate} from "react-router-dom";
 
 import {
+    Alert,
     Box,
     Container,
 } from "@mui/material";
@@ -10,10 +11,14 @@ import {useCreateOrder} from "../../hooks/order/useCreateOrder";
 
 import type {OrderFormInput} from "../../forms/order/OrderFormInput";
 import {OrderForm} from "../../forms/order/OrderForm.tsx";
+import {useAuthStore} from "../../store/auth.store.ts";
+import {hasPermission} from "../../components/order/orderStatusUpdatePayload.ts";
 
 export const CreateOrderPage = () => {
 
     const navigate = useNavigate();
+    const permissions = useAuthStore((state) => state.me?.active_business?.permissions);
+    const canCreateOrders = hasPermission(permissions, "orders.create");
 
     const createOrder =
         useCreateOrder();
@@ -53,8 +58,11 @@ export const CreateOrderPage = () => {
                 py: 4,
             }}
         >
-
-            <Box
+            {!canCreateOrders ? (
+                <Alert severity="error">
+                    برای ثبت سفارش مجوز orders.create لازم است.
+                </Alert>
+            ) : <Box
                 sx={{
                     display: "flex",
                     flexDirection: "column",
@@ -69,7 +77,7 @@ export const CreateOrderPage = () => {
                     onCancel={handleCancel}
                 />
 
-            </Box>
+            </Box>}
 
         </Container>
 
