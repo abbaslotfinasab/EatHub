@@ -1,5 +1,4 @@
 from decimal import Decimal
-from unittest.mock import patch
 
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -53,52 +52,6 @@ class CompoundMaterialAPITests(APITestCase):
             **changes,
         }
 
-    def _get_list_with_repository_trace(self, **query_params):
-        original_list = DjangoCompoundMaterialRepository.list_for_business
-        trace = {}
-
-        def traced_list(business_id, **kwargs):
-            rows = Ingredient.objects.filter(
-                business_id=business_id,
-                preparation_level=Ingredient.PreparationLevel.SEMI_PREPARED,
-            )
-            if kwargs.get("search"):
-                from django.db.models import Q
-
-                search = kwargs["search"]
-                rows = rows.filter(Q(name__icontains=search) | Q(sku__icontains=search))
-            if kwargs.get("is_active") is not None:
-                rows = rows.filter(is_active=kwargs["is_active"])
-
-            trace.update(
-                business_id=business_id,
-                repository_kwargs=dict(kwargs),
-                orm_count=Ingredient.objects.filter(
-                    business_id=business_id,
-                    preparation_level=Ingredient.PreparationLevel.SEMI_PREPARED,
-                ).count(),
-                filtered_orm_count=rows.count(),
-                filtered_orm_ids=list(rows.order_by("name", "pk").values_list("pk", flat=True)),
-                filtered_orm_sql=str(rows.query),
-            )
-            page = original_list(business_id, **kwargs)
-            trace.update(
-                repository_count=page.count,
-                repository_ids=[item.id for item in page.results],
-            )
-            return page
-
-        with patch.object(
-            DjangoCompoundMaterialRepository,
-            "list_for_business",
-            side_effect=traced_list,
-        ):
-            response = self.client.get(
-                "/api/inventory/compound-materials/", data=query_params,
-            )
-        trace["http_query_params"] = dict(response.wsgi_request.GET)
-        return response, trace
-
     def test_create_list_detail_patch_and_deactivate_preserve_composition_and_stock_ledger(self):
         created = self.client.post("/api/inventory/compound-materials/", self._payload(), format="json")
         self.assertEqual(created.status_code, status.HTTP_201_CREATED, created.data)
@@ -120,11 +73,8 @@ class CompoundMaterialAPITests(APITestCase):
             self.business.pk, page=1, page_size=20, search="sauce",
         )
         self.assertEqual(direct_page.count, 1)
-        listed, trace = self._get_list_with_repository_trace(search="sauce")
-        self.assertEqual(listed.status_code, status.HTTP_200_OK)
-        self.assertEqual(trace["business_id"], self.business.pk)
-        self.assertEqual(trace["orm_count"], 1)
-        self.assertEqual(trace["repository_count"], 1, f"GET trace: {trace!r}; response={listed.data!r}")
+        listed = self.client.get("/api/inventory/compound-materials/", {"search": "sauce"})
+        self.assertEqual(listed.status_code, status.HTTP_200_OK, listed.data)
         self.assertEqual(listed.data["count"], 1)
         self.assertEqual([row["id"] for row in listed.data["results"]], [compound_id])
         self.assertEqual(self.client.get(f"/api/inventory/compound-materials/{compound_id}/").status_code, 200)
@@ -133,6 +83,41 @@ class CompoundMaterialAPITests(APITestCase):
         self.assertEqual(len(updated.data["components"]), 2)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
         self.assertEqual(self.client.patch(f"/api/inventory/compound-materials/{compound_id}/", {"is_active": False}, format="json").status_code, 200)
+
+    def test_list_is_active_filter_distinguishes_omitted_true_and_false(self):
+        active = self.client.post(
+            "/api/inventory/compound-materials/",
+            self._payload(name="Active sauce", sku="ACTIVE"),
+            format="json",
+        )
+        inactive = self.client.post(
+            "/api/inventory/compound-materials/",
+            self._payload(name="Inactive sauce", sku="INACTIVE", is_active=False),
+            format="json",
+        )
+        self.assertEqual(active.status_code, status.HTTP_201_CREATED, active.data)
+        self.assertEqual(inactive.status_code, status.HTTP_201_CREATED, inactive.data)
+
+        unfiltered = self.client.get("/api/inventory/compound-materials/")
+        self.assertEqual(unfiltered.status_code, status.HTTP_200_OK, unfiltered.data)
+        self.assertEqual(
+            {row["id"] for row in unfiltered.data["results"]},
+            {active.data["id"], inactive.data["id"]},
+        )
+
+        active_only = self.client.get("/api/inventory/compound-materials/", {"is_active": "true"})
+        self.assertEqual(active_only.status_code, status.HTTP_200_OK, active_only.data)
+        self.assertEqual(
+            [row["id"] for row in active_only.data["results"]],
+            [active.data["id"]],
+        )
+
+        inactive_only = self.client.get("/api/inventory/compound-materials/", {"is_active": "false"})
+        self.assertEqual(inactive_only.status_code, status.HTTP_200_OK, inactive_only.data)
+        self.assertEqual(
+            [row["id"] for row in inactive_only.data["results"]],
+            [inactive.data["id"]],
+        )
 
     def test_composition_rejects_short_duplicate_invalid_inactive_and_foreign_components(self):
         cases = [
@@ -184,11 +169,8 @@ class CompoundMaterialAPITests(APITestCase):
             self.business.pk, page=1, page_size=20,
         )
         self.assertEqual(direct_page.count, 1)
-        listed, trace = self._get_list_with_repository_trace()
-        self.assertEqual(listed.status_code, status.HTTP_200_OK)
-        self.assertEqual(trace["business_id"], self.business.pk)
-        self.assertEqual(trace["orm_count"], 1)
-        self.assertEqual(trace["repository_count"], 1, f"GET trace: {trace!r}; response={listed.data!r}")
+        listed = self.client.get("/api/inventory/compound-materials/")
+        self.assertEqual(listed.status_code, status.HTTP_200_OK, listed.data)
         self.assertEqual([row["id"] for row in listed.data["results"]], [created.data["id"]])
 
         no_viewer = self._member(self.business, "compound-no-view", (), "NO_INVENTORY_ACCESS")
