@@ -124,7 +124,7 @@ class CompoundMaterialAPITests(APITestCase):
         self.assertEqual(listed.status_code, status.HTTP_200_OK)
         self.assertEqual(trace["business_id"], self.business.pk)
         self.assertEqual(trace["orm_count"], 1)
-        self.assertEqual(trace["repository_count"], 1)
+        self.assertEqual(trace["repository_count"], 1, f"GET trace: {trace!r}; response={listed.data!r}")
         self.assertEqual(listed.data["count"], 1)
         self.assertEqual([row["id"] for row in listed.data["results"]], [compound_id])
         self.assertEqual(self.client.get(f"/api/inventory/compound-materials/{compound_id}/").status_code, 200)
@@ -188,7 +188,7 @@ class CompoundMaterialAPITests(APITestCase):
         self.assertEqual(listed.status_code, status.HTTP_200_OK)
         self.assertEqual(trace["business_id"], self.business.pk)
         self.assertEqual(trace["orm_count"], 1)
-        self.assertEqual(trace["repository_count"], 1)
+        self.assertEqual(trace["repository_count"], 1, f"GET trace: {trace!r}; response={listed.data!r}")
         self.assertEqual([row["id"] for row in listed.data["results"]], [created.data["id"]])
 
         no_viewer = self._member(self.business, "compound-no-view", (), "NO_INVENTORY_ACCESS")
