@@ -11,6 +11,8 @@ from django.test import TransactionTestCase
 
 from accounts.models import Business, User
 from inventory.infrastructure.django.models import (
+    InventoryOperation,
+    InventoryOperationLine,
     InventoryV1Stock,
     InventoryV1StockMovement,
 )
@@ -20,7 +22,8 @@ from inventory.infrastructure.django.repositories import (
     DjangoStockRepository,
     DjangoWarehouseRepository,
 )
-from inventory.infrastructure.django.operations_service import post_issue\nfrom inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
+from inventory.infrastructure.django.operations_service import post_issue
+from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
 from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
 from purchase.application.dto.goods_receipt import (
