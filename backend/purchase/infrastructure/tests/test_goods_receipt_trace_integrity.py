@@ -22,7 +22,7 @@ from inventory.infrastructure.django.repositories import (
 )
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
-from purchase.application.dto.goods_receipt import (
+from purchase.application.use_cases.goods_receipt.create_goods_receipt import (\n    CreateGoodsReceiptUseCase,\n)\nfrom purchase.application.dto.goods_receipt import (
     CreateGoodsReceiptDTO,
     CreateGoodsReceiptItemDTO,
 )
