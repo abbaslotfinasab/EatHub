@@ -23,42 +23,13 @@ def install_goods_receipt_history_guards(apps, schema_editor):
                         USING ERRCODE = '55000';
                 END IF;
             ELSIF TG_TABLE_NAME = 'purchase_goodsreceiptitem' THEN
-                IF TG_OP IN ('UPDATE', 'DELETE') AND (
-                    EXISTS (
-                        SELECT 1
-                        FROM purchase_goods_receipt_inventory_movement link
-                        WHERE link.receipt_item_id = OLD.id
-                    )
-                    OR EXISTS (
-                        SELECT 1
-                        FROM inventory_v1_stock_movement movement
-                        WHERE movement.source_type = 'goods_receipt'
-                          AND movement.operation_kind = 'receive_stock'
-                          AND movement.source_document_id = OLD.receipt_id
-                          AND movement.source_line_id = OLD.id
-                    )
-                ) THEN
-                    RAISE EXCEPTION 'Goods receipt items with inventory history are immutable'
+                IF TG_OP IN ('UPDATE', 'DELETE') THEN
+                    RAISE EXCEPTION 'Goods receipt items are immutable historical records'
                         USING ERRCODE = '55000';
                 END IF;
             ELSIF TG_TABLE_NAME = 'purchase_goodsreceipt' THEN
-                IF TG_OP IN ('UPDATE', 'DELETE') AND (
-                    EXISTS (
-                        SELECT 1
-                        FROM purchase_goodsreceiptitem item
-                        JOIN purchase_goods_receipt_inventory_movement link
-                          ON link.receipt_item_id = item.id
-                        WHERE item.receipt_id = OLD.id
-                    )
-                    OR EXISTS (
-                        SELECT 1
-                        FROM inventory_v1_stock_movement movement
-                        WHERE movement.source_type = 'goods_receipt'
-                          AND movement.operation_kind = 'receive_stock'
-                          AND movement.source_document_id = OLD.id
-                    )
-                ) THEN
-                    RAISE EXCEPTION 'Goods receipts with inventory history are immutable'
+                IF TG_OP IN ('UPDATE', 'DELETE') THEN
+                    RAISE EXCEPTION 'Goods receipts are immutable historical records'
                         USING ERRCODE = '55000';
                 END IF;
             END IF;
