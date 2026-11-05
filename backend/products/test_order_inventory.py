@@ -360,7 +360,7 @@ class OrderInventoryLifecycleTests(TestCase):
             )
 
     def test_pending_to_completed_is_rejected_without_estimated_consumption(self):
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(APIValidationError):
             OrderService.update_status(
                 business=self.business, order_id=self.order.pk,
                 status=Order.Status.COMPLETED, user=self.actor,
@@ -375,7 +375,7 @@ class OrderInventoryLifecycleTests(TestCase):
 
     def test_confirmed_order_cannot_be_reopened_to_pending_and_mutated(self):
         self.confirm()
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(APIValidationError):
             OrderService.update_status(
                 business=self.business, order_id=self.order.pk,
                 status=Order.Status.PENDING, user=self.actor,
