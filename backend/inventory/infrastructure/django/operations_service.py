@@ -18,7 +18,7 @@ from inventory.domain.value_objects.source_identity import SourceIdentity
 from inventory.domain.value_objects.unit import Unit
 from inventory.domain.value_objects.unit_cost import UnitCost
 from inventory.infrastructure.django.mappers import (
-    movement_to_orm, stock_to_domain,
+    movement_to_orm, stock_to_domain, stock_to_orm,
     warehouse_to_domain,
 )
 from inventory.infrastructure.django.models import (
