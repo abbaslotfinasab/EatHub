@@ -55,6 +55,10 @@ class Command(BaseCommand):
         items_by_id = {item.pk: item for item in all_items}
         links_by_movement = {link.movement_id: link for link in links}
         links_by_item = {link.receipt_item_id: link for link in links}
+        movements_by_source = {}
+        for movement in movements:
+            source_key = (\n                movement.business_id,\n                movement.source_document_id,\n                movement.source_line_id,\n            )
+            movements_by_source.setdefault(source_key, []).append(movement)
 
         issues = []
         issue_count = 0
@@ -145,11 +149,24 @@ class Command(BaseCommand):
                     )
 
         for item in received_items:
-            if item.pk not in links_by_item:
+            source_key = (
+                item.receipt.business_id,
+                item.receipt_id,
+                item.pk,
+            )
+            matching_movements = movements_by_source.get(source_key, [])
+            if not matching_movements:
+                add_issue(
+                    "receipt_item_without_movement",
+                    receipt_item_id=item.pk,
+                    detail="Receipt item has a positive received quantity but no goods receipt stock movement.",
+                )
+            elif item.pk not in links_by_item:
                 add_issue(
                     "receipt_item_without_link",
+                    movement_id=matching_movements[0].pk,
                     receipt_item_id=item.pk,
-                    detail="Receipt item has a positive received quantity but no explicit movement link.",
+                    detail="A goods receipt movement exists, but the receipt item has no explicit protected link.",
                 )
 
         for link in links:
