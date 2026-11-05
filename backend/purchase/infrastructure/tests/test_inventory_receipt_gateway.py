@@ -37,14 +37,18 @@ class InventoryReceiptGatewayTests(TestCase):
             direction="in",
             stock=MagicMock(ingredient_id=81),
         )
-        receipt_item = MagicMock(inventory_movement_id=None)
+        receipt_item = MagicMock()
+        link = MagicMock(movement_id=777)
         with patch(
             "purchase.infrastructure.services.inventory_receipt_gateway.InventoryV1StockMovement"
         ) as movement_model, patch(
             "purchase.infrastructure.services.inventory_receipt_gateway.GoodsReceiptItem"
-        ) as receipt_item_model:
+        ) as receipt_item_model, patch(
+            "purchase.infrastructure.services.inventory_receipt_gateway.GoodsReceiptInventoryMovementLink"
+        ) as link_model:
             movement_model.objects.select_related.return_value.get.return_value = movement
             receipt_item_model.objects.select_related.return_value.filter.return_value.first.return_value = receipt_item
+            link_model.objects.get_or_create.return_value = (link, True)
             gateway.receive_line(
                 InventoryReceiptRequest(
                 business_id=7,
@@ -62,9 +66,9 @@ class InventoryReceiptGatewayTests(TestCase):
                 )
             )
 
-        self.assertEqual(receipt_item.inventory_movement, movement)
-        receipt_item.save.assert_called_once_with(
-            update_fields=("inventory_movement", "updated_at")
+        link_model.objects.get_or_create.assert_called_once_with(
+            receipt_item=receipt_item,
+            defaults={"movement": movement},
         )
         self.assertEqual(len(use_case.calls), 1)
         command, context = use_case.calls[0]
