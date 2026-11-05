@@ -56,7 +56,16 @@ class CompoundMaterialAPITests(APITestCase):
         self.assertEqual(created.status_code, status.HTTP_201_CREATED, created.data)
         compound_id = created.data["id"]
         compound = Ingredient.objects.get(pk=compound_id)
+        self.assertEqual(compound.business_id, self.business.pk)
         self.assertEqual(compound.preparation_level, Ingredient.PreparationLevel.SEMI_PREPARED)
+        self.assertEqual(
+            Ingredient.objects.filter(
+                pk=compound_id,
+                business_id=self.business.pk,
+                preparation_level=Ingredient.PreparationLevel.SEMI_PREPARED,
+            ).count(),
+            1,
+        )
         self.assertEqual(len(created.data["components"]), 2)
         self.assertEqual(created.data["components"][1]["quantity"], "100.000000000000")
         listed = self.client.get("/api/inventory/compound-materials/?search=sauce")
@@ -104,6 +113,12 @@ class CompoundMaterialAPITests(APITestCase):
 
     def test_permissions_and_tenant_scoping(self):
         created = self.client.post("/api/inventory/compound-materials/", self._payload(), format="json")
+        created_row = Ingredient.objects.get(pk=created.data["id"])
+        self.assertEqual(created_row.business_id, self.business.pk)
+        self.assertEqual(
+            Membership.objects.get(user=self.owner, is_active=True).business_id,
+            self.business.pk,
+        )
         foreign = Ingredient.objects.create(
             business=self.other_business,
             name="Other business compound",
