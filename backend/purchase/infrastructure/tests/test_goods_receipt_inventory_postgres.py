@@ -22,9 +22,14 @@ from inventory.infrastructure.django.repositories import (
     DjangoStockRepository,
     DjangoWarehouseRepository,
 )
-from inventory.infrastructure.django.operations_service import post_issue
+from inventory.infrastructure.django.operations_service import (
+    approve_stocktake,
+    create_operation,
+    post_issue,
+)
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
+from inventory.application.exceptions import OperationConflict
 from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
 from purchase.application.dto.goods_receipt import (
     CreateGoodsReceiptDTO,
@@ -426,3 +431,91 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
             ).count(),
             1,
         )
+
+
+    def test_concurrent_stocktake_approval_and_goods_receipt_never_apply_a_stale_count(self) -> None:
+        item = self._item(unit="g", quantity="1000")
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.ingredient,
+            unit="kg",
+            quantity=Decimal("10.000000000000"),
+            average_cost=Decimal("100"),
+        )
+        stocktake = create_operation(
+            business_id=self.business.id,
+            actor_id=self.user.id,
+            operation_type=InventoryOperation.Type.STOCKTAKE,
+            warehouse_id=self.warehouse.id,
+            lines=[{
+                "ingredient_id": self.ingredient.id,
+                "quantity": "0",
+                "unit": "kg",
+                "counted_quantity": "8",
+            }],
+        )
+
+        results = self._run_concurrently([
+            lambda: approve_stocktake(
+                business_id=self.business.id,
+                actor_id=self.user.id,
+                operation_id=stocktake.id,
+            ),
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, quantity="500")
+            ),
+        ])
+
+        approval_result, receipt_result = results
+        self.assertFalse(
+            isinstance(receipt_result, Exception),
+            msg=f"Goods receipt failed during stocktake approval: {receipt_result!r}",
+        )
+        self.assertFalse(receipt_result.replayed)
+        self.assertTrue(
+            isinstance(approval_result, OperationConflict)
+            or (
+                isinstance(approval_result, InventoryOperation)
+                and approval_result.status == InventoryOperation.Status.APPROVED
+            ),
+            msg=f"Unexpected stocktake result: {approval_result!r}",
+        )
+
+        stock.refresh_from_db()
+        stocktake.refresh_from_db()
+        self.assertEqual(
+            GoodsReceiptInventoryMovementLink.objects.filter(
+                receipt_item__receipt_id=receipt_result.receipt.id,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="goods_receipt",
+                source_document_id=receipt_result.receipt.id,
+                movement_type="receipt",
+            ).count(),
+            1,
+        )
+
+        if stocktake.status == InventoryOperation.Status.APPROVED:
+            self.assertEqual(stock.quantity, Decimal("13.000000000000"))
+            self.assertEqual(
+                InventoryV1StockMovement.objects.filter(
+                    source_type="inventory_stocktake",
+                    source_document_id=stocktake.id,
+                    movement_type="adjustment",
+                ).count(),
+                1,
+            )
+        else:
+            self.assertIsInstance(approval_result, OperationConflict)
+            self.assertEqual(stock.quantity, Decimal("15.000000000000"))
+            self.assertEqual(
+                InventoryV1StockMovement.objects.filter(
+                    source_type="inventory_stocktake",
+                    source_document_id=stocktake.id,
+                ).count(),
+                0,
+            )
