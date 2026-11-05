@@ -316,6 +316,7 @@ class DashboardRecentOrdersPaginationTests(APITestCase):
             },
             user=self.user,
         )
+        Order.objects.filter(pk=order.pk).update(status=Order.Status.READY)
         OrderService.update_status(
             business=self.business,
             order_id=order.id,
