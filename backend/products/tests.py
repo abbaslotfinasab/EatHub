@@ -49,6 +49,11 @@ class OrderListPaginationTests(APITestCase):
             name="Owner",
             code="OWNER",
         )
+        create_permission, _ = Permission.objects.get_or_create(
+            code=PermissionCode.ORDERS_CREATE,
+            defaults={"name": "Create Orders"},
+        )
+        RolePermission.objects.create(role=role, permission=create_permission)
         view_permission, _ = Permission.objects.get_or_create(
             code=PermissionCode.ORDERS_VIEW,
             defaults={"name": "View Orders"},
@@ -86,6 +91,12 @@ class OrderListPaginationTests(APITestCase):
             role=other_role,
             is_active=True,
         )
+        self.menu = Menu.objects.create(
+            business=self.business, name="Orders Menu", category="Main"
+        )
+        self.menu_item = MenuItem.objects.create(
+            business=self.business, menu=self.menu, name="Test meal", price=Decimal("12.50")
+        )
         self.client.force_authenticate(self.user)
 
     def create_order(self, business=None, **overrides):
@@ -99,6 +110,55 @@ class OrderListPaginationTests(APITestCase):
         }
         values.update(overrides)
         return Order.objects.create(**values)
+
+    def test_create_order_retry_with_same_key_returns_original_order(self) -> None:
+        key = str(uuid4())
+        payload = {
+            "idempotency_key": key,
+            "order_type": "takeaway",
+            "items": [{"menu_item_id": self.menu_item.id, "quantity": 2}],
+        }
+
+        first = self.client.post("/api/products/orders/", payload, format="json")
+        retry = self.client.post("/api/products/orders/", payload, format="json")
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(retry.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data["id"], retry.data["id"])
+        self.assertEqual(
+            Order.objects.filter(business=self.business, idempotency_key=key).count(), 1
+        )
+        self.assertEqual(OrderItem.objects.filter(order_id=first.data["id"]).count(), 1)
+
+    def test_create_order_rejects_reused_key_with_different_payload(self) -> None:
+        key = str(uuid4())
+        payload = {
+            "idempotency_key": key,
+            "order_type": "takeaway",
+            "items": [{"menu_item_id": self.menu_item.id, "quantity": 1}],
+        }
+        first = self.client.post("/api/products/orders/", payload, format="json")
+        conflicting = self.client.post(
+            "/api/products/orders/",
+            {**payload, "items": [{"menu_item_id": self.menu_item.id, "quantity": 3}]},
+            format="json",
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(conflicting.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.filter(business=self.business).count(), 1)
+
+    def test_create_order_requires_idempotency_key(self) -> None:
+        response = self.client.post(
+            "/api/products/orders/",
+            {
+                "order_type": "takeaway",
+                "items": [{"menu_item_id": self.menu_item.id, "quantity": 1}],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.filter(business=self.business).count(), 0)
 
     def test_default_pagination(self) -> None:
         for _ in range(25):
