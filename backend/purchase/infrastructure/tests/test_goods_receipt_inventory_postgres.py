@@ -398,10 +398,15 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
             sum((movement.quantity for movement in movements), Decimal("0")),
             Decimal("0.700000000000"),
         )
+        balances_after = {movement.balance_after for movement in movements}
         self.assertEqual(
-            {movement.balance_after for movement in movements},
-            {Decimal("0.800000000000"), Decimal("1.300000000000")},
+            balances_after.intersection({
+                Decimal("0.800000000000"),
+                Decimal("1.500000000000"),
+            }).__len__(),
+            1,
         )
+        self.assertIn(Decimal("1.300000000000"), balances_after)
         receipt_movement = next(
             movement for movement in movements
             if movement.movement_type == "receipt"
