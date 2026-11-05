@@ -7,13 +7,12 @@ from uuid import uuid4
 
 from django.core.management import call_command
 from django.db import IntegrityError, connection, transaction
+from django.db.models.deletion import ProtectedError
 from django.test import TransactionTestCase
 
 from accounts.models import Business, User
 from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
-from inventory.infrastructure.django.models import (
-    InventoryV1StockMovement,
-)
+from inventory.infrastructure.django.models import InventoryV1StockMovement
 from inventory.infrastructure.django.repositories import (
     DjangoIngredientRepository,
     DjangoStockMovementRepository,
@@ -22,12 +21,12 @@ from inventory.infrastructure.django.repositories import (
 )
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
-from purchase.application.use_cases.goods_receipt.create_goods_receipt import (
-    CreateGoodsReceiptUseCase,
-)
 from purchase.application.dto.goods_receipt import (
     CreateGoodsReceiptDTO,
     CreateGoodsReceiptItemDTO,
+)
+from purchase.application.use_cases.goods_receipt.create_goods_receipt import (
+    CreateGoodsReceiptUseCase,
 )
 from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.infrastructure.persistence.django.repositories.goods_receipt_repository import (
@@ -53,9 +52,7 @@ from purchase.models import (
 )
 
 
-class GoodsReceiptTraceAuditTests(TransactionTestCase):
-    reset_sequences = True
-
+class GoodsReceiptTraceFixtureMixin:
     def setUp(self):
         self.business = Business.objects.create(
             name="Receipt audit",
@@ -141,7 +138,11 @@ class GoodsReceiptTraceAuditTests(TransactionTestCase):
             )
         )
 
-    def test_audit_reports_received_item_without_inventory_link(self):
+
+class GoodsReceiptTraceAuditTests(GoodsReceiptTraceFixtureMixin, TransactionTestCase):
+    reset_sequences = True
+
+    def test_audit_reports_received_item_without_inventory_movement(self):
         item = self._create_received_item_without_movement()
         output = StringIO()
 
@@ -153,7 +154,10 @@ class GoodsReceiptTraceAuditTests(TransactionTestCase):
 
         report = json.loads(output.getvalue())
         self.assertEqual(report["issue_count"], 1)
-        self.assertEqual(report["issues"][0]["code"], "receipt_item_without_movement")
+        self.assertEqual(
+            report["issues"][0]["code"],
+            "receipt_item_without_movement",
+        )
         self.assertEqual(report["issues"][0]["receipt_item_id"], item.id)
 
     def test_audit_reports_clean_linked_receipt(self):
@@ -178,8 +182,11 @@ class GoodsReceiptTraceAuditTests(TransactionTestCase):
     "Database-level historical immutability guards require PostgreSQL.",
 )
 class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
-    GoodsReceiptTraceAuditTests
+    GoodsReceiptTraceFixtureMixin,
+    TransactionTestCase,
 ):
+    reset_sequences = True
+
     def _linked_records(self):
         result = self._receive()
         receipt = GoodsReceipt.objects.get(pk=result.receipt.pk)
@@ -201,16 +208,30 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
                     received_quantity=Decimal("2")
                 )
 
-    def test_receipt_and_item_deletes_are_rejected_by_database(self):
+    def test_orm_delete_is_protected_and_raw_delete_is_rejected(self):
         receipt, item, _, _ = self._linked_records()
 
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                GoodsReceipt.objects.filter(pk=receipt.pk).delete()
+        with self.assertRaises(ProtectedError):
+            receipt.delete()
+
+        with self.assertRaises(ProtectedError):
+            item.delete()
 
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                GoodsReceiptItem.objects.filter(pk=item.pk).delete()
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "DELETE FROM purchase_goodsreceiptitem WHERE id = %s",
+                        [item.pk],
+                    )
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "DELETE FROM purchase_goodsreceipt WHERE id = %s",
+                        [receipt.pk],
+                    )
 
     def test_link_and_receipt_movement_are_immutable(self):
         _, _, link, movement = self._linked_records()
@@ -235,6 +256,8 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
 
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                InventoryV1StockMovement.objects.filter(
-                    pk=movement.pk
-                ).delete()
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "DELETE FROM inventory_v1_stock_movement WHERE id = %s",
+                        [movement.pk],
+                    )
