@@ -245,7 +245,7 @@ def update_stocktake_counts(*, business_id, actor_id, operation_id, counts):
 
 def _locked_document_lines(business_id, operation_type, operation_id):
     document = _document(business_id, operation_type, operation_id, lock=True)
-    lines = list(document.lines.select_related("ingredient").order_by("ingredient_id").select_for_update())
+    lines = list(document.lines.select_related("ingredient").order_by("ingredient_id").select_for_update(of=("self",)))
     return document, lines
 
 
