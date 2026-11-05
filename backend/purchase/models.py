@@ -354,15 +354,6 @@ class GoodsReceiptItem(BaseModel):
         on_delete=models.PROTECT
     )
 
-    # A real, protected link to the immutable Inventory V1 ledger entry.
-    # Nullable for rejected-only lines and historical rows not yet reconciled.
-    inventory_movement = models.ForeignKey(
-        "inventory.InventoryV1StockMovement",
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="goods_receipt_items",
-    )
 
 
     received_quantity = models.DecimalField(
@@ -384,16 +375,6 @@ class GoodsReceiptItem(BaseModel):
         null=True,
         blank=True,
     )
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=("inventory_movement",),
-                condition=models.Q(inventory_movement__isnull=False),
-                name="pur_gr_item_movement_uq",
-            ),
-        ]
-
 
 class PurchaseInvoice(BaseModel):
 
