@@ -173,9 +173,15 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(receipt.items[0].id, movement.source_line_id)
         self.assertEqual(receipt.id, movement.source_document_id)
         self.assertEqual(movement.source_type, "goods_receipt")
+        self.assertEqual(movement.operation_kind, "receive_stock")
+        self.assertEqual(movement.movement_type, "receipt")
+        self.assertEqual(movement.direction, "in")
+        self.assertEqual(movement.quantity, Decimal("0.500000000000"))
+        self.assertEqual(movement.unit, "kg")
         self.assertEqual(stock.quantity, Decimal("0.500000000000"))
         self.assertEqual(stock.average_cost, Decimal("150000"))
         self.assertEqual(movement.actor_id, self.user.id)
+        self.assertEqual(movement.occurred_at, receipt.received_date)
 
     def test_inventory_failure_rolls_back_goods_receipt_and_purchase_state(self) -> None:
         item = self._item(unit="l")
