@@ -1,3 +1,4 @@
+from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
