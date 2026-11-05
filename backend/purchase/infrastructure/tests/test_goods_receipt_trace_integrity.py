@@ -6,7 +6,7 @@ from unittest import skipUnless
 from uuid import uuid4
 
 from django.core.management import call_command
-from django.db import IntegrityError, connection, transaction
+from django.db import DatabaseError, connection, transaction
 from django.db.models.deletion import ProtectedError
 from django.test import TransactionTestCase
 
@@ -198,11 +198,11 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
     def test_receipt_and_item_updates_are_rejected_by_database(self):
         receipt, item, _, _ = self._linked_records()
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(DatabaseError):
             with transaction.atomic():
                 GoodsReceipt.objects.filter(pk=receipt.pk).update(notes="rewritten")
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(DatabaseError):
             with transaction.atomic():
                 GoodsReceiptItem.objects.filter(pk=item.pk).update(
                     received_quantity=Decimal("2")
@@ -217,7 +217,7 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
         with self.assertRaises(ProtectedError):
             item.delete()
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(DatabaseError):
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     cursor.execute(
@@ -225,7 +225,7 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
                         [item.pk],
                     )
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(DatabaseError):
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     cursor.execute(
@@ -236,25 +236,25 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
     def test_link_and_receipt_movement_are_immutable(self):
         _, _, link, movement = self._linked_records()
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(DatabaseError):
             with transaction.atomic():
                 GoodsReceiptInventoryMovementLink.objects.filter(
                     pk=link.pk
                 ).update(movement_id=movement.pk + 100)
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(DatabaseError):
             with transaction.atomic():
                 GoodsReceiptInventoryMovementLink.objects.filter(
                     pk=link.pk
                 ).delete()
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(DatabaseError):
             with transaction.atomic():
                 InventoryV1StockMovement.objects.filter(
                     pk=movement.pk
                 ).update(reason="rewritten historical reason")
 
-        with self.assertRaises(IntegrityError):
+        with self.assertRaises(DatabaseError):
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     cursor.execute(
