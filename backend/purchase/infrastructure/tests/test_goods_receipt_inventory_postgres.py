@@ -239,7 +239,6 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(GoodsReceiptItem.objects.count(), 1)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
         self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 1)
-        self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 1)
         self.assertEqual(
             GoodsReceiptItem.objects.get().received_quantity,
             Decimal("600"),
@@ -266,6 +265,7 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(self.order.receipts.count(), 1)
         self.assertEqual(GoodsReceiptItem.objects.count(), 1)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+        self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 1)
 
     def test_concurrent_same_key_different_payload_conflicts_without_duplicate_posting(self) -> None:
         item = self._item(unit="g")
