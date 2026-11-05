@@ -142,6 +142,7 @@ class Command(BaseCommand):
                 order = expected_item.purchase_order_item.purchase_order
                 if (
                     expected_item.purchase_order_item.ingredient_id != stock.ingredient_id
+                    or expected_item.receipt.purchase_order_id != order.pk
                     or order.business_id != movement.business_id
                     or order.supplier.business_id != movement.business_id
                 ):
