@@ -130,6 +130,37 @@ class OrderRBACApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Order.objects.filter(pk=self.order.pk).exists())
 
+    def test_manager_can_cancel_but_cannot_delete_orders(self):
+        RBACInitializer.initialize(self.business)
+        manager = Role.objects.get(business=self.business, code="MANAGER")
+        manager_user = User.objects.create_user(
+            email="order-rbac-manager@example.com",
+            password="password",
+            name="Order RBAC Manager",
+            number="88002",
+        )
+        Membership.objects.create(
+            user=manager_user,
+            business=self.business,
+            role=manager,
+            is_active=True,
+        )
+        self.client.force_authenticate(manager_user)
+
+        cancel_response = self.client.patch(
+            f"/api/products/orders/{self.order.pk}/status/",
+            {"status": Order.Status.CANCELLED},
+            format="json",
+        )
+        delete_response = self.client.delete(
+            f"/api/products/orders/{self.order.pk}/delete/"
+        )
+
+        self.assertEqual(cancel_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(delete_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.CANCELLED)
+
     def test_default_roles_receive_only_intended_order_lifecycle_permissions(self):
         RBACInitializer.initialize(self.business)
         manager = Role.objects.get(business=self.business, code="MANAGER")
