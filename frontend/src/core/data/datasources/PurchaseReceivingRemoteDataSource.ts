@@ -1,9 +1,11 @@
 import { apiClient } from '../http/http-client.ts';
 import type {
     CreateGoodsReceiptDTO,
+    CreatePurchaseOrderDTO,
     GoodsReceiptReadDTO,
     PurchaseOrderReadDTO,
     SupplierSummaryDTO,
+    UpdatePurchaseOrderDTO,
 } from '../dtos/purchase/PurchaseReceivingDTO.ts';
 
 export class PurchaseReceivingRemoteDataSource {
@@ -14,6 +16,26 @@ export class PurchaseReceivingRemoteDataSource {
 
     async getOrder(id: string): Promise<PurchaseOrderReadDTO> {
         const { data } = await apiClient.get<PurchaseOrderReadDTO>(`/purchase/purchase-orders/${id}/`);
+        return data;
+    }
+
+    async createOrder(payload: CreatePurchaseOrderDTO): Promise<PurchaseOrderReadDTO> {
+        const { data } = await apiClient.post<PurchaseOrderReadDTO>('/purchase/purchase-orders/', payload);
+        return data;
+    }
+
+    async updateOrder(id: string, payload: UpdatePurchaseOrderDTO): Promise<PurchaseOrderReadDTO> {
+        const { data } = await apiClient.put<PurchaseOrderReadDTO>(`/purchase/purchase-orders/${id}/`, payload);
+        return data;
+    }
+
+    async sendOrder(id: string): Promise<PurchaseOrderReadDTO> {
+        const { data } = await apiClient.post<PurchaseOrderReadDTO>(`/purchase/purchase-orders/${id}/send/`);
+        return data;
+    }
+
+    async cancelOrder(id: string): Promise<PurchaseOrderReadDTO> {
+        const { data } = await apiClient.post<PurchaseOrderReadDTO>(`/purchase/purchase-orders/${id}/cancel/`);
         return data;
     }
 
