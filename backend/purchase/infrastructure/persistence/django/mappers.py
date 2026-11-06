@@ -125,6 +125,9 @@ class PaymentAllocationMapper:
             allocated_at=model.allocated_at,
             created_at=model.created_at,
             updated_at=model.updated_at,
+            idempotency_key=model.idempotency_key,
+            payload_fingerprint=model.payload_fingerprint,
+            payload_version=model.payload_version,
         )
 
     @staticmethod
@@ -139,8 +142,10 @@ class PaymentAllocationMapper:
         model.payment_id = entity.supplier_payment_id
         model.amount = entity.amount
         model.allocated_at = entity.allocated_at
+        model.idempotency_key = entity.idempotency_key
+        model.payload_fingerprint = entity.payload_fingerprint
+        model.payload_version = entity.payload_version
         return model
-
 
 class SupplierMapper:
     @staticmethod
