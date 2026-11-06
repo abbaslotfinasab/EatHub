@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from uuid import UUID
 
 from purchase.domain.enums.payment_method import PaymentMethod
 
@@ -12,6 +13,7 @@ class CreateSupplierPaymentDTO:
     amount: Decimal
     payment_date: date
     method: PaymentMethod
+    idempotency_key: UUID
 
 
 @dataclass(frozen=True)
