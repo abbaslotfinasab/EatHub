@@ -49,7 +49,7 @@ export const PurchaseOrdersPage = () => {
     return (
         <Container maxWidth="xl" dir="rtl" sx={{ py: 3 }}>
             <Stack spacing={2.5}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 1 }}>
                     <Box>
                         <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>سفارش‌های خرید</Typography>
                         <Typography color="text.secondary">مدیریت سفارش‌ها، پیگیری وضعیت و ثبت دریافت کالا در انبار</Typography>
