@@ -1,6 +1,6 @@
 from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
+from threading import Barrier, Event, local
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
@@ -21,8 +21,12 @@ from inventory.infrastructure.django.models import (
     InventoryV1Stock,
     InventoryV1StockMovement,
 )
+from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
+from inventory.application.use_cases.manage_reservations import ManageReservations
+from inventory.domain.entities.reservation import MANUAL_RESERVATION_SOURCE
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
+from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Recipe, RecipeInput, RecipeOutput, Warehouse
 from products.models import (
     Customer,
@@ -831,6 +835,189 @@ class ConcurrentOrderConfirmationReleaseTests(TransactionTestCase):
             InventoryV1StockMovement.objects.filter(
                 business=self.business, source_type="order",
                 source_document_id=self.order.pk,
+            ).exists()
+        )
+
+@skipUnless(connection.vendor == "postgresql", "Requires isolated PostgreSQL row-lock semantics")
+class ConcurrentConsumptionReservationReplacementTests(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.business = Business.objects.create(name="Consumption Reservation Race Business")
+        self.actor = User.objects.create_user(
+            email="consumption-reservation-race@example.test",
+            password="test-password",
+            name="Inventory Operator",
+            number="7013",
+        )
+        self.warehouse = Warehouse.objects.create(
+            business=self.business, name="Main", is_active=True, is_default=True
+        )
+        self.flour = Ingredient.objects.create(
+            business=self.business, name="Flour", unit="kg"
+        )
+        dish = Ingredient.objects.create(
+            business=self.business, name="Dish", unit="pc"
+        )
+        self.stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.flour,
+            unit="kg",
+            quantity=Decimal("10"),
+            average_cost=Decimal("1"),
+        )
+        recipe = Recipe.objects.create(
+            business=self.business, name="Consumption race recipe"
+        )
+        RecipeInput.objects.create(
+            recipe=recipe, ingredient=self.flour,
+            quantity=Decimal("1500"), unit="g",
+        )
+        RecipeOutput.objects.create(
+            recipe=recipe, ingredient=dish,
+            quantity=Decimal("1"), unit="pc", is_primary=True,
+        )
+        menu = Menu.objects.create(
+            business=self.business, name="Consumption race menu", category="Test"
+        )
+        menu_item = MenuItem.objects.create(
+            business=self.business, menu=menu, name="Consumption race dish",
+            price=Decimal("1"), recipe=recipe,
+        )
+        self.order = Order.objects.create(
+            business=self.business,
+            order_type=Order.OrderType.TAKEAWAY,
+            payment_method=Order.PaymentMethod.CASH,
+        )
+        self.order_item = OrderItem.objects.create(
+            order=self.order, menu_item=menu_item,
+            menu_item_name=menu_item.name, quantity=2,
+            unit_price=Decimal("1"), total_price=Decimal("2"),
+        )
+        OrderService.update_status(
+            business=self.business, order_id=self.order.pk,
+            status=Order.Status.CONFIRMED, user=self.actor,
+        )
+        OrderService.update_status(
+            business=self.business, order_id=self.order.pk,
+            status=Order.Status.PREPARING, user=self.actor,
+        )
+        self.requirement_id = self.order_item.inventory_recipe_snapshot.requirements.get().pk
+
+    def test_consumption_replacement_serializes_before_stock_against_new_reservation(self):
+        manual_scope_locked = Event()
+        consumption_scope_requested = Event()
+        allow_manual_to_continue = Event()
+        thread_roles = local()
+        original_lock_scope = DjangoReservationRepository.lock_scope
+
+        def coordinated_lock_scope(repository, *args, **kwargs):
+            role = getattr(thread_roles, "role", None)
+            if role == "manual_reservation":
+                result = original_lock_scope(repository, *args, **kwargs)
+                manual_scope_locked.set()
+                if not allow_manual_to_continue.wait(timeout=15):
+                    raise TimeoutError("Timed out waiting to continue the competing reservation.")
+                return result
+            if role == "consumption":
+                consumption_scope_requested.set()
+            return original_lock_scope(repository, *args, **kwargs)
+
+        def create_competing_reservation():
+            close_old_connections()
+            thread_roles.role = "manual_reservation"
+            try:
+                use_case = ManageReservations(
+                    DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+                )
+                try:
+                    use_case.create(
+                        InventoryExecutionContext(self.business.pk, self.actor.pk),
+                        warehouse_id=self.warehouse.pk,
+                        source_type=MANUAL_RESERVATION_SOURCE,
+                        source_id=None,
+                        reason="Concurrent manual reservation",
+                        idempotency_key=uuid4(),
+                        lines=[{
+                            "ingredient_id": self.flour.pk,
+                            "quantity": "7.5",
+                            "unit": "kg",
+                        }],
+                    )
+                    return "reserved"
+                except OperationConflict:
+                    return "rejected"
+            finally:
+                close_old_connections()
+
+        def record_consumption():
+            close_old_connections()
+            thread_roles.role = "consumption"
+            try:
+                return OrderInventoryService.record_consumption(
+                    business_id=self.business.pk,
+                    order_id=self.order.pk,
+                    actor_id=self.actor.pk,
+                    idempotency_key=uuid4(),
+                    lines=[{
+                        "requirement_id": self.requirement_id,
+                        "quantity": "2",
+                        "unit": "kg",
+                    }],
+                )
+            finally:
+                close_old_connections()
+
+        with patch.object(
+            DjangoReservationRepository, "lock_scope", coordinated_lock_scope
+        ):
+            with ThreadPoolExecutor(
+                max_workers=2, thread_name_prefix="consumption-reservation-race"
+            ) as pool:
+                manual_future = pool.submit(create_competing_reservation)
+                self.assertTrue(
+                    manual_scope_locked.wait(timeout=10),
+                    "The competing reservation did not acquire its warehouse/ingredient scope.",
+                )
+                consumption_future = pool.submit(record_consumption)
+                self.assertTrue(
+                    consumption_scope_requested.wait(timeout=10),
+                    "Consumption did not reach the shared lock scope.",
+                )
+                # The competing transaction now owns Warehouse/Ingredient.
+                # Consumption must be waiting for that scope before it locks Stock.
+                allow_manual_to_continue.set()
+                manual_result = manual_future.result(timeout=20)
+                consumption = consumption_future.result(timeout=20)
+
+        self.assertEqual(manual_result, "rejected")
+        self.assertIsNotNone(consumption)
+
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("8.000000000000"))
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                business=self.business, source_type="inventory_issue",
+                operation_kind="post",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            OrderInventoryConsumption.objects.filter(
+                business=self.business, order_id=self.order.pk
+            ).count(),
+            1,
+        )
+        reservations = InventoryReservation.objects.filter(
+            business=self.business, source_type="order", source_id=self.order.pk
+        )
+        self.assertEqual(reservations.filter(status=InventoryReservation.Status.RELEASED).count(), 1)
+        active = reservations.get(status=InventoryReservation.Status.ACTIVE)
+        self.assertEqual(active.lines.get(ingredient=self.flour).quantity, Decimal("1.000000000000"))
+        self.assertFalse(
+            InventoryReservation.objects.filter(
+                business=self.business, source_type=MANUAL_RESERVATION_SOURCE
             ).exists()
         )
 
