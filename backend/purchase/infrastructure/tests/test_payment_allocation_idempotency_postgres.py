@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal
 from threading import Barrier
 from unittest import skipUnless
+from unittest.mock import patch
 from uuid import uuid4
 
 from django.db import connection, connections
@@ -12,6 +13,7 @@ from django.utils import timezone
 
 from accounts.models import Business
 from purchase.application.dto.payment_allocation import CreatePaymentAllocationCommand
+from purchase.application.exceptions import PaymentAllocationIdempotencyPayloadMismatch
 from purchase.application.use_cases.payment_allocation.create_payment_allocation import (
     CreatePaymentAllocation,
 )
@@ -178,6 +180,61 @@ class PaymentAllocationIdempotencyPostgreSQLTests(TransactionTestCase):
         self.assertFalse(any(isinstance(result, Exception) for result in results))
         self.assertEqual(sum(result.replayed for result in results), 1)
         self.assertEqual(results[0].allocation.id, results[1].allocation.id)
+        self.assertEqual(
+            PaymentAllocation.objects.filter(
+                business=self.business,
+                idempotency_key=key,
+            ).count(),
+            1,
+        )
+
+    def test_concurrent_same_key_with_different_payload_has_one_winner(self) -> None:
+        key = uuid4()
+        results = self._run_concurrently([
+            lambda: self._use_case().execute(
+                self._command(key=key, amount="40.00")
+            ),
+            lambda: self._use_case().execute(
+                self._command(key=key, amount="50.00")
+            ),
+        ])
+
+        self.assertEqual(sum(not isinstance(result, Exception) for result in results), 1)
+        self.assertEqual(
+            sum(isinstance(result, PaymentAllocationIdempotencyPayloadMismatch) for result in results),
+            1,
+        )
+        self.assertEqual(
+            PaymentAllocation.objects.filter(
+                business=self.business,
+                idempotency_key=key,
+            ).count(),
+            1,
+        )
+
+    def test_failed_status_update_rolls_back_allocation_and_allows_retry(self) -> None:
+        key = uuid4()
+        command = self._command(key=key)
+
+        with patch.object(
+            DjangoAccountsPayableRepository,
+            "save_payment_status",
+            side_effect=RuntimeError("simulated AP status persistence failure"),
+        ):
+            with self.assertRaises(RuntimeError):
+                self._use_case().execute(command)
+
+        self.assertFalse(
+            PaymentAllocation.objects.filter(
+                business=self.business,
+                idempotency_key=key,
+            ).exists()
+        )
+        self.payable.refresh_from_db()
+        self.assertEqual(self.payable.status, AccountsPayableStatus.OPEN)
+
+        retried = self._use_case().execute(command)
+        self.assertFalse(retried.replayed)
         self.assertEqual(
             PaymentAllocation.objects.filter(
                 business=self.business,
