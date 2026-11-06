@@ -166,33 +166,33 @@ export const CreatePurchaseOrderPage = () => {
                             <TextField required type="date" label="تاریخ سفارش" value={orderDate} onChange={(event) => setOrderDate(event.target.value)} disabled={isEdit || mutation.isPending} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
                             <TextField type="date" label="تاریخ تحویل مورد انتظار" value={expectedDate} onChange={(event) => setExpectedDate(event.target.value)} disabled={isEdit || mutation.isPending} fullWidth slotProps={{ inputLabel: { shrink: true } }} />
                         </Stack>
-                        <Stack direction="row" alignItems="center" justifyContent="space-between">
+                        <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
                             <Typography variant="h6">اقلام سفارش</Typography>
                             <Button type="button" onClick={() => setLines((current) => [...current, newLine()])} disabled={mutation.isPending}>افزودن قلم</Button>
                         </Stack>
                         {lines.map((line, index) => (
                             <Paper key={line.key} variant="outlined" sx={{ p: 2 }}>
                                 <Stack spacing={1.5}>
-                                    <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                        <Typography fontWeight={700}>قلم {index + 1}</Typography>
+                                    <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
+                                        <Typography sx={{ fontWeight: 700 }}>قلم {index + 1}</Typography>
                                         <Button color="error" size="small" type="button" disabled={lines.length === 1 || mutation.isPending} onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))}>حذف</Button>
                                     </Stack>
                                     <TextField select required label="ماده اولیه" value={line.ingredientId} onChange={(event) => updateLine(line.key, { ingredientId: event.target.value })} disabled={mutation.isPending}>
                                         {(ingredients.data ?? []).map((ingredient) => <MenuItem key={ingredient.id} value={ingredient.id}>{ingredient.name}{ingredient.sku ? ` — ${ingredient.sku}` : ''}</MenuItem>)}
                                     </TextField>
                                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                                        <TextField required label="مقدار" value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: event.target.value })} inputProps={{ inputMode: 'decimal' }} fullWidth disabled={mutation.isPending} />
+                                        <TextField required label="مقدار" value={line.quantity} onChange={(event) => updateLine(line.key, { quantity: event.target.value })} slotProps={{ htmlInput: { inputMode: 'decimal' } }} fullWidth disabled={mutation.isPending} />
                                         <TextField select required label="واحد خرید" value={line.purchaseUnit} onChange={(event) => updateLine(line.key, { purchaseUnit: event.target.value as PurchaseUnit })} fullWidth disabled={mutation.isPending}>
                                             {units.map((unit) => <MenuItem key={unit.value} value={unit.value}>{unit.label}</MenuItem>)}
                                         </TextField>
-                                        <TextField required label="قیمت واحد" value={line.unitPrice} onChange={(event) => updateLine(line.key, { unitPrice: event.target.value })} inputProps={{ inputMode: 'decimal' }} fullWidth disabled={mutation.isPending} />
+                                        <TextField required label="قیمت واحد" value={line.unitPrice} onChange={(event) => updateLine(line.key, { unitPrice: event.target.value })} slotProps={{ htmlInput: { inputMode: 'decimal' } }} fullWidth disabled={mutation.isPending} />
                                     </Stack>
                                 </Stack>
                             </Paper>
                         ))}
                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                            <TextField label="تخفیف مبلغی" value={discount} onChange={(event) => setDiscount(event.target.value)} inputProps={{ inputMode: 'decimal' }} fullWidth disabled={mutation.isPending} />
-                            <TextField label="مالیات مبلغی" value={tax} onChange={(event) => setTax(event.target.value)} inputProps={{ inputMode: 'decimal' }} fullWidth disabled={mutation.isPending} />
+                            <TextField label="تخفیف مبلغی" value={discount} onChange={(event) => setDiscount(event.target.value)} slotProps={{ htmlInput: { inputMode: 'decimal' } }} fullWidth disabled={mutation.isPending} />
+                            <TextField label="مالیات مبلغی" value={tax} onChange={(event) => setTax(event.target.value)} slotProps={{ htmlInput: { inputMode: 'decimal' } }} fullWidth disabled={mutation.isPending} />
                         </Stack>
                         <Alert severity="info">مبالغ به واحد پولی مورد استفاده سیستم وارد می‌شوند. تخفیف و مالیات مبلغ ثابت هستند، نه درصد.</Alert>
                         <Stack direction="row" spacing={1}>
