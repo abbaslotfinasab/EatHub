@@ -1,0 +1,112 @@
+name: Frontend Dependency Remediation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-dependency-remediation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  remediate:
+    name: Safe npm audit fix and verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Capture audit before remediation
+        shell: bash
+        run: |
+          set +e
+          npm audit --json > ../npm-audit-before.json
+          status=$?
+          set -e
+          echo "npm audit before remediation exit code: $status"
+          node -e "const a=require('../npm-audit-before.json'); console.log('Before:', JSON.stringify(a.metadata?.vulnerabilities ?? {}))"
+
+      - name: Apply non-breaking dependency fixes
+        shell: bash
+        run: |
+          set +e
+          npm audit fix
+          status=$?
+          set -e
+          echo "npm audit fix exit code: $status"
+          echo "$status" > ../npm-audit-fix-exit-code.txt
+          # Do not fail here: remaining vulnerabilities must be reported and reviewed.
+          # Intentionally do not use --force.
+
+      - name: Inspect DOMPurify dependency path
+        shell: bash
+        run: |
+          set +e
+          npm ls dompurify --all
+          status=$?
+          set -e
+          echo "npm ls dompurify exit code: $status"
+          echo "$status" > ../dompurify-tree-exit-code.txt
+
+      - name: Capture audit after remediation
+        shell: bash
+        run: |
+          set +e
+          npm audit --json > ../npm-audit-after.json
+          status=$?
+          set -e
+          echo "npm audit after remediation exit code: $status"
+          echo "$status" > ../npm-audit-exit-code.txt
+          node <<'NODE'
+          const fs = require('node:fs');
+          const audit = JSON.parse(fs.readFileSync('../npm-audit-after.json', 'utf8'));
+          console.log('After:', JSON.stringify(audit.metadata?.vulnerabilities ?? {}, null, 2));
+          for (const [name, item] of Object.entries(audit.vulnerabilities ?? {})) {
+            console.log(JSON.stringify({
+              name,
+              severity: item.severity,
+              isDirect: item.isDirect,
+              range: item.range,
+              nodes: item.nodes,
+              fixAvailable: item.fixAvailable
+            }));
+          }
+          NODE
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run frontend tests
+        run: node --experimental-transform-types --test src/core/presentation/components/order/*.test.mjs src/core/data/mappers/*.test.mjs
+
+      - name: Upload audit reports and updated lockfile
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dependency-remediation-${{ github.run_number }}
+          if-no-files-found: warn
+          path: |
+            frontend/package.json
+            frontend/package-lock.json
+            npm-audit-before.json
+            npm-audit-after.json
+            npm-audit-fix-exit-code.txt
+            npm-audit-exit-code.txt
+            dompurify-tree-exit-code.txt
