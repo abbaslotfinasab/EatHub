@@ -2,6 +2,9 @@ name: Frontend Dependency Remediation
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - security/frontend-dependency-remediation
 
 permissions:
   contents: read
