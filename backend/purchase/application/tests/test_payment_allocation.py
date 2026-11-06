@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from uuid import uuid4
 
 from django.test import SimpleTestCase
 
@@ -56,6 +57,15 @@ class FakeAllocationRepository:
         self.ap_total = ap_total
         self.payment_total = payment_total
         self.rows = []
+
+    def get_by_idempotency_key_for_business(self, key, business_id):
+        return next(
+            (
+                row for row in self.rows
+                if row.idempotency_key == key and row.business_id == business_id
+            ),
+            None,
+        )
 
     def allocated_amount_for_accounts_payable(self, business_id, payable_id):
         return self.ap_total
