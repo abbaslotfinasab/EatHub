@@ -152,10 +152,12 @@ export const CreatePurchaseOrderPage = () => {
                     <Typography color="text.secondary">اطلاعات سفارش و اقلام موردنیاز را ثبت کنید. مبلغ نهایی در سرور محاسبه می‌شود.</Typography>
                 </Box>
                 {loading && <Box role="status" sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>}
-                {(order.isError || suppliers.isError || ingredients.isError) && <Alert severity="error">بارگذاری اطلاعات اولیه ناموفق بود. {errorMessage(order.error ?? suppliers.error ?? ingredients.error)}</Alert>}
+                {(order.isError || suppliers.isError || ingredients.isError) && <Alert severity="error" action={<Button color="inherit" onClick={() => { void Promise.all([order.refetch(), suppliers.refetch(), ingredients.refetch()]); }}>تلاش مجدد</Button>}>بارگذاری اطلاعات اولیه ناموفق بود. {errorMessage(order.error ?? suppliers.error ?? ingredients.error)}</Alert>}
+                {!isEdit && suppliers.data?.length === 0 && <Alert severity="warning">برای ساخت سفارش ابتدا باید یک تأمین‌کننده فعال ثبت شود.</Alert>}
+                {ingredients.data?.length === 0 && <Alert severity="warning">برای ساخت سفارش، ابتدا باید ماده اولیه فعال ثبت شود.</Alert>}
                 {formError && <Alert severity="error" onClose={() => setFormError('')}>{formError}</Alert>}
                 {isEdit && order.data?.status !== 'draft' && <Alert severity="warning">فقط سفارش پیش‌نویس قابل ویرایش است.</Alert>}
-                {!loading && <Paper component="form" onSubmit={submit} sx={{ p: { xs: 2, sm: 3 } }}>
+                {!loading && suppliers.data && ingredients.data && (!isEdit || order.data) && <Paper component="form" onSubmit={submit} sx={{ p: { xs: 2, sm: 3 } }}>
                     <Stack spacing={2.5}>
                         <TextField select required label="تأمین‌کننده" value={supplierId} onChange={(event) => setSupplierId(event.target.value)} disabled={isEdit || mutation.isPending}>
                             {(suppliers.data ?? []).map((supplier) => <MenuItem key={supplier.id} value={supplier.id}>{supplier.name}</MenuItem>)}
