@@ -18,6 +18,7 @@ from accounts.models import Business, Membership, Permission, Role, RolePermissi
 from core.enums import PermissionCode
 from core.models import ActivityLog
 from products.models import Customer, Menu, MenuItem, Order, OrderItem
+from inventory.models import Recipe
 from products.models import CustomerAccount, CustomerTransaction, OrderRefund
 from products.services.menu_service import MenuService
 from products.services.order_service import OrderService
@@ -2489,3 +2490,150 @@ class OrderCreationPostgresConcurrencyTests(TransactionTestCase):
             Order.objects.filter(business=self.business, idempotency_key=key).count(), 1
         )
         self.assertEqual(OrderItem.objects.filter(order_id=order_ids[0]).count(), 1)
+
+
+
+class MenuItemRecipeApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="menu-recipe@example.com",
+            password="password",
+            name="Menu Recipe User",
+            number="8101",
+        )
+        self.business = Business.objects.create(name="Menu Recipe Business")
+        self.other_business = Business.objects.create(name="Other Menu Recipe Business")
+        role = Role.objects.create(business=self.business, name="Owner", code="OWNER")
+        Membership.objects.create(
+            user=self.user, business=self.business, role=role, is_active=True
+        )
+        self.recipe = Recipe.objects.create(
+            business=self.business,
+            name="House Burger",
+            type=Recipe.Type.PREPARATION,
+        )
+        self.foreign_recipe = Recipe.objects.create(
+            business=self.other_business,
+            name="Foreign Recipe",
+            type=Recipe.Type.PREPARATION,
+        )
+        self.menu = Menu.objects.create(
+            business=self.business, name="Main Menu", category="Food"
+        )
+        self.item = MenuItem.objects.create(
+            business=self.business,
+            menu=self.menu,
+            name="Burger",
+            price=Decimal("12.00"),
+        )
+        self.client.force_authenticate(self.user)
+
+    def test_create_menu_item_accepts_business_recipe_and_returns_it(self):
+        response = self.client.post(
+            f"/api/products/menus/{self.menu.id}/items/create/",
+            {
+                "name": "House Burger",
+                "price": "15.00",
+                "recipe_id": self.recipe.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["recipe_id"], self.recipe.id)
+        self.assertEqual(response.data["recipe_name"], self.recipe.name)
+        self.assertEqual(
+            MenuItem.objects.get(pk=response.data["id"]).recipe_id,
+            self.recipe.id,
+        )
+
+    def test_create_menu_rejects_recipe_from_another_business(self):
+        response = self.client.post(
+            "/api/products/menus/create/",
+            {
+                "name": "New Menu",
+                "category": "Food",
+                "items": [{
+                    "name": "Foreign Recipe Meal",
+                    "price": "10.00",
+                    "recipe_id": self.foreign_recipe.id,
+                }],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Menu.objects.filter(business=self.business, name="New Menu").exists())
+
+    def test_update_menu_item_can_assign_and_clear_recipe(self):
+        assign = self.client.patch(
+            f"/api/products/menu-items/{self.item.id}/update/",
+            {"recipe_id": self.recipe.id},
+            format="json",
+        )
+        self.assertEqual(assign.status_code, status.HTTP_200_OK)
+        self.assertEqual(assign.data["recipe_id"], self.recipe.id)
+
+        clear = self.client.patch(
+            f"/api/products/menu-items/{self.item.id}/update/",
+            {"recipe_id": None},
+            format="json",
+        )
+        self.assertEqual(clear.status_code, status.HTTP_200_OK)
+        self.assertIsNone(clear.data["recipe_id"])
+        self.item.refresh_from_db()
+        self.assertIsNone(self.item.recipe_id)
+
+    def test_update_menu_items_persists_recipe_selection(self):
+        response = self.client.patch(
+            f"/api/products/menus/{self.menu.id}/update/",
+            {
+                "items": [{
+                    "id": self.item.id,
+                    "name": self.item.name,
+                    "description": self.item.description,
+                    "price": "12.00",
+                    "image_url": self.item.image_url,
+                    "is_available": self.item.is_available,
+                    "recipe_id": self.recipe.id,
+                }],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["items"][0]["recipe_id"], self.recipe.id)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.recipe_id, self.recipe.id)
+
+    def test_update_menu_item_rejects_recipe_from_another_business(self):
+        response = self.client.patch(
+            f"/api/products/menu-items/{self.item.id}/update/",
+            {"recipe_id": self.foreign_recipe.id},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.item.refresh_from_db()
+        self.assertIsNone(self.item.recipe_id)
+
+    def test_menu_item_update_is_tenant_scoped(self):
+        other_menu = Menu.objects.create(
+            business=self.other_business, name="Other Menu", category="Food"
+        )
+        other_item = MenuItem.objects.create(
+            business=self.other_business,
+            menu=other_menu,
+            name="Other Burger",
+            price=Decimal("9.00"),
+        )
+
+        response = self.client.patch(
+            f"/api/products/menu-items/{other_item.id}/update/",
+            {"name": "Tampered"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        other_item.refresh_from_db()
+        self.assertEqual(other_item.name, "Other Burger")
