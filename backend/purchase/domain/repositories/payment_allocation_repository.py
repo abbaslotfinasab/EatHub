@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from decimal import Decimal
+from uuid import UUID
 
 from purchase.domain.entities.payment_allocation import PaymentAllocation
 
@@ -7,6 +8,12 @@ from purchase.domain.entities.payment_allocation import PaymentAllocation
 class PaymentAllocationRepository(ABC):
     @abstractmethod
     def create(self, allocation: PaymentAllocation) -> PaymentAllocation:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_by_idempotency_key_for_business(
+        self, idempotency_key: UUID, business_id: int
+    ) -> PaymentAllocation | None:
         raise NotImplementedError
 
     @abstractmethod
