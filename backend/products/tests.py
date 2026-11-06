@@ -2656,6 +2656,47 @@ class MenuItemRecipeApiTests(APITestCase):
         self.item.refresh_from_db()
         self.assertIsNone(self.item.recipe_id)
 
+    def test_update_menu_rejects_item_id_from_another_menu_without_deleting_items(self):
+        other_menu = Menu.objects.create(
+            business=self.business, name="Other Menu", category="Food"
+        )
+        other_item = MenuItem.objects.create(
+            business=self.business,
+            menu=other_menu,
+            name="Other Burger",
+            price=Decimal("9.00"),
+        )
+
+        response = self.client.patch(
+            f"/api/products/menus/{self.menu.id}/update/",
+            {
+                "items": [{
+                    "id": other_item.id,
+                    "name": "Tampered",
+                    "price": "20.00",
+                }],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(MenuItem.objects.filter(pk=self.item.pk).exists())
+        other_item.refresh_from_db()
+        self.assertEqual(other_item.name, "Other Burger")
+
+    def test_update_menu_item_can_update_recipe_without_resending_other_fields(self):
+        response = self.client.patch(
+            f"/api/products/menus/{self.menu.id}/update/",
+            {"items": [{"id": self.item.id, "recipe_id": self.recipe.id}]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.recipe_id, self.recipe.id)
+        self.assertEqual(self.item.name, "Burger")
+        self.assertEqual(self.item.price, Decimal("12.00"))
+
     def test_menu_item_update_is_tenant_scoped(self):
         other_menu = Menu.objects.create(
             business=self.other_business, name="Other Menu", category="Food"
