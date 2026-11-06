@@ -83,11 +83,6 @@ class MenuService:
             if "recipe" in item_data:
                 item.recipe = item_data["recipe"]
 
-            print("----------------")
-            print(item_data)
-            print(existing_items.keys())
-            print(item_data.get("id"))
-
             item.save()
 
             incoming_ids.add(item.id)
