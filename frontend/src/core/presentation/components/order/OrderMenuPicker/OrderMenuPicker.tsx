@@ -1,6 +1,6 @@
 // presentation/components/order/OrderMenuPicker/OrderMenuPicker.tsx
 
-import {useEffect, useMemo, useState} from "react";
+import {useMemo, useState} from "react";
 
 import {
     Box,
@@ -95,32 +95,6 @@ export const OrderMenuPicker = () => {
         selectedMenuId,
     ]);
 
-    // ===========================
-    // Keep Selected Menu Valid
-    // ===========================
-
-    useEffect(() => {
-
-        if (filteredMenus.length === 0) {
-            return;
-        }
-
-        const selectedMenuExists =
-            filteredMenus.some(
-                menu =>
-                    menu.menu.id === selectedMenuId,
-            );
-
-        if (!selectedMenuExists) {
-            setSelectedMenuId(
-                filteredMenus[0].menu.id,
-            );
-        }
-
-    }, [
-        filteredMenus,
-        selectedMenuId,
-    ]);
 
     // ===========================
     // Clear Search
