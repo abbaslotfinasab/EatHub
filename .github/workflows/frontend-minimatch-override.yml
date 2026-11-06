@@ -6,7 +6,7 @@ on:
       - fix/frontend-minimatch-audit
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: frontend-minimatch-audit-${{ github.ref }}
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify minimatch override and safe remediation
+    name: Verify minimatch override and frontend compatibility
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
@@ -32,32 +32,13 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Regenerate lockfile with the targeted override
-        run: npm install --package-lock-only --ignore-scripts
-
-      - name: Install exact lockfile
+      - name: Install exact committed lockfile
         run: npm ci
 
-      - name: Apply safe semver-compatible audit fixes
-        shell: bash
-        run: |
-          set +e
-          npm audit fix
-          status=$?
-          set -e
-          echo "$status" > ../npm-audit-fix-exit-code.txt
-          echo "npm audit fix exit code: $status"
-          # Never use --force; preserve the explicit minimatch override.
+      - name: Verify resolved minimatch dependency tree
+        run: npm ls minimatch --all | tee ../minimatch-tree.txt
 
-      - name: Capture resolved minimatch dependency tree
-        shell: bash
-        run: |
-          set +e
-          npm ls minimatch --all | tee ../minimatch-tree.txt
-          echo "${PIPESTATUS[0]}" > ../minimatch-tree-exit-code.txt
-          set -e
-
-      - name: Capture final npm audit
+      - name: Audit dependencies
         shell: bash
         run: |
           set +e
@@ -65,43 +46,18 @@ jobs:
           status=$?
           set -e
           echo "$status" > ../npm-audit-exit-code.txt
-          node -e "const a=require('../npm-audit.json'); console.log('Audit:', JSON.stringify(a.metadata?.vulnerabilities ?? {}))"
+          node -e "const a=require('../npm-audit.json'); const v=a.metadata?.vulnerabilities ?? {}; console.log('Audit:', JSON.stringify(v)); if (v.total !== 0 || Number(process.env.AUDIT_STATUS) !== 0) process.exit(1);"
+        env:
+          AUDIT_STATUS: "$status"
 
-      - name: Require a clean dependency audit
-        run: |
-          node -e "const a=require('../npm-audit.json'); const total=a.metadata?.vulnerabilities?.total ?? -1; if (total !== 0) { console.error('Refusing to persist lockfile: '+total+' vulnerabilities remain'); process.exit(1); }"
-
-      - name: Run ESLint diagnostic
-        shell: bash
-        run: |
-          set +e
-          npm run lint > ../npm-lint.log 2>&1
-          status=$?
-          set -e
-          echo "$status" > ../npm-lint-exit-code.txt
-          cat ../npm-lint.log
-          echo "npm run lint exit code: $status"
-          # Existing source lint findings are recorded separately from dependency compatibility.
+      - name: Run ESLint
+        run: npm run lint 2>&1 | tee ../npm-lint.log
 
       - name: Build frontend
         run: npm run build
 
       - name: Run frontend tests
         run: node --experimental-transform-types --test src/core/presentation/components/order/*.test.mjs src/core/data/mappers/*.test.mjs
-
-      - name: Persist verified lockfile on remediation branch
-        if: github.ref == 'refs/heads/fix/frontend-minimatch-audit' && github.actor == 'abbaslotfinasab'
-        working-directory: .
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/package-lock.json
-          if git diff --cached --quiet; then
-            echo "Verified lockfile already matches the branch."
-            exit 0
-          fi
-          git commit -m "fix(frontend): remediate audited dependency tree"
-          git push
 
       - name: Upload verification evidence
         if: always()
@@ -113,9 +69,6 @@ jobs:
             frontend/package.json
             frontend/package-lock.json
             minimatch-tree.txt
-            minimatch-tree-exit-code.txt
             npm-audit.json
             npm-audit-exit-code.txt
-            npm-audit-fix-exit-code.txt
             npm-lint.log
-            npm-lint-exit-code.txt
