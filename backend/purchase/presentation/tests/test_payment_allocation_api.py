@@ -79,6 +79,19 @@ class PaymentAllocationAPITests(APITestCase):
         self.assertEqual(summary.data["allocated_amount"], "60.00")
         self.assertEqual(summary.data["outstanding_amount"], "40.00")
 
+    def test_creation_requires_an_idempotency_key(self):
+        payable = self.create_payable(self.business, self.supplier, "API-ALLOC-KEY-REQUIRED")
+        payment = self.create_payment(self.business, self.supplier, "50.00")
+
+        response = self.client.post(self.endpoint, {
+            "accounts_payable_id": payable.id,
+            "supplier_payment_id": payment.id,
+            "amount": "10.00",
+        }, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(PaymentAllocation.objects.count(), 0)
+
     def test_retry_with_same_key_replays_existing_allocation(self):
         payable = self.create_payable(self.business, self.supplier, "API-ALLOC-REPLAY")
         payment = self.create_payment(self.business, self.supplier, "100.00")
