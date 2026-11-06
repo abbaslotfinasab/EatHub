@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
+from uuid import UUID
 
 from purchase.domain.entities.accounts_payable import MONEY_QUANTUM
 
@@ -15,6 +16,9 @@ class PaymentAllocation:
     allocated_at: datetime
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    idempotency_key: UUID | None = None
+    payload_fingerprint: str | None = None
+    payload_version: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.amount, Decimal):
@@ -40,3 +44,13 @@ class PaymentAllocation:
             raise ValueError("Payment allocation amount must be greater than zero.")
         if self.allocated_at is None:
             raise ValueError("Payment allocation timestamp is required.")
+        if self.idempotency_key is None:
+            if self.payload_fingerprint is not None or self.payload_version is not None:
+                raise ValueError("Payment allocation idempotency metadata is incomplete.")
+        else:
+            if not isinstance(self.idempotency_key, UUID):
+                raise ValueError("Payment allocation idempotency key must be a UUID.")
+            if not isinstance(self.payload_fingerprint, str) or len(self.payload_fingerprint) != 64:
+                raise ValueError("Payment allocation payload fingerprint must be a SHA-256 hex digest.")
+            if self.payload_version is None or self.payload_version < 1:
+                raise ValueError("Payment allocation payload version must be positive.")
