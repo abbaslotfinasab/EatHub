@@ -24,3 +24,15 @@ class PaymentAllocationIdempotencyKeyRace(Exception):
     def __init__(self, original_error: Exception) -> None:
         super().__init__("A payment allocation idempotency key was claimed concurrently.")
         self.original_error = original_error
+
+
+class SupplierPaymentIdempotencyPayloadMismatch(ValueError):
+    """A supplier payment key was reused for different financial data."""
+
+
+class SupplierPaymentIdempotencyKeyRace(Exception):
+    """A concurrent supplier payment insert claimed the key first."""
+
+    def __init__(self, original_error: Exception) -> None:
+        super().__init__("A supplier payment idempotency key was claimed concurrently.")
+        self.original_error = original_error
