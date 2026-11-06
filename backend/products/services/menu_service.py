@@ -25,6 +25,7 @@ class MenuService:
                 price=item["price"],
                 image_url=item.get("image_url"),
                 is_available=item.get("is_available", True),
+                recipe=item.get("recipe"),
             )
             for item in items_data
         ]
@@ -79,6 +80,8 @@ class MenuService:
             item.price = item_data["price"]
             item.image_url = item_data.get("image_url")
             item.is_available = item_data.get("is_available", True)
+            if "recipe" in item_data:
+                item.recipe = item_data["recipe"]
 
             print("----------------")
             print(item_data)
@@ -114,6 +117,7 @@ class MenuService:
             price=data["price"],
             image_url=data.get("image_url"),
             is_available=data.get("is_available", True),
+            recipe=data.get("recipe"),
         )
 
     @staticmethod
@@ -126,6 +130,7 @@ class MenuService:
             "price",
             "image_url",
             "is_available",
+            "recipe",
         ]:
             if field in data:
                 setattr(item, field, data[field])
