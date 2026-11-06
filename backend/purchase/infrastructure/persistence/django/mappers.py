@@ -94,6 +94,9 @@ class SupplierPaymentMapper:
             amount=model.amount,
             payment_date=model.payment_date,
             method=PaymentMethod(model.method),
+            idempotency_key=model.idempotency_key,
+            payload_fingerprint=model.payload_fingerprint,
+            payload_version=model.payload_version,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
@@ -110,6 +113,9 @@ class SupplierPaymentMapper:
         model.amount = entity.amount
         model.payment_date = entity.payment_date
         model.method = entity.method.value
+        model.idempotency_key = entity.idempotency_key
+        model.payload_fingerprint = entity.payload_fingerprint
+        model.payload_version = entity.payload_version
         return model
 
 
