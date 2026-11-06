@@ -26,6 +26,7 @@ from products.services.menu_service import MenuService
 from products.services.order_inventory_service import OrderInventoryService
 from products.models import (
     Menu,
+    MenuItem,
     Customer,
     CustomerAccount,
     Order,
@@ -237,7 +238,7 @@ class MenuItemUpdateAPIView(TenantAPIView):
 
     def patch(self, request, pk):
         item = get_object_or_404(
-            __import__("products.models", fromlist=["MenuItem"]).MenuItem,
+            MenuItem,
             pk=pk,
             business=request.business,
         )
