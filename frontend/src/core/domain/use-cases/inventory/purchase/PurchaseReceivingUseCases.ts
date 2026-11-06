@@ -13,7 +13,7 @@ export class ListReceivingOrders {
 export class GetReceivingOrder {
     constructor(private readonly repository: PurchaseReceivingRepository) {}
     execute(id: string) {
-        if (!/^\\d+$/.test(id) || Number(id) <= 0) throw new Error('شناسه سفارش خرید معتبر نیست.');
+        if (!/^\d+$/.test(id) || Number(id) <= 0) throw new Error('شناسه سفارش خرید معتبر نیست.');
         return this.repository.getOrder(id);
     }
 }
@@ -29,7 +29,7 @@ export class CreatePurchaseOrder {
 export class UpdatePurchaseOrder {
     constructor(private readonly repository: PurchaseReceivingRepository) {}
     execute(id: string, input: UpdatePurchaseOrderInput) {
-        if (!/^\\d+$/.test(id) || Number(id) <= 0) throw new Error('شناسه سفارش خرید معتبر نیست.');
+        if (!/^\d+$/.test(id) || Number(id) <= 0) throw new Error('شناسه سفارش خرید معتبر نیست.');
         if (!input.items.length) throw new Error('سفارش باید حداقل یک قلم داشته باشد.');
         return this.repository.updateOrder(id, input);
     }
@@ -48,7 +48,7 @@ export class CancelPurchaseOrder {
 export class ListOrderGoodsReceipts {
     constructor(private readonly repository: PurchaseReceivingRepository) {}
     execute(orderId: string) {
-        if (!/^\\d+$/.test(orderId) || Number(orderId) <= 0) throw new Error('شناسه سفارش خرید معتبر نیست.');
+        if (!/^\d+$/.test(orderId) || Number(orderId) <= 0) throw new Error('شناسه سفارش خرید معتبر نیست.');
         return this.repository.listReceipts(orderId);
     }
 }
