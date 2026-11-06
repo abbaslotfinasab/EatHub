@@ -1,11 +1,18 @@
 from abc import ABC, abstractmethod
 from datetime import date
+from uuid import UUID
 
 from purchase.domain.entities.supplier_payment import SupplierPayment
 from purchase.domain.enums.payment_method import PaymentMethod
 
 
 class SupplierPaymentRepository(ABC):
+    @abstractmethod
+    def get_by_idempotency_key_for_business(
+        self, idempotency_key: UUID, business_id: int
+    ) -> SupplierPayment | None:
+        raise NotImplementedError
+
     def lock_for_allocation(self, business_id: int, supplier_payment_id: int) -> bool:
         raise NotImplementedError
 
