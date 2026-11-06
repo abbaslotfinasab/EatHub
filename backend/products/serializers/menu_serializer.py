@@ -3,11 +3,29 @@ from rest_framework import serializers
 from accounts.models import Business
 from products.models import MenuItem
 from products.models import Menu
+from inventory.models import Recipe
 
 
+
+
+class BusinessRecipeField(serializers.PrimaryKeyRelatedField):
+    """Resolve recipe IDs only inside the authenticated business."""
+
+    def get_queryset(self):
+        business = self.context.get("business")
+        if business is None:
+            return Recipe.objects.none()
+        return Recipe.objects.filter(business=business, is_active=True)
 
 
 class MenuItemCreateSerializer(serializers.Serializer):
+
+    recipe_id = BusinessRecipeField(
+        source="recipe",
+        queryset=Recipe.objects.none(),
+        required=False,
+        allow_null=True,
+    )
 
     name = serializers.CharField(
         max_length=120
@@ -38,6 +56,9 @@ class MenuItemCreateSerializer(serializers.Serializer):
 
 
 class MenuItemSerializer(serializers.ModelSerializer):
+    recipe_id = serializers.IntegerField(read_only=True)
+    recipe_name = serializers.CharField(source="recipe.name", read_only=True, allow_null=True)
+
     class Meta:
         model = MenuItem
         fields = [
@@ -47,6 +68,8 @@ class MenuItemSerializer(serializers.ModelSerializer):
             "price",
             "image_url",
             "is_available",
+            "recipe_id",
+            "recipe_name",
         ]
         read_only_fields = ("id", "created_at", "updated_at")
 
@@ -87,6 +110,13 @@ class CreateMenuWithItemsSerializer(serializers.Serializer):
 
 
 class MenuItemUpdateSerializer(serializers.Serializer):
+    recipe_id = BusinessRecipeField(
+        source="recipe",
+        queryset=Recipe.objects.none(),
+        required=False,
+        allow_null=True,
+    )
+
     id = serializers.IntegerField(
         required=False
     )
