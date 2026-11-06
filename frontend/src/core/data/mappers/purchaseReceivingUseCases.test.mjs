@@ -67,6 +67,7 @@ test("update rejects invalid identifiers and empty line collections", () => {
     const useCase = new UpdatePurchaseOrder(repository);
 
     assert.throws(() => useCase.execute("0", { items: [{}] }), /شناسه سفارش خرید معتبر نیست/);
+    assert.throws(() => useCase.execute("invalid", { items: [{}] }), /شناسه سفارش خرید معتبر نیست/);
     assert.throws(() => useCase.execute("41", { items: [] }), /حداقل یک قلم/);
     assert.deepEqual(repository.calls, []);
 });
