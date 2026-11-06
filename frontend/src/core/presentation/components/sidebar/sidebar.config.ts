@@ -127,18 +127,6 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 icon: ReceiptLongRoundedIcon,
                 requiredPermission: "purchase.view",
             },
-
-             {
-                title: "فاکتور ها",
-                path: "/facture",
-                icon: PointOfSaleRoundedIcon,
-            },
-
-            {
-                title: "حسابداری",
-                path: "/accounting",
-                icon: AccountBalanceWalletRoundedIcon,
-            },
         ],
     },
 
