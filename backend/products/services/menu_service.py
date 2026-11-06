@@ -75,13 +75,16 @@ class MenuService:
                     business=menu.business,
                 )
 
-            item.name = item_data["name"]
-            item.description = item_data.get("description")
-            item.price = item_data["price"]
-            item.image_url = item_data.get("image_url")
-            item.is_available = item_data.get("is_available", True)
-            if "recipe" in item_data:
-                item.recipe = item_data["recipe"]
+            for field in (
+                "name",
+                "description",
+                "price",
+                "image_url",
+                "is_available",
+                "recipe",
+            ):
+                if field in item_data:
+                    setattr(item, field, item_data[field])
 
             item.save()
 
