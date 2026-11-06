@@ -105,11 +105,11 @@ export const CreatePurchaseOrderPage = () => {
                 unitPrice: line.unitPrice.trim(),
                 purchaseUnit: line.purchaseUnit,
             }));
-            if (items.some((item) => !item.ingredientId || !/^\d+(?:\\.\d{1,3})?$/.test(item.quantity) || Number(item.quantity) <= 0 || !/^\d+(?:\\.\d{1,2})?$/.test(item.unitPrice) || Number(item.unitPrice) < 0)) {
+            if (items.some((item) => !item.ingredientId || !/^\d+(?:\.\d{1,3})?$/.test(item.quantity) || Number(item.quantity) <= 0 || !/^\d+(?:\.\d{1,2})?$/.test(item.unitPrice) || Number(item.unitPrice) < 0)) {
                 throw new Error('قلم‌ها باید ماده اولیه، مقدار مثبت (حداکثر سه رقم اعشار) و قیمت معتبر داشته باشند.');
             }
             if (!supplierId) throw new Error('انتخاب تأمین‌کننده الزامی است.');
-            if (!/^\d+(?:\\.\d{1,2})?$/.test(discount) || !/^\d+(?:\\.\d{1,2})?$/.test(tax)) {
+            if (!/^\d+(?:\.\d{1,2})?$/.test(discount) || !/^\d+(?:\.\d{1,2})?$/.test(tax)) {
                 throw new Error('مقادیر تخفیف و مالیات باید عدد معتبر با حداکثر دو رقم اعشار باشند.');
             }
             const input = {
