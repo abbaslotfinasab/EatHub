@@ -15,7 +15,7 @@ class BusinessRecipeField(serializers.PrimaryKeyRelatedField):
         business = self.context.get("business")
         if business is None:
             return Recipe.objects.none()
-        return Recipe.objects.filter(business=business, is_active=True)
+        return Recipe.objects.filter(business=business)
 
 
 class MenuItemCreateSerializer(serializers.Serializer):
