@@ -65,6 +65,9 @@ class PaymentAllocationInfrastructureTests(TestCase):
             amount=Decimal(amount),
             payment_date=date(2026, 10, 7),
             method=PaymentMethod.BANK_TRANSFER,
+            idempotency_key=uuid4(),
+            payload_fingerprint="0" * 64,
+            payload_version=1,
         ))
 
     def allocate(self, payable, payment, amount):
