@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 from django.test import TestCase
 from rest_framework import status
@@ -50,6 +51,7 @@ class SupplierPaymentAPITests(APITestCase):
     def payload(self, **overrides):
         payload = {
             "supplier_id": self.supplier.id,
+            "idempotency_key": str(uuid4()),
             "amount": "100000000.00",
             "payment_date": "2026-09-19",
             "method": "bank_transfer",
@@ -71,6 +73,41 @@ class SupplierPaymentAPITests(APITestCase):
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
         self.assertEqual(listed.status_code, status.HTTP_200_OK)
         self.assertEqual(listed.data[0]["id"], created.data["id"])
+
+    def test_retry_with_same_key_replays_payment(self):
+        key = str(uuid4())
+        payload = self.payload(idempotency_key=key)
+        first = self.client.post(self.endpoint, payload, format="json")
+        retry = self.client.post(self.endpoint, payload, format="json")
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(retry.status_code, status.HTTP_200_OK)
+        self.assertEqual(first.data["id"], retry.data["id"])
+        self.assertEqual(DjangoSupplierPayment.objects.count(), 1)
+
+    def test_same_key_with_different_payload_is_rejected(self):
+        key = str(uuid4())
+        first = self.client.post(
+            self.endpoint,
+            self.payload(idempotency_key=key),
+            format="json",
+        )
+        retry = self.client.post(
+            self.endpoint,
+            self.payload(idempotency_key=key, amount="90.00"),
+            format="json",
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(retry.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(DjangoSupplierPayment.objects.count(), 1)
+
+    def test_creation_requires_idempotency_key(self):
+        payload = self.payload()
+        payload.pop("idempotency_key")
+        response = self.client.post(self.endpoint, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(DjangoSupplierPayment.objects.count(), 0)
 
     def test_supplier_payment_detail_is_read_only(self):
         created = self.client.post(self.endpoint, self.payload(), format="json")

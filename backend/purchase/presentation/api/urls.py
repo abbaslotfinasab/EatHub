@@ -21,6 +21,7 @@ from purchase.presentation.api.views.purchase_order import (
 from purchase.presentation.api.views.goods_receipt import (
     GoodsReceiptDetailAPIView,
     GoodsReceiptListCreateAPIView,
+    GoodsReceiptStockMovementTraceAPIView,
 )
 from purchase.presentation.api.views.purchase_invoice import (
     PurchaseInvoiceApproveAPIView,
@@ -111,6 +112,11 @@ urlpatterns = [
         "goods-receipts/<int:pk>/",
         GoodsReceiptDetailAPIView.as_view(),
         name="goods-receipt-detail",
+    ),
+    path(
+        "goods-receipts/stock-movements/<int:movement_id>/trace/",
+        GoodsReceiptStockMovementTraceAPIView.as_view(),
+        name="goods-receipt-stock-movement-trace",
     ),
     path(
         "purchase-orders/",

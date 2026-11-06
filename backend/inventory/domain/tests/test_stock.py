@@ -159,7 +159,13 @@ class StockTests(TestCase):
         self.assertEqual(movement.actor_id, 99)
 
     def test_adjustment_contract_does_not_accept_arbitrary_cost(self) -> None:
-        with self.assertRaises(TypeError):
+        self.stock.receive(
+            Quantity(Decimal("1"), Unit.KG),
+            UnitCost("3"),
+            self.source(),
+            self.warehouse,
+        )
+        with self.assertRaises(InvalidUnitCost):
             self.stock.adjust(
                 Quantity(Decimal("1"), Unit.KG), MovementDirection.IN,
                 self.adjustment_source(), self.warehouse, reason="Count", actor_id=99,

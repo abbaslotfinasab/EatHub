@@ -13,6 +13,7 @@ from rest_framework.exceptions import ValidationError
 from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import InvalidApplicationInput, OperationConflict, ResourceNotFound
 from inventory.application.use_cases.manage_reservations import ManageReservations
+from inventory.domain.entities.reservation import ReservationLine
 from inventory.domain.exceptions import InventoryDomainError
 from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
@@ -83,7 +84,47 @@ class OrderInventoryService:
         if OrderItemRecipeSnapshot.objects.filter(order_id=order.pk).exists():
             if OrderItemRecipeSnapshot.objects.filter(order_id=order.pk).count() != len(items):
                 raise ValidationError("This order has an incomplete legacy recipe snapshot and needs review.")
-            # A retry returns through the reservation idempotency key below.
+
+            # Snapshots are not proof that stock is still reserved. A retry must
+            # verify the active hold against immutable requirements minus any
+            # consumption already recorded for this order.
+            active_reservations = list(
+                InventoryReservation.objects.select_for_update()
+                .filter(
+                    business_id=order.business_id,
+                    warehouse__business_id=order.business_id,
+                    source_type="order",
+                    source_id=order.pk,
+                    status=InventoryReservation.Status.ACTIVE,
+                )
+                .prefetch_related("lines")
+                .order_by("pk")
+            )
+            if len(active_reservations) != 1:
+                raise ValidationError(
+                    "Recipe snapshots exist but the order does not have exactly one active inventory reservation; "
+                    "inventory reconciliation is required."
+                )
+
+            reservation_lines = []
+            try:
+                for line in active_reservations[0].lines.all().order_by("ingredient_id"):
+                    reservation_lines.append(ReservationLine(
+                        ingredient_id=line.ingredient_id,
+                        quantity=Quantity(line.quantity, Unit(line.unit)),
+                    ))
+            except (InventoryDomainError, TypeError, ValueError) as error:
+                raise ValidationError(
+                    "The active order reservation contains invalid data and requires inventory reconciliation."
+                ) from error
+
+            if not DjangoReservationRepository.order_reservation_matches(
+                order.business_id, order.pk, reservation_lines
+            ):
+                raise ValidationError(
+                    "The active order reservation does not match its remaining immutable requirements; "
+                    "inventory reconciliation is required."
+                )
             return
 
         defaults = list(
@@ -97,7 +138,7 @@ class OrderInventoryService:
 
         menu_items = {
             row.pk: row
-            for row in MenuItem.objects.select_for_update().filter(
+            for row in MenuItem.objects.select_for_update(of=("self",)).filter(
                 business_id=order.business_id,
                 pk__in=[item.menu_item_id for item in items if item.menu_item_id is not None],
             ).select_related("recipe").order_by("pk")
@@ -295,7 +336,11 @@ class OrderInventoryService:
             if previous.get(requirement.pk, Decimal("0")) + amount > requirement.standard_quantity:
                 raise OperationConflict("Actual consumption cannot exceed the confirmed reserved requirement.")
 
-        reservation = InventoryReservation.objects.select_for_update().filter(
+        # The tenant join is a validation predicate, not part of this
+        # serialization boundary. Lock only the reservation header; the
+        # warehouse, ingredients and stock rows are acquired below in the
+        # shared Warehouse -> Ingredients -> Stock order.
+        reservation = InventoryReservation.objects.select_for_update(of=("self",)).filter(
             business_id=business_id,
             warehouse__business_id=business_id,
             source_type="order",
@@ -320,6 +365,22 @@ class OrderInventoryService:
             for ingredient_id, (current, unit) in reserved.items():
                 if ingredient_id not in actual_by_ingredient and current > 0:
                     remaining.append({"ingredient_id": ingredient_id, "quantity": str(current), "unit": unit.value})
+
+            # The reservation header is already locked. Acquire the shared
+            # scope in the same order as reservation creation (Warehouse ->
+            # Ingredients -> Stock) before release() takes any stock locks.
+            # All nested atomic blocks join this transaction, so these locks
+            # remain held while the old reservation is replaced.
+            reservation_repository = DjangoReservationRepository()
+            ingredient_ids = sorted(reserved)
+            warehouse, locked_ingredients = reservation_repository.lock_scope(
+                business_id, reservation.warehouse_id, ingredient_ids
+            )
+            if warehouse is None or set(locked_ingredients) != set(ingredient_ids):
+                raise OperationConflict("Reservation scope changed during consumption; inventory reconciliation is required.")
+            reservation_repository.lock_stock_positions(
+                business_id, reservation.warehouse_id, ingredient_ids
+            )
 
         try:
             with transaction.atomic():

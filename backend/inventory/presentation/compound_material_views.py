@@ -37,7 +37,7 @@ class CompoundMaterialListCreateAPIView(TenantAPIView):
         serializer.is_valid(raise_exception=True)
         params = serializer.validated_data
         page = DjangoCompoundMaterialRepository.list_for_business(
-            request.business.id,
+            request.membership.business_id,
             page=params["page"],
             page_size=params["page_size"],
             search=params.get("search"),
@@ -50,7 +50,7 @@ class CompoundMaterialListCreateAPIView(TenantAPIView):
         serializer = CompoundMaterialCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         material = _save_or_validate(lambda: DjangoCompoundMaterialRepository().create(
-            request.business.id, serializer.validated_data,
+            request.membership.business_id, serializer.validated_data,
         ))
         return Response(CompoundMaterialSerializer(material).data, status=status.HTTP_201_CREATED)
 
@@ -60,7 +60,7 @@ class CompoundMaterialDetailAPIView(TenantAPIView):
 
     def get(self, request, pk):
         _require_permission(request, PermissionCode.INVENTORY_VIEW)
-        material = DjangoCompoundMaterialRepository.get_for_business(request.business.id, pk)
+        material = DjangoCompoundMaterialRepository.get_for_business(request.membership.business_id, pk)
         if material is None:
             raise NotFound("Compound material does not exist in this business.")
         return Response(CompoundMaterialSerializer(material).data)
@@ -70,7 +70,7 @@ class CompoundMaterialDetailAPIView(TenantAPIView):
         serializer = CompoundMaterialUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         material = _save_or_validate(lambda: DjangoCompoundMaterialRepository().update(
-            request.business.id, pk, serializer.validated_data,
+            request.membership.business_id, pk, serializer.validated_data,
         ))
         if material is None:
             raise NotFound("Compound material does not exist in this business.")

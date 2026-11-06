@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
+from uuid import UUID
 
 from purchase.domain.enums.payment_method import PaymentMethod
 
@@ -17,6 +18,9 @@ class SupplierPayment:
     amount: Decimal
     payment_date: date
     method: PaymentMethod
+    idempotency_key: UUID | None = None
+    payload_fingerprint: str | None = None
+    payload_version: int | None = None
 
     created_at: datetime | None = None
     updated_at: datetime | None = None

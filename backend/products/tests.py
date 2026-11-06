@@ -49,6 +49,16 @@ class OrderListPaginationTests(APITestCase):
             name="Owner",
             code="OWNER",
         )
+        create_permission, _ = Permission.objects.get_or_create(
+            code=PermissionCode.ORDERS_CREATE,
+            defaults={"name": "Create Orders"},
+        )
+        RolePermission.objects.create(role=role, permission=create_permission)
+        view_permission, _ = Permission.objects.get_or_create(
+            code=PermissionCode.ORDERS_VIEW,
+            defaults={"name": "View Orders"},
+        )
+        RolePermission.objects.create(role=role, permission=view_permission)
         update_permission = Permission.objects.create(
             name="Update Orders",
             code=PermissionCode.ORDERS_UPDATE,
@@ -81,6 +91,12 @@ class OrderListPaginationTests(APITestCase):
             role=other_role,
             is_active=True,
         )
+        self.menu = Menu.objects.create(
+            business=self.business, name="Orders Menu", category="Main"
+        )
+        self.menu_item = MenuItem.objects.create(
+            business=self.business, menu=self.menu, name="Test meal", price=Decimal("12.50")
+        )
         self.client.force_authenticate(self.user)
 
     def create_order(self, business=None, **overrides):
@@ -94,6 +110,55 @@ class OrderListPaginationTests(APITestCase):
         }
         values.update(overrides)
         return Order.objects.create(**values)
+
+    def test_create_order_retry_with_same_key_returns_original_order(self) -> None:
+        key = str(uuid4())
+        payload = {
+            "idempotency_key": key,
+            "order_type": "takeaway",
+            "items": [{"menu_item_id": self.menu_item.id, "quantity": 2}],
+        }
+
+        first = self.client.post("/api/products/orders/", payload, format="json")
+        retry = self.client.post("/api/products/orders/", payload, format="json")
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(retry.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data["id"], retry.data["id"])
+        self.assertEqual(
+            Order.objects.filter(business=self.business, idempotency_key=key).count(), 1
+        )
+        self.assertEqual(OrderItem.objects.filter(order_id=first.data["id"]).count(), 1)
+
+    def test_create_order_rejects_reused_key_with_different_payload(self) -> None:
+        key = str(uuid4())
+        payload = {
+            "idempotency_key": key,
+            "order_type": "takeaway",
+            "items": [{"menu_item_id": self.menu_item.id, "quantity": 1}],
+        }
+        first = self.client.post("/api/products/orders/", payload, format="json")
+        conflicting = self.client.post(
+            "/api/products/orders/",
+            {**payload, "items": [{"menu_item_id": self.menu_item.id, "quantity": 3}]},
+            format="json",
+        )
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(conflicting.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.filter(business=self.business).count(), 1)
+
+    def test_create_order_requires_idempotency_key(self) -> None:
+        response = self.client.post(
+            "/api/products/orders/",
+            {
+                "order_type": "takeaway",
+                "items": [{"menu_item_id": self.menu_item.id, "quantity": 1}],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Order.objects.filter(business=self.business).count(), 0)
 
     def test_default_pagination(self) -> None:
         for _ in range(25):
@@ -851,6 +916,11 @@ class HistoricalOrderItemTests(APITestCase):
             name="Owner",
             code="OWNER",
         )
+        view_permission, _ = Permission.objects.get_or_create(
+            code=PermissionCode.ORDERS_VIEW,
+            defaults={"name": "View Orders"},
+        )
+        RolePermission.objects.create(role=role, permission=view_permission)
         Membership.objects.create(
             user=self.user,
             business=self.business,
@@ -1225,6 +1295,9 @@ class OrderWalletPaymentTests(TestCase):
         self.order.payment_status = Order.PaymentStatus.FAILED
         self.order.save(update_fields=["status", "payment_status"])
         self.update(status=Order.Status.READY)
+        activity_count_before = ActivityLog.objects.filter(
+            entity_type="order", entity_id=self.order.id
+        ).count()
         original_settle = WalletService.settle_order
 
         def settle_then_fail(**kwargs):
@@ -1246,9 +1319,12 @@ class OrderWalletPaymentTests(TestCase):
         self.assertFalse(CustomerTransaction.objects.filter(
             order=self.order, type=CustomerTransaction.Type.DEBIT
         ).exists())
-        self.assertFalse(ActivityLog.objects.filter(
-            entity_type="order", entity_id=self.order.id
-        ).exists())
+        self.assertEqual(
+            ActivityLog.objects.filter(
+                entity_type="order", entity_id=self.order.id
+            ).count(),
+            activity_count_before,
+        )
 
     def test_failed_cash_payment_does_not_prevent_order_completion(self):
         self.order.payment_method = Order.PaymentMethod.CASH
@@ -2293,3 +2369,123 @@ class WalletRefundMigrationTests(TestCase):
 
         self.assertTrue(Permission.objects.filter(pk=permission.pk).exists())
         self.assertTrue(RolePermission.objects.filter(pk=assignment.pk).exists())
+
+
+
+class OrderCreationValidationRegressionTests(TestCase):
+    def setUp(self):
+        self.business = Business.objects.create(name="Order Creation Validation Business")
+        self.menu = Menu.objects.create(
+            business=self.business,
+            name="Regression Menu",
+            category="Main",
+        )
+        self.menu_item = MenuItem.objects.create(
+            business=self.business,
+            menu=self.menu,
+            name="Regression Item",
+            price=Decimal("12.50"),
+        )
+
+    def test_takeaway_order_can_be_created_without_a_table(self):
+        order = OrderService.create_order(
+            business=self.business,
+            validated_data={
+                "order_type": Order.OrderType.TAKEAWAY,
+                "items": [{"menu_item_id": self.menu_item.id, "quantity": 2}],
+            },
+        )
+
+        self.assertIsNone(order.table)
+        self.assertEqual(order.items.count(), 1)
+        self.assertEqual(order.total_amount, Decimal("25.00"))
+
+    def test_create_order_rejects_invalid_menu_item_as_validation_error(self):
+        initial_order_count = Order.objects.filter(business=self.business).count()
+
+        with self.assertRaises(ValidationError):
+            OrderService.create_order(
+                business=self.business,
+                validated_data={
+                    "order_type": Order.OrderType.TAKEAWAY,
+                    "items": [{"menu_item_id": 99999999, "quantity": 1}],
+                },
+            )
+
+        self.assertEqual(
+            Order.objects.filter(business=self.business).count(),
+            initial_order_count,
+        )
+
+    def test_update_order_rejects_invalid_menu_item_as_validation_error(self):
+        order = Order.objects.create(
+            business=self.business,
+            order_type=Order.OrderType.TAKEAWAY,
+        )
+        original_item = OrderItem.objects.create(
+            order=order,
+            menu_item=self.menu_item,
+            menu_item_name=self.menu_item.name,
+            quantity=1,
+            unit_price=self.menu_item.price,
+            total_price=self.menu_item.price,
+        )
+
+        with self.assertRaises(ValidationError):
+            OrderService.update_order(
+                business=self.business,
+                order_id=order.id,
+                validated_data={
+                    "items": [{"menu_item_id": 99999999, "quantity": 1}],
+                },
+            )
+
+        order.refresh_from_db()
+        self.assertEqual(order.items.count(), 1)
+        self.assertEqual(order.items.get().pk, original_item.pk)
+
+
+@skipUnless(connection.vendor == "postgresql", "Requires PostgreSQL unique-conflict semantics")
+class OrderCreationPostgresConcurrencyTests(TransactionTestCase):
+    """Verify concurrent retries for one create intent persist one order."""
+
+    def setUp(self):
+        self.business = Business.objects.create(name="Concurrent Order Creation Business")
+        self.menu = Menu.objects.create(
+            business=self.business, name="Concurrent Menu", category="Test"
+        )
+        self.menu_item = MenuItem.objects.create(
+            business=self.business,
+            menu=self.menu,
+            name="Concurrent Item",
+            price=Decimal("8.25"),
+        )
+
+    def test_concurrent_same_key_creates_one_order_and_one_order_item(self):
+        key = uuid4()
+        gate = Barrier(2)
+
+        def create_once():
+            close_old_connections()
+            try:
+                gate.wait(timeout=10)
+                order = OrderService.create_order(
+                    business=self.business,
+                    validated_data={
+                        "order_type": Order.OrderType.TAKEAWAY,
+                        "items": [{"menu_item_id": self.menu_item.id, "quantity": 2}],
+                    },
+                    idempotency_key=key,
+                )
+                return order.id
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            order_ids = list(executor.map(lambda _: create_once(), range(2)))
+
+        self.assertEqual(order_ids[0], order_ids[1])
+        self.assertEqual(
+            Order.objects.filter(business=self.business, idempotency_key=key).count(), 1
+        )
+        self.assertEqual(OrderItem.objects.filter(order_id=order_ids[0]).count(), 1)

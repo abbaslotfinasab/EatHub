@@ -31,6 +31,7 @@ class OrderItemSerializer(serializers.Serializer):
 
 
 class CreateOrderInputSerializer(serializers.Serializer):
+    idempotency_key = serializers.UUIDField()
     customer_id = serializers.PrimaryKeyRelatedField(
         queryset=Customer.objects.all(),
         source="customer",

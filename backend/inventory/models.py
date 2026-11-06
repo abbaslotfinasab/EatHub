@@ -434,6 +434,67 @@ class RecipeOutput(BaseModel):
         ]
 
 
+class LegacyPurchaseOrder(BaseModel):
+    """Retained legacy table, registered so Django can flush its FK safely in tests."""
+
+    supplier_id = models.CharField(max_length=64, blank=True, null=True)
+    supplier_name = models.CharField(max_length=150)
+    supplier_number = models.CharField(max_length=30, blank=True, default="")
+    type = models.CharField(
+        max_length=20,
+        choices=[("purchase", "Purchase"), ("sales", "Sales")],
+        default="purchase",
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=[
+            ("draft", "Draft"),
+            ("ordered", "Ordered"),
+            ("partially_received", "Partially Received"),
+            ("received", "Received"),
+            ("cancelled", "Cancelled"),
+        ],
+        default="draft",
+    )
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    tax = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    invoice_number = models.CharField(max_length=100, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.CASCADE,
+        related_name="purchase_orders",
+    )
+
+    class Meta:
+        db_table = "inventory_purchaseorder"
+        ordering = ["-created_at"]
+
+
+class LegacyPurchaseOrderItem(BaseModel):
+    """Retained child table for the retired inventory PurchaseOrder schema."""
+
+    item_type = models.CharField(
+        max_length=20,
+        choices=[("ingredient", "Ingredient"), ("menu_item", "Menu Item")],
+    )
+    item_id = models.PositiveIntegerField()
+    quantity = models.DecimalField(max_digits=12, decimal_places=3)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    total_price = models.DecimalField(max_digits=12, decimal_places=2)
+    purchase_order = models.ForeignKey(
+        LegacyPurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+
+    class Meta:
+        db_table = "inventory_purchaseorderitem"
+        ordering = ["id"]
+
+
 # Register additive V1 persistence models with Django's standard app model loader.
 # The legacy models above remain unchanged and retain their existing tables.
 from inventory.infrastructure.django.models import (  # noqa: E402

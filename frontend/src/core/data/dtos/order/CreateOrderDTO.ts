@@ -1,6 +1,7 @@
 import type { CreateOrderItemDTO } from "./CreateOrderItemDTO";
 
 export interface CreateOrderDTO {
+    idempotency_key: string;
     customer_id?: number;
 
     table?: number | null;

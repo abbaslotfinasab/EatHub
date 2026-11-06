@@ -7,6 +7,7 @@ from purchase.domain.enums.payment_method import PaymentMethod
 
 class CreateSupplierPaymentSerializer(serializers.Serializer):
     supplier_id = serializers.IntegerField(min_value=1)
+    idempotency_key = serializers.UUIDField()
     amount = serializers.DecimalField(
         max_digits=14,
         decimal_places=2,

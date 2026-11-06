@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 from django.test import TestCase
 
@@ -34,6 +35,9 @@ class SupplierPaymentInfrastructureTests(TestCase):
             "amount": Decimal("100.00"),
             "payment_date": date(2026, 9, 19),
             "method": PaymentMethod.CASH,
+            "idempotency_key": uuid4(),
+            "payload_fingerprint": "a" * 64,
+            "payload_version": 1,
         }
         values.update(overrides)
         return SupplierPayment(**values)

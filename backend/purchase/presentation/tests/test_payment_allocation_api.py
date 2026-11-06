@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -29,6 +30,10 @@ class PaymentAllocationAPITests(APITestCase):
         self.other_supplier = Supplier.objects.create(business=self.other_business, name="Other Supplier")
         self.client.force_authenticate(self.user)
 
+    def post_allocation(self, payload):
+        payload.setdefault("idempotency_key", str(uuid4()))
+        return self.client.post(self.endpoint, payload, format="json")
+
     def create_payable(self, business, supplier, number, amount="100.00"):
         invoice = PurchaseInvoice.objects.create(
             business=business, supplier=supplier, invoice_number=number,
@@ -52,11 +57,11 @@ class PaymentAllocationAPITests(APITestCase):
         payable = self.create_payable(self.business, self.supplier, "API-ALLOC-1")
         payment = self.create_payment(self.business, self.supplier, "60.00")
 
-        created = self.client.post(self.endpoint, {
+        created = self.post_allocation({
             "accounts_payable_id": payable.id,
             "supplier_payment_id": payment.id,
             "amount": "60.00",
-        }, format="json")
+        })
         self.assertEqual(created.status_code, status.HTTP_201_CREATED)
         self.assertEqual(created.data["accounts_payable_id"], payable.id)
         self.assertEqual(created.data["supplier_payment_id"], payment.id)
@@ -74,6 +79,65 @@ class PaymentAllocationAPITests(APITestCase):
         self.assertEqual(summary.data["allocated_amount"], "60.00")
         self.assertEqual(summary.data["outstanding_amount"], "40.00")
 
+    def test_creation_requires_an_idempotency_key(self):
+        payable = self.create_payable(self.business, self.supplier, "API-ALLOC-KEY-REQUIRED")
+        payment = self.create_payment(self.business, self.supplier, "50.00")
+
+        response = self.client.post(self.endpoint, {
+            "accounts_payable_id": payable.id,
+            "supplier_payment_id": payment.id,
+            "amount": "10.00",
+        }, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(PaymentAllocation.objects.count(), 0)
+
+    def test_retry_with_same_key_replays_existing_allocation(self):
+        payable = self.create_payable(self.business, self.supplier, "API-ALLOC-REPLAY")
+        payment = self.create_payment(self.business, self.supplier, "100.00")
+        key = str(uuid4())
+        payload = {
+            "accounts_payable_id": payable.id,
+            "supplier_payment_id": payment.id,
+            "amount": "25.00",
+            "idempotency_key": key,
+        }
+
+        first = self.post_allocation(payload.copy())
+        retry = self.post_allocation(payload.copy())
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(retry.status_code, status.HTTP_200_OK)
+        self.assertEqual(first.data["id"], retry.data["id"])
+        self.assertEqual(
+            PaymentAllocation.objects.filter(
+                business=self.business,
+                idempotency_key=key,
+            ).count(),
+            1,
+        )
+
+    def test_reusing_key_with_different_amount_is_rejected(self):
+        payable = self.create_payable(self.business, self.supplier, "API-ALLOC-MISMATCH")
+        payment = self.create_payment(self.business, self.supplier, "100.00")
+        key = str(uuid4())
+        first = self.post_allocation({
+            "accounts_payable_id": payable.id,
+            "supplier_payment_id": payment.id,
+            "amount": "25.00",
+            "idempotency_key": key,
+        })
+        retry = self.post_allocation({
+            "accounts_payable_id": payable.id,
+            "supplier_payment_id": payment.id,
+            "amount": "30.00",
+            "idempotency_key": key,
+        })
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(retry.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(PaymentAllocation.objects.count(), 1)
+
     def test_allocation_creation_requires_allocation_permission(self):
         payable = self.create_payable(self.business, self.supplier, "API-ALLOC-DENIED")
         payment = self.create_payment(self.business, self.supplier, "25.00")
@@ -83,11 +147,11 @@ class PaymentAllocationAPITests(APITestCase):
             permission__code=PermissionCode.PURCHASE_PAYMENT_ALLOCATE.value,
         ).delete()
 
-        response = self.client.post(self.endpoint, {
+        response = self.post_allocation({
             "accounts_payable_id": payable.id,
             "supplier_payment_id": payment.id,
             "amount": "10.00",
-        }, format="json")
+        })
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(PaymentAllocation.objects.count(), 0)
@@ -98,72 +162,72 @@ class PaymentAllocationAPITests(APITestCase):
         own = self.create_payable(self.business, self.supplier, "API-ALLOC-OWN")
         other = self.create_payable(self.other_business, self.other_supplier, "API-ALLOC-OTHER")
         payment = self.create_payment(self.business, self.supplier, "100.00")
-        own_allocation = self.client.post(self.endpoint, {
+        own_allocation = self.post_allocation({
             "accounts_payable_id": own.id,
             "supplier_payment_id": payment.id,
             "amount": "10.00",
-        }, format="json")
+        })
         self.assertEqual(own_allocation.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.client.get(self.endpoint).data[0]["id"], own_allocation.data["id"])
         self.assertEqual(self.client.get(f"{self.endpoint}{own_allocation.data['id']}/").status_code, status.HTTP_200_OK)
         self.assertEqual(self.client.get(f"{self.endpoint}999999/").status_code, status.HTTP_404_NOT_FOUND)
         other_payment = self.create_payment(self.other_business, self.other_supplier, "10.00")
-        denied = self.client.post(self.endpoint, {
+        denied = self.post_allocation({
             "accounts_payable_id": other.id,
             "supplier_payment_id": other_payment.id,
             "amount": "1.00",
-        }, format="json")
+        })
         self.assertEqual(denied.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_client_cannot_control_tenant_or_financial_fields(self):
         payable = self.create_payable(self.business, self.supplier, "API-ALLOC-INPUT")
         payment = self.create_payment(self.business, self.supplier, "100.00")
-        response = self.client.post(self.endpoint, {
+        response = self.post_allocation({
             "accounts_payable_id": payable.id,
             "supplier_payment_id": payment.id,
             "amount": "1.00",
             "business_id": self.other_business.id,
             "status": "paid",
             "allocated_amount": "100.00",
-        }, format="json")
+        })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(PaymentAllocation.objects.count(), 0)
 
     def test_balance_and_supplier_mismatches_are_rejected(self):
         payable = self.create_payable(self.business, self.supplier, "API-ALLOC-BALANCE", "10.00")
         payment = self.create_payment(self.business, self.supplier, "5.00")
-        too_much = self.client.post(self.endpoint, {
+        too_much = self.post_allocation({
             "accounts_payable_id": payable.id,
             "supplier_payment_id": payment.id,
             "amount": "6.00",
-        }, format="json")
+        })
         self.assertEqual(too_much.status_code, status.HTTP_400_BAD_REQUEST)
         wrong_supplier = SupplierPayment.objects.create(
             business=self.business, supplier=self.other_supplier, amount=Decimal("10.00"),
             payment_date=date(2026, 10, 7), method="cash",
         )
-        mismatch = self.client.post(self.endpoint, {
+        mismatch = self.post_allocation({
             "accounts_payable_id": payable.id,
             "supplier_payment_id": wrong_supplier.id,
             "amount": "1.00",
-        }, format="json")
+        })
         self.assertEqual(mismatch.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_endpoints_are_read_only_except_create(self):
         payable = self.create_payable(self.business, self.supplier, "API-ALLOC-VERBS")
         payment = self.create_payment(self.business, self.supplier, "10.00")
-        response = self.client.post(self.endpoint, {
+        response = self.post_allocation({
             "accounts_payable_id": payable.id,
             "supplier_payment_id": payment.id,
             "amount": "1.00",
-        }, format="json")
+        })
         detail = f"{self.endpoint}{response.data['id']}/"
-        self.assertEqual(self.client.put(self.endpoint, {}, format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-        self.assertEqual(self.client.patch(self.endpoint, {}, format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.put(self.endpoint, {}).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.patch(self.endpoint, {}).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertEqual(self.client.delete(self.endpoint).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-        self.assertEqual(self.client.post(detail, {}, format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-        self.assertEqual(self.client.put(detail, {}, format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-        self.assertEqual(self.client.patch(detail, {}, format="json").status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.post(detail, {}).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.put(detail, {}).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertEqual(self.client.patch(detail, {}).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
         self.assertEqual(self.client.delete(detail).status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_requires_authentication(self):

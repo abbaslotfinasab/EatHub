@@ -1,5 +1,7 @@
+from datetime import datetime
 from decimal import Decimal
 from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 from inventory.application.commands import ReceiveStockCommand
 from inventory.application.context import InventoryExecutionContext
@@ -29,8 +31,31 @@ class InventoryReceiptGatewayTests(TestCase):
         use_case = RecordingReceiveStockUseCase()
         gateway = DjangoInventoryReceiptGateway(use_case)
 
-        gateway.receive_line(
-            InventoryReceiptRequest(
+        movement = MagicMock(
+            pk=777,
+            movement_type="receipt",
+            direction="in",
+            stock=MagicMock(
+                ingredient_id=81,
+                business_id=7,
+                warehouse=MagicMock(business_id=7),
+                ingredient=MagicMock(business_id=7),
+            ),
+        )
+        receipt_item = MagicMock()
+        link = MagicMock(movement_id=777)
+        with patch(
+            "purchase.infrastructure.services.inventory_receipt_gateway.InventoryV1StockMovement"
+        ) as movement_model, patch(
+            "purchase.infrastructure.services.inventory_receipt_gateway.GoodsReceiptItem"
+        ) as receipt_item_model, patch(
+            "purchase.infrastructure.services.inventory_receipt_gateway.GoodsReceiptInventoryMovementLink"
+        ) as link_model:
+            movement_model.objects.select_related.return_value.get.return_value = movement
+            receipt_item_model.objects.select_related.return_value.filter.return_value.first.return_value = receipt_item
+            link_model.objects.get_or_create.return_value = (link, True)
+            gateway.receive_line(
+                InventoryReceiptRequest(
                 business_id=7,
                 ingredient_id=81,
                 warehouse_id=None,
@@ -42,9 +67,14 @@ class InventoryReceiptGatewayTests(TestCase):
                 source_line_id=901,
                 operation_kind="receive_stock",
                 actor_id=44,
+                occurred_at=datetime(2026, 10, 2, 12),
+                )
             )
-        )
 
+        link_model.objects.get_or_create.assert_called_once_with(
+            receipt_item=receipt_item,
+            defaults={"movement": movement},
+        )
         self.assertEqual(len(use_case.calls), 1)
         command, context = use_case.calls[0]
         self.assertIsInstance(command, ReceiveStockCommand)
@@ -58,6 +88,7 @@ class InventoryReceiptGatewayTests(TestCase):
         self.assertEqual(command.source.source_document_id, 900)
         self.assertEqual(command.source.source_line_id, 901)
         self.assertEqual(command.source.operation_kind, "receive_stock")
+        self.assertEqual(command.occurred_at, datetime(2026, 10, 2, 12))
         self.assertEqual(context, InventoryExecutionContext(7, actor_id=44))
 
     def test_inventory_business_errors_become_purchase_integration_errors(self):

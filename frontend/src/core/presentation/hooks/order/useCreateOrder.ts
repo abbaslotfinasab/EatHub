@@ -11,8 +11,11 @@ export const useCreateOrder = () => {
     const { createOrderUseCase } = container.orderContainer;
 
     return useMutation({
-        mutationFn: async (input: OrderFormInput) => {
-            return await createOrderUseCase.execute(OrderFormMapper.toDomain(input));
+        mutationFn: async (variables: { input: OrderFormInput; idempotencyKey: string }) => {
+            return await createOrderUseCase.execute(
+                OrderFormMapper.toDomain(variables.input),
+                variables.idempotencyKey,
+            );
         },
 
         onSuccess: () => {

@@ -5,6 +5,8 @@ from products.models import CustomerTransaction, OrderRefund
 from products.models import CustomerAccount, OrderItem, Order, MenuItem
 from django.db import IntegrityError, transaction
 from decimal import Decimal
+import hashlib
+import json
 
 from products.services.wallet_service import WalletService
 from products.services.order_inventory_service import OrderInventoryService
@@ -15,10 +17,68 @@ from core.services.ActivityLogService import ActivityLogService
 class OrderService:
 
     @staticmethod
-    @transaction.atomic
-    def create_order(*, business, validated_data, user=None):
+    def create_order(*, business, validated_data, user=None, idempotency_key=None):
+        fingerprint = OrderService._order_creation_fingerprint(validated_data)
 
-        items_data = validated_data.pop("items")
+        if idempotency_key is not None:
+            existing = Order.objects.filter(
+                business=business, idempotency_key=idempotency_key
+            ).first()
+            if existing is not None:
+                if existing.payload_fingerprint != fingerprint:
+                    raise ValidationError({
+                        "idempotency_key": "This key was already used with a different order payload."
+                    })
+                return existing
+
+        try:
+            return OrderService._create_order_transaction(
+                business=business,
+                validated_data=validated_data,
+                user=user,
+                idempotency_key=idempotency_key,
+                payload_fingerprint=fingerprint,
+            )
+        except IntegrityError:
+            if idempotency_key is None:
+                raise
+            existing = Order.objects.filter(
+                business=business, idempotency_key=idempotency_key
+            ).first()
+            if existing is None:
+                raise
+            if existing.payload_fingerprint != fingerprint:
+                raise ValidationError({
+                    "idempotency_key": "This key was already used with a different order payload."
+                })
+            return existing
+
+    @staticmethod
+    def _order_creation_fingerprint(validated_data):
+        customer = validated_data.get("customer")
+        payload = {
+            "customer_id": customer.pk if customer is not None else None,
+            "table": validated_data.get("table"),
+            "order_type": validated_data["order_type"],
+            "notes": validated_data.get("notes"),
+            "items": [
+                {
+                    "menu_item_id": item["menu_item_id"],
+                    "quantity": item["quantity"],
+                    "notes": item.get("notes"),
+                }
+                for item in validated_data["items"]
+            ],
+        }
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    @transaction.atomic
+    def _create_order_transaction(
+        *, business, validated_data, user, idempotency_key, payload_fingerprint
+    ):
+        items_data = list(validated_data["items"])
         customer = validated_data.get("customer")
         if customer and customer.business_id != business.id:
             raise ValidationError("Customer does not belong to this business.")
@@ -26,7 +86,7 @@ class OrderService:
         order = Order.objects.create(
             business=business,
             customer=customer,
-            table=validated_data["table"],
+            table=validated_data.get("table"),
             order_type=validated_data["order_type"],
             notes=validated_data.get("notes"),
             status=Order.Status.PENDING,
@@ -34,6 +94,8 @@ class OrderService:
             discount=validated_data.get("discount") or Decimal("0"),
             tax=validated_data.get("tax") or Decimal("0"),
             total_amount=Decimal("0"),
+            idempotency_key=idempotency_key,
+            payload_fingerprint=payload_fingerprint if idempotency_key is not None else None,
         )
 
         subtotal = Decimal("0")
@@ -51,7 +113,7 @@ class OrderService:
             menu_item = menu_items.get(item["menu_item_id"])
 
             if not menu_item:
-                raise ValueError("Invalid menu item")
+                raise ValidationError({"items": "Invalid menu item for this business."})
 
             quantity = item["quantity"]
             unit_price = menu_item.price
@@ -209,7 +271,7 @@ class OrderService:
             )
 
             if not menu_item:
-                raise ValueError("Invalid menu item")
+                raise ValidationError({"items": "Invalid menu item for this business."})
 
             quantity = item["quantity"]
 
@@ -261,7 +323,7 @@ class OrderService:
         order = Order.objects.select_for_update().get(pk=order.pk)
         from products.models import OrderItemRecipeSnapshot
 
-        if order.status != Order.Status.PENDING or OrderItemRecipeSnapshot.objects.filter(order_id=order.pk).exists():
+        if order.status not in (Order.Status.PENDING, Order.Status.CANCELLED, Order.Status.FAILED) or OrderItemRecipeSnapshot.objects.filter(order_id=order.pk).exists():
             raise ValidationError("Orders with inventory history must be cancelled, not deleted.")
         has_transactions = CustomerTransaction.objects.filter(order=order).exists()
         safely_deletable_payment_statuses = (
@@ -402,7 +464,7 @@ class OrderService:
         # authoritative wallet settlement service validates the order.
         order.save(update_fields=["status", "payment_status", "payment_method"])
 
-        if new_status == Order.Status.CONFIRMED and previous_status != Order.Status.CONFIRMED:
+        if new_status == Order.Status.CONFIRMED:
             if user is None or user.pk is None:
                 raise ValidationError("Confirming an order requires an authenticated actor.")
             OrderInventoryService.confirm(order=order, actor_id=user.pk)

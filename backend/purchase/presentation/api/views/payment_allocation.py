@@ -81,12 +81,15 @@ class PaymentAllocationListCreateAPIView(TenantAPIView):
                 supplier_payment_id=data["supplier_payment_id"],
                 amount=data["amount"],
                 allocated_at=timezone.now(),
+                idempotency_key=data["idempotency_key"],
             ))
         except ValueError as error:
             _handle(error)
         return Response(
             PaymentAllocationSerializer(result.allocation).data,
-            status=status.HTTP_201_CREATED,
+            status=(
+                status.HTTP_200_OK if result.replayed else status.HTTP_201_CREATED
+            ),
         )
 
     @staticmethod

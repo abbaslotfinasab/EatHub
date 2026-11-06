@@ -1,6 +1,6 @@
 from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
+from threading import Barrier, Event, local
 from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
@@ -21,7 +21,12 @@ from inventory.infrastructure.django.models import (
     InventoryV1Stock,
     InventoryV1StockMovement,
 )
+from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
+from inventory.application.use_cases.manage_reservations import ManageReservations
+from inventory.domain.entities.reservation import MANUAL_RESERVATION_SOURCE
+from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
+from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Recipe, RecipeInput, RecipeOutput, Warehouse
 from products.models import (
     Customer,
@@ -173,6 +178,43 @@ class OrderInventoryLifecycleTests(TestCase):
         self.assertEqual(InventoryReservation.objects.filter(source_id=self.order.pk).count(), 1)
         self.assertEqual(InventoryReservation.objects.get(source_id=self.order.pk).pk, first_reservation)
 
+    def test_confirmation_retry_rejects_snapshots_without_active_reservation(self):
+        self.confirm()
+        OrderInventoryService.release_remaining(
+            order=self.order,
+            actor_id=self.actor.pk,
+            reason="Simulate a missing reservation during confirmation retry",
+        )
+
+        with self.assertRaises(APIValidationError):
+            self.confirm()
+
+        self.assertFalse(InventoryReservation.objects.filter(
+            source_type="order",
+            source_id=self.order.pk,
+            status=InventoryReservation.Status.ACTIVE,
+        ).exists())
+
+    def test_confirmation_retry_rejects_reservation_that_differs_from_remaining_requirements(self):
+        self.confirm()
+        reservation = InventoryReservation.objects.get(
+            source_type="order", source_id=self.order.pk,
+            status=InventoryReservation.Status.ACTIVE,
+        )
+        reservation.lines.update(quantity=Decimal("2"))
+
+        with self.assertRaises(APIValidationError):
+            self.confirm()
+
+        self.assertEqual(
+            InventoryReservation.objects.filter(
+                source_type="order",
+                source_id=self.order.pk,
+                status=InventoryReservation.Status.ACTIVE,
+            ).count(),
+            1,
+        )
+
     def test_actual_consumption_posts_issue_once_and_replaces_reservation_with_remainder(self):
         self.confirm()
         self.start_preparation()
@@ -180,10 +222,34 @@ class OrderInventoryLifecycleTests(TestCase):
         key = uuid4()
         payload = [{"requirement_id": requirement.pk, "quantity": "2", "unit": "kg"}]
 
-        first = OrderInventoryService.record_consumption(
-            business_id=self.business.pk, order_id=self.order.pk, actor_id=self.actor.pk,
-            idempotency_key=key, lines=payload,
-        )
+        lock_events = []
+        original_lock_scope = DjangoReservationRepository.lock_scope
+        original_lock_stock = DjangoReservationRepository.lock_stock_positions
+        original_release = DjangoReservationRepository.release
+
+        def tracked_lock_scope(repository, *args, **kwargs):
+            lock_events.append("scope")
+            return original_lock_scope(repository, *args, **kwargs)
+
+        def tracked_lock_stock(repository, *args, **kwargs):
+            lock_events.append("stock")
+            return original_lock_stock(repository, *args, **kwargs)
+
+        def tracked_release(repository, *args, **kwargs):
+            lock_events.append("release")
+            return original_release(repository, *args, **kwargs)
+
+        with patch.object(DjangoReservationRepository, "lock_scope", tracked_lock_scope), \
+             patch.object(DjangoReservationRepository, "lock_stock_positions", tracked_lock_stock), \
+             patch.object(DjangoReservationRepository, "release", tracked_release):
+            first = OrderInventoryService.record_consumption(
+                business_id=self.business.pk, order_id=self.order.pk, actor_id=self.actor.pk,
+                idempotency_key=key, lines=payload,
+            )
+
+        self.assertLess(lock_events.index("scope"), lock_events.index("stock"))
+        self.assertLess(lock_events.index("stock"), lock_events.index("release"))
+
         retry = OrderInventoryService.record_consumption(
             business_id=self.business.pk, order_id=self.order.pk, actor_id=self.actor.pk,
             idempotency_key=key, lines=payload,
@@ -206,7 +272,7 @@ class OrderInventoryLifecycleTests(TestCase):
     def test_ready_requires_explicit_actual_consumption_and_releases_unused_remainder(self):
         self.confirm()
         self.start_preparation()
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(APIValidationError):
             OrderService.update_status(
                 business=self.business, order_id=self.order.pk,
                 status=Order.Status.READY, user=self.actor,
@@ -323,7 +389,7 @@ class OrderInventoryLifecycleTests(TestCase):
             )
 
     def test_pending_to_completed_is_rejected_without_estimated_consumption(self):
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(APIValidationError):
             OrderService.update_status(
                 business=self.business, order_id=self.order.pk,
                 status=Order.Status.COMPLETED, user=self.actor,
@@ -338,7 +404,7 @@ class OrderInventoryLifecycleTests(TestCase):
 
     def test_confirmed_order_cannot_be_reopened_to_pending_and_mutated(self):
         self.confirm()
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(APIValidationError):
             OrderService.update_status(
                 business=self.business, order_id=self.order.pk,
                 status=Order.Status.PENDING, user=self.actor,
@@ -346,7 +412,7 @@ class OrderInventoryLifecycleTests(TestCase):
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.CONFIRMED)
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(APIValidationError):
             OrderService.update_order(
                 business=self.business, order_id=self.order.pk,
                 validated_data={"items": []},
@@ -370,6 +436,9 @@ class OrderInventoryLifecycleTests(TestCase):
 
 
 class OrderInventoryRefundTests(TestCase):
+    confirm = OrderInventoryLifecycleTests.confirm
+    start_preparation = OrderInventoryLifecycleTests.start_preparation
+    requirement = OrderInventoryLifecycleTests.requirement
     """Refund inventory release stays atomic with the existing wallet refund."""
 
     def setUp(self):
@@ -468,6 +537,7 @@ class OrderInventoryRefundTests(TestCase):
         self.confirm()
         transaction_count = CustomerTransaction.objects.filter(order=self.order).count()
         account = self.customer.account
+        account.refresh_from_db()
         account_balance = account.balance
 
         with patch(
@@ -503,13 +573,16 @@ class OrderInventoryRefundTests(TestCase):
 
 
 class OrderConsumptionRequirementsReadTests(TestCase):
+    confirm = OrderInventoryLifecycleTests.confirm
+    start_preparation = OrderInventoryLifecycleTests.start_preparation
+    requirement = OrderInventoryLifecycleTests.requirement
     def setUp(self):
         OrderInventoryLifecycleTests.setUp(self)
         self.confirm()
         self.start_preparation()
         self.request = SimpleNamespace(
             business=self.business,
-            permissions={PermissionCode.ORDERS_UPDATE, PermissionCode.INVENTORY_ORDER_FULFILL},
+            permissions={PermissionCode.ORDERS_VIEW.value, PermissionCode.ORDERS_UPDATE.value, PermissionCode.INVENTORY_ORDER_FULFILL.value},
         )
 
     def test_read_contract_returns_snapshot_and_accumulated_actual_consumption(self):
@@ -641,3 +714,310 @@ class ConcurrentOrderConfirmationTests(TransactionTestCase):
         self.assertEqual(
             Order.objects.filter(pk__in=self.orders, status=Order.Status.CONFIRMED).count(), 1
         )
+
+
+@skipUnless(connection.vendor == "postgresql", "Requires isolated PostgreSQL row-lock semantics")
+class ConcurrentOrderConfirmationReleaseTests(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.business = Business.objects.create(name="Confirm Release Race Business")
+        self.actor = User.objects.create_user(
+            email="confirm-release-race@example.test",
+            password="test-password",
+            name="Concurrent Operator",
+            number="7012",
+        )
+        warehouse = Warehouse.objects.create(
+            business=self.business, name="Main", is_active=True, is_default=True
+        )
+        flour = Ingredient.objects.create(
+            business=self.business, name="Flour", unit="kg"
+        )
+        dish = Ingredient.objects.create(
+            business=self.business, name="Dish", unit="pc"
+        )
+        self.stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=warehouse,
+            ingredient=flour,
+            unit="kg",
+            quantity=Decimal("3"),
+            average_cost=Decimal("1"),
+        )
+        recipe = Recipe.objects.create(
+            business=self.business, name="Race test recipe"
+        )
+        RecipeInput.objects.create(
+            recipe=recipe, ingredient=flour, quantity=Decimal("3"), unit="kg"
+        )
+        RecipeOutput.objects.create(
+            recipe=recipe, ingredient=dish, quantity=Decimal("1"),
+            unit="pc", is_primary=True,
+        )
+        menu = Menu.objects.create(
+            business=self.business, name="Race test menu", category="Test"
+        )
+        menu_item = MenuItem.objects.create(
+            business=self.business, menu=menu, name="Race test dish",
+            price=Decimal("1"), recipe=recipe,
+        )
+        self.order = Order.objects.create(
+            business=self.business,
+            order_type=Order.OrderType.TAKEAWAY,
+            payment_method=Order.PaymentMethod.CASH,
+        )
+        OrderItem.objects.create(
+            order=self.order, menu_item=menu_item,
+            menu_item_name=menu_item.name, quantity=1,
+            unit_price=Decimal("1"), total_price=Decimal("1"),
+        )
+
+    def test_concurrent_confirm_and_cancel_never_leave_an_active_reservation(self):
+        barrier = Barrier(2)
+
+        def confirm():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                OrderService.update_status(
+                    business=Business.objects.get(pk=self.business.pk),
+                    order_id=self.order.pk,
+                    status=Order.Status.CONFIRMED,
+                    user=User.objects.get(pk=self.actor.pk),
+                )
+                return "confirmed"
+            except APIValidationError:
+                return "rejected"
+            finally:
+                close_old_connections()
+
+        def cancel_and_release():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                OrderService.update_status(
+                    business=Business.objects.get(pk=self.business.pk),
+                    order_id=self.order.pk,
+                    status=Order.Status.CANCELLED,
+                    user=User.objects.get(pk=self.actor.pk),
+                )
+                return "released"
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            confirm_future = pool.submit(confirm)
+            release_future = pool.submit(cancel_and_release)
+            outcomes = [confirm_future.result(), release_future.result()]
+
+        self.assertIn(outcomes[0], ("confirmed", "rejected"))
+        self.assertEqual(outcomes[1], "released")
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.CANCELLED)
+
+        reservations = InventoryReservation.objects.filter(
+            business=self.business, source_type="order", source_id=self.order.pk
+        )
+        self.assertLessEqual(reservations.count(), 1)
+        self.assertFalse(
+            reservations.filter(status=InventoryReservation.Status.ACTIVE).exists()
+        )
+        if reservations.exists():
+            self.assertEqual(
+                reservations.get().status, InventoryReservation.Status.RELEASED
+            )
+
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("3"))
+        self.assertFalse(
+            InventoryV1StockMovement.objects.filter(
+                business=self.business, source_type="order",
+                source_document_id=self.order.pk,
+            ).exists()
+        )
+
+@skipUnless(connection.vendor == "postgresql", "Requires isolated PostgreSQL row-lock semantics")
+class ConcurrentConsumptionReservationReplacementTests(TransactionTestCase):
+    reset_sequences = True
+
+    def setUp(self):
+        self.business = Business.objects.create(name="Consumption Reservation Race Business")
+        self.actor = User.objects.create_user(
+            email="consumption-reservation-race@example.test",
+            password="test-password",
+            name="Inventory Operator",
+            number="7013",
+        )
+        self.warehouse = Warehouse.objects.create(
+            business=self.business, name="Main", is_active=True, is_default=True
+        )
+        self.flour = Ingredient.objects.create(
+            business=self.business, name="Flour", unit="kg"
+        )
+        dish = Ingredient.objects.create(
+            business=self.business, name="Dish", unit="pc"
+        )
+        self.stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.flour,
+            unit="kg",
+            quantity=Decimal("10"),
+            average_cost=Decimal("1"),
+        )
+        recipe = Recipe.objects.create(
+            business=self.business, name="Consumption race recipe"
+        )
+        RecipeInput.objects.create(
+            recipe=recipe, ingredient=self.flour,
+            quantity=Decimal("1500"), unit="g",
+        )
+        RecipeOutput.objects.create(
+            recipe=recipe, ingredient=dish,
+            quantity=Decimal("1"), unit="pc", is_primary=True,
+        )
+        menu = Menu.objects.create(
+            business=self.business, name="Consumption race menu", category="Test"
+        )
+        menu_item = MenuItem.objects.create(
+            business=self.business, menu=menu, name="Consumption race dish",
+            price=Decimal("1"), recipe=recipe,
+        )
+        self.order = Order.objects.create(
+            business=self.business,
+            order_type=Order.OrderType.TAKEAWAY,
+            payment_method=Order.PaymentMethod.CASH,
+        )
+        self.order_item = OrderItem.objects.create(
+            order=self.order, menu_item=menu_item,
+            menu_item_name=menu_item.name, quantity=2,
+            unit_price=Decimal("1"), total_price=Decimal("2"),
+        )
+        OrderService.update_status(
+            business=self.business, order_id=self.order.pk,
+            status=Order.Status.CONFIRMED, user=self.actor,
+        )
+        OrderService.update_status(
+            business=self.business, order_id=self.order.pk,
+            status=Order.Status.PREPARING, user=self.actor,
+        )
+        self.requirement_id = self.order_item.inventory_recipe_snapshot.requirements.get().pk
+
+    def test_consumption_replacement_serializes_before_stock_against_new_reservation(self):
+        manual_scope_locked = Event()
+        consumption_scope_requested = Event()
+        allow_manual_to_continue = Event()
+        thread_roles = local()
+        original_lock_scope = DjangoReservationRepository.lock_scope
+
+        def coordinated_lock_scope(repository, *args, **kwargs):
+            role = getattr(thread_roles, "role", None)
+            if role == "manual_reservation":
+                result = original_lock_scope(repository, *args, **kwargs)
+                manual_scope_locked.set()
+                if not allow_manual_to_continue.wait(timeout=15):
+                    raise TimeoutError("Timed out waiting to continue the competing reservation.")
+                return result
+            if role == "consumption":
+                consumption_scope_requested.set()
+            return original_lock_scope(repository, *args, **kwargs)
+
+        def create_competing_reservation():
+            close_old_connections()
+            thread_roles.role = "manual_reservation"
+            try:
+                use_case = ManageReservations(
+                    DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+                )
+                try:
+                    use_case.create(
+                        InventoryExecutionContext(self.business.pk, self.actor.pk),
+                        warehouse_id=self.warehouse.pk,
+                        source_type=MANUAL_RESERVATION_SOURCE,
+                        source_id=None,
+                        reason="Concurrent manual reservation",
+                        idempotency_key=uuid4(),
+                        lines=[{
+                            "ingredient_id": self.flour.pk,
+                            "quantity": "7.5",
+                            "unit": "kg",
+                        }],
+                    )
+                    return "reserved"
+                except OperationConflict:
+                    return "rejected"
+            finally:
+                close_old_connections()
+
+        def record_consumption():
+            close_old_connections()
+            thread_roles.role = "consumption"
+            try:
+                return OrderInventoryService.record_consumption(
+                    business_id=self.business.pk,
+                    order_id=self.order.pk,
+                    actor_id=self.actor.pk,
+                    idempotency_key=uuid4(),
+                    lines=[{
+                        "requirement_id": self.requirement_id,
+                        "quantity": "2",
+                        "unit": "kg",
+                    }],
+                )
+            finally:
+                close_old_connections()
+
+        with patch.object(
+            DjangoReservationRepository, "lock_scope", coordinated_lock_scope
+        ):
+            with ThreadPoolExecutor(
+                max_workers=2, thread_name_prefix="consumption-reservation-race"
+            ) as pool:
+                manual_future = pool.submit(create_competing_reservation)
+                self.assertTrue(
+                    manual_scope_locked.wait(timeout=10),
+                    "The competing reservation did not acquire its warehouse/ingredient scope.",
+                )
+                consumption_future = pool.submit(record_consumption)
+                self.assertTrue(
+                    consumption_scope_requested.wait(timeout=10),
+                    "Consumption did not reach the shared lock scope.",
+                )
+                # The competing transaction now owns Warehouse/Ingredient.
+                # Consumption must be waiting for that scope before it locks Stock.
+                allow_manual_to_continue.set()
+                manual_result = manual_future.result(timeout=20)
+                consumption = consumption_future.result(timeout=20)
+
+        self.assertEqual(manual_result, "rejected")
+        self.assertIsNotNone(consumption)
+
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("8.000000000000"))
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                business=self.business, source_type="inventory_issue",
+                operation_kind="post",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            OrderInventoryConsumption.objects.filter(
+                business=self.business, order_id=self.order.pk
+            ).count(),
+            1,
+        )
+        reservations = InventoryReservation.objects.filter(
+            business=self.business, source_type="order", source_id=self.order.pk
+        )
+        self.assertEqual(reservations.filter(status=InventoryReservation.Status.RELEASED).count(), 1)
+        active = reservations.get(status=InventoryReservation.Status.ACTIVE)
+        self.assertEqual(active.lines.get(ingredient=self.flour).quantity, Decimal("1.000000000000"))
+        self.assertFalse(
+            InventoryReservation.objects.filter(
+                business=self.business, source_type=MANUAL_RESERVATION_SOURCE
+            ).exists()
+        )
+

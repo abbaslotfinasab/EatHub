@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 from unittest.mock import patch
 
 from django.db import IntegrityError, transaction
@@ -64,6 +65,9 @@ class PaymentAllocationInfrastructureTests(TestCase):
             amount=Decimal(amount),
             payment_date=date(2026, 10, 7),
             method=PaymentMethod.BANK_TRANSFER,
+            idempotency_key=uuid4(),
+            payload_fingerprint="0" * 64,
+            payload_version=1,
         ))
 
     def allocate(self, payable, payment, amount):
@@ -73,6 +77,7 @@ class PaymentAllocationInfrastructureTests(TestCase):
             supplier_payment_id=payment.id,
             amount=Decimal(amount),
             allocated_at=timezone.now(),
+            idempotency_key=uuid4(),
         )).allocation
 
     def test_allocation_persists_and_updates_authoritative_payable_status(self):
@@ -116,6 +121,7 @@ class PaymentAllocationInfrastructureTests(TestCase):
                 supplier_payment_id=self.payment.id,
                 amount=Decimal("1.00"),
                 allocated_at=timezone.now(),
+                idempotency_key=uuid4(),
             ))
         with self.assertRaisesRegex(ValueError, "does not exist in this business"):
             self.allocate(self.payable, self.other_payment, "1.00")

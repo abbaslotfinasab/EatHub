@@ -21,6 +21,7 @@ ROLE_PERMISSIONS = {
         PermissionCode.ORDERS_VIEW,
         PermissionCode.ORDERS_CREATE,
         PermissionCode.ORDERS_UPDATE,
+        PermissionCode.ORDERS_CANCEL,
         PermissionCode.PAYMENTS_MANAGE,
 
         PermissionCode.INVENTORY_VIEW,

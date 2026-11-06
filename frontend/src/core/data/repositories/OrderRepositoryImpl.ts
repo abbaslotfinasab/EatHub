@@ -32,8 +32,8 @@ export class OrderRepositoryImpl implements OrderRepository {
     // CREATE
     // =========================
 
-    async create(input: OrderWithItems): Promise<void> {
-        const dto = orderMapper.toCreateDTO(input);
+    async create(input: OrderWithItems, idempotencyKey: string): Promise<void> {
+        const dto = orderMapper.toCreateDTO(input, idempotencyKey);
 
         await this.remote.createOrder(dto);
     }

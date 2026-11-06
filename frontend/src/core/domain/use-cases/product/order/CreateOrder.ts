@@ -8,8 +8,8 @@ import type {OrderWithItems} from "../../../entities/product/order/OrderWithItem
 export class CreateOrder {
     constructor(private orderRepo: OrderRepository){}
 
-    async execute(input: OrderWithItems) {
+    async execute(input: OrderWithItems, idempotencyKey: string) {
 
-        await this.orderRepo.create(input);
+        await this.orderRepo.create(input, idempotencyKey);
     }
 }

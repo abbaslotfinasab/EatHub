@@ -110,7 +110,7 @@ class DjangoReservationRepository:
             business_id=business_id, idempotency_key=key
         )
         if lock:
-            rows = rows.select_for_update()
+            rows = rows.select_for_update(of=("self",))
         row = rows.select_related("warehouse").prefetch_related("lines__ingredient").first()
         return self._dto(row) if row is not None else None
 
@@ -120,7 +120,7 @@ class DjangoReservationRepository:
             warehouse__business_id=business_id,
         )
         if lock:
-            rows = rows.select_for_update()
+            rows = rows.select_for_update(of=("self",))
         row = rows.select_related("warehouse").prefetch_related("lines__ingredient").first()
         return self._dto(row) if row is not None else None
 
@@ -203,7 +203,7 @@ class DjangoReservationRepository:
         header = InventoryReservation.objects.filter(
             business_id=business_id, pk=reservation_id,
             warehouse__business_id=business_id,
-        ).select_for_update().first()
+        ).select_for_update(of=("self",)).first()
         if header is None:
             raise ResourceNotFound("Reservation was not found in this Business.")
         if header.status == InventoryReservation.Status.RELEASED:

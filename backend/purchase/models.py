@@ -355,6 +355,7 @@ class GoodsReceiptItem(BaseModel):
     )
 
 
+
     received_quantity = models.DecimalField(
         max_digits=12,
         decimal_places=3
@@ -374,6 +375,34 @@ class GoodsReceiptItem(BaseModel):
         null=True,
         blank=True,
     )
+
+class GoodsReceiptInventoryMovementLink(models.Model):
+    """Protected, explicit bridge between a received line and its ledger entry."""
+
+    receipt_item = models.ForeignKey(
+        GoodsReceiptItem,
+        on_delete=models.PROTECT,
+        related_name="inventory_movement_links",
+    )
+    movement = models.ForeignKey(
+        "inventory.InventoryV1StockMovement",
+        on_delete=models.PROTECT,
+        related_name="goods_receipt_links",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "purchase_goods_receipt_inventory_movement"
+        constraints = [
+            models.UniqueConstraint(
+                fields=("receipt_item",),
+                name="pur_gr_link_receipt_item_uq",
+            ),
+            models.UniqueConstraint(
+                fields=("movement",),
+                name="pur_gr_link_movement_uq",
+            ),
+        ]
 
 
 class PurchaseInvoice(BaseModel):
@@ -682,6 +711,35 @@ class SupplierPayment(BaseModel):
         max_length=50,
     )
 
+    # Nullable only for historical payments created before request idempotency.
+    idempotency_key = models.UUIDField(null=True, blank=True)
+    payload_fingerprint = models.CharField(max_length=64, null=True, blank=True)
+    payload_version = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("business", "idempotency_key"),
+                name="pur_sp_business_idem_uq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        idempotency_key__isnull=True,
+                        payload_fingerprint__isnull=True,
+                        payload_version__isnull=True,
+                    )
+                    | models.Q(
+                        idempotency_key__isnull=False,
+                        payload_fingerprint__isnull=False,
+                        payload_version__isnull=False,
+                        payload_version__gte=1,
+                    )
+                ),
+                name="pur_sp_key_fp_pair_ck",
+            ),
+        ]
+
 
 class PaymentAllocation(BaseModel):
 
@@ -717,12 +775,37 @@ class PaymentAllocation(BaseModel):
 
     allocated_at = models.DateTimeField()
 
+    # Nullable only for historical allocations created before idempotency.
+    idempotency_key = models.UUIDField(null=True, blank=True)
+    payload_fingerprint = models.CharField(max_length=64, null=True, blank=True)
+    payload_version = models.PositiveSmallIntegerField(null=True, blank=True)
+
     class Meta:
         ordering = ["id"]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(amount__gt=0),
                 name="purchase_payment_allocation_amount_positive",
+            ),
+            models.UniqueConstraint(
+                fields=("business", "idempotency_key"),
+                name="pur_pa_business_idem_uq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        idempotency_key__isnull=True,
+                        payload_fingerprint__isnull=True,
+                        payload_version__isnull=True,
+                    )
+                    | models.Q(
+                        idempotency_key__isnull=False,
+                        payload_fingerprint__isnull=False,
+                        payload_version__isnull=False,
+                        payload_version__gte=1,
+                    )
+                ),
+                name="pur_pa_key_fp_pair_ck",
             ),
         ]
 

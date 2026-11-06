@@ -1,6 +1,7 @@
 from importlib import import_module
 
 from django.apps import apps
+from django.core.management.color import no_style
 from django.db import connection
 from django.test import SimpleTestCase, TransactionTestCase
 
@@ -154,6 +155,9 @@ class InventoryMasterPermissionMigrationForwardTests(TransactionTestCase):
         custom_owner = Role.objects.create(
             business=businesses[0], name="Custom owner", code="CUSTOM_OWNER", is_system=False
         )
+        with connection.cursor() as cursor:
+            for statement in connection.ops.sequence_reset_sql(no_style(), [Permission]):
+                cursor.execute(statement)
         unrelated = Permission.objects.create(name="Unrelated", code="test.unrelated")
         RolePermission.objects.create(role=custom_owner, permission=unrelated)
         operation = migration_module.Migration.operations[0]

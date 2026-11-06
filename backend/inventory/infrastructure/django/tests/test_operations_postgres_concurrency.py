@@ -1,3 +1,4 @@
+from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
@@ -9,8 +10,13 @@ from inventory.infrastructure.django.models import (
     InventoryOperation, InventoryOperationLine, InventoryV1Stock,
     InventoryV1StockMovement,
 )
-from inventory.infrastructure.django.operations_service import post_issue
-from inventory.infrastructure.django.operations_service import create_opening_stock
+from inventory.infrastructure.django.operations_service import (
+    approve_stocktake,
+    create_opening_stock,
+    create_operation,
+    post_issue,
+    update_stocktake_counts,
+)
 from inventory.application.exceptions import OperationConflict
 from inventory.models import Ingredient, Warehouse
 from inventory.domain.exceptions import NegativeStock
@@ -131,3 +137,193 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.stock.refresh_from_db()
         self.assertEqual(str(self.stock.quantity), "5.000000000000")
         self.assertEqual(InventoryV1StockMovement.objects.filter(movement_type="opening_balance").count(), 1)
+
+
+    def test_concurrent_stocktake_approval_and_issue_never_apply_a_stale_count(self):
+        stocktake = create_operation(
+            business_id=self.business.pk,
+            actor_id=41,
+            operation_type=InventoryOperation.Type.STOCKTAKE,
+            warehouse_id=self.warehouse.pk,
+            lines=[{
+                "ingredient_id": self.ingredient.pk,
+                "quantity": "0",
+                "unit": "kg",
+                "counted_quantity": "8",
+            }],
+        )
+        barrier = Barrier(2)
+
+        def approve():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                return approve_stocktake(
+                    business_id=self.business.pk,
+                    actor_id=42,
+                    operation_id=stocktake.pk,
+                )
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        def issue():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                return post_issue(
+                    business_id=self.business.pk,
+                    actor_id=43,
+                    operation_id=self.operation.pk,
+                )
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            approval_future = pool.submit(approve)
+            issue_future = pool.submit(issue)
+            approval_result = approval_future.result(timeout=30)
+            issue_result = issue_future.result(timeout=30)
+
+        self.assertIsInstance(issue_result, InventoryOperation)
+        self.assertEqual(issue_result.status, InventoryOperation.Status.POSTED)
+        self.assertEqual(
+            isinstance(approval_result, OperationConflict)
+            or (
+                isinstance(approval_result, InventoryOperation)
+                and approval_result.status == InventoryOperation.Status.APPROVED
+            ),
+            True,
+        )
+
+        self.stock.refresh_from_db()
+        stocktake.refresh_from_db()
+        self.assertIn(
+            self.stock.quantity,
+            (Decimal("5.000000000000"), Decimal("7.000000000000")),
+        )
+        if stocktake.status == InventoryOperation.Status.APPROVED:
+            self.assertEqual(self.stock.quantity, Decimal("5.000000000000"))
+            self.assertEqual(
+                InventoryV1StockMovement.objects.filter(
+                    source_type="inventory_stocktake",
+                    source_document_id=stocktake.pk,
+                    movement_type="adjustment",
+                ).count(),
+                1,
+            )
+        else:
+            self.assertIsInstance(approval_result, OperationConflict)
+            self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))
+            self.assertEqual(
+                InventoryV1StockMovement.objects.filter(
+                    source_type="inventory_stocktake",
+                    source_document_id=stocktake.pk,
+                ).count(),
+                0,
+            )
+
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="inventory_issue",
+                source_document_id=self.operation.pk,
+                movement_type="issue",
+            ).count(),
+            1,
+        )
+
+
+    def test_concurrent_stocktake_snapshot_and_issue_capture_one_consistent_stock_state(self):
+        barrier = Barrier(2)
+
+        def create_stocktake():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                return create_operation(
+                    business_id=self.business.pk,
+                    actor_id=44,
+                    operation_type=InventoryOperation.Type.STOCKTAKE,
+                    warehouse_id=self.warehouse.pk,
+                    lines=[{
+                        "ingredient_id": self.ingredient.pk,
+                        "quantity": "0",
+                        "unit": "kg",
+                    }],
+                )
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        def issue():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                return post_issue(
+                    business_id=self.business.pk,
+                    actor_id=45,
+                    operation_id=self.operation.pk,
+                )
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            stocktake_future = pool.submit(create_stocktake)
+            issue_future = pool.submit(issue)
+            stocktake = stocktake_future.result(timeout=30)
+            issue_result = issue_future.result(timeout=30)
+
+        self.assertIsInstance(stocktake, InventoryOperation)
+        self.assertIsInstance(issue_result, InventoryOperation)
+        self.assertEqual(issue_result.status, InventoryOperation.Status.POSTED)
+
+        line = InventoryOperationLine.objects.get(operation=stocktake)
+        movement = InventoryV1StockMovement.objects.get(
+            source_type="inventory_issue",
+            source_document_id=self.operation.pk,
+            movement_type="issue",
+        )
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))
+        self.assertIn(
+            line.system_quantity,
+            (Decimal("10.000000000000"), Decimal("7.000000000000")),
+        )
+        if line.system_quantity == Decimal("10.000000000000"):
+            self.assertIsNone(line.snapshot_movement_id)
+            self.assertEqual(movement.balance_after, Decimal("7.000000000000"))
+            update_stocktake_counts(
+                business_id=self.business.pk,
+                actor_id=46,
+                operation_id=stocktake.pk,
+                counts={line.pk: {"counted_quantity": Decimal("10")}},
+            )
+            with self.assertRaises(OperationConflict):
+                approve_stocktake(
+                    business_id=self.business.pk,
+                    actor_id=46,
+                    operation_id=stocktake.pk,
+                )
+        else:
+            self.assertEqual(line.snapshot_movement_id, movement.pk)
+            update_stocktake_counts(
+                business_id=self.business.pk,
+                actor_id=46,
+                operation_id=stocktake.pk,
+                counts={line.pk: {"counted_quantity": Decimal("7")}},
+            )
+            approved = approve_stocktake(
+                business_id=self.business.pk,
+                actor_id=46,
+                operation_id=stocktake.pk,
+            )
+            self.assertEqual(approved.status, InventoryOperation.Status.APPROVED)
+
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))

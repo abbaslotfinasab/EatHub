@@ -19,7 +19,8 @@ class CompoundMaterialListQuerySerializer(StrictSerializer):
     page = serializers.IntegerField(min_value=1, required=False, default=1)
     page_size = serializers.IntegerField(min_value=1, max_value=100, required=False, default=20)
     search = serializers.CharField(max_length=200, required=False, allow_blank=True)
-    is_active = serializers.BooleanField(required=False)
+    # QueryDict is treated as HTML input by DRF; an omitted BooleanField otherwise becomes False.
+    is_active = serializers.BooleanField(required=False, default=None, allow_null=True)
 
 
 class CompoundMaterialCreateSerializer(StrictSerializer):

@@ -5,7 +5,7 @@ always changed through the existing V1 Stock aggregate and appended ledger.
 """
 from decimal import Decimal
 
-from django.db.models import Q, Subquery
+from django.db.models import Q, Subquery, Sum
 from django.utils import timezone
 
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
@@ -18,12 +18,12 @@ from inventory.domain.value_objects.source_identity import SourceIdentity
 from inventory.domain.value_objects.unit import Unit
 from inventory.domain.value_objects.unit_cost import UnitCost
 from inventory.infrastructure.django.mappers import (
-    movement_to_orm, stock_to_domain,
+    movement_to_orm, stock_to_domain, stock_to_orm,
     warehouse_to_domain,
 )
 from inventory.infrastructure.django.models import (
-    InventoryOperation, InventoryOperationLine, InventoryV1Stock,
-    InventoryV1StockMovement,
+    InventoryOperation, InventoryOperationLine, InventoryReservation,
+    InventoryReservationLine, InventoryV1Stock, InventoryV1StockMovement,
 )
 from inventory.infrastructure.django.repositories import (
     DjangoIngredientRepository, DjangoStockMovementRepository,
@@ -59,7 +59,10 @@ def _stock(business_id, warehouse, ingredient, *, create=False):
             business_id=business_id, warehouse=warehouse, ingredient=ingredient,
             defaults={"unit": ingredient.unit},
         )
-    row = InventoryV1Stock.objects.select_for_update().filter(
+    # Tenant-scope joins are validation predicates, not part of the stock
+    # serialization boundary. Lock only the projection row so callers that
+    # already hold Ingredient/Warehouse locks cannot form a reverse lock cycle.
+    row = InventoryV1Stock.objects.select_for_update(of=("self",)).filter(
         business_id=business_id, warehouse=warehouse, ingredient=ingredient,
         warehouse__business_id=business_id, ingredient__business_id=business_id,
     ).first()
@@ -245,7 +248,7 @@ def update_stocktake_counts(*, business_id, actor_id, operation_id, counts):
 
 def _locked_document_lines(business_id, operation_type, operation_id):
     document = _document(business_id, operation_type, operation_id, lock=True)
-    lines = list(document.lines.select_related("ingredient").order_by("ingredient_id").select_for_update())
+    lines = list(document.lines.select_related("ingredient").order_by("ingredient_id").select_for_update(of=("self",)))
     return document, lines
 
 
@@ -261,6 +264,21 @@ def post_issue(*, business_id, actor_id, operation_id):
             if not line.ingredient.is_active:
                 raise OperationInputError("Inactive items cannot be issued.")
             row, stock = _stock(business_id, document.warehouse, line.ingredient)
+            reserved = InventoryReservationLine.objects.filter(
+                reservation__business_id=business_id,
+                reservation__warehouse_id=document.warehouse_id,
+                reservation__status=InventoryReservation.Status.ACTIVE,
+                ingredient_id=line.ingredient_id,
+            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+            requested_quantity = Decimal(line.quantity)
+            if (
+                reserved > 0
+                and stock.quantity.amount >= requested_quantity
+                and stock.quantity.amount - reserved < requested_quantity
+            ):
+                raise OperationConflict(
+                    "Issue quantity exceeds available stock after active reservations."
+                )
             movement = stock.issue(
                 Quantity(line.quantity, Unit(line.unit)), _identity(document, line, "post"),
                 warehouse, reason=document.reason or "Stock issue", actor_id=actor_id,

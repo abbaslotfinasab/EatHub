@@ -1,5 +1,6 @@
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 from typing import Protocol
 
@@ -44,6 +45,7 @@ class InventoryReceiptRequest:
     source_line_id: int
     operation_kind: str
     actor_id: int
+    occurred_at: datetime | None = None
 
 
 class InventoryReceiptGateway(Protocol):

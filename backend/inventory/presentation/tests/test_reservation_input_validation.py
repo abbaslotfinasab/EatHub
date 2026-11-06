@@ -31,7 +31,7 @@ class ReservationIdentifierFieldTests(SimpleTestCase):
         })
         self.assertTrue(serializer.is_valid(), serializer.errors)
         self.assertEqual(serializer.validated_data["source_type"], "manual")
-        self.assertNotIn("source_id", serializer.validated_data)
+        self.assertIsNone(serializer.validated_data["source_id"])
 
     def test_manual_create_rejects_external_source_types_and_identifiers(self):
         base = {

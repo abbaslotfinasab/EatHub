@@ -136,7 +136,10 @@ class ManageReservations:
 
             # Recheck after stock locks: another request using the same key may
             # have committed while this request waited for those locks.
-            existing = self._reservations.get_by_idempotency_key(context.business_id, idempotency_key, lock=True)
+            # Do not acquire a reservation-header lock after stock locks.
+            # Release paths take the header before the stock row; taking them
+            # in the opposite order here could form a PostgreSQL deadlock.
+            existing = self._reservations.get_by_idempotency_key(context.business_id, idempotency_key)
             if existing is not None:
                 self._same_request(existing, fingerprint)
                 return existing

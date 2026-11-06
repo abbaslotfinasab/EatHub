@@ -48,6 +48,11 @@ from products.pagination import OrderListPagination
 FINANCIAL_ROLE_CODES = {"OWNER", "MANAGER", "ACCOUNTANT"}
 
 
+def _require_permission(request, permission, message):
+    if permission not in request.permissions:
+        raise PermissionDenied(message)
+
+
 def _require_financial_access(request, message):
     role = getattr(request, "role", None)
     if (
@@ -268,6 +273,11 @@ class OrderCreateAPIView(TenantAPIView):
 
     @transaction.atomic
     def post(self, request):
+        _require_permission(
+            request,
+            PermissionCode.ORDERS_CREATE,
+            "You do not have permission to create orders.",
+        )
 
         serializer = CreateOrderInputSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -277,6 +287,7 @@ class OrderCreateAPIView(TenantAPIView):
             business=request.business,
             validated_data=serializer.validated_data,
             user=request.user,
+            idempotency_key=serializer.validated_data["idempotency_key"],
         )
 
         return Response(
@@ -294,6 +305,11 @@ class OrderListAPIView(TenantAPIView):
 
 
     def get(self, request):
+        _require_permission(
+            request,
+            PermissionCode.ORDERS_VIEW,
+            "You do not have permission to view orders.",
+        )
 
         filters = Q(
             business=request.business
@@ -519,10 +535,15 @@ class OrderDetailAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-
-        order = Order.objects.get(
+        _require_permission(
+            request,
+            PermissionCode.ORDERS_VIEW,
+            "You do not have permission to view orders.",
+        )
+        order = get_object_or_404(
+            Order,
             id=pk,
-            business=request.business
+            business=request.business,
         )
 
         return Response(OrderSerializer(order).data)
@@ -548,15 +569,29 @@ class OrderStatusUpdateAPIView(TenantAPIView):
             raise_exception=True
         )
         changes = serializer.validated_data
-        if "status" in changes and PermissionCode.ORDERS_UPDATE not in request.permissions:
-            raise PermissionDenied("You do not have permission to update orders.")
+        if "status" in changes:
+            _require_permission(
+                request,
+                PermissionCode.ORDERS_UPDATE,
+                "You do not have permission to update orders.",
+            )
+        if changes.get("status") == Order.Status.CANCELLED:
+            _require_permission(
+                request,
+                PermissionCode.ORDERS_CANCEL,
+                "You do not have permission to cancel orders.",
+            )
         if changes.get("status") in {
             Order.Status.CONFIRMED,
             Order.Status.READY,
             Order.Status.CANCELLED,
             Order.Status.FAILED,
-        } and PermissionCode.INVENTORY_ORDER_FULFILL not in request.permissions:
-            raise PermissionDenied("You do not have permission to fulfill order inventory.")
+        }:
+            _require_permission(
+                request,
+                PermissionCode.INVENTORY_ORDER_FULFILL,
+                "You do not have permission to fulfill order inventory.",
+            )
         if {"payment_status", "payment_method"}.intersection(changes):
             _require_financial_access(
                 request, "You do not have permission to manage order payments."
@@ -587,10 +622,16 @@ class OrderActualConsumptionAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, order_id):
-        if PermissionCode.ORDERS_UPDATE not in request.permissions:
-            raise PermissionDenied("You do not have permission to update orders.")
-        if PermissionCode.INVENTORY_ORDER_FULFILL not in request.permissions:
-            raise PermissionDenied("You do not have permission to view order inventory requirements.")
+        _require_permission(
+            request,
+            PermissionCode.ORDERS_VIEW,
+            "You do not have permission to view orders.",
+        )
+        _require_permission(
+            request,
+            PermissionCode.INVENTORY_ORDER_FULFILL,
+            "You do not have permission to view order inventory requirements.",
+        )
 
         order = get_object_or_404(
             Order.objects.filter(business=request.business), pk=order_id,
@@ -787,6 +828,11 @@ class OrderDeleteAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
+        _require_permission(
+            request,
+            PermissionCode.ORDERS_DELETE,
+            "You do not have permission to delete orders.",
+        )
 
         order = get_object_or_404(
             Order,

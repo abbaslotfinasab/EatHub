@@ -17,6 +17,7 @@ from inventory.models import Ingredient, Warehouse
 from purchase.models import (
     GoodsReceipt as DjangoGoodsReceipt,
     GoodsReceiptItem as DjangoGoodsReceiptItem,
+    GoodsReceiptInventoryMovementLink,
     PurchaseOrder as DjangoPurchaseOrder,
     PurchaseOrderItem as DjangoPurchaseOrderItem,
     Supplier as DjangoSupplier,
@@ -308,6 +309,45 @@ class GoodsReceiptAPITests(APITestCase):
         self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
         self.order[0].refresh_from_db()
         self.assertEqual(self.order[0].status, DjangoPurchaseOrder.Status.SENT)
+
+    def test_stock_movement_trace_resolves_receipt_order_line_and_supplier(self):
+        created = self.create_receipt()
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        movement = InventoryV1StockMovement.objects.get()
+        link = GoodsReceiptInventoryMovementLink.objects.get(movement=movement)
+
+        response = self.client.get(
+            f"/api/purchase/goods-receipts/stock-movements/{movement.pk}/trace/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["movement"]["id"], movement.pk)
+        self.assertEqual(response.data["goods_receipt"]["id"], created.data["id"])
+        self.assertEqual(
+            response.data["goods_receipt_item"]["id"],
+            link.receipt_item_id,
+        )
+        self.assertEqual(
+            response.data["purchase_order"]["id"],
+            self.order[0].id,
+        )
+        self.assertEqual(
+            response.data["purchase_order_item"]["id"],
+            self.order[1].id,
+        )
+        self.assertEqual(response.data["supplier"]["id"], self.supplier.id)
+        self.assertEqual(response.data["supplier"]["name"], self.supplier.name)
+
+    def test_stock_movement_trace_is_scoped_to_current_business(self):
+        created = self.create_receipt()
+        movement = InventoryV1StockMovement.objects.get()
+        self.client.force_authenticate(self.other_user)
+
+        response = self.client.get(
+            f"/api/purchase/goods-receipts/stock-movements/{movement.pk}/trace/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_list_and_detail_are_available(self):
         created = self.create_receipt()

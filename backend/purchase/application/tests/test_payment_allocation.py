@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from uuid import uuid4
 
 from django.test import SimpleTestCase
 
@@ -57,6 +58,15 @@ class FakeAllocationRepository:
         self.payment_total = payment_total
         self.rows = []
 
+    def get_by_idempotency_key_for_business(self, key, business_id):
+        return next(
+            (
+                row for row in self.rows
+                if row.idempotency_key == key and row.business_id == business_id
+            ),
+            None,
+        )
+
     def allocated_amount_for_accounts_payable(self, business_id, payable_id):
         return self.ap_total
 
@@ -92,6 +102,7 @@ class CreatePaymentAllocationTests(SimpleTestCase):
         self.command = CreatePaymentAllocationCommand(
             business_id=1, accounts_payable_id=11, supplier_payment_id=12,
             amount=Decimal("40.00"), allocated_at=datetime(2026, 10, 7, tzinfo=timezone.utc),
+            idempotency_key=uuid4(),
         )
 
     def test_allocation_success_updates_ap_to_partially_paid(self):

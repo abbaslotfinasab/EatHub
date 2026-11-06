@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
 from core.enums import PermissionCode
+from inventory.infrastructure.django.compound_material_repository import DjangoCompoundMaterialRepository
 from inventory.infrastructure.django.models import InventoryV1StockMovement
 from inventory.models import Ingredient, RecipeInput
 
@@ -56,11 +57,24 @@ class CompoundMaterialAPITests(APITestCase):
         self.assertEqual(created.status_code, status.HTTP_201_CREATED, created.data)
         compound_id = created.data["id"]
         compound = Ingredient.objects.get(pk=compound_id)
+        self.assertEqual(compound.business_id, self.business.pk)
         self.assertEqual(compound.preparation_level, Ingredient.PreparationLevel.SEMI_PREPARED)
+        self.assertEqual(
+            Ingredient.objects.filter(
+                pk=compound_id,
+                business_id=self.business.pk,
+                preparation_level=Ingredient.PreparationLevel.SEMI_PREPARED,
+            ).count(),
+            1,
+        )
         self.assertEqual(len(created.data["components"]), 2)
         self.assertEqual(created.data["components"][1]["quantity"], "100.000000000000")
-        listed = self.client.get("/api/inventory/compound-materials/?search=sauce")
-        self.assertEqual(listed.status_code, status.HTTP_200_OK)
+        direct_page = DjangoCompoundMaterialRepository.list_for_business(
+            self.business.pk, page=1, page_size=20, search="sauce",
+        )
+        self.assertEqual(direct_page.count, 1)
+        listed = self.client.get("/api/inventory/compound-materials/", {"search": "sauce"})
+        self.assertEqual(listed.status_code, status.HTTP_200_OK, listed.data)
         self.assertEqual(listed.data["count"], 1)
         self.assertEqual([row["id"] for row in listed.data["results"]], [compound_id])
         self.assertEqual(self.client.get(f"/api/inventory/compound-materials/{compound_id}/").status_code, 200)
@@ -69,6 +83,41 @@ class CompoundMaterialAPITests(APITestCase):
         self.assertEqual(len(updated.data["components"]), 2)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
         self.assertEqual(self.client.patch(f"/api/inventory/compound-materials/{compound_id}/", {"is_active": False}, format="json").status_code, 200)
+
+    def test_list_is_active_filter_distinguishes_omitted_true_and_false(self):
+        active = self.client.post(
+            "/api/inventory/compound-materials/",
+            self._payload(name="Active sauce", sku="ACTIVE"),
+            format="json",
+        )
+        inactive = self.client.post(
+            "/api/inventory/compound-materials/",
+            self._payload(name="Inactive sauce", sku="INACTIVE", is_active=False),
+            format="json",
+        )
+        self.assertEqual(active.status_code, status.HTTP_201_CREATED, active.data)
+        self.assertEqual(inactive.status_code, status.HTTP_201_CREATED, inactive.data)
+
+        unfiltered = self.client.get("/api/inventory/compound-materials/")
+        self.assertEqual(unfiltered.status_code, status.HTTP_200_OK, unfiltered.data)
+        self.assertEqual(
+            {row["id"] for row in unfiltered.data["results"]},
+            {active.data["id"], inactive.data["id"]},
+        )
+
+        active_only = self.client.get("/api/inventory/compound-materials/", {"is_active": "true"})
+        self.assertEqual(active_only.status_code, status.HTTP_200_OK, active_only.data)
+        self.assertEqual(
+            [row["id"] for row in active_only.data["results"]],
+            [active.data["id"]],
+        )
+
+        inactive_only = self.client.get("/api/inventory/compound-materials/", {"is_active": "false"})
+        self.assertEqual(inactive_only.status_code, status.HTTP_200_OK, inactive_only.data)
+        self.assertEqual(
+            [row["id"] for row in inactive_only.data["results"]],
+            [inactive.data["id"]],
+        )
 
     def test_composition_rejects_short_duplicate_invalid_inactive_and_foreign_components(self):
         cases = [
@@ -104,14 +153,24 @@ class CompoundMaterialAPITests(APITestCase):
 
     def test_permissions_and_tenant_scoping(self):
         created = self.client.post("/api/inventory/compound-materials/", self._payload(), format="json")
+        created_row = Ingredient.objects.get(pk=created.data["id"])
+        self.assertEqual(created_row.business_id, self.business.pk)
+        self.assertEqual(
+            Membership.objects.get(user=self.owner, is_active=True).business_id,
+            self.business.pk,
+        )
         foreign = Ingredient.objects.create(
             business=self.other_business,
             name="Other business compound",
             unit="kg",
             preparation_level="semi_prepared",
         )
+        direct_page = DjangoCompoundMaterialRepository.list_for_business(
+            self.business.pk, page=1, page_size=20,
+        )
+        self.assertEqual(direct_page.count, 1)
         listed = self.client.get("/api/inventory/compound-materials/")
-        self.assertEqual(listed.status_code, status.HTTP_200_OK)
+        self.assertEqual(listed.status_code, status.HTTP_200_OK, listed.data)
         self.assertEqual([row["id"] for row in listed.data["results"]], [created.data["id"]])
 
         no_viewer = self._member(self.business, "compound-no-view", (), "NO_INVENTORY_ACCESS")

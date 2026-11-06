@@ -6,10 +6,13 @@ from unittest import skipUnless
 from uuid import uuid4
 
 from django.db import connection, connections
+from django.db.models.deletion import ProtectedError
 from django.test import TransactionTestCase
 
 from accounts.models import Business, User
 from inventory.infrastructure.django.models import (
+    InventoryOperation,
+    InventoryOperationLine,
     InventoryV1Stock,
     InventoryV1StockMovement,
 )
@@ -19,8 +22,14 @@ from inventory.infrastructure.django.repositories import (
     DjangoStockRepository,
     DjangoWarehouseRepository,
 )
+from inventory.infrastructure.django.operations_service import (
+    approve_stocktake,
+    create_operation,
+    post_issue,
+)
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
+from inventory.application.exceptions import OperationConflict
 from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
 from purchase.application.dto.goods_receipt import (
     CreateGoodsReceiptDTO,
@@ -48,6 +57,7 @@ from purchase.infrastructure.services.inventory_receipt_gateway import (
 from purchase.models import (
     GoodsReceipt,
     GoodsReceiptItem,
+    GoodsReceiptInventoryMovementLink,
     PurchaseOrder,
     PurchaseOrderItem,
     Supplier,
@@ -173,9 +183,27 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(receipt.items[0].id, movement.source_line_id)
         self.assertEqual(receipt.id, movement.source_document_id)
         self.assertEqual(movement.source_type, "goods_receipt")
+        self.assertEqual(movement.operation_kind, "receive_stock")
+        self.assertEqual(movement.movement_type, "receipt")
+        self.assertEqual(movement.direction, "in")
+        self.assertEqual(movement.quantity, Decimal("0.500000000000"))
+        self.assertEqual(movement.unit, "kg")
         self.assertEqual(stock.quantity, Decimal("0.500000000000"))
         self.assertEqual(stock.average_cost, Decimal("150000"))
         self.assertEqual(movement.actor_id, self.user.id)
+        self.assertEqual(movement.occurred_at, receipt.received_date)
+        link = GoodsReceiptInventoryMovementLink.objects.get(
+            receipt_item_id=receipt.items[0].id,
+            movement_id=movement.pk,
+        )
+        self.assertEqual(link.receipt_item.receipt_id, receipt.id)
+        self.assertEqual(link.movement_id, movement.pk)
+
+        persisted_receipt = GoodsReceipt.objects.get(pk=receipt.id)
+        with self.assertRaises(ProtectedError):
+            persisted_receipt.items.first().delete()
+        with self.assertRaises(ProtectedError):
+            persisted_receipt.delete()
 
     def test_inventory_failure_rolls_back_goods_receipt_and_purchase_state(self) -> None:
         item = self._item(unit="l")
@@ -192,6 +220,7 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(GoodsReceiptItem.objects.count(), 0)
         self.assertEqual(InventoryV1Stock.objects.count(), 0)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
+        self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 0)
 
         item.purchase_unit = "kg"
         item.save(update_fields=["purchase_unit", "updated_at"])
@@ -201,6 +230,33 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertFalse(retry.replayed)
         self.assertEqual(self.order.receipts.count(), 1)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    def test_concurrent_distinct_keys_cannot_overreceive_one_purchase_line(self) -> None:
+        item = self._item(unit="g", quantity="1000")
+        results = self._run_concurrently([
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, quantity="600")
+            ),
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, quantity="600")
+            ),
+        ])
+
+        self.assertEqual(sum(not isinstance(result, Exception) for result in results), 1)
+        self.assertEqual(self.order.receipts.count(), 1)
+        self.assertEqual(GoodsReceiptItem.objects.count(), 1)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+        self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 1)
+        self.assertEqual(
+            GoodsReceiptItem.objects.get().received_quantity,
+            Decimal("600"),
+        )
+        stock = InventoryV1Stock.objects.get(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.ingredient,
+        )
+        self.assertEqual(stock.quantity, Decimal("0.600000000000"))
 
     def test_concurrent_same_key_same_payload_creates_one_receipt_and_movement(self) -> None:
         item = self._item(unit="g")
@@ -217,6 +273,7 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(self.order.receipts.count(), 1)
         self.assertEqual(GoodsReceiptItem.objects.count(), 1)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+        self.assertEqual(GoodsReceiptInventoryMovementLink.objects.count(), 1)
 
     def test_concurrent_same_key_different_payload_conflicts_without_duplicate_posting(self) -> None:
         item = self._item(unit="g")
@@ -286,3 +343,179 @@ class GoodsReceiptInventoryPostgreSQLTests(TransactionTestCase):
         self.assertEqual(GoodsReceipt.objects.filter(business=self.business).count(), 1)
         self.assertEqual(GoodsReceiptItem.objects.count(), 1)
         self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    def test_concurrent_goods_receipt_and_issue_serialize_on_one_stock_position(self) -> None:
+        item = self._item(unit="g", quantity="1000")
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.ingredient,
+            unit="kg",
+            quantity=Decimal("1.000000000000"),
+            average_cost=Decimal("100"),
+        )
+        issue = InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.ISSUE,
+            status=InventoryOperation.Status.DRAFT,
+            warehouse=self.warehouse,
+            reason="Concurrent kitchen issue",
+            created_by_id=self.user.id,
+        )
+        InventoryOperationLine.objects.create(
+            operation=issue,
+            ingredient=self.ingredient,
+            quantity=Decimal("0.200000000000"),
+            unit="kg",
+        )
+
+        results = self._run_concurrently([
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, quantity="500")
+            ),
+            lambda: post_issue(
+                business_id=self.business.id,
+                actor_id=self.user.id,
+                operation_id=issue.id,
+            ),
+        ])
+
+        self.assertFalse(
+            any(isinstance(result, Exception) for result in results),
+            msg=f"Concurrent receipt/issue failed: {results!r}",
+        )
+        receipt_result, issue_result = results
+        self.assertFalse(receipt_result.replayed)
+        self.assertEqual(issue_result.status, InventoryOperation.Status.POSTED)
+
+        stock.refresh_from_db()
+        self.assertEqual(stock.quantity, Decimal("1.300000000000"))
+
+        movements = list(
+            InventoryV1StockMovement.objects.filter(stock=stock).order_by("pk")
+        )
+        self.assertEqual(len(movements), 2)
+        self.assertEqual(
+            sorted(movement.movement_type for movement in movements),
+            ["issue", "receipt"],
+        )
+        self.assertEqual(
+            sum((movement.quantity for movement in movements), Decimal("0")),
+            Decimal("0.700000000000"),
+        )
+        balances_after = {movement.balance_after for movement in movements}
+        self.assertEqual(
+            len(balances_after.intersection({
+                Decimal("0.800000000000"),
+                Decimal("1.500000000000"),
+            })),
+            1,
+        )
+        self.assertIn(Decimal("1.300000000000"), balances_after)
+        receipt_movement = next(
+            movement for movement in movements
+            if movement.movement_type == "receipt"
+        )
+        issue_movement = next(
+            movement for movement in movements
+            if movement.movement_type == "issue"
+        )
+        self.assertEqual(receipt_movement.source_type, "goods_receipt")
+        self.assertEqual(receipt_movement.source_document_id, receipt_result.receipt.id)
+        self.assertEqual(issue_movement.source_type, "inventory_issue")
+        self.assertEqual(issue_movement.source_document_id, issue.id)
+        self.assertEqual(
+            GoodsReceiptInventoryMovementLink.objects.filter(
+                receipt_item__receipt_id=receipt_result.receipt.id,
+                movement_id=receipt_movement.pk,
+            ).count(),
+            1,
+        )
+
+
+    def test_concurrent_stocktake_approval_and_goods_receipt_never_apply_a_stale_count(self) -> None:
+        item = self._item(unit="g", quantity="1000")
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.ingredient,
+            unit="kg",
+            quantity=Decimal("10.000000000000"),
+            average_cost=Decimal("100"),
+        )
+        stocktake = create_operation(
+            business_id=self.business.id,
+            actor_id=self.user.id,
+            operation_type=InventoryOperation.Type.STOCKTAKE,
+            warehouse_id=self.warehouse.id,
+            lines=[{
+                "ingredient_id": self.ingredient.id,
+                "quantity": "0",
+                "unit": "kg",
+                "counted_quantity": "8",
+            }],
+        )
+
+        results = self._run_concurrently([
+            lambda: approve_stocktake(
+                business_id=self.business.id,
+                actor_id=self.user.id,
+                operation_id=stocktake.id,
+            ),
+            lambda: self._use_case().execute(
+                self._command(item, unit=PurchaseUnit.G, quantity="500")
+            ),
+        ])
+
+        approval_result, receipt_result = results
+        self.assertFalse(
+            isinstance(receipt_result, Exception),
+            msg=f"Goods receipt failed during stocktake approval: {receipt_result!r}",
+        )
+        self.assertFalse(receipt_result.replayed)
+        self.assertTrue(
+            isinstance(approval_result, OperationConflict)
+            or (
+                isinstance(approval_result, InventoryOperation)
+                and approval_result.status == InventoryOperation.Status.APPROVED
+            ),
+            msg=f"Unexpected stocktake result: {approval_result!r}",
+        )
+
+        stock.refresh_from_db()
+        stocktake.refresh_from_db()
+        self.assertEqual(
+            GoodsReceiptInventoryMovementLink.objects.filter(
+                receipt_item__receipt_id=receipt_result.receipt.id,
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="goods_receipt",
+                source_document_id=receipt_result.receipt.id,
+                movement_type="receipt",
+            ).count(),
+            1,
+        )
+
+        if stocktake.status == InventoryOperation.Status.APPROVED:
+            self.assertEqual(stock.quantity, Decimal("8.500000000000"))
+            self.assertEqual(
+                InventoryV1StockMovement.objects.filter(
+                    source_type="inventory_stocktake",
+                    source_document_id=stocktake.id,
+                    movement_type="adjustment",
+                ).count(),
+                1,
+            )
+        else:
+            self.assertIsInstance(approval_result, OperationConflict)
+            self.assertEqual(stock.quantity, Decimal("10.500000000000"))
+            self.assertEqual(
+                InventoryV1StockMovement.objects.filter(
+                    source_type="inventory_stocktake",
+                    source_document_id=stocktake.id,
+                ).count(),
+                0,
+            )

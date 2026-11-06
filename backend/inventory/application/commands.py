@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal
 
 from inventory.application.exceptions import InvalidApplicationInput
@@ -63,6 +64,7 @@ class ReceiveStockCommand:
     unit_cost_amount: Decimal | int | str
     unit_cost_unit: str
     source: OperationIdentityInput
+    occurred_at: datetime | None = None
 
     def __post_init__(self) -> None:
         _validate_ingredient_id(self.ingredient_id)
@@ -83,6 +85,8 @@ class ReceiveStockCommand:
             raise InvalidApplicationInput("Unit cost basis unit is required.")
         if not isinstance(self.source, OperationIdentityInput):
             raise InvalidApplicationInput("Receive command requires source identity data.")
+        if self.occurred_at is not None and not isinstance(self.occurred_at, datetime):
+            raise InvalidApplicationInput("Receipt timestamp must be a datetime or None.")
 
 
 @dataclass(frozen=True, slots=True)

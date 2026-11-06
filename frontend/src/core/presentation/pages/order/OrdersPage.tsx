@@ -2,6 +2,7 @@ import {useEffect, useMemo, useState} from "react";
 import {isAxiosError} from "axios";
 
 import {
+    Alert,
     Container,
     Fab,
     FormControl,
@@ -52,7 +53,6 @@ import {useRefundOrder} from "../../hooks/order/useRefundOrder.ts";
 import {useGetOrderRefund} from "../../hooks/order/useGetOrderRefund.ts";
 import {useAuthStore} from "../../store/auth.store.ts";
 import {
-    getOrderStatusControlState,
     hasPermission,
 } from "../../components/order/orderStatusUpdatePayload.ts";
 
@@ -98,10 +98,14 @@ export const OrdersPage = () => {
     const me = useAuthStore((state) => state.me);
     const activeBusiness = me?.active_business;
     const activePermissions: unknown = activeBusiness?.permissions;
+    const canViewOrders = hasPermission(activePermissions, "orders.view");
+    const canCreateOrders = hasPermission(activePermissions, "orders.create");
+    const canUpdateOrders = hasPermission(activePermissions, "orders.update");
+    const canCancelOrders = hasPermission(activePermissions, "orders.cancel");
+    const canDeleteOrders = hasPermission(activePermissions, "orders.delete");
     const canManagePayments = ["OWNER", "MANAGER", "ACCOUNTANT"].includes(
         activeBusiness?.role ?? "",
     ) && hasPermission(activePermissions, "payments.manage");
-    const canUpdateOrders = !getOrderStatusControlState(activePermissions).disabled;
     const canFulfillInventory = hasPermission(activePermissions, "inventory.order.fulfill");
 
 
@@ -181,7 +185,8 @@ export const OrdersPage = () => {
         data,
         isLoading,
     } = useGetAllOrders(
-        orderFilters
+        orderFilters,
+        canViewOrders,
     );
 
     const orders = data?.results ?? [];
@@ -406,6 +411,16 @@ export const OrdersPage = () => {
         (filters.ordering && filters.ordering !== "-created_at")
     );
 
+    if (!canViewOrders) {
+        return (
+            <Container maxWidth="xl" sx={{py: 4}}>
+                <Alert severity="error">
+                    برای مشاهده سفارش‌ها مجوز orders.view لازم است.
+                </Alert>
+            </Container>
+        );
+    }
+
     if (isLoading) {
 
         return <OrdersLoading/>;
@@ -577,19 +592,13 @@ export const OrdersPage = () => {
                     setDialogOpen(false);
                     setSelectedOrderId(null);
                 }}
-                onStatusChange={() => {
-
-
+                onStatusChange={canUpdateOrders ? () => {
                     handleMenuClose();
-
-
                     handleOpenStatusDialog();
+                } : undefined}
 
 
-                }}
-
-
-                onEdit={() => {
+                onEdit={canUpdateOrders ? () => {
 
 
                     handleMenuClose();
@@ -607,7 +616,7 @@ export const OrdersPage = () => {
                     );
 
 
-                }}
+                } : undefined}
             />
 
             <OrderStatusDialog
@@ -627,6 +636,7 @@ export const OrdersPage = () => {
 
                 canManagePayments={canManagePayments}
                 canUpdateOrders={canUpdateOrders}
+                canCancelOrders={canCancelOrders}
                 canFulfillInventory={canFulfillInventory}
                 businessId={activeBusiness?.id ?? null}
 
@@ -698,6 +708,8 @@ export const OrdersPage = () => {
 
 
             <OrderActionsMenu
+                canUpdate={canUpdateOrders}
+                canDelete={canDeleteOrders}
 
 
                 anchorEl={menuAnchor}
@@ -792,7 +804,7 @@ export const OrdersPage = () => {
             />
 
 
-            <Fab
+            {canCreateOrders && <Fab
 
                 variant="extended"
 
@@ -849,7 +861,7 @@ export const OrdersPage = () => {
                 سفارش جدید
 
 
-            </Fab>
+            </Fab>}
 
 
         </Container>

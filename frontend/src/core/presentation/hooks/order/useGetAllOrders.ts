@@ -8,7 +8,8 @@ import {orderQueryKeys} from "./orderQueryKeys.ts";
 
 
 export const useGetAllOrders = (
-    filters?: OrderFilters
+    filters?: OrderFilters,
+    enabled = true,
 ) => {
 
     const userId = useAuthStore((state) => state.me?.id ?? null);
@@ -29,7 +30,7 @@ export const useGetAllOrders = (
                 filters
             ),
 
-        enabled: businessId !== null,
+        enabled: businessId !== null && enabled,
 
 
         placeholderData: (previous, previousQuery) =>
