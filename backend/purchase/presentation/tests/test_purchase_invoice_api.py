@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 from unittest.mock import patch
 
 from rest_framework import status
@@ -346,7 +347,12 @@ class PurchaseInvoiceAPITests(APITestCase):
         )
         allocation_response = self.client.post(
             "/api/purchase/payment-allocations/",
-            {"accounts_payable_id": payable.id, "supplier_payment_id": payment.id, "amount": "1.00"},
+            {
+                "accounts_payable_id": payable.id,
+                "supplier_payment_id": payment.id,
+                "amount": "1.00",
+                "idempotency_key": str(uuid4()),
+            },
             format="json",
         )
         self.assertEqual(allocation_response.status_code, status.HTTP_201_CREATED)
