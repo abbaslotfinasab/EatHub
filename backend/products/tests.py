@@ -2547,6 +2547,45 @@ class MenuItemRecipeApiTests(APITestCase):
             self.recipe.id,
         )
 
+    def test_create_menu_persists_recipe_on_nested_menu_item(self):
+        response = self.client.post(
+            "/api/products/menus/create/",
+            {
+                "name": "Breakfast",
+                "category": "Food",
+                "items": [{
+                    "name": "House Burger",
+                    "price": "15.00",
+                    "recipe_id": self.recipe.id,
+                }],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["items"][0]["recipe_id"], self.recipe.id)
+        self.assertEqual(
+            MenuItem.objects.get(pk=response.data["items"][0]["id"]).recipe_id,
+            self.recipe.id,
+        )
+
+    def test_duplicate_recipe_assignment_returns_validation_error(self):
+        self.item.recipe = self.recipe
+        self.item.save(update_fields=["recipe"])
+
+        response = self.client.post(
+            f"/api/products/menus/{self.menu.id}/items/create/",
+            {
+                "name": "Duplicate Recipe Meal",
+                "price": "16.00",
+                "recipe_id": self.recipe.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(MenuItem.objects.filter(recipe=self.recipe).count(), 1)
+
     def test_create_menu_rejects_recipe_from_another_business(self):
         response = self.client.post(
             "/api/products/menus/create/",
