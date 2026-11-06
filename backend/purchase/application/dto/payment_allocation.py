@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 from purchase.domain.entities.payment_allocation import PaymentAllocation
 
@@ -12,6 +13,7 @@ class CreatePaymentAllocationCommand:
     supplier_payment_id: int
     amount: Decimal
     allocated_at: datetime
+    idempotency_key: UUID
 
 
 @dataclass(frozen=True)
@@ -24,3 +26,4 @@ class ListPaymentAllocationsQuery:
 @dataclass(frozen=True)
 class PaymentAllocationResult:
     allocation: PaymentAllocation
+    replayed: bool = False
