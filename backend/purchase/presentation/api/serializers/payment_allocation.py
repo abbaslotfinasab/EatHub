@@ -5,9 +5,15 @@ class CreatePaymentAllocationSerializer(serializers.Serializer):
     accounts_payable_id = serializers.IntegerField(min_value=1)
     supplier_payment_id = serializers.IntegerField(min_value=1)
     amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    idempotency_key = serializers.UUIDField()
 
     def to_internal_value(self, data):
-        allowed = {"accounts_payable_id", "supplier_payment_id", "amount"}
+        allowed = {
+            "accounts_payable_id",
+            "supplier_payment_id",
+            "amount",
+            "idempotency_key",
+        }
         extra = set(data) - allowed
         if extra:
             raise serializers.ValidationError({
