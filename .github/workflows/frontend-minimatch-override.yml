@@ -1,0 +1,81 @@
+name: Frontend Minimatch Override Compatibility
+
+on:
+  push:
+    branches:
+      - fix/frontend-minimatch-audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-minimatch-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify minimatch 11 override
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Regenerate lockfile with the targeted override
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Install exact lockfile
+        run: npm ci
+
+      - name: Capture dependency tree
+        shell: bash
+        run: |
+          set +e
+          npm ls minimatch --all | tee ../minimatch-tree.txt
+          echo "${PIPESTATUS[0]}" > ../minimatch-tree-exit-code.txt
+          set -e
+
+      - name: Capture npm audit
+        shell: bash
+        run: |
+          set +e
+          npm audit --json > ../npm-audit.json
+          status=$?
+          set -e
+          echo "$status" > ../npm-audit-exit-code.txt
+          node -e "const a=require('../npm-audit.json'); console.log('Audit:', JSON.stringify(a.metadata?.vulnerabilities ?? {}))"
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run frontend tests
+        run: node --experimental-transform-types --test src/core/presentation/components/order/*.test.mjs src/core/data/mappers/*.test.mjs
+
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-minimatch-override-${{ github.run_number }}
+          if-no-files-found: warn
+          path: |
+            frontend/package.json
+            frontend/package-lock.json
+            minimatch-tree.txt
+            minimatch-tree-exit-code.txt
+            npm-audit.json
+            npm-audit-exit-code.txt
