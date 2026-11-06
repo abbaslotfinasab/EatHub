@@ -362,6 +362,22 @@ class OrderInventoryService:
                 if ingredient_id not in actual_by_ingredient and current > 0:
                     remaining.append({"ingredient_id": ingredient_id, "quantity": str(current), "unit": unit.value})
 
+            # The reservation header is already locked. Acquire the shared
+            # scope in the same order as reservation creation (Warehouse ->
+            # Ingredients -> Stock) before release() takes any stock locks.
+            # All nested atomic blocks join this transaction, so these locks
+            # remain held while the old reservation is replaced.
+            reservation_repository = DjangoReservationRepository()
+            ingredient_ids = sorted(reserved)
+            warehouse, locked_ingredients = reservation_repository.lock_scope(
+                business_id, reservation.warehouse_id, ingredient_ids
+            )
+            if warehouse is None or set(locked_ingredients) != set(ingredient_ids):
+                raise OperationConflict("Reservation scope changed during consumption; inventory reconciliation is required.")
+            reservation_repository.lock_stock_positions(
+                business_id, reservation.warehouse_id, ingredient_ids
+            )
+
         try:
             with transaction.atomic():
                 event = OrderInventoryConsumption.objects.create(
