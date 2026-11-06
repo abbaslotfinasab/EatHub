@@ -102,6 +102,7 @@ class CreatePaymentAllocationTests(SimpleTestCase):
         self.command = CreatePaymentAllocationCommand(
             business_id=1, accounts_payable_id=11, supplier_payment_id=12,
             amount=Decimal("40.00"), allocated_at=datetime(2026, 10, 7, tzinfo=timezone.utc),
+            idempotency_key=uuid4(),
         )
 
     def test_allocation_success_updates_ap_to_partially_paid(self):
