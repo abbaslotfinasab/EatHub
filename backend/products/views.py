@@ -70,7 +70,9 @@ class MenuCreateAPIView(TenantAPIView):
 
     def post(self, request):
 
-        serializer = CreateMenuWithItemsSerializer(data=request.data)
+        serializer = CreateMenuWithItemsSerializer(
+            data=request.data, context={"business": request.business}
+        )
 
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
@@ -122,12 +124,13 @@ class MenuUpdateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
-        menu = get_object_or_404(Menu, id=pk)
+        menu = get_object_or_404(Menu, id=pk, business=request.business)
 
         serializer = UpdateMenuSerializer(
             menu,
             data=request.data,
-            partial=True
+            partial=True,
+            context={"business": request.business},
         )
         serializer.is_valid(raise_exception=True)
 
@@ -209,7 +212,8 @@ class MenuItemCreateAPIView(TenantAPIView):
             business=request.business,
         )
         serializer = MenuItemCreateSerializer(
-            data=request.data
+            data=request.data,
+            context={"business": request.business},
         )
 
         serializer.is_valid(
@@ -227,15 +231,20 @@ class MenuItemCreateAPIView(TenantAPIView):
             status=status.HTTP_201_CREATED
         )
 
-class MenuItemUpdateAPIView(APIView):
+class MenuItemUpdateAPIView(TenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
-
+        item = get_object_or_404(
+            __import__("products.models", fromlist=["MenuItem"]).MenuItem,
+            pk=pk,
+            business=request.business,
+        )
         serializer = MenuItemUpdateSerializer(
             data=request.data,
-            partial=True
+            partial=True,
+            context={"business": request.business},
         )
 
         serializer.is_valid(
@@ -243,7 +252,8 @@ class MenuItemUpdateAPIView(APIView):
         )
 
         item = MenuService.update_item(
-            serializer.validated_data
+            item,
+            serializer.validated_data,
         )
 
         return Response(
