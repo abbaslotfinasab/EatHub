@@ -20,9 +20,8 @@ export class MenuFormMapper {
             },
 
             items: input.items.map((item) => ({
-                id: item.id?
-                    Number(item.id)
-                    : null,
+                id: item.id ? Number(item.id) : null,
+                recipeId: item.recipeId ?? null,
 
                 name: item.name,
 
@@ -52,7 +51,8 @@ export class MenuFormMapper {
             isActive: menu.menu.isActive,
 
             items: menu.items.map((item) => ({
-
+                id: item.id == null ? undefined : String(item.id),
+                recipeId: item.recipeId ?? null,
                 name: item.name,
 
                 description: item.description,
