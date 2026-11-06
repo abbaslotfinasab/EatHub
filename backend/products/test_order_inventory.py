@@ -22,6 +22,7 @@ from inventory.infrastructure.django.models import (
     InventoryV1StockMovement,
 )
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
+from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.models import Ingredient, Recipe, RecipeInput, RecipeOutput, Warehouse
 from products.models import (
     Customer,
@@ -217,10 +218,34 @@ class OrderInventoryLifecycleTests(TestCase):
         key = uuid4()
         payload = [{"requirement_id": requirement.pk, "quantity": "2", "unit": "kg"}]
 
-        first = OrderInventoryService.record_consumption(
-            business_id=self.business.pk, order_id=self.order.pk, actor_id=self.actor.pk,
-            idempotency_key=key, lines=payload,
-        )
+        lock_events = []
+        original_lock_scope = DjangoReservationRepository.lock_scope
+        original_lock_stock = DjangoReservationRepository.lock_stock_positions
+        original_release = DjangoReservationRepository.release
+
+        def tracked_lock_scope(repository, *args, **kwargs):
+            lock_events.append("scope")
+            return original_lock_scope(repository, *args, **kwargs)
+
+        def tracked_lock_stock(repository, *args, **kwargs):
+            lock_events.append("stock")
+            return original_lock_stock(repository, *args, **kwargs)
+
+        def tracked_release(repository, *args, **kwargs):
+            lock_events.append("release")
+            return original_release(repository, *args, **kwargs)
+
+        with patch.object(DjangoReservationRepository, "lock_scope", tracked_lock_scope), \
+             patch.object(DjangoReservationRepository, "lock_stock_positions", tracked_lock_stock), \
+             patch.object(DjangoReservationRepository, "release", tracked_release):
+            first = OrderInventoryService.record_consumption(
+                business_id=self.business.pk, order_id=self.order.pk, actor_id=self.actor.pk,
+                idempotency_key=key, lines=payload,
+            )
+
+        self.assertLess(lock_events.index("scope"), lock_events.index("stock"))
+        self.assertLess(lock_events.index("stock"), lock_events.index("release"))
+
         retry = OrderInventoryService.record_consumption(
             business_id=self.business.pk, order_id=self.order.pk, actor_id=self.actor.pk,
             idempotency_key=key, lines=payload,
