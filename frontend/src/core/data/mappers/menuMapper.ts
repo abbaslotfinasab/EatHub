@@ -40,6 +40,7 @@ export const menuMapper = {
             id: dto.id,
             menuId: dto.menuId,
             name: dto.name,
+            recipeId: dto.recipe_id == null ? null : String(dto.recipe_id),
             description: dto.description,
             price: dto.price,
             imageUrl: dto.image_url,
@@ -62,6 +63,7 @@ export const menuMapper = {
     toCreateMenuItemDTO(domain: MenuItem): CreateMenuItemDTO {
         return {
             name: domain.name,
+            recipe_id: domain.recipeId ? Number(domain.recipeId) : null,
             description: domain.description,
             price: domain.price,
             image_url: domain.imageUrl,
@@ -87,6 +89,7 @@ export const menuMapper = {
         return {
             id: domain.id ?? -1,
             name: domain.name,
+            recipe_id: domain.recipeId ? Number(domain.recipeId) : null,
             description: domain.description,
             price: domain.price,
             image_url: domain.imageUrl,

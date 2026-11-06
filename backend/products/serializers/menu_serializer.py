@@ -3,11 +3,29 @@ from rest_framework import serializers
 from accounts.models import Business
 from products.models import MenuItem
 from products.models import Menu
+from inventory.models import Recipe
 
 
+
+
+class BusinessRecipeField(serializers.PrimaryKeyRelatedField):
+    """Resolve recipe IDs only inside the authenticated business."""
+
+    def get_queryset(self):
+        business = self.context.get("business")
+        if business is None:
+            return Recipe.objects.none()
+        return Recipe.objects.filter(business=business)
 
 
 class MenuItemCreateSerializer(serializers.Serializer):
+
+    recipe_id = BusinessRecipeField(
+        source="recipe",
+        queryset=Recipe.objects.none(),
+        required=False,
+        allow_null=True,
+    )
 
     name = serializers.CharField(
         max_length=120
@@ -38,6 +56,9 @@ class MenuItemCreateSerializer(serializers.Serializer):
 
 
 class MenuItemSerializer(serializers.ModelSerializer):
+    recipe_id = serializers.IntegerField(read_only=True)
+    recipe_name = serializers.CharField(source="recipe.name", read_only=True, allow_null=True)
+
     class Meta:
         model = MenuItem
         fields = [
@@ -47,6 +68,8 @@ class MenuItemSerializer(serializers.ModelSerializer):
             "price",
             "image_url",
             "is_available",
+            "recipe_id",
+            "recipe_name",
         ]
         read_only_fields = ("id", "created_at", "updated_at")
 
@@ -87,6 +110,13 @@ class CreateMenuWithItemsSerializer(serializers.Serializer):
 
 
 class MenuItemUpdateSerializer(serializers.Serializer):
+    recipe_id = BusinessRecipeField(
+        source="recipe",
+        queryset=Recipe.objects.none(),
+        required=False,
+        allow_null=True,
+    )
+
     id = serializers.IntegerField(
         required=False
     )
@@ -148,15 +178,54 @@ class UpdateMenuSerializer(serializers.Serializer):
         required=False
     )
 
+    def validate_items(self, items):
+        menu = self.instance
+        if menu is None:
+            return items
+
+        item_ids = [item["id"] for item in items if "id" in item]
+        if len(item_ids) != len(set(item_ids)):
+            raise serializers.ValidationError("A menu item may only appear once.")
+
+        existing_ids = set(
+            MenuItem.objects.filter(
+                menu=menu,
+                business=menu.business,
+                id__in=item_ids,
+            ).values_list("id", flat=True)
+        )
+        unknown_ids = set(item_ids) - existing_ids
+        if unknown_ids:
+            raise serializers.ValidationError(
+                "One or more menu item IDs do not belong to this menu."
+            )
+
+        for item in items:
+            if "id" not in item and ("name" not in item or "price" not in item):
+                raise serializers.ValidationError(
+                    "New menu items require both name and price."
+                )
+        return items
 
 
+
+
+
+class PublicMenuItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MenuItem
+        fields = [
+            "id",
+            "name",
+            "description",
+            "price",
+            "image_url",
+            "is_available",
+        ]
 
 
 class PublicMenuSerializer(serializers.ModelSerializer):
-    items = MenuItemSerializer(
-        many=True,
-        read_only=True
-    )
+    items = PublicMenuItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = Menu

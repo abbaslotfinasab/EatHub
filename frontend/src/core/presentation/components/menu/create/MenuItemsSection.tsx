@@ -8,6 +8,7 @@ import {MenuItemCard} from "./MenuItemCard";
 import {EmptyMenuItems} from "./EmptyMenuItems";
 import {RestaurantMenu} from "@mui/icons-material";
 import type { MenuFormInput } from "../../../forms/menu/MenuFormInput.ts";
+import {useGetAllRecipes} from "../../../hooks/useGetAllRecipes.ts";
 
 
 interface Props {
@@ -20,6 +21,11 @@ export const MenuItemsSection = ({
                                      fields,
                                      remove,
                                  }: Props) => {
+
+    const {data: recipes = [], isLoading: recipesLoading} = useGetAllRecipes();
+    const recipeOptions = recipes
+        .filter(({recipe}) => Boolean(recipe.id && recipe.name))
+        .map(({recipe}) => ({value: recipe.id as string, label: recipe.name as string}));
 
     return (
         <Card elevation={0}>
@@ -82,6 +88,8 @@ export const MenuItemsSection = ({
                                 key={field.id}
                                 index={index}
                                 onDelete={() => remove(index)}
+                                recipeOptions={recipeOptions}
+                                recipesLoading={recipesLoading}
                             />
                         ))}
                     </Stack>

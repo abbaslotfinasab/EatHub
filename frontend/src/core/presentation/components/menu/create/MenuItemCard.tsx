@@ -2,6 +2,8 @@
 
 import {
     Card,
+    MenuItem as MuiMenuItem,
+    TextField,
     CardContent,
     Divider,
     Grid,
@@ -16,7 +18,7 @@ import {
     Trash2,
 } from "lucide-react";
 
-import {useWatch, useFormContext} from "react-hook-form";
+import {Controller, useWatch, useFormContext} from "react-hook-form";
 
 import {FormTextarea} from "../../form/FormTextarea.tsx";
 import {FormInput} from "../../form/FormInput.tsx";
@@ -27,11 +29,15 @@ import {UploadField} from "../../upload/UploadField.tsx";
 interface Props {
     index: number;
     onDelete: () => void;
+    recipeOptions: {value: string; label: string}[];
+    recipesLoading: boolean;
 }
 
 export const MenuItemCard = ({
                                  index,
                                  onDelete,
+                                 recipeOptions,
+                                 recipesLoading,
                              }: Props) => {
 
     const {control} = useFormContext<MenuFormInput>();
@@ -163,6 +169,33 @@ export const MenuItemCard = ({
                         />
                     </Grid>
 
+
+                    <Grid size={{xs: 12, md: 6}}>
+                        <Controller
+                            name={`items.${index}.recipeId`}
+                            control={control}
+                            render={({field, fieldState}) => (
+                                <TextField
+                                    {...field}
+                                    select
+                                    fullWidth
+                                    label="رسپی مرتبط"
+                                    value={field.value ?? ""}
+                                    disabled={recipesLoading}
+                                    error={Boolean(fieldState.error)}
+                                    helperText={fieldState.error?.message ?? "برای محاسبه مصرف مواد اولیه، رسپی این غذا را انتخاب کنید."}
+                                    onChange={(event) => field.onChange(event.target.value || null)}
+                                >
+                                    <MuiMenuItem value="">بدون رسپی</MuiMenuItem>
+                                    {recipeOptions.map((recipe) => (
+                                        <MuiMenuItem key={recipe.value} value={recipe.value}>
+                                            {recipe.label}
+                                        </MuiMenuItem>
+                                    ))}
+                                </TextField>
+                            )}
+                        />
+                    </Grid>
 
                     <Grid size={{xs: 12}}>
                         <FormTextarea
