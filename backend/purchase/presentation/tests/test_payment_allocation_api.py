@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from uuid import uuid4
 
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -29,6 +30,10 @@ class PaymentAllocationAPITests(APITestCase):
         self.other_supplier = Supplier.objects.create(business=self.other_business, name="Other Supplier")
         self.client.force_authenticate(self.user)
 
+    def post_allocation(self, payload):
+        payload.setdefault("idempotency_key", str(uuid4()))
+        return self.client.post(self.endpoint, payload, format="json")
+
     def create_payable(self, business, supplier, number, amount="100.00"):
         invoice = PurchaseInvoice.objects.create(
             business=business, supplier=supplier, invoice_number=number,
@@ -52,11 +57,11 @@ class PaymentAllocationAPITests(APITestCase):
         payable = self.create_payable(self.business, self.supplier, "API-ALLOC-1")
         payment = self.create_payment(self.business, self.supplier, "60.00")
 
-        created = self.client.post(self.endpoint, {
+        created = self.post_allocation({
             "accounts_payable_id": payable.id,
             "supplier_payment_id": payment.id,
             "amount": "60.00",
-        }, format="json")
+        })
         self.assertEqual(created.status_code, status.HTTP_201_CREATED)
         self.assertEqual(created.data["accounts_payable_id"], payable.id)
         self.assertEqual(created.data["supplier_payment_id"], payment.id)
