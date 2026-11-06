@@ -5,7 +5,7 @@ from threading import Barrier
 from unittest import skipUnless
 from uuid import uuid4
 
-from django.db import IntegrityError, connection, connections
+from django.db import IntegrityError, connection, connections, transaction
 from django.test import TransactionTestCase
 
 from accounts.models import Business
@@ -142,7 +142,8 @@ class SupplierPaymentIdempotencyPostgreSQLTests(TransactionTestCase):
 
     def test_database_rejects_partial_idempotency_metadata(self):
         with self.assertRaises(IntegrityError):
-            SupplierPayment.objects.create(
+            with transaction.atomic():
+                SupplierPayment.objects.create(
                 business=self.business,
                 supplier=self.supplier,
                 amount=Decimal("10.00"),
