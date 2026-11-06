@@ -33,6 +33,8 @@ import {RecipeListPage} from "../pages/RecipeListPage.tsx";
 import {OpeningStockPage} from "../pages/OpeningStockPage.tsx";
 import {PurchaseOrdersPage} from "../pages/purchase/PurchaseOrdersPage.tsx";
 import {GoodsReceivingPage} from "../pages/purchase/GoodsReceivingPage.tsx";
+import {CreatePurchaseOrderPage} from "../pages/purchase/CreatePurchaseOrderPage.tsx";
+import {PurchaseOrderDetailPage} from "../pages/purchase/PurchaseOrderDetailPage.tsx";
 
 export const AppRoutes = () => {
     return (
@@ -76,7 +78,10 @@ export const AppRoutes = () => {
                             <Route path="/inventory/operations" element={<Navigate to="/inventory?view=operations" replace/>}/>
                             <Route path="/recipes" element={<RecipeListPage/>}/>
                             <Route path="/purchase/orders" element={<PurchaseOrdersPage/>}/>
+                            <Route path="/purchase/orders/create" element={<CreatePurchaseOrderPage/>}/>
+                            <Route path="/purchase/orders/:id/edit" element={<CreatePurchaseOrderPage/>}/>
                             <Route path="/purchase/orders/:id/receive" element={<GoodsReceivingPage/>}/>
+                            <Route path="/purchase/orders/:id" element={<PurchaseOrderDetailPage/>}/>
 
                             <Route path="/menus" element={<MenuPage/>}/>
                             <Route path="/menus/create" element={<CreateMenuPage/>}/>

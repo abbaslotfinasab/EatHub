@@ -1,4 +1,8 @@
-import type { CreateGoodsReceiptInput } from '../../../entities/inventory/facture/PurchaseReceiving.ts';
+import type {
+    CreateGoodsReceiptInput,
+    CreatePurchaseOrderInput,
+    UpdatePurchaseOrderInput,
+} from '../../../entities/inventory/facture/PurchaseReceiving.ts';
 import type { PurchaseReceivingRepository } from '../../../repositories/inventory/PurchaseReceivingRepository.ts';
 
 export class ListReceivingOrders {
@@ -12,6 +16,33 @@ export class GetReceivingOrder {
         if (!/^\d+$/.test(id) || Number(id) <= 0) throw new Error('شناسه سفارش خرید معتبر نیست.');
         return this.repository.getOrder(id);
     }
+}
+
+export class CreatePurchaseOrder {
+    constructor(private readonly repository: PurchaseReceivingRepository) {}
+    execute(input: CreatePurchaseOrderInput) {
+        if (!input.items.length) throw new Error('سفارش باید حداقل یک قلم داشته باشد.');
+        return this.repository.createOrder(input);
+    }
+}
+
+export class UpdatePurchaseOrder {
+    constructor(private readonly repository: PurchaseReceivingRepository) {}
+    execute(id: string, input: UpdatePurchaseOrderInput) {
+        if (!/^\d+$/.test(id) || Number(id) <= 0) throw new Error('شناسه سفارش خرید معتبر نیست.');
+        if (!input.items.length) throw new Error('سفارش باید حداقل یک قلم داشته باشد.');
+        return this.repository.updateOrder(id, input);
+    }
+}
+
+export class SendPurchaseOrder {
+    constructor(private readonly repository: PurchaseReceivingRepository) {}
+    execute(id: string) { return this.repository.sendOrder(id); }
+}
+
+export class CancelPurchaseOrder {
+    constructor(private readonly repository: PurchaseReceivingRepository) {}
+    execute(id: string) { return this.repository.cancelOrder(id); }
 }
 
 export class ListOrderGoodsReceipts {
