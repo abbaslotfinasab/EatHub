@@ -68,7 +68,7 @@ export const PurchaseOrderDetailPage = () => {
     return (
         <Container maxWidth="lg" dir="rtl" sx={{ py: 2 }}>
             <Stack spacing={2.5}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ sm: 'center' }} gap={1}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 1 }}>
                     <Box>
                         <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>جزئیات سفارش خرید #{id}</Typography>
                         <Typography color="text.secondary">مشاهده اقلام، مبالغ و وضعیت گردش سفارش</Typography>
@@ -81,7 +81,7 @@ export const PurchaseOrderDetailPage = () => {
                 {actionError && <Alert severity="error">{errorMessage(actionError)}</Alert>}
                 {order.data && <>
                     <Paper sx={{ p: 2.5 }}>
-                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} useFlexGap flexWrap="wrap">
+                        <Stack sx={{ flexDirection: { xs: 'column', sm: 'row' }, flexWrap: 'wrap', gap: 2 }}>
                             <Typography><strong>تأمین‌کننده:</strong> {supplierName ?? `شناسه ${order.data.supplierId}`}</Typography>
                             <Typography><strong>وضعیت:</strong> {statusLabels[order.data.status] ?? order.data.status}</Typography>
                             <Typography><strong>تاریخ سفارش:</strong> {order.data.orderDate}</Typography>
@@ -89,7 +89,7 @@ export const PurchaseOrderDetailPage = () => {
                             {order.data.requisitionId && <Typography><strong>درخواست مرتبط:</strong> #{order.data.requisitionId}</Typography>}
                         </Stack>
                         <Divider sx={{ my: 2 }} />
-                        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>
                             {order.data.status === 'draft' && canEdit && <Button variant="outlined" onClick={() => navigate(`/purchase/orders/${id}/edit`)}>ویرایش پیش‌نویس</Button>}
                             {order.data.status === 'draft' && canSend && <Button variant="contained" disabled={!order.data.items.length || send.isPending} onClick={() => send.mutate()}>{send.isPending ? 'در حال ارسال...' : 'ارسال سفارش'}</Button>}
                             {['draft', 'sent', 'partial'].includes(order.data.status) && canCancel && <Button color="error" variant="outlined" disabled={cancel.isPending} onClick={() => {
@@ -115,11 +115,11 @@ export const PurchaseOrderDetailPage = () => {
                         </Table>
                         <Divider />
                         <Stack spacing={1} sx={{ p: 2, maxWidth: 360, mr: 'auto' }}>
-                            <Stack direction="row" justifyContent="space-between"><Typography color="text.secondary">جمع اقلام</Typography><Typography>{formatMoney(order.data.subtotal)}</Typography></Stack>
-                            <Stack direction="row" justifyContent="space-between"><Typography color="text.secondary">تخفیف</Typography><Typography>{formatMoney(order.data.discount)}</Typography></Stack>
-                            <Stack direction="row" justifyContent="space-between"><Typography color="text.secondary">مالیات</Typography><Typography>{formatMoney(order.data.tax)}</Typography></Stack>
+                            <Stack direction="row" sx={{ justifyContent: 'space-between' }}><Typography color="text.secondary">جمع اقلام</Typography><Typography>{formatMoney(order.data.subtotal)}</Typography></Stack>
+                            <Stack direction="row" sx={{ justifyContent: 'space-between' }}><Typography color="text.secondary">تخفیف</Typography><Typography>{formatMoney(order.data.discount)}</Typography></Stack>
+                            <Stack direction="row" sx={{ justifyContent: 'space-between' }}><Typography color="text.secondary">مالیات</Typography><Typography>{formatMoney(order.data.tax)}</Typography></Stack>
                             <Divider />
-                            <Stack direction="row" justifyContent="space-between"><Typography fontWeight={700}>مبلغ نهایی</Typography><Typography fontWeight={700}>{formatMoney(order.data.total)}</Typography></Stack>
+                            <Stack direction="row" sx={{ justifyContent: 'space-between' }}><Typography sx={{ fontWeight: 700 }}>مبلغ نهایی</Typography><Typography sx={{ fontWeight: 700 }}>{formatMoney(order.data.total)}</Typography></Stack>
                         </Stack>
                     </Paper>
                 </>}
