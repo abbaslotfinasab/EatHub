@@ -7,7 +7,7 @@ on:
       - security/frontend-dependency-remediation
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: frontend-dependency-remediation-${{ github.ref }}
@@ -98,6 +98,21 @@ jobs:
 
       - name: Run frontend tests
         run: node --experimental-transform-types --test src/core/presentation/components/order/*.test.mjs src/core/data/mappers/*.test.mjs
+
+      - name: Commit verified dependency lockfile
+        if: success()
+        shell: bash
+        run: |
+          node -e "const a=require('../npm-audit-after.json'); if ((a.metadata?.vulnerabilities?.total ?? 1) !== 0) process.exit(1)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency lockfile changes to commit."
+          else
+            git commit -m "fix(frontend): remediate audited dependencies"
+            git push
+          fi
 
       - name: Upload audit reports and updated lockfile
         if: always()
