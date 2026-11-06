@@ -336,7 +336,11 @@ class OrderInventoryService:
             if previous.get(requirement.pk, Decimal("0")) + amount > requirement.standard_quantity:
                 raise OperationConflict("Actual consumption cannot exceed the confirmed reserved requirement.")
 
-        reservation = InventoryReservation.objects.select_for_update().filter(
+        # The tenant join is a validation predicate, not part of this
+        # serialization boundary. Lock only the reservation header; the
+        # warehouse, ingredients and stock rows are acquired below in the
+        # shared Warehouse -> Ingredients -> Stock order.
+        reservation = InventoryReservation.objects.select_for_update(of=("self",)).filter(
             business_id=business_id,
             warehouse__business_id=business_id,
             source_type="order",
