@@ -149,6 +149,7 @@ export class RecipeRepositoryImpl implements RecipeRepository {
                     page,
                     page_size: pageSize,
                     ...(filters?.search ? { search: filters.search } : {}),
+                    ...(filters?.isActive !== undefined ? { is_active: filters.isActive } : {}),
                 },
             });
             recipes.push(...data.results);
