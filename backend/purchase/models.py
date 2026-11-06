@@ -711,6 +711,35 @@ class SupplierPayment(BaseModel):
         max_length=50,
     )
 
+    # Nullable only for historical payments created before request idempotency.
+    idempotency_key = models.UUIDField(null=True, blank=True)
+    payload_fingerprint = models.CharField(max_length=64, null=True, blank=True)
+    payload_version = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("business", "idempotency_key"),
+                name="pur_sp_business_idem_uq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        idempotency_key__isnull=True,
+                        payload_fingerprint__isnull=True,
+                        payload_version__isnull=True,
+                    )
+                    | models.Q(
+                        idempotency_key__isnull=False,
+                        payload_fingerprint__isnull=False,
+                        payload_version__isnull=False,
+                        payload_version__gte=1,
+                    )
+                ),
+                name="pur_sp_key_fp_pair_ck",
+            ),
+        ]
+
 
 class PaymentAllocation(BaseModel):
 
