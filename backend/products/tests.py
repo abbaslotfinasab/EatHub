@@ -2697,6 +2697,48 @@ class MenuItemRecipeApiTests(APITestCase):
         self.assertEqual(self.item.name, "Burger")
         self.assertEqual(self.item.price, Decimal("12.00"))
 
+    def test_menu_patch_items_array_is_the_complete_replacement_set(self):
+        second_item = MenuItem.objects.create(
+            business=self.business,
+            menu=self.menu,
+            name="Fries",
+            price=Decimal("4.00"),
+        )
+
+        # Omitting "items" is a metadata-only patch and must preserve every item.
+        metadata_response = self.client.patch(
+            f"/api/products/menus/{self.menu.id}/update/",
+            {"description": "Updated description"},
+            format="json",
+        )
+        self.assertEqual(metadata_response.status_code, status.HTTP_200_OK)
+        self.assertSetEqual(
+            set(MenuItem.objects.filter(menu=self.menu).values_list("id", flat=True)),
+            {self.item.id, second_item.id},
+        )
+
+        # Supplying "items" makes that array the complete desired item set.
+        replacement_response = self.client.patch(
+            f"/api/products/menus/{self.menu.id}/update/",
+            {"items": [{"id": self.item.id, "name": "Burger", "price": "12.00"}]},
+            format="json",
+        )
+        self.assertEqual(replacement_response.status_code, status.HTTP_200_OK)
+        self.assertSetEqual(
+            set(MenuItem.objects.filter(menu=self.menu).values_list("id", flat=True)),
+            {self.item.id},
+        )
+        self.assertFalse(MenuItem.objects.filter(pk=second_item.id).exists())
+
+        # An explicit empty array intentionally clears the menu's items.
+        clear_response = self.client.patch(
+            f"/api/products/menus/{self.menu.id}/update/",
+            {"items": []},
+            format="json",
+        )
+        self.assertEqual(clear_response.status_code, status.HTTP_200_OK)
+        self.assertFalse(MenuItem.objects.filter(menu=self.menu).exists())
+
     def test_menu_item_update_is_tenant_scoped(self):
         other_menu = Menu.objects.create(
             business=self.other_business, name="Other Menu", category="Food"
