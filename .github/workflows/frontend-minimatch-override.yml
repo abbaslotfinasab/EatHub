@@ -46,9 +46,7 @@ jobs:
           status=$?
           set -e
           echo "$status" > ../npm-audit-exit-code.txt
-          node -e "const a=require('../npm-audit.json'); const v=a.metadata?.vulnerabilities ?? {}; console.log('Audit:', JSON.stringify(v)); if (v.total !== 0 || Number(process.env.AUDIT_STATUS) !== 0) process.exit(1);"
-        env:
-          AUDIT_STATUS: "$status"
+          AUDIT_STATUS="$status" node -e "const a=require('../npm-audit.json'); const v=a.metadata?.vulnerabilities ?? {}; console.log('Audit:', JSON.stringify(v)); if (v.total !== 0 || Number(process.env.AUDIT_STATUS) !== 0) process.exit(1);"
 
       - name: Run ESLint
         run: npm run lint 2>&1 | tee ../npm-lint.log
