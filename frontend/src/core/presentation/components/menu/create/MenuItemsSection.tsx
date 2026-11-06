@@ -22,7 +22,7 @@ export const MenuItemsSection = ({
                                      remove,
                                  }: Props) => {
 
-    const {data: recipes = [], isLoading: recipesLoading} = useGetAllRecipes({isActive: true});
+    const {data: recipes = [], isLoading: recipesLoading} = useGetAllRecipes();
     const recipeOptions = recipes
         .filter(({recipe}) => Boolean(recipe.id && recipe.name))
         .map(({recipe}) => ({value: recipe.id as string, label: recipe.name as string}));
