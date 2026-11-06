@@ -144,15 +144,15 @@ class SupplierPaymentIdempotencyPostgreSQLTests(TransactionTestCase):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 SupplierPayment.objects.create(
-                business=self.business,
-                supplier=self.supplier,
-                amount=Decimal("10.00"),
-                payment_date=date(2026, 11, 6),
-                method=PaymentMethod.CASH.value,
-                idempotency_key=uuid4(),
-                payload_fingerprint=None,
-                payload_version=None,
-            )
+                    business=self.business,
+                    supplier=self.supplier,
+                    amount=Decimal("10.00"),
+                    payment_date=date(2026, 11, 6),
+                    method=PaymentMethod.CASH.value,
+                    idempotency_key=uuid4(),
+                    payload_fingerprint=None,
+                    payload_version=None,
+                )
 
     def test_failed_insert_does_not_claim_key_and_retry_succeeds(self):
         key = uuid4()
