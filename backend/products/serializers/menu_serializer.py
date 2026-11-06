@@ -178,6 +178,35 @@ class UpdateMenuSerializer(serializers.Serializer):
         required=False
     )
 
+    def validate_items(self, items):
+        menu = self.instance
+        if menu is None:
+            return items
+
+        item_ids = [item["id"] for item in items if "id" in item]
+        if len(item_ids) != len(set(item_ids)):
+            raise serializers.ValidationError("A menu item may only appear once.")
+
+        existing_ids = set(
+            MenuItem.objects.filter(
+                menu=menu,
+                business=menu.business,
+                id__in=item_ids,
+            ).values_list("id", flat=True)
+        )
+        unknown_ids = set(item_ids) - existing_ids
+        if unknown_ids:
+            raise serializers.ValidationError(
+                "One or more menu item IDs do not belong to this menu."
+            )
+
+        for item in items:
+            if "id" not in item and ("name" not in item or "price" not in item):
+                raise serializers.ValidationError(
+                    "New menu items require both name and price."
+                )
+        return items
+
 
 
 
