@@ -110,7 +110,7 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         try:
-            payment = CreateSupplierPaymentUseCase(
+            payment_result = CreateSupplierPaymentUseCase(
                 _payment_repository(),
                 DjangoSupplierRepository(),
             ).execute(
@@ -120,13 +120,15 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
                     amount=data["amount"],
                     payment_date=data["payment_date"],
                     method=PaymentMethod(data["method"]),
+                    idempotency_key=data["idempotency_key"],
                 )
             )
+            payment, replayed = payment_result
         except ValueError as error:
             _handle_payment_error(error)
         return Response(
             SupplierPaymentSerializer(payment).data,
-            status=status.HTTP_201_CREATED,
+            status=(status.HTTP_200_OK if replayed else status.HTTP_201_CREATED),
         )
 
 
