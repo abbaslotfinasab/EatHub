@@ -35,7 +35,7 @@ export const PurchaseOrdersPage = () => {
         queryFn: () => listPurchaseSuppliers.execute(),
         enabled: Boolean(canView && userId !== null && businessId !== null),
     });
-    const supplierById = new Map((suppliers.data ?? []).map((supplier) => [supplier.id, supplier.name]));
+    const supplierById = useMemo(() => new Map((suppliers.data ?? []).map((supplier) => [supplier.id, supplier.name])), [suppliers.data]);
     const filteredOrders = useMemo(() => (orders.data ?? []).filter((order) => {
         const statusMatches = status === 'all' || order.status === status;
         const supplierName = supplierById.get(order.supplierId) ?? '';
@@ -44,7 +44,7 @@ export const PurchaseOrdersPage = () => {
             || order.supplierId.includes(search.trim())
             || supplierName.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
         return statusMatches && searchMatches;
-    }), [orders.data, status, search, suppliers.data]);
+    }), [orders.data, status, search, supplierById]);
 
     return (
         <Container maxWidth="xl" dir="rtl" sx={{ py: 3 }}>
