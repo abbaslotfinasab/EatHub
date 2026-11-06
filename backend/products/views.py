@@ -1,5 +1,5 @@
 from django.forms import DecimalField
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -78,10 +78,15 @@ class MenuCreateAPIView(TenantAPIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=400)
 
-        menu = MenuService.create_menu_with_items(
-            business=request.business,
-            validated_data=serializer.validated_data
-        )
+        try:
+            menu = MenuService.create_menu_with_items(
+                business=request.business,
+                validated_data=serializer.validated_data
+            )
+        except IntegrityError as error:
+            raise ValidationError({
+                "recipe_id": "A recipe can only be assigned to one menu item."
+            }) from error
 
         return Response(
             MenuSerializer(menu).data,
@@ -135,10 +140,15 @@ class MenuUpdateAPIView(TenantAPIView):
         )
         serializer.is_valid(raise_exception=True)
 
-        menu = MenuService.update_menu(
-            menu,
-            serializer.validated_data
-        )
+        try:
+            menu = MenuService.update_menu(
+                menu,
+                serializer.validated_data
+            )
+        except IntegrityError as error:
+            raise ValidationError({
+                "recipe_id": "A recipe can only be assigned to one menu item."
+            }) from error
 
         return Response(MenuSerializer(menu).data)
 
@@ -221,11 +231,16 @@ class MenuItemCreateAPIView(TenantAPIView):
             raise_exception=True
         )
 
-        item = MenuService.create_item(
-            business=request.business,
-            menu=menu,
-            data=serializer.validated_data
-        )
+        try:
+            item = MenuService.create_item(
+                business=request.business,
+                menu=menu,
+                data=serializer.validated_data
+            )
+        except IntegrityError as error:
+            raise ValidationError({
+                "recipe_id": "A recipe can only be assigned to one menu item."
+            }) from error
 
         return Response(
             MenuItemSerializer(item).data,
@@ -252,10 +267,15 @@ class MenuItemUpdateAPIView(TenantAPIView):
             raise_exception=True
         )
 
-        item = MenuService.update_item(
-            item,
-            serializer.validated_data,
-        )
+        try:
+            item = MenuService.update_item(
+                item,
+                serializer.validated_data,
+            )
+        except IntegrityError as error:
+            raise ValidationError({
+                "recipe_id": "A recipe can only be assigned to one menu item."
+            }) from error
 
         return Response(
             MenuItemSerializer(item).data
