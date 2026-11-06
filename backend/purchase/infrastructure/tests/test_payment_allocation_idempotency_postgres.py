@@ -88,11 +88,11 @@ class PaymentAllocationIdempotencyPostgreSQLTests(TransactionTestCase):
             method="bank_transfer",
         )
 
-    def _use_case(self) -> CreatePaymentAllocation:
+    def _use_case(self, allocation_repository=None) -> CreatePaymentAllocation:
         return CreatePaymentAllocation(
             DjangoAccountsPayableRepository(),
             DjangoSupplierPaymentRepository(),
-            DjangoPaymentAllocationRepository(),
+            allocation_repository or DjangoPaymentAllocationRepository(),
             DjangoTransactionManager(),
         )
 
@@ -211,6 +211,46 @@ class PaymentAllocationIdempotencyPostgreSQLTests(TransactionTestCase):
             ).count(),
             1,
         )
+
+    def test_concurrent_same_key_on_distinct_aggregates_recovers_unique_constraint_winner(self) -> None:
+        second_invoice = self._create_invoice("INV-ALLOC-UNIQUE-RACE")
+        second_payable = self._create_payable(second_invoice, "100.00")
+        second_payment = self._create_payment("100.00")
+        key = uuid4()
+        insert_barrier = Barrier(2)
+
+        class BarrierAllocationRepository(DjangoPaymentAllocationRepository):
+            def create(inner_self, allocation):
+                insert_barrier.wait(timeout=15)
+                return super(BarrierAllocationRepository, inner_self).create(allocation)
+
+        results = self._run_concurrently([
+            lambda: self._use_case(BarrierAllocationRepository()).execute(
+                self._command(key=key, amount="40.00")
+            ),
+            lambda: self._use_case(BarrierAllocationRepository()).execute(
+                self._command(
+                    key=key,
+                    amount="50.00",
+                    payable=second_payable,
+                    payment=second_payment,
+                )
+            ),
+        ])
+
+        self.assertEqual(sum(not isinstance(result, Exception) for result in results), 1)
+        self.assertEqual(
+            sum(isinstance(result, PaymentAllocationIdempotencyPayloadMismatch) for result in results),
+            1,
+        )
+        self.assertEqual(
+            PaymentAllocation.objects.filter(
+                business=self.business,
+                idempotency_key=key,
+            ).count(),
+            1,
+        )
+        self.assertEqual(PaymentAllocation.objects.count(), 1)
 
     def test_failed_status_update_rolls_back_allocation_and_allows_retry(self) -> None:
         key = uuid4()
