@@ -1,14 +1,18 @@
 import type { PurchaseReceivingRepository } from '../../domain/repositories/inventory/PurchaseReceivingRepository.ts';
 import type {
     CreateGoodsReceiptInput,
+    CreatePurchaseOrderInput,
     GoodsReceipt,
     PurchaseSupplierSummary,
     ReceivingPurchaseOrder,
+    UpdatePurchaseOrderInput,
 } from '../../domain/entities/inventory/facture/PurchaseReceiving.ts';
 import type {
     CreateGoodsReceiptDTO,
+    CreatePurchaseOrderDTO,
     GoodsReceiptReadDTO,
     PurchaseOrderReadDTO,
+    UpdatePurchaseOrderDTO,
 } from '../dtos/purchase/PurchaseReceivingDTO.ts';
 import { PurchaseReceivingRemoteDataSource } from '../datasources/PurchaseReceivingRemoteDataSource.ts';
 
@@ -16,9 +20,16 @@ const mapOrder = (dto: PurchaseOrderReadDTO): ReceivingPurchaseOrder => ({
     id: String(dto.id),
     businessId: String(dto.business_id),
     supplierId: String(dto.supplier_id),
+    requisitionId: dto.requisition_id === null ? null : String(dto.requisition_id),
     status: dto.status,
     orderDate: dto.order_date,
     expectedDate: dto.expected_date,
+    subtotal: dto.subtotal,
+    discount: dto.discount,
+    tax: dto.tax,
+    total: dto.total,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
     items: dto.items.map((item) => ({
         id: String(item.id),
         ingredientId: String(item.ingredient_id),
@@ -43,6 +54,13 @@ const mapReceipt = (dto: GoodsReceiptReadDTO): GoodsReceipt => ({
     })),
 });
 
+const toOrderItems = (items: CreatePurchaseOrderInput['items']) => items.map((item) => ({
+    ingredient_id: Number(item.ingredientId),
+    quantity: item.quantity,
+    unit_price: item.unitPrice,
+    purchase_unit: item.purchaseUnit,
+}));
+
 export class PurchaseReceivingRepositoryImpl implements PurchaseReceivingRepository {
     constructor(private readonly remote = new PurchaseReceivingRemoteDataSource()) {}
 
@@ -52,6 +70,36 @@ export class PurchaseReceivingRepositoryImpl implements PurchaseReceivingReposit
 
     async getOrder(id: string): Promise<ReceivingPurchaseOrder> {
         return mapOrder(await this.remote.getOrder(id));
+    }
+
+    async createOrder(input: CreatePurchaseOrderInput): Promise<ReceivingPurchaseOrder> {
+        const payload: CreatePurchaseOrderDTO = {
+            supplier_id: Number(input.supplierId),
+            ...(input.requisitionId ? { requisition_id: Number(input.requisitionId) } : {}),
+            order_date: input.orderDate,
+            expected_date: input.expectedDate ?? null,
+            discount: input.discount,
+            tax: input.tax,
+            items: toOrderItems(input.items),
+        };
+        return mapOrder(await this.remote.createOrder(payload));
+    }
+
+    async updateOrder(id: string, input: UpdatePurchaseOrderInput): Promise<ReceivingPurchaseOrder> {
+        const payload: UpdatePurchaseOrderDTO = {
+            discount: input.discount,
+            tax: input.tax,
+            items: toOrderItems(input.items),
+        };
+        return mapOrder(await this.remote.updateOrder(id, payload));
+    }
+
+    async sendOrder(id: string): Promise<ReceivingPurchaseOrder> {
+        return mapOrder(await this.remote.sendOrder(id));
+    }
+
+    async cancelOrder(id: string): Promise<ReceivingPurchaseOrder> {
+        return mapOrder(await this.remote.cancelOrder(id));
     }
 
     async listReceipts(orderId: string): Promise<GoodsReceipt[]> {
