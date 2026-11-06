@@ -104,9 +104,16 @@ class SupplierPaymentIdempotencyPostgreSQLTests(TransactionTestCase):
     def test_concurrent_same_key_creates_one_payment_and_replays_winner(self):
         key = uuid4()
         command = self._command(key=key)
+        insert_barrier = Barrier(2)
+
+        class BarrierRepository(DjangoSupplierPaymentRepository):
+            def save(inner_self, payment):
+                insert_barrier.wait(timeout=15)
+                return super(BarrierRepository, inner_self).save(payment)
+
         results = self._run_concurrently([
-            lambda: self._use_case().execute(command),
-            lambda: self._use_case().execute(command),
+            lambda: self._use_case(BarrierRepository()).execute(command),
+            lambda: self._use_case(BarrierRepository()).execute(command),
         ])
 
         self.assertFalse(any(isinstance(result, Exception) for result in results))
