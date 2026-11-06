@@ -1,21 +1,52 @@
 export type ReceivingOrderStatus = 'draft' | 'sent' | 'partial' | 'received' | 'cancelled';
+export type PurchaseUnit = 'kg' | 'g' | 'l' | 'ml' | 'pc';
 
 export interface ReceivingOrderLine {
     id: string;
     ingredientId: string;
     orderedQuantity: string;
     unitPrice: string;
-    purchaseUnit: string | null;
+    purchaseUnit: PurchaseUnit | null;
 }
 
 export interface ReceivingPurchaseOrder {
     id: string;
     businessId: string;
     supplierId: string;
+    requisitionId: string | null;
     status: ReceivingOrderStatus;
     orderDate: string;
     expectedDate: string | null;
+    subtotal: string;
+    discount: string;
+    tax: string;
+    total: string;
+    createdAt: string;
+    updatedAt: string;
     items: ReceivingOrderLine[];
+}
+
+export interface PurchaseOrderItemInput {
+    ingredientId: string;
+    quantity: string;
+    unitPrice: string;
+    purchaseUnit: PurchaseUnit;
+}
+
+export interface CreatePurchaseOrderInput {
+    supplierId: string;
+    requisitionId?: string;
+    orderDate: string;
+    expectedDate?: string | null;
+    discount: string;
+    tax: string;
+    items: PurchaseOrderItemInput[];
+}
+
+export interface UpdatePurchaseOrderInput {
+    discount: string;
+    tax: string;
+    items: PurchaseOrderItemInput[];
 }
 
 export interface GoodsReceiptLine {
