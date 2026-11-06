@@ -182,11 +182,21 @@ class UpdateMenuSerializer(serializers.Serializer):
 
 
 
+class PublicMenuItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MenuItem
+        fields = [
+            "id",
+            "name",
+            "description",
+            "price",
+            "image_url",
+            "is_available",
+        ]
+
+
 class PublicMenuSerializer(serializers.ModelSerializer):
-    items = MenuItemSerializer(
-        many=True,
-        read_only=True
-    )
+    items = PublicMenuItemSerializer(many=True, read_only=True)
 
     class Meta:
         model = Menu
