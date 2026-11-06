@@ -1,7 +1,10 @@
 from decimal import Decimal
+from uuid import UUID
 
+from django.db import IntegrityError, transaction
 from django.db.models import Sum
 
+from purchase.application.exceptions import PaymentAllocationIdempotencyKeyRace
 from purchase.domain.entities.payment_allocation import PaymentAllocation
 from purchase.domain.repositories.payment_allocation_repository import PaymentAllocationRepository
 from purchase.infrastructure.persistence.django.mappers import PaymentAllocationMapper
@@ -17,6 +20,8 @@ class DjangoPaymentAllocationRepository(PaymentAllocationRepository):
         allocation.validate()
         if allocation.id is not None:
             raise ValueError("Payment allocation repository create requires a new event.")
+        if allocation.idempotency_key is None:
+            raise ValueError("New payment allocations require an idempotency key.")
 
         payable = DjangoAccountsPayable.objects.filter(
             id=allocation.accounts_payable_id,
@@ -35,8 +40,28 @@ class DjangoPaymentAllocationRepository(PaymentAllocationRepository):
 
         model = PaymentAllocationMapper.to_model(allocation)
         model.invoice_id = payable["source_invoice_id"]
-        model.save(force_insert=True)
+        try:
+            # Keep a savepoint so the caller can recover the winning request
+            # without leaving the surrounding transaction in a broken state.
+            with transaction.atomic():
+                model.save(force_insert=True)
+        except IntegrityError as error:
+            if DjangoPaymentAllocation.objects.filter(
+                business_id=allocation.business_id,
+                idempotency_key=allocation.idempotency_key,
+            ).exists():
+                raise PaymentAllocationIdempotencyKeyRace(error) from error
+            raise
         return PaymentAllocationMapper.to_domain(model)
+
+    def get_by_idempotency_key_for_business(
+        self, idempotency_key: UUID, business_id: int
+    ) -> PaymentAllocation | None:
+        model = DjangoPaymentAllocation.objects.filter(
+            business_id=business_id,
+            idempotency_key=idempotency_key,
+        ).first()
+        return None if model is None else PaymentAllocationMapper.to_domain(model)
 
     def get_by_id_for_business(
         self, allocation_id: int, business_id: int
