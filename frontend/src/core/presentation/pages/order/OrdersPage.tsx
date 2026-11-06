@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react";
+import {useMemo, useState} from "react";
 import {isAxiosError} from "axios";
 
 import {
@@ -56,6 +56,8 @@ import {
     hasPermission,
 } from "../../components/order/orderStatusUpdatePayload.ts";
 
+
+const EMPTY_ORDER_LIST: OrderWithItems[] = [];
 
 const getDeleteOrderErrorMessage = (error: unknown): string => {
     if (isAxiosError(error)) {
@@ -189,7 +191,7 @@ export const OrdersPage = () => {
         canViewOrders,
     );
 
-    const orders = data?.results ?? [];
+    const orders = data?.results ?? EMPTY_ORDER_LIST;
     const totalOrderCount = data?.count ?? 0;
     const lastPage = Math.max(
         0,
@@ -197,11 +199,12 @@ export const OrdersPage = () => {
     );
     const safePage = Math.min(page, lastPage);
 
-    useEffect(() => {
-        if (page !== safePage) {
-            setPage(safePage);
-        }
-    }, [page, safePage]);
+
+    // Keep pagination state valid when a mutation reduces the result count.
+    // This guarded render-phase update avoids an effect-driven cascading render.
+    if (page !== safePage) {
+        setPage(safePage);
+    }
 
     /*
     |--------------------------------------------------------------------------

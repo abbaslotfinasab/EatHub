@@ -1,0 +1,88 @@
+name: Frontend Minimatch Override Compatibility
+
+on:
+  push:
+    branches:
+      - fix/frontend-minimatch-audit
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-minimatch-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify minimatch override and frontend compatibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install exact committed lockfile
+        run: npm ci
+
+      - name: Verify resolved minimatch dependency tree
+        run: npm ls minimatch --all | tee ../minimatch-tree.txt
+
+      - name: Audit dependencies and block minimatch advisories
+        shell: bash
+        run: |
+          set +e
+          npm audit --json > ../npm-audit.json
+          status=$?
+          set -e
+          echo "$status" > ../npm-audit-exit-code.txt
+          node <<'NODE'
+          const fs = require('node:fs');
+          const audit = JSON.parse(fs.readFileSync('../npm-audit.json', 'utf8'));
+          const counts = audit.metadata?.vulnerabilities;
+          if (!counts || !audit.vulnerabilities) {
+            console.error('npm audit did not return a complete audit report.');
+            process.exit(1);
+          }
+          const names = Object.keys(audit.vulnerabilities);
+          console.log('Repository audit baseline:', JSON.stringify(counts));
+          console.log('Vulnerable packages:', names.join(', ') || 'none');
+          if (audit.vulnerabilities.minimatch) {
+            console.error('minimatch has a reported security advisory.');
+            process.exit(1);
+          }
+          console.log('No minimatch advisory found; unrelated repository baseline findings are recorded in the artifact.');
+          NODE
+
+      - name: Run ESLint
+        run: npm run lint 2>&1 | tee ../npm-lint.log
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run frontend tests
+        run: node --experimental-transform-types --test src/core/presentation/components/order/*.test.mjs src/core/data/mappers/*.test.mjs
+
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-minimatch-override-${{ github.run_number }}
+          if-no-files-found: warn
+          path: |
+            frontend/package.json
+            frontend/package-lock.json
+            minimatch-tree.txt
+            npm-audit.json
+            npm-audit-exit-code.txt
+            npm-lint.log
