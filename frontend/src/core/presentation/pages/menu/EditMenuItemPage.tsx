@@ -86,12 +86,12 @@ export const EditMenuItemPage = () => {
             <Paper component="form" onSubmit={submit} sx={{p: {xs: 2, sm: 4}}}>
                 <Stack spacing={2.5}>
                     <Box>
-                        <Typography variant="h5" fontWeight={700}>ویرایش آیتم منو</Typography>
+                        <Typography variant="h5" sx={{fontWeight: 700}}>ویرایش آیتم منو</Typography>
                         <Typography color="text.secondary">تغییرات فقط روی همین آیتم ذخیره می‌شود و سایر آیتم‌های منو دست‌نخورده می‌مانند.</Typography>
                     </Box>
-                    <TextField label="نام آیتم" required inputProps={{maxLength: 120}} value={form.name} onChange={(e) => change("name", e.target.value)} />
+                    <TextField label="نام آیتم" required slotProps={{htmlInput: {maxLength: 120}}} value={form.name} onChange={(e) => change("name", e.target.value)} />
                     <TextField label="توضیحات" multiline minRows={3} value={form.description} onChange={(e) => change("description", e.target.value)} />
-                    <TextField label="قیمت (تومان)" type="number" required inputProps={{min: 0.01, step: "0.01"}} value={form.price} onChange={(e) => change("price", e.target.value)} />
+                    <TextField label="قیمت (تومان)" type="number" required slotProps={{htmlInput: {min: 0.01, step: "0.01"}}} value={form.price} onChange={(e) => change("price", e.target.value)} />
                     <TextField label="آدرس تصویر" value={form.imageUrl} onChange={(e) => change("imageUrl", e.target.value)} />
                     <TextField label="شناسه رسپی (اختیاری)" type="number" value={form.recipeId} onChange={(e) => change("recipeId", e.target.value)} helperText="در صورت اتصال رسپی، شناسه رسپی متعلق به همین کسب‌وکار را وارد کنید." />
                     <FormControlLabel control={<Checkbox checked={form.isAvailable} onChange={(e) => change("isAvailable", e.target.checked)} />} label="این آیتم برای سفارش در دسترس است" />
