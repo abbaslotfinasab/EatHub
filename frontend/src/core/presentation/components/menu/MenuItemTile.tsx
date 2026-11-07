@@ -157,21 +157,14 @@ export const MenuItemTile = ({
                 </Box>
 
                 <Chip
-                    label="فعال"
+                    label={item.isAvailable === true ? "فعال" : "غیرفعال"}
                     size="small"
                     sx={{
-                        position:
-                            "absolute",
-
+                        position: "absolute",
                         top: 12,
                         left: 12,
-
-                        bgcolor:
-                            "#DCFCE7",
-
-                        color:
-                            "#166534",
-
+                        bgcolor: item.isAvailable === true ? "#DCFCE7" : "#FEE2E2",
+                        color: item.isAvailable === true ? "#166534" : "#991B1B",
                         fontWeight: 700,
                     }}
                 />
