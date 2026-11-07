@@ -71,7 +71,17 @@ export const RestaurantList = ({
                             </Avatar>
 
                             <ListItemText
-                                primary={restaurant.name}
+                                primary={
+                                    <Typography
+                                        sx={{
+                                            color: "#FFFFFF",
+                                            fontSize: 14,
+                                            fontWeight: isSelected ? 600 : 500,
+                                        }}
+                                    >
+                                        {restaurant.name}
+                                    </Typography>
+                                }
                             />
                         </ListItemButton>
                     );
