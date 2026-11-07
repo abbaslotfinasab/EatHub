@@ -7,12 +7,9 @@ export interface Me {
     email: string;
     name: string;
     number: string;
-
+    avatar?: string | null;
     has_business: boolean;
-
     memberships: Membership[];
-
     active_business: ActiveBusiness | null;
-
     meta: MeMeta;
 }

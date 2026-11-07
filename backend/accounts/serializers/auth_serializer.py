@@ -1,34 +1,25 @@
-from accounts.models import Membership
+from accounts.models import Membership, User
 from accounts.services.auth_service import AuthService
 from rest_framework import serializers
-from accounts.models import User
 
 
 class RegisterSerializer(serializers.Serializer):
-
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, min_length=8)
-
     name = serializers.CharField()
     number = serializers.CharField()
 
     def validate_email(self, value):
-
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already exists")
-
         return value
 
     def validate_number(self, value):
-
         if User.objects.filter(number=value).exists():
             raise serializers.ValidationError("Number already exists")
-
         return value
 
-
     def create(self, validated_data):
-
         return AuthService.register(
             email=validated_data["email"],
             password=validated_data["password"],
@@ -38,75 +29,46 @@ class RegisterSerializer(serializers.Serializer):
 
 
 class LoginSerializer(serializers.Serializer):
-
     identifier = serializers.CharField()
-
-    password = serializers.CharField(
-        write_only=True
-    )
+    password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-
         result = AuthService.login(
             identifier=attrs["identifier"],
-            password=attrs["password"]
+            password=attrs["password"],
         )
-
         if not result:
-            raise serializers.ValidationError(
-                "Invalid credentials"
-            )
-
+            raise serializers.ValidationError("Invalid credentials")
         return result
 
 
 class MembershipBusinessSerializer(serializers.Serializer):
-
     id = serializers.IntegerField(source="business.id")
     name = serializers.CharField(source="business.name")
     role = serializers.CharField(source="role.code")
 
 
 class MembershipSerializer(serializers.ModelSerializer):
-
-    business_id = serializers.IntegerField(
-        source="business.id"
-    )
-
-    business_name = serializers.CharField(
-        source="business.name"
-    )
-
-    role = serializers.CharField(
-        source="role.code"
-    )
+    business_id = serializers.IntegerField(source="business.id")
+    business_name = serializers.CharField(source="business.name")
+    role = serializers.CharField(source="role.code")
 
     class Meta:
         model = Membership
-
-        fields = (
-            "business_id",
-            "business_name",
-            "role",
-        )
-
+        fields = ("business_id", "business_name", "role")
 
 
 class LoginResponseSerializer(serializers.Serializer):
-
     user = serializers.SerializerMethodField()
     memberships = MembershipBusinessSerializer(many=True)
 
     def get_user(self, obj):
         user = obj["user"]
-
         return {
             "id": user.id,
             "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
+            "name": user.name,
         }
-
 
 
 class ActiveBusinessSerializer(serializers.Serializer):
@@ -119,43 +81,44 @@ class ActiveBusinessSerializer(serializers.Serializer):
     inventory_enabled = serializers.BooleanField()
 
 
-
 class UserMeSerializer(serializers.Serializer):
-
     id = serializers.IntegerField()
     email = serializers.EmailField()
     name = serializers.CharField()
-    number = serializers.CharField()
-
+    number = serializers.CharField(allow_blank=True)
+    avatar = serializers.ImageField(allow_null=True, required=False)
     has_business = serializers.BooleanField()
-
     memberships = MembershipSerializer(many=True)
-
-    active_business = ActiveBusinessSerializer(
-        allow_null=True
-    )
-
+    active_business = ActiveBusinessSerializer(allow_null=True)
     meta = serializers.SerializerMethodField()
 
     def get_meta(self, obj):
         return obj.get("meta", {})
 
 
+class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("name", "number", "avatar")
+        extra_kwargs = {
+            "name": {"required": False},
+            "number": {"required": False, "allow_blank": True},
+            "avatar": {"required": False, "allow_null": True},
+        }
+
+
 class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, min_length=8)
 
-    old_password = serializers.CharField()
-    new_password = serializers.CharField()
-
+    def validate_old_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("رمز عبور فعلی صحیح نیست.")
+        return value
 
 
 class UserListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = [
-            "id",
-            "name",
-            "email",
-            "number",
-            "avatar",
-            "created_at",
-        ]
+        fields = ["id", "name", "email", "number", "avatar", "created_at"]
