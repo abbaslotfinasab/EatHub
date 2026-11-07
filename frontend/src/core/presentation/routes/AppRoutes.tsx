@@ -23,6 +23,7 @@ import {AuthGuard} from "./AuthGuarad.tsx";
 import {GuestGuard} from "./GuestGuard.tsx";
 import {BusinessGuard} from "./BusinessGuard.tsx";
 import {EditMenuPage} from "../pages/menu/EditMenuPage.tsx";
+import {EditMenuItemPage} from "../pages/menu/EditMenuItemPage.tsx";
 import {OrdersPage} from "../pages/order/OrdersPage.tsx";
 import {CreateOrderPage} from "../pages/order/CreateOrderPage.tsx";
 import {UpdateOrderPage} from "../pages/order/UpdateOrderPage.tsx";
@@ -88,6 +89,7 @@ export const AppRoutes = () => {
                             <Route path="/menus" element={<MenuPage/>}/>
                             <Route path="/menus/create" element={<CreateMenuPage/>}/>
                             <Route path="/menus/:id/edit" element={<EditMenuPage/>}/>
+                            <Route path="/menu-items/:id/edit" element={<EditMenuItemPage/>}/>
 
 
                             <Route path="/orders" element={<OrdersPage/>}/>
