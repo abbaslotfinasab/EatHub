@@ -91,6 +91,11 @@ jobs:
           CORS_ALLOWED_ORIGINS: https://eathub-staging.pages.dev
           CSRF_TRUSTED_ORIGINS: https://eathub-staging.pages.dev
           ALLOWED_HOSTS: eathub-staging-api.onrender.com
+          R2_ACCOUNT_ID: 00000000000000000000000000000000
+          R2_BUCKET_NAME: eathub-ci-media
+          R2_ACCESS_KEY_ID: ci-access-key
+          R2_SECRET_ACCESS_KEY: ci-secret-key
+          R2_PUBLIC_DOMAIN: https://media.example.test
         run: python manage.py check
 
       - name: Verify migration files
