@@ -52,7 +52,7 @@ export const UserMenu = () => {
                 slotProps={{paper: {sx: {minWidth: 260, borderRadius: 3, mt: 1}}}}
             >
                 <Box sx={{px: 2, py: 1.5}}>
-                    <Stack direction="row" gap={1.5} sx={{alignItems: "center"}}>
+                    <Stack direction="row" spacing={1.5} sx={{alignItems: "center"}}>
                         <Avatar src={me?.avatar ?? undefined} sx={{bgcolor: "#10281A"}}>
                             {initials}
                         </Avatar>
