@@ -18,8 +18,6 @@ import Inventory2RoundedIcon
 import AssessmentRoundedIcon
     from "@mui/icons-material/AssessmentRounded";
 
-import AccountBalanceWalletRoundedIcon
-    from "@mui/icons-material/AccountBalanceWalletRounded";
 
 import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 
@@ -27,7 +25,6 @@ import PeopleRoundedIcon
     from "@mui/icons-material/PeopleRounded";
 
 import AlarmRoundedIcon from "@mui/icons-material/AlarmRounded";
-import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 
 import type {SidebarMenuItem} from "../../../domain/entities/account/SidebarMenuItem.ts";
 
@@ -114,9 +111,6 @@ export const sidebarSections: SidebarSectionConfig[] = [
             },
 
             {
-                title: "تنظیمات انبار",
-                path: "/settings/inventory",
-                icon: SettingsRoundedIcon,
             },
 
         ],
@@ -145,13 +139,9 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 title: "فاکتور ها",
                 path: "/facture",
                 icon: PointOfSaleRoundedIcon,
+                comingSoonMessage: "بخش مدیریت فاکتورها در حال طراحی و توسعه است. پس از تکمیل فرایندهای ثبت، مشاهده و پیگیری فاکتورها، این قابلیت در دسترس شما قرار خواهد گرفت. از همراهی شما سپاسگزاریم.",
             },
 
-            {
-                title: "حسابداری",
-                path: "/accounting",
-                icon: AccountBalanceWalletRoundedIcon,
-            },
         ],
     },
 
@@ -182,6 +172,7 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 title: "کارمندان",
                 path: "/users",
                 icon: PeopleRoundedIcon,
+                comingSoonMessage: "بخش مدیریت کارکنان در حال طراحی و توسعه است. پس از تکمیل فرایندهای دعوت، مدیریت دسترسی‌ها و پیگیری کارکنان، این قابلیت در دسترس شما قرار خواهد گرفت. از شکیبایی شما سپاسگزاریم.",
             },
 
 
