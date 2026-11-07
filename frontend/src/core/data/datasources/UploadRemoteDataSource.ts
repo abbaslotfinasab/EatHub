@@ -2,71 +2,23 @@ import type {UploadOptions} from "../../domain/repositories/core/UploadRepositor
 import type {UploadFileResponseDTO} from "../dtos/upload/UploadFileResponseDTO";
 import {apiClient} from "../http/http-client.ts";
 
-
 export class UploadRemoteDataSource {
-
-
-    async upload(
-        file: File,
-        options?: UploadOptions,
-    ): Promise<UploadFileResponseDTO> {
-
-
-        const formData =
-            new FormData();
-
-
-        formData.append(
-            "file",
-            file,
-        );
-
-
-        if (options?.folder) {
-
-            formData.append(
-                "folder",
-                options.folder,
-            );
-
-        }
-
+    async upload(file: File, options?: UploadOptions): Promise<UploadFileResponseDTO> {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("purpose", options?.purpose ?? "generic");
 
         const {data} = await apiClient.post<UploadFileResponseDTO>(
             "/core/upload/",
             formData,
             {
-                headers: {
-                    "Content-Type": "multipart/form-data",
-                },
-
-                timeout: 120000, // 2 دقیقه
-
-
+                timeout: 120000,
                 onUploadProgress(event) {
-
-                    if (!event.total) {
-                        return;
-                    }
-
-
-                    const percent =
-                        Math.round(
-                            (event.loaded / event.total) * 100
-                        );
-
-
-                    options?.onProgress?.(
-                        percent,
-                    );
-
+                    if (!event.total) return;
+                    options?.onProgress?.(Math.round((event.loaded / event.total) * 100));
                 },
             },
         );
-
-
         return data;
-
     }
-
 }
