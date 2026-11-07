@@ -28,7 +28,10 @@ apiClient.interceptors.request.use(
 
 
 let isRefreshing = false;
-let queue: ((token: string) => void)[] = [];
+let queue: Array<{
+    resolve: (token: string) => void;
+    reject: (error: unknown) => void;
+}> = [];
 
 apiClient.interceptors.response.use(
     (response) => response,
@@ -46,11 +49,14 @@ apiClient.interceptors.response.use(
 
         // اگر refresh در حال انجام است → صف
         if (isRefreshing) {
-            return new Promise((resolve) => {
-                queue.push((token: string) => {
-                    originalRequest.headers.Authorization =
-                        `Bearer ${token}`;
-                    resolve(apiClient(originalRequest));
+            return new Promise((resolve, reject) => {
+                queue.push({
+                    resolve: (token: string) => {
+                        originalRequest.headers.Authorization =
+                            `Bearer ${token}`;
+                        resolve(apiClient(originalRequest));
+                    },
+                    reject,
                 });
             });
         }
@@ -62,8 +68,7 @@ apiClient.interceptors.response.use(
                 useAuthStore.getState().refreshToken;
 
             if (!refreshToken) {
-                useAuthStore.getState().clear();
-                return Promise.reject(new Error("No refresh token"));
+                throw new Error("No refresh token");
             }
 
             const { data } = await axios.post(
@@ -74,18 +79,17 @@ apiClient.interceptors.response.use(
             );
 
             const newAccessToken = data.access;
+            const newRefreshToken = data.refresh ?? refreshToken;
 
-            // update store + localStorage
+            // SimpleJWT rotates refresh tokens when ROTATE_REFRESH_TOKENS is enabled.
+            // Persist the rotated token or the next refresh attempt will be rejected.
             useAuthStore
                 .getState()
-                .setTokens(
-                    newAccessToken,
-                    refreshToken
-                );
+                .setTokens(newAccessToken, newRefreshToken);
 
-            // retry queued requests
-            queue.forEach((cb) =>
-                cb(newAccessToken)
+            // Retry queued requests only after both tokens have been persisted.
+            queue.forEach((waiter) =>
+                waiter.resolve(newAccessToken)
             );
             queue = [];
 
@@ -95,7 +99,12 @@ apiClient.interceptors.response.use(
 
             return apiClient(originalRequest);
         } catch (err) {
-            // ❌ refresh fail → logout
+            // Reject every request waiting for the refresh attempt; never leave
+            // requests pending forever when refresh fails.
+            queue.forEach((waiter) => waiter.reject(err));
+            queue = [];
+
+            // A failed refresh invalidates the local authenticated session.
             useAuthStore.getState().clear();
 
             return Promise.reject(err);

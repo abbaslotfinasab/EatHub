@@ -1,0 +1,14 @@
+EatHub — Third-party notices
+
+Copyright © 2026 Abbas Lotfinasab. All rights reserved in original EatHub
+materials, subject to third-party rights and licenses.
+
+This repository may include or depend on third-party software, libraries,
+fonts, images, icons, and other materials. Such materials are not relicensed
+by the EatHub proprietary notice and remain governed by their respective
+copyright notices and license terms.
+
+Refer to the relevant dependency manifests, lockfiles, package metadata, and
+upstream project notices for third-party license information. Before
+redistributing a build or a copy of this project, verify that all applicable
+third-party attribution and license obligations have been satisfied.
