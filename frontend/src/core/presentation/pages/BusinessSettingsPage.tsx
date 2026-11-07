@@ -50,6 +50,7 @@ export const BusinessSettingsPage = () => {
             };
             const {data} = await apiClient.patch<BusinessProfile>("/accounts/business/profile/", payload);
             setProfile(data);
+            window.dispatchEvent(new Event("business-profile-updated"));
             setLogoFile(null);
             setRemoveLogo(false);
             setSuccess("اطلاعات کسب‌وکار با موفقیت ذخیره شد.");
