@@ -6,15 +6,10 @@ import type { MenuItem } from "../../domain/entities/product/menu/MenuItem.ts";
 import type { MenuWithItems } from "../../domain/entities/product/menu/MenuWithItems.ts";
 
 import type { UpdateMenuDTO } from "../dtos/menu/UpdateMenuDTO.ts";
-import type { UpdateMenuItemDTO } from "../dtos/menu/UpdateMenuItemDTO.ts";
 import type {CreateMenuDTO} from "../dtos/menu/CreateMenuDTO.ts";
 import type { CreateMenuItemDTO } from "../dtos/menu/CreateMenuItemDTO.ts";
 
 export const menuMapper = {
-    // =========================
-    // DTO → DOMAIN
-    // =========================
-
     toDomain(dto: MenuDTO): MenuWithItems {
         return {
             menu: menuMapper.toMenu(dto),
@@ -50,7 +45,7 @@ export const menuMapper = {
         };
     },
 
-     toCreateDTO(domain: MenuWithItems): CreateMenuDTO {
+    toCreateDTO(domain: MenuWithItems): CreateMenuDTO {
         return {
             name: domain.menu.name,
             category: domain.menu.category,
@@ -70,13 +65,9 @@ export const menuMapper = {
         };
     },
 
-    // =========================
-    // DOMAIN → UPDATE DTO
-    // =========================
-
     toUpdateDTO(domain: MenuWithItems): UpdateMenuDTO {
         return {
-            id: domain.menu.id?? -1,
+            id: domain.menu.id ?? -1,
             name: domain.menu.name,
             category: domain.menu.category,
             description: domain.menu.description,
@@ -85,9 +76,8 @@ export const menuMapper = {
         };
     },
 
-    toUpdateMenuItemDTO(domain: MenuItem): UpdateMenuItemDTO {
+    toUpdateMenuItemDTO(domain: MenuItem): CreateMenuItemDTO {
         return {
-            id: domain.id ?? -1,
             name: domain.name,
             recipe_id: domain.recipeId ? Number(domain.recipeId) : null,
             description: domain.description,
