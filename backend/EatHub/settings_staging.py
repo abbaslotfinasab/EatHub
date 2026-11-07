@@ -87,30 +87,15 @@ MIDDLEWARE = [
     *MIDDLEWARE[2:],  # noqa: F405
 ]
 
-STORAGES = {
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-}
-
-# All user-uploaded media must live in durable object storage. Render Free's
-# local filesystem is ephemeral and must never be used for persistent uploads.
-R2_ACCOUNT_ID = _required_env("R2_ACCOUNT_ID")
-R2_BUCKET_NAME = _required_env("R2_BUCKET_NAME")
-R2_ACCESS_KEY_ID = _required_env("R2_ACCESS_KEY_ID")
-R2_SECRET_ACCESS_KEY = _required_env("R2_SECRET_ACCESS_KEY")
-R2_PUBLIC_DOMAIN = _required_env("R2_PUBLIC_DOMAIN").removeprefix("https://").rstrip("/")
-
-AWS_ACCESS_KEY_ID = R2_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY = R2_SECRET_ACCESS_KEY
-AWS_STORAGE_BUCKET_NAME = R2_BUCKET_NAME
-AWS_S3_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-AWS_S3_REGION_NAME = "auto"
+# Neon Object Storage is S3-compatible and lives alongside the existing
+# PostgreSQL project. Its public_read bucket serves images with DEBUG=False.
+AWS_ACCESS_KEY_ID = _required_env("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = _required_env("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = _required_env("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_ENDPOINT_URL = _required_env("AWS_ENDPOINT_URL_S3")
+AWS_S3_REGION_NAME = _required_env("AWS_REGION")
+AWS_S3_ADDRESSING_STYLE = "path"
 AWS_S3_SIGNATURE_VERSION = "s3v4"
-AWS_S3_CUSTOM_DOMAIN = R2_PUBLIC_DOMAIN
 AWS_S3_URL_PROTOCOL = "https:"
 AWS_DEFAULT_ACL = None
 AWS_QUERYSTRING_AUTH = False
