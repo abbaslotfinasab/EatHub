@@ -1,4 +1,5 @@
 import {useState} from "react";
+import {useNavigate} from "react-router-dom";
 
 import {
     Box,
@@ -26,6 +27,7 @@ export const MobileSidebar = () => {
     } = useSidebar();
 
     const me = useAuthStore((s) => s.me);
+    const navigate = useNavigate();
 
     const restaurants =
         me?.memberships?.map((m) => ({
@@ -115,9 +117,9 @@ export const MobileSidebar = () => {
                         closeMobile();
                     }}
                     onAddRestaurant={() => {
-                        console.log(
-                            "add restaurant"
-                        );
+                        setRestaurantMenuOpen(false);
+                        closeMobile();
+                        navigate("/business");
                     }}
                 />
             </Collapse>
