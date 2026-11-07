@@ -6,7 +6,7 @@ It must never connect to production databases, storage, secrets, or domains.
 ## Architecture
 
 - Frontend: Cloudflare Pages, connected to this repository.
-- No Cloudflare Workers Build is configured for this staging slice. Do not attach a Workers Build trigger to this repository: the frontend is deployed by Pages, and the API is deployed by Render. A Worker preview command (`wrangler preview`) is not a substitute for the Pages build.
+- Cloudflare Workers Builds are intentionally disconnected for this staging slice. The frontend is deployed by Pages and the API by Render; no Worker build/deploy is part of this architecture. Do not recreate a Workers Build connection for this repository unless a real Worker service is introduced with its own checked-in Wrangler configuration.
 - API: Render Docker Web Service defined in the root `render.yaml`.
 - Database: a dedicated PostgreSQL project on Neon (not Render's expiring
   free PostgreSQL instance).
