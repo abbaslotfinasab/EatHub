@@ -132,7 +132,7 @@ export const ProfilePage = () => {
                                     <input
                                         hidden
                                         type="file"
-                                        accept="image/*"
+                                        accept="image/jpeg,image/png,image/webp"
                                         onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
                                     />
                                 </Button>
