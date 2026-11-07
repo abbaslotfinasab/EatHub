@@ -17,6 +17,8 @@ export interface OrderDTO {
 
     status: string;
 
+    inventory_tracking_enabled: boolean | null;
+
     subtotal: number;
     discount: number;
     tax: number;
