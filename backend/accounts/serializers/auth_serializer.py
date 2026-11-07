@@ -64,11 +64,7 @@ class LoginResponseSerializer(serializers.Serializer):
 
     def get_user(self, obj):
         user = obj["user"]
-        return {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-        }
+        return {"id": user.id, "email": user.email, "name": user.name}
 
 
 class ActiveBusinessSerializer(serializers.Serializer):
@@ -97,14 +93,38 @@ class UserMeSerializer(serializers.Serializer):
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):
+    avatar = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+
     class Meta:
         model = User
         fields = ("name", "number", "avatar")
         extra_kwargs = {
             "name": {"required": False},
             "number": {"required": False, "allow_blank": True},
-            "avatar": {"required": False, "allow_null": True},
         }
+
+    def validate_avatar(self, value):
+        if value in (None, ""):
+            return value
+        if not value.startswith(f"uploads/avatars/{self.context['request'].user.pk}/") or ".." in value.split("/"):
+            raise serializers.ValidationError("مسیر تصویر پروفایل معتبر نیست.")
+        from django.core.files.storage import default_storage
+        if not default_storage.exists(value):
+            raise serializers.ValidationError("تصویر آپلودشده پیدا نشد.")
+        return value
+
+    def update(self, instance, validated_data):
+        avatar = validated_data.pop("avatar", serializers.empty)
+        old_avatar = instance.avatar.name if instance.avatar else None
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        if avatar is not serializers.empty:
+            instance.avatar = avatar or None
+        instance.save()
+        if avatar is not serializers.empty and old_avatar and old_avatar != instance.avatar.name:
+            from core.services.UploadService import UploadService
+            UploadService.delete(old_avatar)
+        return instance
 
 
 class ChangePasswordSerializer(serializers.Serializer):

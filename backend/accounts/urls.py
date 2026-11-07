@@ -9,6 +9,7 @@ from accounts.views import (
     MeAPIView,
     ChangePasswordAPIView,
     BusinessCreateAPIView,
+    BusinessProfileAPIView,
     UserListAPIView,
 )
 
@@ -21,6 +22,7 @@ urlpatterns = [
     path("auth/me/", MeAPIView.as_view(), name="me"),
     path("auth/change-password/", ChangePasswordAPIView.as_view(), name="change-password"),
     path("create/business/", BusinessCreateAPIView.as_view()),
+    path("business/profile/", BusinessProfileAPIView.as_view(), name="business-profile"),
     path("business/inventory-settings/", BusinessInventorySettingsAPIView.as_view(), name="business-inventory-settings"),
     path("auth/refresh/", TokenRefreshView.as_view()),
     path("users/", UserListAPIView.as_view(), name="users"),

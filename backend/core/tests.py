@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.core.files.storage import default_storage
 from django.db import DatabaseError
 from django.utils import timezone
 from rest_framework import status
@@ -412,3 +413,138 @@ class DashboardRecentOrdersPaginationTests(APITestCase):
         self.assertEqual(order.status, Order.Status.PENDING)
         self.assertEqual(order.payment_status, Order.PaymentStatus.PENDING)
         self.assertFalse(ActivityLog.objects.filter(entity_id=order.id).exists())
+
+
+class SharedImageUploadApiTests(APITestCase):
+    def setUp(self):
+        import tempfile
+        from django.test import override_settings
+
+        self.media_dir = tempfile.mkdtemp(prefix="eathub-upload-tests-")
+        self.settings_override = override_settings(MEDIA_ROOT=self.media_dir)
+        self.settings_override.enable()
+        self.user = User.objects.create_user(
+            email="shared-upload@example.com",
+            password="password",
+            name="Upload User",
+            number="88001",
+        )
+        self.business = Business.objects.create(name="Upload Business")
+        role = Role.objects.create(business=self.business, name="Owner", code="OWNER")
+        Membership.objects.create(
+            user=self.user,
+            business=self.business,
+            role=role,
+            is_active=True,
+        )
+        self.client.force_authenticate(self.user)
+
+    def tearDown(self):
+        self.settings_override.disable()
+        import shutil
+        shutil.rmtree(self.media_dir, ignore_errors=True)
+
+    @staticmethod
+    def image_file(name="image.png", image_format="PNG"):
+        import io
+        from PIL import Image
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        buffer = io.BytesIO()
+        Image.new("RGB", (32, 32), color="green").save(buffer, format=image_format)
+        return SimpleUploadedFile(
+            name,
+            buffer.getvalue(),
+            content_type=f"image/{image_format.lower()}",
+        )
+
+    def test_upload_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.post(
+            "/api/core/upload/",
+            {"file": self.image_file(), "purpose": "avatar"},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_upload_validates_image_and_uses_purpose_directory(self):
+        response = self.client.post(
+            "/api/core/upload/",
+            {"file": self.image_file(), "purpose": "avatar"},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["path"].startswith(f"uploads/avatars/{self.user.pk}/"))
+        self.assertEqual(response.data["content_type"], "image/png")
+        self.assertEqual(response.data["width"], 32)
+        self.assertTrue(default_storage.exists(response.data["path"]))
+
+    def test_upload_rejects_non_image_and_oversized_files(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        invalid = SimpleUploadedFile("fake.png", b"not an image", content_type="image/png")
+        response = self.client.post(
+            "/api/core/upload/",
+            {"file": invalid, "purpose": "avatar"},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        oversized = SimpleUploadedFile(
+            "large.png",
+            b"x" * (5 * 1024 * 1024 + 1),
+            content_type="image/png",
+        )
+        response = self.client.post(
+            "/api/core/upload/",
+            {"file": oversized, "purpose": "avatar"},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_avatar_and_business_logo_use_uploaded_storage_paths(self):
+        avatar_upload = self.client.post(
+            "/api/core/upload/",
+            {"file": self.image_file("avatar.png"), "purpose": "avatar"},
+            format="multipart",
+        )
+        logo_upload = self.client.post(
+            "/api/core/upload/",
+            {"file": self.image_file("logo.png"), "purpose": "business_logo"},
+            format="multipart",
+        )
+        self.assertEqual(avatar_upload.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(logo_upload.status_code, status.HTTP_201_CREATED)
+
+        profile_response = self.client.patch(
+            "/api/accounts/auth/me/",
+            {"avatar": avatar_upload.data["path"]},
+            format="json",
+        )
+        self.assertEqual(profile_response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.avatar.name, avatar_upload.data["path"])
+
+        business_response = self.client.patch(
+            "/api/accounts/business/profile/",
+            {"logo": logo_upload.data["path"]},
+            format="json",
+        )
+        self.assertEqual(business_response.status_code, status.HTTP_200_OK)
+        self.business.refresh_from_db()
+        self.assertEqual(self.business.logo.name, logo_upload.data["path"])
+
+    def test_profile_and_business_reject_unowned_upload_paths(self):
+        response = self.client.patch(
+            "/api/accounts/auth/me/",
+            {"avatar": "uploads/businesses/logos/99999/not-owned.png"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.patch(
+            "/api/accounts/business/profile/",
+            {"logo": "uploads/avatars/99999/not-owned.png"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

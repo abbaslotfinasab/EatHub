@@ -7,6 +7,7 @@ import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
 import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import PeopleRoundedIcon from "@mui/icons-material/PeopleRounded";
 import AlarmRoundedIcon from "@mui/icons-material/AlarmRounded";
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 
 import type { SidebarMenuItem } from "../../../domain/entities/account/SidebarMenuItem.ts";
 
@@ -75,6 +76,12 @@ export const sidebarSections: SidebarSectionConfig[] = [
         title: "مشتری",
         items: [
             { title: "کیف پول", path: "/customers", icon: PointOfSaleRoundedIcon },
+        ],
+    },
+    {
+        title: "تنظیمات",
+        items: [
+            { title: "اطلاعات کسب‌وکار", path: "/settings/business", icon: SettingsRoundedIcon },
         ],
     },
     {
