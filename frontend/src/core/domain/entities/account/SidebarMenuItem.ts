@@ -8,5 +8,6 @@ export interface SidebarMenuItem {
     path: string;
     requiredPermission?: string;
     badgeCount?:string,
+    comingSoonMessage?: string;
     children?: SidebarMenuItem[];
 }

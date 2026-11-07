@@ -13,7 +13,7 @@ const errorText = (error: unknown) => {
     return 'ارتباط با سرور برقرار نشد. دوباره تلاش کنید.';
 };
 
-export const WarehousesPage = () => {
+export const WarehousesPage = ({ embedded = false }: { embedded?: boolean }) => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [page, setPage] = useState(1);
@@ -53,7 +53,7 @@ export const WarehousesPage = () => {
     };
 
     return (
-        <Container maxWidth="xl" sx={{ py: 2 }} dir="rtl">
+        <Container maxWidth={embedded ? false : "xl"} sx={{ py: embedded ? 0 : 2, px: embedded ? 0 : undefined }} dir="rtl">
             <Stack spacing={2.5}>
                 <Box>
                     <Typography variant="h4" component="h1" sx={{ fontWeight: 700 }}>انبارها</Typography>
