@@ -55,7 +55,6 @@ export const SidebarHeader = ({
                     <Avatar
                         src={restaurantLogo || undefined}
                         alt={name}
-                        imgProps={{ referrerPolicy: "no-referrer" }}
                         sx={{
                             width: 48,
                             height: 48,
@@ -63,7 +62,7 @@ export const SidebarHeader = ({
                             color: "#10281A",
                             fontWeight: 700,
                             flexShrink: 0,
-                            objectFit: "cover",
+                            "& .MuiAvatar-img": { objectFit: "cover" },
                         }}
                     >
                         {!restaurantLogo && initial}
