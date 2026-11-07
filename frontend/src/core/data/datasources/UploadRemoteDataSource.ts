@@ -12,6 +12,9 @@ export class UploadRemoteDataSource {
             "/core/upload/",
             formData,
             {
+                // Override apiClient's default application/json header.
+                // Axios must send FormData as multipart with a browser-generated boundary.
+                headers: {"Content-Type": "multipart/form-data"},
                 timeout: 120000,
                 onUploadProgress(event) {
                     if (!event.total) return;
