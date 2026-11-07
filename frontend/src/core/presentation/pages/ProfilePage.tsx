@@ -16,7 +16,7 @@ import LockResetRoundedIcon from "@mui/icons-material/LockResetRounded";
 import PhotoCameraRoundedIcon from "@mui/icons-material/PhotoCameraRounded";
 import {apiClient} from "../../data/http/http-client.ts";
 import {meMapper} from "../../data/mappers/meMapper.ts";
-import {useAuthStore} from "../store/auth.store.ts";
+import {useAuthStore} from "../store/auth.store.ts";\nimport {useUploadFile} from "../hooks/useUploadFile.ts";\nimport {useFilePreview} from "../forms/upload/useFilePreview.ts";
 
 const getErrorMessage = (error: unknown, fallback: string) => {
     if (typeof error === "object" && error !== null && "response" in error) {
@@ -54,14 +54,15 @@ export const ProfilePage = () => {
         setProfileError("");
         setProfileSuccess("");
         try {
-            const formData = new FormData();
-            formData.append("name", name.trim());
-            formData.append("number", number.trim());
-            if (avatarFile) formData.append("avatar", avatarFile);
-
-            const {data} = await apiClient.patch("/accounts/auth/me/", formData, {
-                headers: {"Content-Type": "multipart/form-data"},
-            });
+            const uploaded = avatarFile
+                ? await uploadFile({file: avatarFile, purpose: "avatar"})
+                : null;
+            const payload = {
+                name: name.trim(),
+                number: number.trim(),
+                ...(uploaded ? {avatar: uploaded.path} : {}),
+            };
+            const {data} = await apiClient.patch("/accounts/auth/me/", payload);
             setMe(meMapper(data));
             setAvatarFile(null);
             setProfileSuccess("اطلاعات پروفایل با موفقیت ذخیره شد.");
@@ -116,7 +117,7 @@ export const ProfilePage = () => {
                     <Typography variant="h6" sx={{fontWeight: 700, mb: 2}}>اطلاعات شخصی</Typography>
                     <Box component="form" onSubmit={saveProfile}>
                         <Stack direction={{xs: "column", sm: "row"}} spacing={3} sx={{mb: 3, alignItems: {sm: "center"}}}>
-                            <Avatar src={me?.avatar ?? undefined} sx={{width: 88, height: 88, bgcolor: "#10281A", fontSize: 30}}>
+                            <Avatar src={avatarPreview?.url ?? me?.avatar ?? undefined} sx={{width: 88, height: 88, bgcolor: "#10281A", fontSize: 30}}>
                                 {initials}
                             </Avatar>
                             <Box>
@@ -131,7 +132,7 @@ export const ProfilePage = () => {
                                         onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
                                     />
                                 </Button>
-                                {avatarFile && <Typography variant="caption" sx={{display: "block"}}>{avatarFile.name}</Typography>}
+                                {avatarFile && <Typography variant="caption" sx={{display: "block"}}>{avatarFile.name} · {Math.round(avatarFile.size / 1024)} KB</Typography>}\n                                {avatarFile && <Typography variant="caption" color="text.secondary">آپلود هنگام ذخیره انجام می‌شود. {uploadProgress > 0 ? `${uploadProgress}%` : ""}</Typography>}
                             </Box>
                         </Stack>
 
