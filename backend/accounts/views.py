@@ -14,7 +14,12 @@ from accounts.serializers.auth_serializer import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.serializers.auth_serializer import LoginSerializer
-from accounts.serializers.business_serializer import (\n    BusinessCreateSerializer,\n    BusinessInventorySettingsSerializer,\n    BusinessProfileUpdateSerializer,\n    BusinessSerializer,\n)
+from accounts.serializers.business_serializer import (
+    BusinessCreateSerializer,
+    BusinessInventorySettingsSerializer,
+    BusinessProfileUpdateSerializer,
+    BusinessSerializer,
+)
 from accounts.services.business_service import BusinessService
 from accounts.services.me_service import MeService
 
