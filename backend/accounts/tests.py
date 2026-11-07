@@ -390,9 +390,7 @@ class BusinessInventorySettingsAPITests(TestCase):
         self.assertTrue(self.business.inventory_enabled)
 
     def test_non_owner_cannot_change_inventory_mode(self):
-        manager_role = Role.objects.create(
-            business=self.business, name="Manager", code="MANAGER", is_system=True
-        )
+        manager_role = Role.objects.get(business=self.business, code="MANAGER")
         staff = User.objects.create_user(
             email="inventory-manager@example.test", password="test-password",
             name="Inventory Manager", number="inventory-manager",
