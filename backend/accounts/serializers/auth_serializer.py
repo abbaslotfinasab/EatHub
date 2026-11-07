@@ -73,6 +73,7 @@ class ActiveBusinessSerializer(serializers.Serializer):
     role = serializers.CharField()
     qr = serializers.URLField(allow_null=True, required=False)
     slug = serializers.CharField()
+    logo = serializers.CharField(allow_null=True, required=False)
     permissions = serializers.ListField(child=serializers.CharField())
     inventory_enabled = serializers.BooleanField()
 
