@@ -170,7 +170,7 @@ class BusinessCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = BusinessCreateSerializer(data=request.data)
+        serializer = BusinessCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         business = BusinessService.create_business(
             user=request.user,
