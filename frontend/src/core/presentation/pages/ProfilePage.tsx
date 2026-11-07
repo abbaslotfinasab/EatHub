@@ -16,7 +16,9 @@ import LockResetRoundedIcon from "@mui/icons-material/LockResetRounded";
 import PhotoCameraRoundedIcon from "@mui/icons-material/PhotoCameraRounded";
 import {apiClient} from "../../data/http/http-client.ts";
 import {meMapper} from "../../data/mappers/meMapper.ts";
-import {useAuthStore} from "../store/auth.store.ts";\nimport {useUploadFile} from "../hooks/useUploadFile.ts";\nimport {useFilePreview} from "../forms/upload/useFilePreview.ts";
+import {useAuthStore} from "../store/auth.store.ts";
+import {useUploadFile} from "../hooks/useUploadFile.ts";
+import {useFilePreview} from "../forms/upload/useFilePreview.ts";
 
 const getErrorMessage = (error: unknown, fallback: string) => {
     if (typeof error === "object" && error !== null && "response" in error) {
@@ -132,7 +134,8 @@ export const ProfilePage = () => {
                                         onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
                                     />
                                 </Button>
-                                {avatarFile && <Typography variant="caption" sx={{display: "block"}}>{avatarFile.name} · {Math.round(avatarFile.size / 1024)} KB</Typography>}\n                                {avatarFile && <Typography variant="caption" color="text.secondary">آپلود هنگام ذخیره انجام می‌شود. {uploadProgress > 0 ? `${uploadProgress}%` : ""}</Typography>}
+                                {avatarFile && <Typography variant="caption" sx={{display: "block"}}>{avatarFile.name} · {Math.round(avatarFile.size / 1024)} KB</Typography>}
+                                {avatarFile && <Typography variant="caption" color="text.secondary">آپلود هنگام ذخیره انجام می‌شود. {uploadProgress > 0 ? `${uploadProgress}%` : ""}</Typography>}
                             </Box>
                         </Stack>
 
