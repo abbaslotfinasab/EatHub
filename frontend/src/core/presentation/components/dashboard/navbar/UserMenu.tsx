@@ -3,7 +3,6 @@ import {useNavigate} from "react-router-dom";
 import {
     Avatar, Box, Divider, Menu, MenuItem, Stack, Typography,
 } from "@mui/material";
-import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
@@ -63,11 +62,7 @@ export const UserMenu = () => {
                     </Stack>
                 </Box>
                 <Divider/>
-                <MenuItem onClick={() => {handleClose(); navigate("/profile");}}>
-                    <PersonOutlineRoundedIcon sx={{mr: 1, fontSize: 20}}/>
-                    پروفایل
-                </MenuItem>
-                <MenuItem onClick={() => {handleClose(); navigate("/settings/inventory");}}>
+                <MenuItem onClick={() => {handleClose(); navigate("/settings");}}>
                     <SettingsRoundedIcon sx={{mr: 1, fontSize: 20}}/>
                     تنظیمات
                 </MenuItem>
