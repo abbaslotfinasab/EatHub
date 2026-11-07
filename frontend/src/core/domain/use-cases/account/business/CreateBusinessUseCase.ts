@@ -16,7 +16,7 @@ export const CreateBusinessSchema = z.object({
 
   address: z.string().optional(),
 
-  logo: z.any().nullable().optional(), // File | null
+  logo: z.any().nullable().optional(), // legacy file input\n  logoUrl: z.string().nullable().optional(),
 });
 
 export type CreateBusinessInput = z.infer<typeof CreateBusinessSchema>;
