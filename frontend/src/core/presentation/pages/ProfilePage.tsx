@@ -177,13 +177,15 @@ export const ProfilePage = () => {
                 </CardContent>
             </Card>
 
-            <BusinessSettingsSection embedded />
+            {me?.active_business && <>
+                <BusinessSettingsSection embedded />
 
-            <Card elevation={0} sx={{border: "1px solid #E5E7EB", borderRadius: 3, mt: 3, mb: 3}}>
-                <CardContent sx={{p: {xs: 2, md: 3}}}>
-                    <InventorySettingsSection embedded />
-                </CardContent>
-            </Card>
+                <Card elevation={0} sx={{border: "1px solid #E5E7EB", borderRadius: 3, mt: 3, mb: 3}}>
+                    <CardContent sx={{p: {xs: 2, md: 3}}}>
+                        <InventorySettingsSection embedded />
+                    </CardContent>
+                </Card>
+            </>}
 
             <Card elevation={0} sx={{border: "1px solid #E5E7EB", borderRadius: 3}}>
                 <CardContent sx={{p: {xs: 2, md: 3}}}>
