@@ -74,7 +74,7 @@ export const BusinessSettingsPage = () => {
                     {success && <Alert severity="success" sx={{mb: 2}}>{success}</Alert>}
                     <Box component="form" onSubmit={save}>
                         <Stack spacing={3}>
-                            <Stack direction={{xs: "column", sm: "row"}} spacing={2} alignItems="center">
+                            <Stack direction={{xs: "column", sm: "row"}} spacing={2} sx={{alignItems: "center"}}>
                                 <Avatar variant="rounded" src={preview?.url ?? undefined} sx={{width: 112, height: 112, bgcolor: "grey.100", border: "1px dashed", borderColor: "divider"}}/>
                                 <Stack spacing={1}>
                                     <Typography sx={{fontWeight: 700}}>لوگوی کسب‌وکار</Typography>
