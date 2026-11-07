@@ -9,6 +9,7 @@ from accounts.views import (
     MeAPIView,
     ChangePasswordAPIView,
     BusinessCreateAPIView,
+    BusinessProfileAPIView,
     UserListAPIView,
 )
 
