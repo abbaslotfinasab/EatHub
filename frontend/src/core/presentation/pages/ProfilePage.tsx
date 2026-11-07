@@ -1,4 +1,5 @@
 import {useState} from "react";
+import {BusinessSettingsPage} from "./BusinessSettingsPage.tsx";
 import {
     Alert,
     Avatar,
@@ -110,9 +111,9 @@ export const ProfilePage = () => {
     return (
         <Box sx={{maxWidth: 920, mx: "auto", direction: "rtl"}}>
             <Stack spacing={1} sx={{mb: 3}}>
-                <Typography variant="h4" sx={{fontWeight: 800}}>پروفایل کاربری</Typography>
+                <Typography variant="h4" sx={{fontWeight: 800}}>تنظیمات</Typography>
                 <Typography color="text.secondary">
-                    اطلاعات حساب و امنیت ورود خود را مدیریت کنید.
+                    تنظیمات حساب کاربری و کسب‌وکار را از یک‌جا مدیریت کنید.
                 </Typography>
             </Stack>
 
@@ -174,6 +175,8 @@ export const ProfilePage = () => {
                     </Box>
                 </CardContent>
             </Card>
+
+            {me?.active_business && <Box sx={{mb: 3}}><BusinessSettingsPage/></Box>}
 
             <Card elevation={0} sx={{border: "1px solid #E5E7EB", borderRadius: 3}}>
                 <CardContent sx={{p: {xs: 2, md: 3}}}>
