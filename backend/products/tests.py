@@ -229,7 +229,9 @@ class OrderListPaginationTests(APITestCase):
     def test_orders_only_business_can_complete_preparing_order_without_inventory_snapshot(self) -> None:
         self.business.inventory_enabled = False
         self.business.save(update_fields=["inventory_enabled"])
-        order = self.create_order(status=Order.Status.PREPARING)
+        order = self.create_order(
+            status=Order.Status.PREPARING, inventory_tracking_enabled=False
+        )
 
         response = self.client.patch(
             f"/api/products/orders/{order.id}/status/",
