@@ -12,6 +12,7 @@ import {useSidebar} from "../../hooks/useSidebar";
 import {SIDEBAR_WIDTH, SIDEBAR_COLLAPSED_WIDTH} from "../../../../config/constants";
 import {useAuthStore} from "../../store/auth.store.ts";
 import {apiClient} from "../../../data/http/http-client.ts";
+import {useBusinessLogo} from "../../hooks/useBusinessLogo.ts";
 
 export const DesktopSidebar = () => {
     const {isCollapsed} = useSidebar();
@@ -27,6 +28,7 @@ export const DesktopSidebar = () => {
         name: membership.business_name,
         logo: "🏪",
     })) ?? [];
+    const restaurantLogo = useBusinessLogo(me?.active_business?.id ?? null);
     const selectedRestaurantId = me?.active_business
         ? String(me.active_business.id)
         : "";
@@ -82,6 +84,7 @@ export const DesktopSidebar = () => {
                 <SidebarHeader
                     restaurantName={me?.active_business?.name}
                     restaurantRole={me?.active_business?.role}
+                    restaurantLogo={restaurantLogo}
                     isOpen={restaurantMenuOpen}
                     onToggle={handleHeaderClick}
                 />
