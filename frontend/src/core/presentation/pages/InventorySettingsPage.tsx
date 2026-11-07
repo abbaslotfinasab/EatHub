@@ -4,7 +4,7 @@ import { Alert, Box, Button, CircularProgress, Dialog, DialogContent, DialogTitl
 import { apiClient } from "../../data/http/http-client";
 import { WarehousesPage } from "./WarehousesPage";
 
-export const InventorySettingsPage = () => {
+export const InventorySettingsSection = ({embedded = false}: {embedded?: boolean}) => {
     const [enabled, setEnabled] = useState(true);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -36,7 +36,8 @@ export const InventorySettingsPage = () => {
 
     return (
         <Box sx={{ maxWidth: 820, mx: "auto" }} dir="rtl">
-            <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>تنظیمات انبار</Typography>
+            {!embedded && <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>تنظیمات انبار</Typography>}
+            {embedded && <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>تنظیمات انبار</Typography>}
             <Stack spacing={2}>
                 <Paper variant="outlined" sx={{ p: 3, borderRadius: 3 }}>
                     <Typography sx={{ fontWeight: 700, mb: 1 }}>اتصال سفارش‌ها به انبار</Typography>

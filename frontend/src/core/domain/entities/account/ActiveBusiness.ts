@@ -3,6 +3,7 @@ export interface ActiveBusiness {
     name: string;
     role: string;
     slug? : string
+    logo?: string | null;
     permissions: string[];
     inventory_enabled?: boolean;
 }

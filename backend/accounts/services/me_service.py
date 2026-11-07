@@ -17,6 +17,7 @@ class MeService:
             active_business = {
                 "id": active_membership.business.id,
                 "name": active_membership.business.name,
+                "logo": active_membership.business.logo.url if active_membership.business.logo else None,
                 "inventory_enabled": active_membership.business.inventory_enabled,
                 "role": active_membership.role.code,
                 "slug": active_membership.business.slug,

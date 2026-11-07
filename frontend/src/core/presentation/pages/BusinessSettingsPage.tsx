@@ -5,6 +5,8 @@ import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
 import {apiClient} from "../../data/http/http-client.ts";
 import {useUploadFile} from "../hooks/useUploadFile.ts";
 import {useFilePreview} from "../forms/upload/useFilePreview.ts";
+import {meMapper} from "../../data/mappers/meMapper.ts";
+import {useAuthStore} from "../store/auth.store.ts";
 
 interface BusinessProfile {
     name: string;
@@ -13,7 +15,8 @@ interface BusinessProfile {
     logo: string | null;
 }
 
-export const BusinessSettingsPage = () => {
+export const BusinessSettingsSection = ({embedded = false}: {embedded?: boolean}) => {
+    const setMe = useAuthStore((state) => state.setMe);
     const [profile, setProfile] = useState<BusinessProfile>({name: "", number: "", address: "", logo: null});
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [removeLogo, setRemoveLogo] = useState(false);
@@ -50,6 +53,8 @@ export const BusinessSettingsPage = () => {
             };
             const {data} = await apiClient.patch<BusinessProfile>("/accounts/business/profile/", payload);
             setProfile(data);
+            const {data: meData} = await apiClient.get("/accounts/auth/me/");
+            setMe(meMapper(meData));
             setLogoFile(null);
             setRemoveLogo(false);
             setSuccess("اطلاعات کسب‌وکار با موفقیت ذخیره شد.");
@@ -64,10 +69,11 @@ export const BusinessSettingsPage = () => {
 
     return (
         <Box sx={{maxWidth: 900, mx: "auto", direction: "rtl"}}>
-            <Stack spacing={1} sx={{mb: 3}}>
+            {!embedded && <Stack spacing={1} sx={{mb: 3}}>
                 <Typography variant="h4" sx={{fontWeight: 800}}>اطلاعات کسب‌وکار</Typography>
                 <Typography color="text.secondary">نام، اطلاعات تماس و لوگوی کسب‌وکار فعال را مدیریت کنید.</Typography>
-            </Stack>
+            </Stack>}
+            {embedded && <Typography variant="h6" sx={{fontWeight: 700, mb: 2}}>اطلاعات کسب‌وکار</Typography>}
             <Card elevation={0} sx={{border: "1px solid #E5E7EB", borderRadius: 3}}>
                 <CardContent sx={{p: {xs: 2, md: 3}}}>
                     {error && <Alert severity="error" sx={{mb: 2}}>{error}</Alert>}
