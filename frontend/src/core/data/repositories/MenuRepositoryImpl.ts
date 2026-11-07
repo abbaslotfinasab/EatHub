@@ -1,122 +1,66 @@
-// core/data/repositories/MenuRepositoryImpl.ts
-
 import type {MenuRepository} from "../../domain/repositories/product/MenuRepository";
-
 import type {MenuWithItems} from "../../domain/entities/product/menu/MenuWithItems.ts";
 import type {MenuItem} from "../../domain/entities/product/menu/MenuItem";
-
 import {MenuRemoteDataSource} from "../datasources/MenuRemoteDataSource";
-
 import {menuMapper} from "../mappers/menuMapper.ts";
-
 import {publicRestaurantMenuMapper} from "../mappers/publicRestaurantMenuMapper";
-
 import type {PublicRestaurantMenu} from "../../domain/entities/product/PublicRestaurantMenu";
+import type {UpdateMenuItemDTO} from "../dtos/menu/UpdateMenuItemDTO.ts";
 
 export class MenuRepositoryImpl implements MenuRepository {
+    constructor(private remote: MenuRemoteDataSource) {}
 
-    constructor(
-        private remote: MenuRemoteDataSource,
-    ) {
+    async create(input: MenuWithItems): Promise<void> {
+        await this.remote.createMenu(menuMapper.toCreateDTO(input));
     }
 
-
-    // ------------------------
-    // Create
-    // ------------------------
-
-    async create(
-        input: MenuWithItems,
-    ): Promise<void> {
-
-        const payload = menuMapper.toCreateDTO(input);
-
-        await this.remote.createMenu(payload);
-
-    }
-
-    // ------------------------
-    // Find One
-    // ------------------------
-
-    async findById(
-        id: number,
-    ): Promise<MenuWithItems | null> {
-
+    async findById(id: number): Promise<MenuWithItems | null> {
         const dto = await this.remote.getMenuById(id);
-
-        if (!dto) {
-            return null;
-        }
-
-        return menuMapper.toDomain(dto);
+        return dto ? menuMapper.toDomain(dto) : null;
     }
-
-    // ------------------------
-    // Find All
-    // ------------------------
 
     async findAll(): Promise<MenuWithItems[]> {
-
         const dtos = await this.remote.getMenus();
-
         return dtos.map(menuMapper.toDomain);
     }
 
-    // ------------------------
-    // Update
-    // ------------------------
-
-    async update(
-        input: MenuWithItems,
-    ): Promise<void> {
-
+    async update(input: MenuWithItems): Promise<void> {
         const payload = menuMapper.toUpdateDTO(input);
-
-        await this.remote.updateMenu(payload.id,payload);
-
-
+        await this.remote.updateMenu(payload.id, payload);
     }
 
-    // ------------------------
-    // Delete
-    // ------------------------
-
-    async delete(
-        id: string,
-    ): Promise<void> {
-
+    async delete(id: string): Promise<void> {
         await this.remote.deleteMenu(id);
     }
 
-    // ------------------------
-    // Public
-    // ------------------------
-
-    async findPublicBySlug(
-        slug: string,
-    ): Promise<PublicRestaurantMenu> {
-
+    async findPublicBySlug(slug: string): Promise<PublicRestaurantMenu> {
         const dto = await this.remote.getPublicMenus(slug);
-
         return publicRestaurantMenuMapper.toDomain(dto);
     }
 
-    // ------------------------
-    // Menu Item
-    // ------------------------
-
-    async findMenuItemById(
-        id: number,
-    ): Promise<MenuItem | null> {
-
-        const menu = await this.findById(id);
-
-        if (!menu) {
-            return null;
+    async findMenuItemById(id: number): Promise<MenuItem | null> {
+        const menus = await this.findAll();
+        for (const menu of menus) {
+            const item = menu.items.find((candidate) => candidate.id === id);
+            if (item) return item;
         }
-
-        return menu.items.find(i => i.id === id) ?? null;
+        return null;
     }
 
+    async updateMenuItem(id: number, input: Partial<MenuItem>): Promise<MenuItem> {
+        const payload: UpdateMenuItemDTO = {
+            ...(input.name !== undefined ? {name: input.name} : {}),
+            ...(input.recipeId !== undefined ? {recipe_id: input.recipeId == null || input.recipeId === "" ? null : Number(input.recipeId)} : {}),
+            ...(input.description !== undefined ? {description: input.description} : {}),
+            ...(input.price !== undefined ? {price: input.price} : {}),
+            ...(input.imageUrl !== undefined ? {image_url: input.imageUrl} : {}),
+            ...(input.isAvailable !== undefined && input.isAvailable !== null ? {is_available: input.isAvailable} : {}),
+        };
+        const dto = await this.remote.updateMenuItem(id, payload);
+        return menuMapper.toMenuItem(dto);
+    }
+
+    async deleteMenuItem(id: number): Promise<void> {
+        await this.remote.deleteMenuItem(id);
+    }
 }
