@@ -7,7 +7,6 @@ import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
 import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import PeopleRoundedIcon from "@mui/icons-material/PeopleRounded";
 import AlarmRoundedIcon from "@mui/icons-material/AlarmRounded";
-import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 
 import type { SidebarMenuItem } from "../../../domain/entities/account/SidebarMenuItem.ts";
 
