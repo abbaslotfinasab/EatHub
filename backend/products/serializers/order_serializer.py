@@ -67,6 +67,7 @@ class OrderSerializer(serializers.Serializer):
 
     order_type = serializers.CharField()
     status = serializers.CharField()
+    inventory_tracking_enabled = serializers.BooleanField(allow_null=True, read_only=True)
 
     payment_method = serializers.CharField()
     payment_status = serializers.CharField()
