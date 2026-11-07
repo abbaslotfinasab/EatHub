@@ -15,9 +15,6 @@ import PointOfSaleRoundedIcon
 import Inventory2RoundedIcon
     from "@mui/icons-material/Inventory2Rounded";
 
-import WarehouseRoundedIcon
-    from "@mui/icons-material/WarehouseRounded";
-
 import AssessmentRoundedIcon
     from "@mui/icons-material/AssessmentRounded";
 
@@ -28,6 +25,9 @@ import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 
 import PeopleRoundedIcon
     from "@mui/icons-material/PeopleRounded";
+
+import AlarmRoundedIcon from "@mui/icons-material/AlarmRounded";
+import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 
 import type {SidebarMenuItem} from "../../../domain/entities/account/SidebarMenuItem.ts";
 
@@ -76,7 +76,8 @@ export const sidebarSections: SidebarSectionConfig[] = [
             {
                 title: "رزرو ها",
                 path: "/reserve",
-                icon: PointOfSaleRoundedIcon,
+                icon: AlarmRoundedIcon,
+                comingSoonMessage: "این قابلیت در حال طراحی و توسعه است. پس از تکمیل فرایندهای ثبت، پیگیری و مدیریت رزروها، این بخش در دسترس شما قرار خواهد گرفت. از شکیبایی و همراهی شما سپاسگزاریم.",
             },
 
 
@@ -110,6 +111,12 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 title: "رسپی‌ها",
                 path: "/recipes",
                 icon: MenuBookRoundedIcon,
+            },
+
+            {
+                title: "تنظیمات انبار",
+                path: "/settings/inventory",
+                icon: SettingsRoundedIcon,
             },
 
         ],
@@ -177,11 +184,7 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 icon: PeopleRoundedIcon,
             },
 
-             {
-                title: "انبارها",
-                path: "/warehouses",
-                icon: WarehouseRoundedIcon,
-            },
+
         ],
     },
 ];
