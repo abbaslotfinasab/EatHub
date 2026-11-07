@@ -403,3 +403,12 @@ class BusinessInventorySettingsAPITests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.business.refresh_from_db()
         self.assertFalse(self.business.inventory_enabled)
+
+    def test_owner_can_disable_inventory_again(self):
+        self.client.force_authenticate(user=self.owner)
+        enabled = self.client.patch(self.url, {"inventory_enabled": True}, format="json")
+        self.assertEqual(enabled.status_code, 200, enabled.data)
+        disabled = self.client.patch(self.url, {"inventory_enabled": False}, format="json")
+        self.assertEqual(disabled.status_code, 200, disabled.data)
+        self.business.refresh_from_db()
+        self.assertFalse(self.business.inventory_enabled)
