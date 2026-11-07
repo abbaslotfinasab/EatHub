@@ -57,6 +57,7 @@ interface Props {
     canCancelOrders?: boolean;
     canFulfillInventory?: boolean;
     businessId?: number | null;
+    inventoryEnabled?: boolean;
 
     error?: string | null;
 
@@ -89,6 +90,7 @@ export function OrderStatusDialog({
                                       canCancelOrders = false,
                                       canFulfillInventory = false,
                                       businessId = null,
+                                      inventoryEnabled = true,
                                       error = null,
                                       refundError = null,
                                       refundResult = null,
@@ -125,7 +127,7 @@ export function OrderStatusDialog({
     );
     const consumptionRequirementsQuery = useOrderConsumptionRequirements(
         order?.status === "preparing" ? order.id : undefined,
-        open && order?.status === "preparing",
+        open && order?.status === "preparing" && (order?.inventoryTrackingEnabled ?? inventoryEnabled),
     );
 
     useEffect(() => {
@@ -140,7 +142,10 @@ export function OrderStatusDialog({
         });
     }, [open, order, reset]);
 
-    const consumptionReady = Boolean(
+    const orderTracksInventory = order
+        ? (order.inventoryTrackingEnabled ?? inventoryEnabled)
+        : inventoryEnabled;
+    const consumptionReady = !orderTracksInventory || Boolean(
         order
         && businessId !== null
         && consumptionRequirementsQuery.isSuccess
@@ -265,7 +270,7 @@ export function OrderStatusDialog({
                                             helperText={statusControl.helperText ?? (
                                                 !canFulfillInventory
                                                     ? "برای تغییر وضعیت مؤثر بر موجودی، مجوز inventory.order.fulfill لازم است."
-                                                    : order.status === "preparing" && !consumptionReady
+                                                    : order.status === "preparing" && orderTracksInventory && !consumptionReady
                                                         ? "ابتدا مصرف واقعی را برای تمام مواد سفارش ثبت کنید."
                                                         : order.status !== "preparing" && order.status !== "ready"
                                                             ? "برای آماده تحویل شدن، ابتدا سفارش را در وضعیت آماده‌سازی قرار دهید."
@@ -287,7 +292,7 @@ export function OrderStatusDialog({
 
                                             <MenuItem
                                                 value="ready"
-                                                disabled={order.status !== "preparing" || !canFulfillInventory || !consumptionReady}
+                                                disabled={order.status !== "preparing" || (orderTracksInventory && (!canFulfillInventory || !consumptionReady))}
                                             >
                                                 آماده تحویل
                                             </MenuItem>
@@ -305,7 +310,7 @@ export function OrderStatusDialog({
                                     )}
                                 />}
 
-                                {open && order.status === "preparing" && canUpdateOrders && canFulfillInventory && (
+                                {open && order.status === "preparing" && orderTracksInventory && canUpdateOrders && canFulfillInventory && (
                                     <OrderActualConsumptionPanel
                                         orderId={order.id}
                                         requirementsQuery={consumptionRequirementsQuery}

@@ -400,6 +400,18 @@ class OrderService:
             Order.Status.CANCELLED: {Order.Status.CANCELLED},
             Order.Status.FAILED: {Order.Status.FAILED},
         }
+        # Orders-only businesses can complete directly from preparation.
+        # Inventory-tracked orders retain the READY + actual-consumption gate.
+        if (
+            previous_status == Order.Status.PREPARING
+            and new_status == Order.Status.COMPLETED
+            and (
+                order.inventory_tracking_enabled is False
+                or (order.inventory_tracking_enabled is None and not order.business.inventory_enabled)
+            )
+        ):
+            allowed_status_transitions[Order.Status.PREPARING].add(Order.Status.COMPLETED)
+
         if new_status not in allowed_status_transitions.get(previous_status, set()):
             raise ValidationError({
                 "status": f"Transition from {previous_status} to {new_status} is not allowed."

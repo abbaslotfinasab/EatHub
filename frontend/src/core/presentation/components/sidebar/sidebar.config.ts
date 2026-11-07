@@ -29,8 +29,6 @@ import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import PeopleRoundedIcon
     from "@mui/icons-material/PeopleRounded";
 
-import SettingsRoundedIcon
-    from "@mui/icons-material/SettingsRounded";
 import type {SidebarMenuItem} from "../../../domain/entities/account/SidebarMenuItem.ts";
 
 
@@ -177,12 +175,6 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 title: "کارمندان",
                 path: "/users",
                 icon: PeopleRoundedIcon,
-            },
-
-            {
-                title: "تنظیمات انبارداری",
-                path: "/settings/inventory",
-                icon: SettingsRoundedIcon,
             },
 
              {

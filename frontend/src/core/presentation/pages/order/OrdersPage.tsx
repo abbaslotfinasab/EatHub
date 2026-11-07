@@ -642,6 +642,7 @@ export const OrdersPage = () => {
                 canCancelOrders={canCancelOrders}
                 canFulfillInventory={canFulfillInventory}
                 businessId={activeBusiness?.id ?? null}
+                inventoryEnabled={activeBusiness?.inventory_enabled ?? true}
 
                 error={statusUpdateError}
 

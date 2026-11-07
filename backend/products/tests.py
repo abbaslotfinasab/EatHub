@@ -226,6 +226,37 @@ class OrderListPaginationTests(APITestCase):
         order.refresh_from_db()
         self.assertEqual(order.status, Order.Status.PENDING)
 
+    def test_orders_only_business_can_complete_preparing_order_without_inventory_snapshot(self) -> None:
+        self.business.inventory_enabled = False
+        self.business.save(update_fields=["inventory_enabled"])
+        order = self.create_order(
+            status=Order.Status.PREPARING, inventory_tracking_enabled=False
+        )
+
+        response = self.client.patch(
+            f"/api/products/orders/{order.id}/status/",
+            {"status": "completed"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.COMPLETED)
+        self.assertFalse(order.inventory_tracking_enabled)
+
+    def test_inventory_enabled_business_cannot_skip_ready_for_completion(self) -> None:
+        order = self.create_order(status=Order.Status.PREPARING)
+
+        response = self.client.patch(
+            f"/api/products/orders/{order.id}/status/",
+            {"status": "completed"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PREPARING)
+
     def test_status_payment_and_method_can_be_updated_independently(self) -> None:
         order = self.create_order(status=Order.Status.PREPARING)
 

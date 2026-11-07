@@ -41,6 +41,7 @@ export const orderMapper = {
             tableId: dto.table,
             orderType: dto.order_type,
             status: dto.status as Order["status"],
+            inventoryTrackingEnabled: dto.inventory_tracking_enabled,
             subtotal: dto.subtotal,
             discount: dto.discount,
             tax: dto.tax,

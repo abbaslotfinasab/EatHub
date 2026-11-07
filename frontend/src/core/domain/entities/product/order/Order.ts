@@ -101,6 +101,8 @@ export interface Order {
 
     status: OrderStatusType;
 
+    inventoryTrackingEnabled?: boolean | null;
+
 
     paymentStatus?: PaymentStatusType;
 
