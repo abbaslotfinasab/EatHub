@@ -20,6 +20,7 @@ class UploadAPIView(APIView):
         result = UploadService.upload(
             serializer.validated_data["file"],
             purpose=serializer.validated_data["purpose"],
+            user_id=request.user.pk,
         )
         return Response(result, status=status.HTTP_201_CREATED)
 
