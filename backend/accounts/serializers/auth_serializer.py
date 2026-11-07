@@ -106,7 +106,7 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def validate_avatar(self, value):
         if value in (None, ""):
             return value
-        if not value.startswith("uploads/avatars/") or ".." in value.split("/"):
+        if not value.startswith(f"uploads/avatars/{self.context['request'].user.pk}/") or ".." in value.split("/"):
             raise serializers.ValidationError("مسیر تصویر پروفایل معتبر نیست.")
         from django.core.files.storage import default_storage
         if not default_storage.exists(value):
