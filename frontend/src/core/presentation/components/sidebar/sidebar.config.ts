@@ -79,6 +79,12 @@ export const sidebarSections: SidebarSectionConfig[] = [
         ],
     },
     {
+        title: "تنظیمات",
+        items: [
+            { title: "اطلاعات کسب‌وکار", path: "/settings/business", icon: SettingsRoundedIcon },
+        ],
+    },
+    {
         title: "کاربران",
         items: [
             {
