@@ -142,9 +142,12 @@ export function OrderStatusDialog({
         });
     }, [open, order, reset]);
 
-    const orderTracksInventory = order.inventoryTrackingEnabled ?? inventoryEnabled;
+    const orderTracksInventory = order
+        ? (order.inventoryTrackingEnabled ?? inventoryEnabled)
+        : inventoryEnabled;
     const consumptionReady = !orderTracksInventory || Boolean(
-        businessId !== null
+        order
+        && businessId !== null
         && consumptionRequirementsQuery.isSuccess
         && !consumptionRequirementsQuery.isFetching
         && consumptionRequirementsQuery.data.requirements.length > 0
