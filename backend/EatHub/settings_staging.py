@@ -96,5 +96,34 @@ STORAGES = {
     },
 }
 
-# MEDIA_ROOT remains local and ephemeral on Render Free. Do not use this
-# environment for durable uploads until object storage is configured.
+# All user-uploaded media must live in durable object storage. Render Free's
+# local filesystem is ephemeral and must never be used for persistent uploads.
+R2_ACCOUNT_ID = _required_env("R2_ACCOUNT_ID")
+R2_BUCKET_NAME = _required_env("R2_BUCKET_NAME")
+R2_ACCESS_KEY_ID = _required_env("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = _required_env("R2_SECRET_ACCESS_KEY")
+R2_PUBLIC_DOMAIN = _required_env("R2_PUBLIC_DOMAIN").removeprefix("https://").rstrip("/")
+
+AWS_ACCESS_KEY_ID = R2_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY = R2_SECRET_ACCESS_KEY
+AWS_STORAGE_BUCKET_NAME = R2_BUCKET_NAME
+AWS_S3_ENDPOINT_URL = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+AWS_S3_REGION_NAME = "auto"
+AWS_S3_SIGNATURE_VERSION = "s3v4"
+AWS_S3_CUSTOM_DOMAIN = R2_PUBLIC_DOMAIN
+AWS_S3_URL_PROTOCOL = "https:"
+AWS_DEFAULT_ACL = None
+AWS_QUERYSTRING_AUTH = False
+AWS_S3_FILE_OVERWRITE = False
+AWS_S3_OBJECT_PARAMETERS = {
+    "CacheControl": "public, max-age=31536000, immutable",
+}
+
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}

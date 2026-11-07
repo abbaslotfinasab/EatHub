@@ -55,6 +55,37 @@ class BusinessLogoUploadEndToEndTests(APITestCase):
             content_type="image/png",
         )
 
+    def test_upload_save_reload_and_serve_user_avatar(self):
+        upload_response = self.client.post(
+            self.upload_url,
+            {"file": self.valid_png(), "purpose": "avatar"},
+            format="multipart",
+        )
+        self.assertEqual(upload_response.status_code, status.HTTP_201_CREATED)
+        uploaded_path = upload_response.data["path"]
+        self.assertTrue(uploaded_path.startswith(f"uploads/avatars/{self.user.pk}/"))
+        self.assertTrue(default_storage.exists(uploaded_path))
+
+        update_response = self.client.patch(
+            "/api/accounts/auth/me/",
+            {"avatar": uploaded_path},
+            format="json",
+        )
+        self.assertEqual(update_response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.avatar.name, uploaded_path)
+
+        profile_response = self.client.get("/api/accounts/auth/me/")
+        self.assertEqual(profile_response.status_code, status.HTTP_200_OK)
+        avatar_url = profile_response.data["avatar"]
+        self.assertTrue(avatar_url)
+        self.assertTrue(avatar_url.endswith(uploaded_path))
+
+        with default_storage.open(uploaded_path, "rb") as stored_image:
+            image = Image.open(stored_image)
+            self.assertEqual(image.format, "PNG")
+            self.assertEqual(image.size, (48, 32))
+
     def test_upload_save_reload_and_serve_business_logo(self):
         # 1. Upload the image using the same multipart API used by the frontend.
         upload_response = self.client.post(
