@@ -2,7 +2,6 @@ import type {MenuItem} from "../../entities/product/menu/MenuItem.ts";
 import type {MenuWithItems} from "../../entities/product/menu/MenuWithItems.ts";
 import type {MenuFilters} from "../../objects/filters/MenuFilters.ts";
 import type {PublicRestaurantMenu} from "../../entities/product/PublicRestaurantMenu.ts";
-import type {MenuFilters} from "../../objects/filters/MenuFilters.ts";
 
 export interface MenuRepository {
     create(input: MenuWithItems): Promise<void>;
