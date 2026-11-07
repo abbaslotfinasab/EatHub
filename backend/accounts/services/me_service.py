@@ -2,18 +2,17 @@ class MeService:
 
     @staticmethod
     def get_user_context(user, request=None):
+        # Membership history is intentionally retained for the business switcher.
         memberships = (
             user.memberships
             .select_related("business", "role")
-            .filter(is_active=True)
+            .filter(business__is_active=True)
+            .order_by("-is_active", "business__name")
         )
-
+        active_membership = memberships.filter(is_active=True).first()
         has_business = memberships.exists()
 
         active_business = None
-
-        active_membership = memberships.select_related("business", "role").first()
-
         if active_membership:
             active_business = {
                 "id": active_membership.business.id,
@@ -26,16 +25,7 @@ class MeService:
                     .select_related("permission")
                     .values_list("permission__code", flat=True)
                 ),
-
             }
-        #
-        # # از middleware می‌گیریم (enterprise pattern)
-        # if request and getattr(request, "business", None):
-        #     active_business = {
-        #         "id": request.business.id,
-        #         "name": request.business.name,
-        #         "role": request.role.code,
-        #     }
 
         return {
             "user": user,
@@ -45,5 +35,5 @@ class MeService:
             "meta": {
                 "needs_onboarding": not has_business,
                 "business_count": memberships.count(),
-            }
+            },
         }
