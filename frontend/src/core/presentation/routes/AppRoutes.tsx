@@ -32,7 +32,6 @@ import {CreatePurchaseOrderPage} from "../pages/purchase/CreatePurchaseOrderPage
 import {PurchaseOrderDetailPage} from "../pages/purchase/PurchaseOrderDetailPage.tsx";
 import {InventorySettingsPage} from "../pages/InventorySettingsPage.tsx";
 import {ProfilePage} from "../pages/ProfilePage.tsx";
-import {BusinessSettingsPage} from "../pages/BusinessSettingsPage.tsx";
 
 export const AppRoutes = () => (
     <BrowserRouter>
@@ -57,7 +56,7 @@ export const AppRoutes = () => (
                     <Route element={<BusinessGuard/>}>
                         <Route path="/dashboard" element={<ManagerDashboard/>}/>
                         <Route path="/settings/inventory" element={<InventorySettingsPage/>}/>
-                        <Route path="/settings/business" element={<BusinessSettingsPage/>}/>
+                        <Route path="/settings/business" element={<Navigate to="/profile" replace/>}/>
                         <Route path="/ingredients" element={<IngredientsListPage/>}/>
                         <Route path="/inventory" element={<InventoryBalancesPage/>}/>
                         <Route path="/inventory/opening-stock" element={<OpeningStockPage/>}/>
