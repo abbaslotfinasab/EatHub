@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ChangeEvent } from "react";
 import { Alert, Box, CircularProgress, FormControlLabel, Paper, Switch, Typography } from "@mui/material";
 import { apiClient } from "../../data/http/http-client";
 
@@ -17,7 +18,7 @@ export const InventorySettingsPage = () => {
         return () => { active = false; };
     }, []);
 
-    const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = async (event: ChangeEvent<HTMLInputElement>) => {
         const next = event.target.checked;
         setSaving(true);
         setError("");
@@ -33,10 +34,10 @@ export const InventorySettingsPage = () => {
 
     return (
         <Box sx={{ maxWidth: 760, mx: "auto" }}>
-            <Typography variant="h5" fontWeight={700} mb={2}>تنظیمات انبارداری</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 700, mb: 2 }}>تنظیمات انبارداری</Typography>
             <Paper variant="outlined" sx={{ p: 3, borderRadius: 3 }}>
-                <Typography fontWeight={700} mb={1}>اتصال سفارش‌ها به انبار</Typography>
-                <Typography color="text.secondary" mb={2}>
+                <Typography sx={{ fontWeight: 700, mb: 1 }}>اتصال سفارش‌ها به انبار</Typography>
+                <Typography sx={{ color: "text.secondary", mb: 2 }}>
                     با فعال‌بودن انبارداری، تأیید سفارش بر اساس رسپی، انبار پیش‌فرض و موجودی کالا انجام می‌شود.
                     در حالت غیرفعال، سفارش‌ها بدون ثبت رزرو و مصرف موجودی مدیریت می‌شوند.
                 </Typography>
@@ -46,7 +47,7 @@ export const InventorySettingsPage = () => {
                         label={enabled ? "انبارداری فعال است" : "فقط مدیریت سفارش فعال است"}
                     />
                 )}
-                {saving && <Typography variant="caption" display="block">در حال ذخیره…</Typography>}
+                {saving && <Typography variant="caption" sx={{ display: "block" }}>در حال ذخیره…</Typography>}
                 {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
                 <Alert severity="info" sx={{ mt: 2 }}>
                     غیرفعال‌کردن این گزینه، سوابق و رزروهای سفارش‌هایی را که قبلاً با انبارداری تأیید شده‌اند حذف نمی‌کند.

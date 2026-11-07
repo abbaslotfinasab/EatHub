@@ -127,10 +127,18 @@ class OrderInventoryService:
                 )
             return
 
+        if order.inventory_tracking_enabled is False:
+            return
+        if order.inventory_tracking_enabled is True:
+            raise ValidationError("Inventory tracking is enabled for this order but its recipe snapshot is missing; inventory reconciliation is required.")
         if not order.business.inventory_enabled:
-            # Orders-only businesses skip recipe snapshots and stock reservations.
+            # Freeze orders-only mode at confirmation so later setting changes do not alter this order.
+            order.inventory_tracking_enabled = False
+            order.save(update_fields=("inventory_tracking_enabled",))
             return
 
+        order.inventory_tracking_enabled = True
+        order.save(update_fields=("inventory_tracking_enabled",))
         defaults = list(
             Warehouse.objects.filter(
                 business_id=order.business_id, is_active=True, is_default=True
@@ -467,7 +475,9 @@ class OrderInventoryService:
             ).values_list("pk", flat=True)
         )
         if not requirements:
-            if not order.business.inventory_enabled:
+            if order.inventory_tracking_enabled is False or (
+                order.inventory_tracking_enabled is None and not order.business.inventory_enabled
+            ):
                 return
             if not order.items.exists():
                 # Legacy wallet-only tests/data can contain an empty order row;
