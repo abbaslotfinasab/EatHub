@@ -48,7 +48,7 @@ export const ProfilePage = () => {
     const [passwordError, setPasswordError] = useState("");
     const [passwordSuccess, setPasswordSuccess] = useState("");
 
-    const initials = name.trim().charAt(0).toUpperCase() || "U";
+    const {mutateAsync: uploadFile, progress: uploadProgress} = useUploadFile();\n    const avatarPreview = useFilePreview(avatarFile);\n    const initials = name.trim().charAt(0).toUpperCase() || "U";
 
     const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
