@@ -19,6 +19,8 @@ import {meMapper} from "../../data/mappers/meMapper.ts";
 import {useAuthStore} from "../store/auth.store.ts";
 import {useUploadFile} from "../hooks/useUploadFile.ts";
 import {useFilePreview} from "../forms/upload/useFilePreview.ts";
+import {BusinessSettingsSection} from "./BusinessSettingsPage.tsx";
+import {InventorySettingsSection} from "./InventorySettingsPage.tsx";
 
 const getErrorMessage = (error: unknown, fallback: string) => {
     if (typeof error === "object" && error !== null && "response" in error) {
@@ -110,9 +112,9 @@ export const ProfilePage = () => {
     return (
         <Box sx={{maxWidth: 920, mx: "auto", direction: "rtl"}}>
             <Stack spacing={1} sx={{mb: 3}}>
-                <Typography variant="h4" sx={{fontWeight: 800}}>پروفایل کاربری</Typography>
+                <Typography variant="h4" sx={{fontWeight: 800}}>تنظیمات</Typography>
                 <Typography color="text.secondary">
-                    اطلاعات حساب و امنیت ورود خود را مدیریت کنید.
+                    تنظیمات حساب، کسب‌وکار و بخش‌های مختلف EatHub را از یکجا مدیریت کنید.
                 </Typography>
             </Stack>
 
@@ -172,6 +174,14 @@ export const ProfilePage = () => {
                             </Box>
                         </Stack>
                     </Box>
+                </CardContent>
+            </Card>
+
+            <BusinessSettingsSection embedded />
+
+            <Card elevation={0} sx={{border: "1px solid #E5E7EB", borderRadius: 3, mt: 3, mb: 3}}>
+                <CardContent sx={{p: {xs: 2, md: 3}}}>
+                    <InventorySettingsSection embedded />
                 </CardContent>
             </Card>
 
