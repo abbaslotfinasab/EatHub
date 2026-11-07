@@ -55,7 +55,11 @@ export const InventorySettingsPage = () => {
                     </Alert>
                 </Paper>
                 <Paper variant="outlined" sx={{ p: 3, borderRadius: 3 }}>
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }} justifyContent="space-between">
+                    <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={2}
+                        sx={{ alignItems: { sm: "center" }, justifyContent: "space-between" }}
+                    >
                         <Box>
                             <Typography sx={{ fontWeight: 700 }}>مدیریت انبارها</Typography>
                             <Typography variant="body2" color="text.secondary">ایجاد، ویرایش و تعیین انبار پیش‌فرض کسب‌وکار</Typography>
