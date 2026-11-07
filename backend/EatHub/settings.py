@@ -25,8 +25,16 @@ load_dotenv(BASE_DIR / ".env")
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("SECRET_KEY")
 
+def _env_bool(name, default=False):
+    """Parse boolean environment variables without treating non-empty strings as True."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "False")
+DEBUG = _env_bool("DEBUG", default=False)
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -125,7 +133,7 @@ AUTH_USER_MODEL = "accounts.User"
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 
-if os.getenv("USE_SQLITE", "False") == "True":
+if _env_bool("USE_SQLITE", default=False):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
