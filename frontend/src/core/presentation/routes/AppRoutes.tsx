@@ -29,7 +29,6 @@ import {CreateOrderPage} from "../pages/order/CreateOrderPage.tsx";
 import {UpdateOrderPage} from "../pages/order/UpdateOrderPage.tsx";
 import {CustomersPage} from "../pages/customer/CustomersPage.tsx";
 import {InventoryBalancesPage} from "../pages/InventoryBalancesPage.tsx";
-import {WarehousesPage} from "../pages/WarehousesPage.tsx";
 import {RecipeListPage} from "../pages/RecipeListPage.tsx";
 import {OpeningStockPage} from "../pages/OpeningStockPage.tsx";
 import {PurchaseOrdersPage} from "../pages/purchase/PurchaseOrdersPage.tsx";
@@ -77,7 +76,7 @@ export const AppRoutes = () => {
                             <Route path="/materials" element={<CompoundMaterialsPage/>}/>
                             <Route path="/materials/create" element={<CompoundMaterialFormPage/>}/>
                             <Route path="/materials/:id/edit" element={<CompoundMaterialFormPage/>}/>
-                            <Route path="/warehouses" element={<WarehousesPage/>}/>
+                            <Route path="/warehouses" element={<Navigate to="/settings/inventory" replace/>}/>
                             <Route path="/inventory/operations" element={<Navigate to="/inventory?view=operations" replace/>}/>
                             <Route path="/recipes" element={<RecipeListPage/>}/>
                             <Route path="/purchase/orders" element={<PurchaseOrdersPage/>}/>
