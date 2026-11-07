@@ -14,6 +14,7 @@ class BusinessService:
 
         business = Business.objects.create(
             name=name,
+            inventory_enabled=False,
         )
 
         RBACInitializer.initialize(business)

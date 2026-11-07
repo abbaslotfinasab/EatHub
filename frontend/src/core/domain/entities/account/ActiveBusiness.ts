@@ -4,4 +4,5 @@ export interface ActiveBusiness {
     role: string;
     slug? : string
     permissions: string[];
+    inventory_enabled?: boolean;
 }

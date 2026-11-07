@@ -35,6 +35,7 @@ import {PurchaseOrdersPage} from "../pages/purchase/PurchaseOrdersPage.tsx";
 import {GoodsReceivingPage} from "../pages/purchase/GoodsReceivingPage.tsx";
 import {CreatePurchaseOrderPage} from "../pages/purchase/CreatePurchaseOrderPage.tsx";
 import {PurchaseOrderDetailPage} from "../pages/purchase/PurchaseOrderDetailPage.tsx";
+import {InventorySettingsPage} from "../pages/InventorySettingsPage.tsx";
 
 export const AppRoutes = () => {
     return (
@@ -65,6 +66,7 @@ export const AppRoutes = () => {
 
 
                             <Route path="/dashboard" element={<ManagerDashboard/>}/>
+                            <Route path="/settings/inventory" element={<InventorySettingsPage/>}/>
 
                             <Route path="/ingredients" element={<IngredientsListPage/>}/>
                             <Route path="/inventory" element={<InventoryBalancesPage/>}/>

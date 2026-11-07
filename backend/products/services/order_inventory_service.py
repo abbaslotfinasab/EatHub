@@ -127,6 +127,10 @@ class OrderInventoryService:
                 )
             return
 
+        if not order.business.inventory_enabled:
+            # Orders-only businesses skip recipe snapshots and stock reservations.
+            return
+
         defaults = list(
             Warehouse.objects.filter(
                 business_id=order.business_id, is_active=True, is_default=True
@@ -463,6 +467,8 @@ class OrderInventoryService:
             ).values_list("pk", flat=True)
         )
         if not requirements:
+            if not order.business.inventory_enabled:
+                return
             if not order.items.exists():
                 # Legacy wallet-only tests/data can contain an empty order row;
                 # it has no item requirement that can be estimated or deducted.

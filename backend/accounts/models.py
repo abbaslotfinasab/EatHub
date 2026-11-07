@@ -80,6 +80,9 @@ class Business(BaseModel):
         default=True
     )
 
+    # Preserve inventory for existing businesses; onboarding opts out by default.
+    inventory_enabled = models.BooleanField(default=True)
+
     def __str__(self):
         return self.name
 

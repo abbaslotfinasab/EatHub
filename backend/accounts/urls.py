@@ -2,7 +2,7 @@ from django.urls import path
 
 from rest_framework_simplejwt.views import TokenRefreshView
 from accounts.views import (
-    RegisterAPIView,
+    RegisterAPIView, BusinessInventorySettingsAPIView,
     LoginAPIView,
     SelectBusinessAPIView, MeAPIView, BusinessCreateAPIView, UserListAPIView,
 )
@@ -21,6 +21,7 @@ urlpatterns = [
     ),
 
     path("create/business/", BusinessCreateAPIView.as_view()),
+    path("business/inventory-settings/", BusinessInventorySettingsAPIView.as_view(), name="business-inventory-settings"),
     path("auth/refresh/", TokenRefreshView.as_view()),
 
     path(

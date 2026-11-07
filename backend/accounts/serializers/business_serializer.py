@@ -24,3 +24,8 @@ class BusinessSerializer(serializers.ModelSerializer):
             "number",
             "address",
         )
+
+class BusinessInventorySettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Business
+        fields = ("inventory_enabled",)
