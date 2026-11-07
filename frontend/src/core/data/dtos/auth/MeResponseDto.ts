@@ -7,12 +7,9 @@ export interface MeResponseDto {
     email: string;
     name: string;
     number: string;
-
+    avatar?: string | null;
     has_business: boolean;
-
     memberships: MembershipDTO[];
-
     active_business: ActiveBusinessDTO | null;
-
     meta: MeMetaDTO;
 }
