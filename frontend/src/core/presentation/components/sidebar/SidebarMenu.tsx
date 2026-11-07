@@ -16,8 +16,16 @@ import {
         sidebarSections,
 } from "./sidebar.config";
 
+// Keep the fallback reference stable. Returning [] from a Zustand selector
+// creates a new snapshot on every read when the user has no active business,
+// which can trigger an infinite React render loop on routes such as /business.
+const EMPTY_PERMISSIONS: string[] = [];
+
 export const SidebarMenu = () => {
-        const permissions = useAuthStore((state) => state.me?.active_business?.permissions ?? []);
+        const storedPermissions = useAuthStore(
+            (state) => state.me?.active_business?.permissions,
+        );
+        const permissions = storedPermissions ?? EMPTY_PERMISSIONS;
         const DashboardIcon = dashboardItem.icon;
 
         return (
