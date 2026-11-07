@@ -2,7 +2,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.core.files.storage import default_storage\nfrom django.db import DatabaseError
+from django.core.files.storage import default_storage
+from django.db import DatabaseError
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
