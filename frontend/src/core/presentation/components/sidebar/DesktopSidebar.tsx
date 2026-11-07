@@ -1,6 +1,7 @@
 // src/core/presentation/components/sidebar/DesktopSidebar.tsx
 
 import {useState} from "react";
+import {useNavigate} from "react-router-dom";
 
 import {
     Box,
@@ -26,6 +27,7 @@ export const DesktopSidebar = () => {
     const {isCollapsed} = useSidebar();
 
     const me = useAuthStore((s) => s.me);
+    const navigate = useNavigate();
 
     const restaurants =
         me?.memberships?.map((m) => ({
@@ -113,7 +115,11 @@ export const DesktopSidebar = () => {
                             selectedRestaurantId={
                                 selectedRestaurantId
                             }
-                            onSelect={(id) => {
+                            onAddRestaurant={() => {
+                        handleClosePopover();
+                        navigate("/business");
+                    }}
+                    onSelect={(id) => {
                                 setSelectedRestaurantId(
                                     id
                                 );
@@ -123,9 +129,8 @@ export const DesktopSidebar = () => {
                                 );
                             }}
                             onAddRestaurant={() => {
-                                console.log(
-                                    "add restaurant"
-                                );
+                                setRestaurantMenuOpen(false);
+                                navigate("/business");
                             }}
                         />
                     </Collapse>
