@@ -44,7 +44,7 @@ class BusinessProfileUpdateSerializer(serializers.ModelSerializer):
     def validate_logo(self, value):
         if value in (None, ""):
             return value
-        if not value.startswith("uploads/businesses/logos/") or ".." in value.split("/"):
+        if not value.startswith(f"uploads/businesses/logos/{self.context['request'].user.pk}/") or ".." in value.split("/"):
             raise serializers.ValidationError("مسیر لوگوی کسب‌وکار معتبر نیست.")
         if not default_storage.exists(value):
             raise serializers.ValidationError("لوگوی آپلودشده پیدا نشد.")
