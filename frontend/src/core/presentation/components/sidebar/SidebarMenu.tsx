@@ -68,6 +68,7 @@ export const SidebarMenu = () => {
                                                 title={item.title}
                                                 path={item.path}
                                                 icon={Icon}
+                                                comingSoonMessage={item.comingSoonMessage}
                                             />
                                         );
                                 })}
