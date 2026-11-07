@@ -127,7 +127,7 @@ export function OrderStatusDialog({
     );
     const consumptionRequirementsQuery = useOrderConsumptionRequirements(
         order?.status === "preparing" ? order.id : undefined,
-        open && order?.status === "preparing",
+        open && order?.status === "preparing" && (order?.inventoryTrackingEnabled ?? inventoryEnabled),
     );
 
     useEffect(() => {
