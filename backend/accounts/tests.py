@@ -480,7 +480,7 @@ class BusinessSwitchingAndProfileAPITests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.user.refresh_from_db()
         self.assertEqual(self.user.name, "Updated Name")
-        self.assertEqual(self.user.number, "updated-profile-phone")
+        self.assertEqual(self.user.number, "updated-phone")
         self.assertEqual(response.data["email"], "profile-owner@example.test")
 
     def test_profile_rejects_a_phone_number_owned_by_another_user(self):
