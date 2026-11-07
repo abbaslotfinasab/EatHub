@@ -1,6 +1,7 @@
 // src/core/presentation/components/sidebar/DesktopSidebar.tsx
 
 import {useState} from "react";
+import {useNavigate} from "react-router-dom";
 
 import {
     Box,
@@ -26,6 +27,7 @@ export const DesktopSidebar = () => {
     const {isCollapsed} = useSidebar();
 
     const me = useAuthStore((s) => s.me);
+    const navigate = useNavigate();
 
     const restaurants =
         me?.memberships?.map((m) => ({
@@ -110,22 +112,14 @@ export const DesktopSidebar = () => {
                     >
                         <RestaurantList
                             restaurants={restaurants}
-                            selectedRestaurantId={
-                                selectedRestaurantId
-                            }
+                            selectedRestaurantId={selectedRestaurantId}
                             onSelect={(id) => {
-                                setSelectedRestaurantId(
-                                    id
-                                );
-
-                                setRestaurantMenuOpen(
-                                    false
-                                );
+                                setSelectedRestaurantId(id);
+                                setRestaurantMenuOpen(false);
                             }}
                             onAddRestaurant={() => {
-                                console.log(
-                                    "add restaurant"
-                                );
+                                setRestaurantMenuOpen(false);
+                                navigate("/business");
                             }}
                         />
                     </Collapse>
@@ -183,9 +177,11 @@ export const DesktopSidebar = () => {
                     restaurants={
                         restaurants
                     }
-                    selectedRestaurantId={
-                        selectedRestaurantId
-                    }
+                    selectedRestaurantId={selectedRestaurantId}
+                    onAddRestaurant={() => {
+                        handleClosePopover();
+                        navigate("/business");
+                    }}
                     onSelect={(id) => {
                         setSelectedRestaurantId(
                             id

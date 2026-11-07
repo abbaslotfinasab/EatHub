@@ -21,12 +21,14 @@ interface Props {
     restaurants: Restaurant[];
     selectedRestaurantId: string;
     onSelect: (id: string) => void;
+    onAddRestaurant: () => void;
 }
 
 export const RestaurantSwitcherPopover = ({
                                               restaurants,
                                               selectedRestaurantId,
                                               onSelect,
+                                              onAddRestaurant,
                                           }: Props) => {
     return (
         <Paper
@@ -67,7 +69,7 @@ export const RestaurantSwitcherPopover = ({
 
             <Divider />
 
-            <MenuItem>
+            <MenuItem onClick={onAddRestaurant}>
                 <ListItemIcon>
                     <AddRoundedIcon />
                 </ListItemIcon>

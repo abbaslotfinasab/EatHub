@@ -10,6 +10,8 @@ interface Props {
 
 export const CreateBusinessButton = ({
   onClick,
+  isLoading = false,
+  disabled = false,
 }: Props) => {
   return (
     <Button
@@ -18,7 +20,8 @@ export const CreateBusinessButton = ({
       variant="contained"
       disableElevation
       onClick={onClick}
-      type="submit"
+      disabled={disabled || isLoading}
+      type="button"
 
       sx={{
         mt: 2,
@@ -29,7 +32,7 @@ export const CreateBusinessButton = ({
         textTransform: "none",
       }}
     >
-      ایجاد کسب‌وکار
+      {isLoading ? "در حال ایجاد کسب‌وکار..." : "ایجاد کسب‌وکار"}
     </Button>
   );
 };

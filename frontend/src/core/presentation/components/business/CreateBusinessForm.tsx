@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Stack, Paper, Typography } from "@mui/material";
+import { Stack, Paper, Typography, Alert } from "@mui/material";
 
 import { BusinessLogoUploader } from "./BusinessLogoUploader";
 import { BusinessNameField } from "./BusinessNameField";
@@ -21,6 +21,7 @@ export interface CreateBusinessFormValues {
 export const CreateBusinessForm = () => {
   const { mutateAsync: createBusiness, isPending } = useCreateBusiness();
   const navigate = useNavigate();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [values, setValues] = useState<CreateBusinessFormValues>({
     logo: null,
@@ -48,10 +49,12 @@ export const CreateBusinessForm = () => {
     if (!isValid) return;
 
     try {
+      setSubmitError(null);
       await createBusiness(values);
       navigate("/dashboard"); // 👈 اینجا
     } catch (e) {
       console.error(e);
+      setSubmitError("ایجاد کسب‌وکار انجام نشد. اطلاعات را بررسی کنید و دوباره تلاش کنید.");
     }
    };
 
@@ -68,6 +71,7 @@ export const CreateBusinessForm = () => {
       }}
     >
       <Stack spacing={2}>
+        {submitError && <Alert severity="error">{submitError}</Alert>}
         <Typography
             sx={{
                 fontWeight:700

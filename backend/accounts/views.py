@@ -176,6 +176,9 @@ class BusinessCreateAPIView(APIView):
         business = BusinessService.create_business(
             user=request.user,
             name=serializer.validated_data["name"],
+            number=serializer.validated_data.get("number", ""),
+            address=serializer.validated_data.get("address", ""),
+            logo=serializer.validated_data.get("logo"),
             request=request
         )
 

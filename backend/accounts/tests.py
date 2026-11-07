@@ -224,7 +224,7 @@ class BusinessOnboardingAPITests(TestCase):
         self.client.force_authenticate(user=user)
         response = self.client.post(
             BUSINESS_CREATE_URL,
-            {"name": name, "number": f"{name.lower().replace(' ', '-')}-phone"},
+            {"name": name, "number": f"{name[:8].lower().replace(' ', '-')}-phone"},
             format="json",
         )
         self.assertEqual(response.status_code, 200, response.data)
@@ -288,6 +288,23 @@ class BusinessOnboardingAPITests(TestCase):
                 for permission in expected
             }
             self.assertSetEqual(actual, configured, role_code.value)
+
+    def test_creating_another_business_switches_the_users_single_active_membership(self):
+        creator = self.create_user("multiple")
+        first_business = self.create_business_through_api(creator, "First Business")
+        first_membership = Membership.objects.get(user=creator, business=first_business)
+        self.assertTrue(first_membership.is_active)
+
+        second_business = self.create_business_through_api(creator, "Second Business")
+
+        first_membership.refresh_from_db()
+        second_membership = Membership.objects.get(user=creator, business=second_business)
+        self.assertFalse(first_membership.is_active)
+        self.assertTrue(second_membership.is_active)
+        self.assertEqual(
+            Membership.objects.filter(user=creator, is_active=True).count(),
+            1,
+        )
 
     def test_unauthenticated_and_invalid_business_requests_do_not_create_records(self):
         unauthenticated = self.client.post(
