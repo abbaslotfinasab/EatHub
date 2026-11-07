@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 
 from accounts.views import TenantAPIView
 from core.pagination import DashboardRecentOrdersPagination
@@ -11,20 +12,16 @@ from core.services.UploadService import UploadService
 
 
 class UploadAPIView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-
         serializer = UploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         result = UploadService.upload(
-            serializer.validated_data["file"]
+            serializer.validated_data["file"],
+            purpose=serializer.validated_data["purpose"],
         )
-
-        return Response(
-            result,
-            status=status.HTTP_201_CREATED,
-        )
+        return Response(result, status=status.HTTP_201_CREATED)
 
 
 class DashboardAPIView(TenantAPIView):
@@ -56,7 +53,4 @@ class DashboardAPIView(TenantAPIView):
         }
 
         serializer = DashboardSerializer(data)
-
         return Response(serializer.data)
-
-
