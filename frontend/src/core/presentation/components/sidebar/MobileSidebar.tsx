@@ -59,6 +59,7 @@ export const MobileSidebar = () => {
             <SidebarHeader
                 restaurantName={me?.active_business?.name}
                 restaurantRole={me?.active_business?.role}
+                restaurantLogo={me?.active_business?.logo ?? undefined}
                 isOpen={restaurantMenuOpen}
                 onToggle={() => setRestaurantMenuOpen((previous) => !previous)}
             />
