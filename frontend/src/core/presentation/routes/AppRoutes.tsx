@@ -58,7 +58,6 @@ export const AppRoutes = () => (
                         <Route path="/dashboard" element={<ManagerDashboard/>}/>
                         <Route path="/settings/inventory" element={<InventorySettingsPage/>}/>
                         <Route path="/settings/business" element={<BusinessSettingsPage/>}/>
-                        <Route path="/settings/business" element={<BusinessSettingsPage/>}/>
                         <Route path="/ingredients" element={<IngredientsListPage/>}/>
                         <Route path="/inventory" element={<InventoryBalancesPage/>}/>
                         <Route path="/inventory/opening-stock" element={<OpeningStockPage/>}/>
