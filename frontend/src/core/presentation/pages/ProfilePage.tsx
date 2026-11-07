@@ -105,7 +105,7 @@ export const ProfilePage = () => {
     return (
         <Box sx={{maxWidth: 920, mx: "auto", direction: "rtl"}}>
             <Stack spacing={1} sx={{mb: 3}}>
-                <Typography variant="h4" fontWeight={800}>پروفایل کاربری</Typography>
+                <Typography variant="h4" sx={{fontWeight: 800}}>پروفایل کاربری</Typography>
                 <Typography color="text.secondary">
                     اطلاعات حساب و امنیت ورود خود را مدیریت کنید.
                 </Typography>
@@ -113,14 +113,14 @@ export const ProfilePage = () => {
 
             <Card elevation={0} sx={{border: "1px solid #E5E7EB", borderRadius: 3, mb: 3}}>
                 <CardContent sx={{p: {xs: 2, md: 3}}}>
-                    <Typography variant="h6" fontWeight={700} sx={{mb: 2}}>اطلاعات شخصی</Typography>
+                    <Typography variant="h6" sx={{fontWeight: 700, mb: 2}}>اطلاعات شخصی</Typography>
                     <Box component="form" onSubmit={saveProfile}>
-                        <Stack direction={{xs: "column", sm: "row"}} spacing={3} alignItems={{sm: "center"}} sx={{mb: 3}}>
+                        <Stack direction={{xs: "column", sm: "row"}} spacing={3} sx={{mb: 3, alignItems: {sm: "center"}}}>
                             <Avatar src={me?.avatar ?? undefined} sx={{width: 88, height: 88, bgcolor: "#10281A", fontSize: 30}}>
                                 {initials}
                             </Avatar>
                             <Box>
-                                <Typography fontWeight={700}>{me?.name}</Typography>
+                                <Typography sx={{fontWeight: 700}}>{me?.name}</Typography>
                                 <Typography variant="body2" color="text.secondary">{me?.email}</Typography>
                                 <Button component="label" size="small" startIcon={<PhotoCameraRoundedIcon/>} sx={{mt: 1}}>
                                     تغییر تصویر پروفایل
@@ -131,7 +131,7 @@ export const ProfilePage = () => {
                                         onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)}
                                     />
                                 </Button>
-                                {avatarFile && <Typography variant="caption" display="block">{avatarFile.name}</Typography>}
+                                {avatarFile && <Typography variant="caption" sx={{display: "block"}}>{avatarFile.name}</Typography>}
                             </Box>
                         </Stack>
 
@@ -171,9 +171,9 @@ export const ProfilePage = () => {
 
             <Card elevation={0} sx={{border: "1px solid #E5E7EB", borderRadius: 3}}>
                 <CardContent sx={{p: {xs: 2, md: 3}}}>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{mb: 2}}>
+                    <Stack direction="row" spacing={1} sx={{mb: 2, alignItems: "center"}}>
                         <LockResetRoundedIcon color="action"/>
-                        <Typography variant="h6" fontWeight={700}>امنیت حساب</Typography>
+                        <Typography variant="h6" sx={{fontWeight: 700}}>امنیت حساب</Typography>
                     </Stack>
                     <Divider sx={{mb: 2}}/>
                     <Box component="form" onSubmit={changePassword}>
@@ -194,7 +194,7 @@ export const ProfilePage = () => {
                                 value={newPassword}
                                 onChange={(event) => setNewPassword(event.target.value)}
                                 required
-                                inputProps={{minLength: 8}}
+                                slotProps={{htmlInput: {minLength: 8}}}
                                 fullWidth
                             />
                             <TextField
