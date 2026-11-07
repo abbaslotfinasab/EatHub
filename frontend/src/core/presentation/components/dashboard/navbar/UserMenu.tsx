@@ -1,6 +1,7 @@
 // src/core/presentation/components/navbar/user/UserMenu.tsx
 
 import {useState} from "react";
+import {useNavigate} from "react-router-dom";
 
 import {
     Avatar,
@@ -23,6 +24,7 @@ export const UserMenu = () => {
 
     const me = useAuthStore((s) => s.me);
     const logout = useLogout();
+    const navigate = useNavigate();
 
 
     const [anchorEl, setAnchorEl] =
@@ -47,9 +49,7 @@ export const UserMenu = () => {
 
     const handleSettings = () => {
         handleClose();
-
-        //navigate("/settings")
-        console.log("Settings");
+        navigate("/settings/inventory");
     };
 
     const handleLogout = () => {
