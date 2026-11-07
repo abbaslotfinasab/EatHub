@@ -40,14 +40,15 @@ class UploadService:
         return cls.ALLOWED_FORMATS[image_format]
 
     @classmethod
-    def upload(cls, file, purpose="generic"):
+    def upload(cls, file, purpose="generic", user_id=None):
         directory = cls.PURPOSE_DIRECTORIES.get(purpose)
         if not directory:
             raise ValidationError({"purpose": "نوع آپلود معتبر نیست."})
 
         extension, content_type = cls.validate_image(file)
         filename = f"{uuid4().hex}.{extension}"
-        path = default_storage.save(f"{directory}/{filename}", file)
+        owner_directory = f"{directory}/{user_id}" if user_id is not None else directory
+        path = default_storage.save(f"{owner_directory}/{filename}", file)
 
         try:
             with default_storage.open(path, "rb") as stored_file:
