@@ -474,7 +474,7 @@ class SharedImageUploadApiTests(APITestCase):
             format="multipart",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(response.data["path"].startswith("uploads/avatars/"))
+        self.assertTrue(response.data["path"].startswith(f"uploads/avatars/{self.user.pk}/"))
         self.assertEqual(response.data["content_type"], "image/png")
         self.assertEqual(response.data["width"], 32)
         self.assertTrue(default_storage.exists(response.data["path"]))
@@ -537,14 +537,14 @@ class SharedImageUploadApiTests(APITestCase):
     def test_profile_and_business_reject_unowned_upload_paths(self):
         response = self.client.patch(
             "/api/accounts/auth/me/",
-            {"avatar": "uploads/businesses/logos/not-owned.png"},
+            {"avatar": "uploads/businesses/logos/99999/not-owned.png"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         response = self.client.patch(
             "/api/accounts/business/profile/",
-            {"logo": "uploads/avatars/not-owned.png"},
+            {"logo": "uploads/avatars/99999/not-owned.png"},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
