@@ -429,3 +429,89 @@ class BusinessInventorySettingsAPITests(TestCase):
         self.assertEqual(disabled.status_code, 200, disabled.data)
         self.business.refresh_from_db()
         self.assertFalse(self.business.inventory_enabled)
+
+
+class BusinessSwitchingAndProfileAPITests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            email="profile-owner@example.test",
+            password="original-password",
+            name="Profile Owner",
+            number="profile-owner-phone",
+        )
+        self.first_business = BusinessService.create_business(self.user, "First Business")
+        self.second_business = BusinessService.create_business(self.user, "Second Business")
+        self.client.force_authenticate(user=self.user)
+
+    def test_me_returns_all_businesses_and_marks_the_current_business(self):
+        response = self.client.get("/api/accounts/auth/me/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["meta"]["business_count"], 2)
+        self.assertEqual(
+            {item["business_name"] for item in response.data["memberships"]},
+            {"First Business", "Second Business"},
+        )
+        self.assertEqual(response.data["active_business"]["id"], self.second_business.id)
+
+    def test_user_can_switch_back_to_an_inactive_membership(self):
+        response = self.client.post(
+            "/api/accounts/auth/select-business/",
+            {"business_id": self.first_business.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(
+            Membership.objects.get(user=self.user, business=self.first_business).is_active
+        )
+        self.assertFalse(
+            Membership.objects.get(user=self.user, business=self.second_business).is_active
+        )
+        me = self.client.get("/api/accounts/auth/me/")
+        self.assertEqual(me.data["active_business"]["id"], self.first_business.id)
+        self.assertEqual(me.data["meta"]["business_count"], 2)
+
+    def test_profile_can_be_updated_without_changing_email(self):
+        response = self.client.patch(
+            "/api/accounts/auth/me/",
+            {"name": "Updated Name", "number": "updated-profile-phone"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.name, "Updated Name")
+        self.assertEqual(self.user.number, "updated-profile-phone")
+        self.assertEqual(response.data["email"], "profile-owner@example.test")
+
+    def test_profile_rejects_a_phone_number_owned_by_another_user(self):
+        User.objects.create_user(
+            email="other-profile@example.test",
+            password="original-password",
+            name="Other User",
+            number="taken-profile-phone",
+        )
+        response = self.client.patch(
+            "/api/accounts/auth/me/",
+            {"number": "taken-profile-phone"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.number, "profile-owner-phone")
+
+    def test_password_change_requires_current_password_and_updates_credentials(self):
+        wrong = self.client.post(
+            "/api/accounts/auth/change-password/",
+            {"old_password": "wrong-password", "new_password": "new-password-123"},
+            format="json",
+        )
+        self.assertEqual(wrong.status_code, 400)
+
+        changed = self.client.post(
+            "/api/accounts/auth/change-password/",
+            {"old_password": "original-password", "new_password": "new-password-123"},
+            format="json",
+        )
+        self.assertEqual(changed.status_code, 200, changed.data)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("new-password-123"))
