@@ -4,4 +4,5 @@ export interface ActiveBusinessDTO {
     role: "OWNER" | "MANAGER" | "STAFF" | string;
     slug: string
     permissions?: string[] | null;
+    inventory_enabled?: boolean;
 }

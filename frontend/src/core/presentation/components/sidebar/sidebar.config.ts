@@ -180,8 +180,8 @@ export const sidebarSections: SidebarSectionConfig[] = [
             },
 
             {
-                title: "تنظیمات",
-                path: "/settings",
+                title: "تنظیمات انبارداری",
+                path: "/settings/inventory",
                 icon: SettingsRoundedIcon,
             },
 

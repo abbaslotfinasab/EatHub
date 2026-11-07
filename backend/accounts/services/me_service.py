@@ -18,6 +18,7 @@ class MeService:
             active_business = {
                 "id": active_membership.business.id,
                 "name": active_membership.business.name,
+                "inventory_enabled": active_membership.business.inventory_enabled,
                 "role": active_membership.role.code,
                 "slug": active_membership.business.slug,
                 "permissions": list(

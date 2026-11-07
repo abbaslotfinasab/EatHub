@@ -366,3 +366,49 @@ class BusinessOnboardingAPITests(TestCase):
         self.assertFalse(Role.objects.exists())
         self.assertFalse(RolePermission.objects.exists())
         self.assertFalse(Permission.objects.exists())
+
+
+class BusinessInventorySettingsAPITests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.owner = User.objects.create_user(
+            email="inventory-owner@example.test", password="test-password",
+            name="Inventory Owner", number="inventory-owner",
+        )
+        self.business = BusinessService.create_business(self.owner, "Orders Only Cafe")
+        self.url = "/api/accounts/business/inventory-settings/"
+
+    def test_new_business_defaults_to_orders_only_mode_and_owner_can_enable_inventory(self):
+        self.assertFalse(self.business.inventory_enabled)
+        self.client.force_authenticate(user=self.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["inventory_enabled"])
+        response = self.client.patch(self.url, {"inventory_enabled": True}, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        self.business.refresh_from_db()
+        self.assertTrue(self.business.inventory_enabled)
+
+    def test_non_owner_cannot_change_inventory_mode(self):
+        manager_role = Role.objects.get(business=self.business, code="MANAGER")
+        staff = User.objects.create_user(
+            email="inventory-manager@example.test", password="test-password",
+            name="Inventory Manager", number="inventory-manager",
+        )
+        Membership.objects.create(
+            user=staff, business=self.business, role=manager_role, is_active=True
+        )
+        self.client.force_authenticate(user=staff)
+        response = self.client.patch(self.url, {"inventory_enabled": True}, format="json")
+        self.assertEqual(response.status_code, 403)
+        self.business.refresh_from_db()
+        self.assertFalse(self.business.inventory_enabled)
+
+    def test_owner_can_disable_inventory_again(self):
+        self.client.force_authenticate(user=self.owner)
+        enabled = self.client.patch(self.url, {"inventory_enabled": True}, format="json")
+        self.assertEqual(enabled.status_code, 200, enabled.data)
+        disabled = self.client.patch(self.url, {"inventory_enabled": False}, format="json")
+        self.assertEqual(disabled.status_code, 200, disabled.data)
+        self.business.refresh_from_db()
+        self.assertFalse(self.business.inventory_enabled)

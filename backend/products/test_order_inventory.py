@@ -434,6 +434,58 @@ class OrderInventoryLifecycleTests(TestCase):
         self.assertFalse(self.order.recipe_snapshots.exists())
         self.assertFalse(InventoryReservation.objects.filter(source_id=self.order.pk).exists())
 
+    def test_orders_only_business_confirms_without_recipe_or_warehouse(self):
+        self.business.inventory_enabled = False
+        self.business.save(update_fields=("inventory_enabled",))
+        Warehouse.objects.filter(pk=self.warehouse.pk).update(is_active=False, is_default=False)
+        self.confirm()
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.CONFIRMED)
+        self.assertFalse(self.order.recipe_snapshots.exists())
+        self.assertFalse(InventoryReservation.objects.filter(
+            business=self.business, source_type="order", source_id=self.order.pk
+        ).exists())
+
+    def test_orders_only_business_can_complete_without_actual_consumption(self):
+        self.business.inventory_enabled = False
+        self.business.save(update_fields=("inventory_enabled",))
+        Warehouse.objects.filter(pk=self.warehouse.pk).update(is_active=False, is_default=False)
+        self.confirm()
+        self.start_preparation()
+        OrderService.update_status(
+            business=self.business, order_id=self.order.pk,
+            status=Order.Status.READY, user=self.actor,
+        )
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.READY)
+        self.assertFalse(self.order.recipe_snapshots.exists())
+
+    def test_orders_only_mode_is_frozen_for_an_order_when_business_setting_changes(self):
+        self.business.inventory_enabled = False
+        self.business.save(update_fields=("inventory_enabled",))
+        self.confirm()
+        self.order.refresh_from_db()
+        self.assertFalse(self.order.inventory_tracking_enabled)
+
+        self.business.inventory_enabled = True
+        self.business.save(update_fields=("inventory_enabled",))
+        self.start_preparation()
+        OrderService.update_status(
+            business=self.business, order_id=self.order.pk,
+            status=Order.Status.READY, user=self.actor,
+        )
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.READY)
+        self.assertFalse(self.order.recipe_snapshots.exists())
+
+    def test_inventory_enabled_business_still_requires_default_warehouse(self):
+        Warehouse.objects.filter(pk=self.warehouse.pk).update(is_active=False, is_default=False)
+        with self.assertRaisesMessage(APIValidationError,
+            "Configure exactly one active default warehouse before confirming recipe-based orders."):
+            self.confirm()
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.PENDING)
+
 
 class OrderInventoryRefundTests(TestCase):
     confirm = OrderInventoryLifecycleTests.confirm

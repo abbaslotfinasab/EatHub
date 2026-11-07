@@ -92,6 +92,8 @@ class Order(BaseModel):
         CUSTOMER_ACCOUNT = "customer_account"
 
     business = models.ForeignKey(Business, on_delete=models.CASCADE)
+    # Null means legacy order; otherwise this freezes inventory mode at confirmation.
+    inventory_tracking_enabled = models.BooleanField(null=True, blank=True, default=None)
 
     customer = models.ForeignKey(
         Customer,

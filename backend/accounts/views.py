@@ -8,7 +8,7 @@ from accounts.models import Membership, User
 from accounts.serializers.auth_serializer import RegisterSerializer, UserMeSerializer, UserListSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.serializers.auth_serializer import LoginSerializer
-from accounts.serializers.business_serializer import BusinessCreateSerializer
+from accounts.serializers.business_serializer import BusinessCreateSerializer, BusinessInventorySettingsSerializer
 from accounts.services.business_service import BusinessService
 from accounts.services.me_service import MeService
 
@@ -202,3 +202,18 @@ class UserListAPIView(APIView):
         )
 
         return Response(serializer.data)
+
+
+class BusinessInventorySettingsAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"inventory_enabled": request.business.inventory_enabled})
+
+    def patch(self, request):
+        if request.role.code != "OWNER":
+            raise PermissionDenied("Only the business owner can change inventory settings.")
+        serializer = BusinessInventorySettingsSerializer(request.business, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"inventory_enabled": request.business.inventory_enabled})
