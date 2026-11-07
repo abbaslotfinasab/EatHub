@@ -112,21 +112,10 @@ export const DesktopSidebar = () => {
                     >
                         <RestaurantList
                             restaurants={restaurants}
-                            selectedRestaurantId={
-                                selectedRestaurantId
-                            }
-                            onAddRestaurant={() => {
-                        handleClosePopover();
-                        navigate("/business");
-                    }}
-                    onSelect={(id) => {
-                                setSelectedRestaurantId(
-                                    id
-                                );
-
-                                setRestaurantMenuOpen(
-                                    false
-                                );
+                            selectedRestaurantId={selectedRestaurantId}
+                            onSelect={(id) => {
+                                setSelectedRestaurantId(id);
+                                setRestaurantMenuOpen(false);
                             }}
                             onAddRestaurant={() => {
                                 setRestaurantMenuOpen(false);
@@ -188,9 +177,11 @@ export const DesktopSidebar = () => {
                     restaurants={
                         restaurants
                     }
-                    selectedRestaurantId={
-                        selectedRestaurantId
-                    }
+                    selectedRestaurantId={selectedRestaurantId}
+                    onAddRestaurant={() => {
+                        handleClosePopover();
+                        navigate("/business");
+                    }}
                     onSelect={(id) => {
                         setSelectedRestaurantId(
                             id
