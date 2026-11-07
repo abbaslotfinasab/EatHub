@@ -224,7 +224,7 @@ class BusinessOnboardingAPITests(TestCase):
         self.client.force_authenticate(user=user)
         response = self.client.post(
             BUSINESS_CREATE_URL,
-            {"name": name, "number": f"{name.lower().replace(' ', '-')}-phone"},
+            {"name": name, "number": f"{name[:8].lower().replace(' ', '-')}-phone"},
             format="json",
         )
         self.assertEqual(response.status_code, 200, response.data)
