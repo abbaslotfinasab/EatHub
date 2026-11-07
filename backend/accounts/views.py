@@ -14,7 +14,7 @@ from accounts.serializers.auth_serializer import (
 )
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.serializers.auth_serializer import LoginSerializer
-from accounts.serializers.business_serializer import BusinessCreateSerializer, BusinessInventorySettingsSerializer
+from accounts.serializers.business_serializer import (\n    BusinessCreateSerializer,\n    BusinessInventorySettingsSerializer,\n    BusinessProfileUpdateSerializer,\n    BusinessSerializer,\n)
 from accounts.services.business_service import BusinessService
 from accounts.services.me_service import MeService
 
@@ -193,6 +193,29 @@ class UserListAPIView(APIView):
         users = User.objects.all().order_by("-id")
         serializer = UserListSerializer(users, many=True, context={"request": request})
         return Response(serializer.data)
+
+
+class BusinessProfileAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def _ensure_owner(self, request):
+        if request.role.code != "OWNER":
+            raise PermissionDenied("Only the business owner can update business details.")
+
+    def get(self, request):
+        return Response(BusinessSerializer(request.business, context={"request": request}).data)
+
+    def patch(self, request):
+        self._ensure_owner(request)
+        serializer = BusinessProfileUpdateSerializer(
+            request.business,
+            data=request.data,
+            partial=True,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        business = serializer.save()
+        return Response(BusinessSerializer(business, context={"request": request}).data)
 
 
 class BusinessInventorySettingsAPIView(TenantAPIView):
