@@ -474,7 +474,7 @@ class BusinessSwitchingAndProfileAPITests(TestCase):
     def test_profile_can_be_updated_without_changing_email(self):
         response = self.client.patch(
             "/api/accounts/auth/me/",
-            {"name": "Updated Name", "number": "updated-profile-phone"},
+            {"name": "Updated Name", "number": "updated-phone"},
             format="json",
         )
         self.assertEqual(response.status_code, 200, response.data)
