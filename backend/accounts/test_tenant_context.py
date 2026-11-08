@@ -53,3 +53,38 @@ class TenantContextResolverTests(TestCase):
         Business.objects.filter(pk=self.business.pk).update(is_active=False)
         with self.assertRaises(BusinessAccessDenied):
             resolve_tenant_context(user=self.user, business_id=self.business.pk)
+
+
+
+class TenantAPIViewContextTests(TestCase):
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            email="tenant-api@example.test",
+            password="test-password",
+            name="Tenant API User",
+            number="tenant-api-user",
+        )
+        self.business = BusinessService.create_business(self.user, "Tenant API Cafe")
+        self.client.force_authenticate(user=self.user)
+        self.url = "/api/accounts/business/inventory-settings/"
+
+    def test_business_scoped_api_requires_explicit_context(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_business_scoped_api_rejects_unowned_business_context(self):
+        other_business = Business.objects.create(name="Unowned Cafe")
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(other_business.pk))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
+
+    def test_business_scoped_api_accepts_valid_explicit_context(self):
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["inventory_enabled"], self.business.inventory_enabled)
