@@ -26,6 +26,33 @@ from accounts.tenant_context import resolve_tenant_context
 
 
 class TenantAPIView(APIView):
+    """Legacy tenant base retained while business-scoped routes migrate incrementally.
+
+    New or migrated endpoints must use ExplicitTenantAPIView. This compatibility
+    base will be removed after the route-by-route X-Business-Id migration.
+    """
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        membership = (
+            Membership.objects.select_related("business", "role")
+            .filter(user=request.user, is_active=True, business__is_active=True)
+            .first()
+        )
+        if not membership:
+            raise PermissionDenied("No active business.")
+        request.business = membership.business
+        request.membership = membership
+        request.role = membership.role
+        request.permissions = list(
+            membership.role.role_permissions.select_related("permission")
+            .values_list("permission__code", flat=True)
+        )
+
+
+class ExplicitTenantAPIView(APIView):
+    """Require an explicit, authorized business context from X-Business-Id."""
+
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         context = resolve_tenant_context(
@@ -218,7 +245,7 @@ class BusinessProfileAPIView(TenantAPIView):
         return Response(BusinessSerializer(business, context={"request": request}).data)
 
 
-class BusinessInventorySettingsAPIView(TenantAPIView):
+class BusinessInventorySettingsAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
