@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { FormControl, MenuItem, Select, Typography } from "@mui/material";
-import { useAuthStore } from "../../store/auth.store.ts";
-import { useBusinessContextStore } from "../../store/business-context.store.ts";
+import { useAuthStore } from "../../../store/auth.store.ts";
+import { useBusinessContextStore } from "../../../store/business-context.store.ts";
 
 export const BusinessSwitcher = () => {
     const memberships = useAuthStore((state) => state.me?.memberships ?? []);
