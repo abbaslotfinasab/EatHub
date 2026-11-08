@@ -26,14 +26,28 @@ from accounts.tenant_context import resolve_tenant_context
 
 
 class TenantAPIView(APIView):
-    """Legacy tenant base retained while business-scoped routes migrate incrementally.
+    """Compatibility tenant base with explicit selection for multi-business users.
 
-    New or migrated endpoints must use ExplicitTenantAPIView. This compatibility
-    base will be removed after the route-by-route X-Business-Id migration.
+    Existing single-business clients remain compatible during the route migration.
+    Multi-business users must send X-Business-Id; it is always validated server-side.
+    New endpoints should use ExplicitTenantAPIView directly.
     """
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
+        business_id = request.headers.get("X-Business-Id")
+        if business_id:
+            context = resolve_tenant_context(
+                user=request.user,
+                business_id=business_id,
+            )
+            request.tenant_context = context
+            request.business = context.business
+            request.membership = context.membership
+            request.role = context.membership.role
+            request.permissions = list(context.permissions)
+            return
+
         memberships = list(
             Membership.objects.select_related("business", "role")
             .filter(user=request.user, is_active=True, business__is_active=True)
@@ -46,6 +60,7 @@ class TenantAPIView(APIView):
                 "code": "BUSINESS_CONTEXT_REQUIRED",
                 "detail": "X-Business-Id is required when the user has multiple active businesses.",
             })
+
         membership = memberships[0]
         request.business = membership.business
         request.membership = membership
