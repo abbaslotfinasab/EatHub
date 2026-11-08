@@ -113,7 +113,7 @@ jobs:
 
       - name: Upload audit reports and updated lockfile
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dependency-remediation-${{ github.run_number }}
           if-no-files-found: warn
