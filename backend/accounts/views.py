@@ -34,13 +34,19 @@ class TenantAPIView(APIView):
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
-        membership = (
+        memberships = list(
             Membership.objects.select_related("business", "role")
             .filter(user=request.user, is_active=True, business__is_active=True)
-            .first()
+            .order_by("id")[:2]
         )
-        if not membership:
+        if not memberships:
             raise PermissionDenied("No active business.")
+        if len(memberships) > 1:
+            raise ValidationError({
+                "code": "BUSINESS_CONTEXT_REQUIRED",
+                "detail": "X-Business-Id is required when the user has multiple active businesses.",
+            })
+        membership = memberships[0]
         request.business = membership.business
         request.membership = membership
         request.role = membership.role
