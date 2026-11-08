@@ -9,7 +9,7 @@ globalThis.sessionStorage = {
 };
 
 const { useBusinessContextStore, getBusinessRequestSignal } = await import(
-    "../../store/business-context.store.ts"
+    "./business-context.store.ts"
 );
 
 test("business selection is persisted in this tab's session storage", () => {
