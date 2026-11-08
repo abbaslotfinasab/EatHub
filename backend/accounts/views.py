@@ -22,26 +22,21 @@ from accounts.serializers.business_serializer import (
 )
 from accounts.services.business_service import BusinessService
 from accounts.services.me_service import MeService
+from accounts.tenant_context import resolve_tenant_context
 
 
 class TenantAPIView(APIView):
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
-        membership = (
-            Membership.objects
-            .select_related("business", "role")
-            .filter(user=request.user, is_active=True, business__is_active=True)
-            .first()
+        context = resolve_tenant_context(
+            user=request.user,
+            business_id=request.headers.get("X-Business-Id"),
         )
-        if not membership:
-            raise PermissionDenied("No active business.")
-        request.business = membership.business
-        request.membership = membership
-        request.role = membership.role
-        request.permissions = list(
-            membership.role.role_permissions.select_related("permission")
-            .values_list("permission__code", flat=True)
-        )
+        request.tenant_context = context
+        request.business = context.business
+        request.membership = context.membership
+        request.role = context.membership.role
+        request.permissions = list(context.permissions)
 
 
 class RegisterAPIView(APIView):
