@@ -12,8 +12,10 @@ export const BusinessGuard = () => {
         return <Navigate to="/business" replace />;
     }
 
-    // Never guess between multiple memberships. Require an explicit choice in this tab.
-    if (me.memberships.length > 1 && selectedBusinessId === null) {
+    // Do not mount business-scoped routes until this tab has a valid context.
+    // BusinessSwitcher auto-selects the sole eligible membership; multiple
+    // memberships always require an explicit user choice.
+    if (me.memberships.length > 0 && selectedBusinessId === null) {
         return (
             <Box sx={{ maxWidth: 520, mx: "auto", mt: 8, px: 2, direction: "rtl" }}>
                 <Alert severity="info" sx={{ mb: 2 }}>
