@@ -88,3 +88,45 @@ class TenantAPIViewContextTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["inventory_enabled"], self.business.inventory_enabled)
+
+
+class TenantAPIViewCompatibilityTests(TestCase):
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            email="tenant-compat@example.test",
+            password="test-password",
+            name="Tenant Compatibility User",
+            number="tenant-compat-user",
+        )
+        self.first_business = BusinessService.create_business(
+            self.user, "First Compatibility Cafe"
+        )
+        self.second_business = BusinessService.create_business(
+            self.user, "Second Compatibility Cafe"
+        )
+        self.client.force_authenticate(user=self.user)
+        self.url = "/api/accounts/business/profile/"
+
+    def test_legacy_endpoint_rejects_ambiguous_context_without_header(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_legacy_endpoint_resolves_explicit_business_header(self):
+        self.client.credentials(
+            HTTP_X_BUSINESS_ID=str(self.second_business.pk)
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], self.second_business.pk)
+
+    def test_legacy_endpoint_keeps_single_business_compatibility(self):
+        Membership.objects.filter(
+            user=self.user, business=self.second_business
+        ).update(is_active=False)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], self.first_business.pk)
