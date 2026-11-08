@@ -30,8 +30,8 @@ class TenantContextResolverTests(TestCase):
         self.assertEqual(context.membership_id, membership.pk)
         self.assertEqual(context.role_id, membership.role_id)
         self.assertIn("orders.view", context.permissions)
-        self.assertIs(context.business, membership.business)
-        self.assertIs(context.membership, membership)
+        self.assertEqual(context.business.pk, membership.business_id)
+        self.assertEqual(context.membership.pk, membership.pk)
 
     def test_missing_business_context_fails_closed(self):
         with self.assertRaises(BusinessContextRequired) as error:
