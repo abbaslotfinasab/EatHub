@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useAuthStore } from "../store/auth.store";
 import { useBusinessContextStore } from "../store/business-context.store";
-import { orderQueryKeys } from "../hooks/order/orderQueryKeys";
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -22,19 +21,11 @@ export const QueryProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         const previous = previousIdentity.current;
         if (previous && (previous.userId !== userId || previous.businessId !== businessId)) {
-            // Cancel first so late responses cannot repopulate the previous tenant's cache.
+            // Tenant-scoped query keys are not yet universal across the application.
+            // Cancel in-flight work and clear the entire cache to prevent any
+            // previous-business data from being observed after a context switch.
             void queryClient.cancelQueries();
-            if (previous.userId !== null && previous.businessId !== null) {
-                queryClient.removeQueries({
-                    queryKey: orderQueryKeys.business(previous.userId, previous.businessId),
-                });
-                queryClient.removeQueries({
-                    queryKey: ["inventory-stock-balances", previous.userId, previous.businessId],
-                });
-            }
-            if (userId === null) {
-                queryClient.clear();
-            }
+            queryClient.clear();
         }
         previousIdentity.current = { userId, businessId };
     }, [userId, businessId]);
