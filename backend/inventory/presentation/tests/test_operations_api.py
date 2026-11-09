@@ -26,6 +26,20 @@ class InventoryOperationsAPITests(APITestCase):
             unit="kg", quantity=Decimal("10"), average_cost=Decimal("4"),
         )
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+
+    def test_requires_explicit_business_context_and_rejects_foreign_business(self):
+        self.client.credentials()
+        missing = self.client.get("/api/inventory/issues/")
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(missing.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        foreign = self.client.get("/api/inventory/issues/")
+        self.assertEqual(foreign.status_code, 403)
+        self.assertEqual(foreign.data["code"], "BUSINESS_ACCESS_DENIED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _member(business, suffix, permissions, role_code="OWNER"):
@@ -161,6 +175,7 @@ class InventoryOperationsAPITests(APITestCase):
             "lines": [{"ingredient_id": self.item.pk, "quantity": "1", "unit": "kg"}],
         })
         self.client.force_authenticate(self.other_owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         self.assertEqual(self.client.get(f"/api/inventory/issues/{foreign['id']}/").status_code, 404)
         self.assertEqual(self.client.get("/api/inventory/movements/").status_code, 200)
         self.client.force_authenticate(self.viewer)
@@ -189,6 +204,7 @@ class InventoryOperationsAPITests(APITestCase):
         self.assertEqual(history.data["count"], 1)
         self.assertEqual(history.data["results"][0]["balance_after"], "9.000000000000")
         self.client.force_authenticate(self.other_owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         self.assertEqual(self.client.get("/api/inventory/movements/").data["count"], 0)
 
     def test_transfer_rejects_foreign_warehouse_and_unknown_tenant_fields(self):
