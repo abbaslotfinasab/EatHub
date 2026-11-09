@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.views import TenantAPIView
+from accounts.views import ExplicitTenantAPIView
 from core.enums import PermissionCode
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from inventory.domain.exceptions import InventoryDomainError
@@ -161,7 +161,7 @@ def _run(call):
         raise serializers.ValidationError({"detail": str(error)}) from error
 
 
-class OperationCollectionAPIView(TenantAPIView):
+class OperationCollectionAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
     operation_type = None
 
@@ -196,7 +196,7 @@ class StocktakeListCreateAPIView(OperationCollectionAPIView):
     operation_type = InventoryOperation.Type.STOCKTAKE
 
 
-class OperationDetailAPIView(TenantAPIView):
+class OperationDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
     operation_type = None
 
@@ -246,7 +246,7 @@ class StocktakeDetailAPIView(OperationDetailAPIView):
     operation_type = InventoryOperation.Type.STOCKTAKE
 
 
-class OpeningStockCreateAPIView(TenantAPIView):
+class OpeningStockCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -265,7 +265,7 @@ class OpeningStockDetailAPIView(OperationDetailAPIView):
     operation_type = InventoryOperation.Type.OPENING_STOCK
 
 
-class MovementHistoryAPIView(TenantAPIView):
+class MovementHistoryAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):

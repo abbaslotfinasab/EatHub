@@ -38,6 +38,19 @@ class OpeningStockAPITests(APITestCase):
         Membership.objects.create(user=user, business=business, role=role, is_active=True)
         return user
 
+    def test_requires_explicit_business_context_and_rejects_foreign_business(self):
+        self.client.credentials()
+        missing = self.client.post("/api/inventory/opening-stock/", self._payload(), format="json")
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(missing.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        foreign = self.client.post("/api/inventory/opening-stock/", self._payload(), format="json")
+        self.assertEqual(foreign.status_code, 403)
+        self.assertEqual(foreign.data["code"], "BUSINESS_ACCESS_DENIED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+
     def _payload(self, lines=None, **changes):
         data = {
             "warehouse_id": self.warehouse.pk,
@@ -180,6 +193,7 @@ class OpeningStockAPITests(APITestCase):
         denied = self.client.post("/api/inventory/opening-stock/", self._payload(), format="json")
         self.assertEqual(denied.status_code, 403)
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
         first = self.client.post("/api/inventory/opening-stock/", self._payload(), format="json")
         self.assertEqual(first.status_code, 201, first.data)
         repeated = self.client.post("/api/inventory/opening-stock/", self._payload(), format="json")
