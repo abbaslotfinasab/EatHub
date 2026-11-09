@@ -34,6 +34,7 @@ class InventoryMasterDataAPITests(APITestCase):
             name="No membership", number="919999",
         )
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _member(business, suffix, permissions, code="OWNER"):
@@ -50,6 +51,19 @@ class InventoryMasterDataAPITests(APITestCase):
         )
         Membership.objects.create(user=user, business=business, role=role, is_active=True)
         return user
+
+    def test_requires_explicit_business_context_and_rejects_foreign_business(self):
+        self.client.credentials()
+        missing = self.client.get("/api/inventory/items/")
+        self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(missing.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        foreign = self.client.get("/api/inventory/warehouses/")
+        self.assertEqual(foreign.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(foreign.data["code"], "BUSINESS_ACCESS_DENIED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     def test_item_list_create_detail_and_patch_use_the_business_scope(self):
         response = self.client.post("/api/inventory/items/", {
@@ -89,7 +103,10 @@ class InventoryMasterDataAPITests(APITestCase):
         self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get("/api/inventory/items/").status_code, 401)
         self.client.force_authenticate(self.no_membership)
-        self.assertEqual(self.client.get("/api/inventory/warehouses/").status_code, 403)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+        denied = self.client.get("/api/inventory/warehouses/")
+        self.assertEqual(denied.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(denied.data["code"], "BUSINESS_ACCESS_DENIED")
 
     def test_item_sku_unique_per_business_and_stock_fields_are_rejected(self):
         payload = {"name": "Salt", "sku": "SALT", "unit": "kg"}
@@ -132,6 +149,7 @@ class InventoryMasterDataAPITests(APITestCase):
         self.assertEqual(locked_unit.status_code, status.HTTP_400_BAD_REQUEST)
 
         self.client.force_authenticate(self.other_owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         same_sku_other_business = self.client.post("/api/inventory/items/", payload, format="json")
         self.assertEqual(same_sku_other_business.status_code, status.HTTP_201_CREATED)
 
@@ -183,6 +201,7 @@ class InventoryMasterDataAPITests(APITestCase):
         self.assertTrue(Warehouse.objects.get(pk=second.data["id"]).is_default)
 
         self.client.force_authenticate(self.other_owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         other_default = self.client.post("/api/inventory/warehouses/", {"name": "Other Main", "is_default": True}, format="json")
         self.assertEqual(other_default.status_code, 201)
         self.assertTrue(
@@ -196,6 +215,7 @@ class InventoryMasterDataAPITests(APITestCase):
         self.assertEqual(listing.data["count"], 1)
 
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
         disabled = self.client.patch(f"/api/inventory/warehouses/{second.data['id']}/", {"is_active": False}, format="json")
         self.assertEqual(disabled.status_code, 200)
         self.assertFalse(disabled.data["is_default"])
