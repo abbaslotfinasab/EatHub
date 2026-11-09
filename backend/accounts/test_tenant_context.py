@@ -90,6 +90,23 @@ class TenantAPIViewContextTests(TestCase):
         self.assertEqual(response.data["inventory_enabled"], self.business.inventory_enabled)
 
 
+    def test_user_can_resolve_each_of_multiple_active_business_contexts(self):
+        second_business = BusinessService.create_business(self.user, "Second Tenant Cafe")
+        first_context = resolve_tenant_context(
+            user=self.user,
+            business_id=self.business.pk,
+        )
+        second_context = resolve_tenant_context(
+            user=self.user,
+            business_id=second_business.pk,
+        )
+        self.assertNotEqual(first_context.business_id, second_context.business_id)
+        self.assertEqual(
+            Membership.objects.filter(user=self.user, is_active=True).count(),
+            2,
+        )
+
+
 class TenantAPIViewCompatibilityTests(TestCase):
     def setUp(self):
         from rest_framework.test import APIClient
