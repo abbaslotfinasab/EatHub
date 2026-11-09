@@ -3,7 +3,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import TenantAPIView
+from accounts.views import ExplicitTenantAPIView
 from core.enums import PermissionCode
 from inventory.application.dto.stock_balance import ListStockBalancesQuery
 from inventory.application.use_cases.list_stock_balances import (
@@ -47,7 +47,7 @@ class StockBalancePageSerializer(serializers.Serializer):
     results = StockBalanceSerializer(many=True)
 
 
-class StockBalanceListAPIView(TenantAPIView):
+class StockBalanceListAPIView(ExplicitTenantAPIView):
     """GET /api/inventory/balances/.
 
     Query parameters are ``page`` (default 1), ``page_size`` (default 20,
