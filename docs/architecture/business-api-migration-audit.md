@@ -16,8 +16,8 @@ Status: initial route inventory, based on `feat/tenant-context-resolver` at comm
 |---|---|---|---|
 | Account business profile | `BusinessProfileAPIView` | `TenantAPIView` | Legacy compatibility |
 | Account inventory settings | `BusinessInventorySettingsAPIView` | `ExplicitTenantAPIView` | Explicit context |
-| Core dashboard | `DashboardAPIView` | `TenantAPIView` | Pending |
-| Inventory stock balances | `StockBalanceListAPIView` | `TenantAPIView` | Pending |
+| Core dashboard | `DashboardAPIView` | `ExplicitTenantAPIView` | Explicit context (PR #52) |
+| Inventory stock balances | `StockBalanceListAPIView` | `ExplicitTenantAPIView` | Explicit context (PR #52) |
 | Inventory master data | Items, warehouses | `TenantAPIView` | Pending |
 | Inventory compound materials | List/create/detail | `TenantAPIView` | Pending |
 | Inventory operations | Issues, transfers, stocktakes, opening stock, movements | `TenantAPIView` | Pending |
@@ -39,7 +39,7 @@ The Customer and Financial functionality currently exposed through `products/vie
 
 ## Immediate migration order
 
-1. Core dashboard and Inventory endpoints (shared business context and stock isolation).
+1. Core dashboard and stock-balance endpoints (explicit context migrated in PR #52); continue with Inventory master data and operations.
 2. Product / Sales endpoints, including Customer and CustomerAccount operations.
 3. Account business profile.
 4. Remove `TenantAPIView` and its compatibility behavior.
