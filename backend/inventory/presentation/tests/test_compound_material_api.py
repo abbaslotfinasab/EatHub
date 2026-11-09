@@ -28,6 +28,7 @@ class CompoundMaterialAPITests(APITestCase):
         self.inactive = Ingredient.objects.create(business=self.business, name="Inactive", unit="kg", preparation_level="raw", is_active=False)
         self.foreign = Ingredient.objects.create(business=self.other_business, name="Foreign", unit="kg", preparation_level="raw")
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _permission(code):
