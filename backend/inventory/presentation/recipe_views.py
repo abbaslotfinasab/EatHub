@@ -4,7 +4,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import TenantAPIView
+from accounts.views import ExplicitTenantAPIView
 from core.enums import PermissionCode
 from inventory.application.use_cases.manage_recipes import (
     InactiveRecipeIngredient,
@@ -65,7 +65,7 @@ def _line_command(data: dict, *, output: bool = False) -> RecipeLineCommand:
     )
 
 
-class RecipeListCreateAPIView(TenantAPIView):
+class RecipeListCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -101,7 +101,7 @@ class RecipeListCreateAPIView(TenantAPIView):
         return Response(RecipeSerializer(recipe).data, status=status.HTTP_201_CREATED)
 
 
-class RecipeDetailAPIView(TenantAPIView):
+class RecipeDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -126,7 +126,7 @@ class RecipeDetailAPIView(TenantAPIView):
         return Response(RecipeSerializer(recipe).data)
 
 
-class RecipeLineCollectionAPIView(TenantAPIView):
+class RecipeLineCollectionAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
     line_kind = "input"
 
@@ -154,7 +154,7 @@ class RecipeOutputCollectionAPIView(RecipeLineCollectionAPIView):
     line_kind = "output"
 
 
-class RecipeLineDetailAPIView(TenantAPIView):
+class RecipeLineDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
     line_kind = "input"
 
