@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status
 
 from accounts.models import Business
-from accounts.views import TenantAPIView
+from accounts.views import ExplicitTenantAPIView, TenantAPIView
 from products.serializers.customer_serializer import CustomerDetailSerializer, \
     CreateCustomerSerializer, UpdateCustomerSerializer, CustomerTransactionSerializer, \
     CustomerAccountSerializer, CustomerBalanceSerializer
@@ -65,7 +65,7 @@ def _require_financial_access(request, message):
 
 
 
-class MenuCreateAPIView(TenantAPIView):
+class MenuCreateAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -94,7 +94,7 @@ class MenuCreateAPIView(TenantAPIView):
         )
 
 
-class MenuListAPIView(TenantAPIView):
+class MenuListAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -110,7 +110,7 @@ class MenuListAPIView(TenantAPIView):
         return Response(MenuSerializer(menus, many=True).data)
 
 
-class MenuDetailAPIView(TenantAPIView):
+class MenuDetailAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -125,7 +125,7 @@ class MenuDetailAPIView(TenantAPIView):
 
 
 
-class MenuUpdateAPIView(TenantAPIView):
+class MenuUpdateAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -153,7 +153,7 @@ class MenuUpdateAPIView(TenantAPIView):
         return Response(MenuSerializer(menu).data)
 
 
-class MenuDeleteAPIView(TenantAPIView):
+class MenuDeleteAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -212,7 +212,7 @@ class PublicRestaurantMenuAPIView(APIView):
 
 
 
-class MenuItemCreateAPIView(TenantAPIView):
+class MenuItemCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, menu_id):
@@ -247,7 +247,7 @@ class MenuItemCreateAPIView(TenantAPIView):
             status=status.HTTP_201_CREATED
         )
 
-class MenuItemUpdateAPIView(TenantAPIView):
+class MenuItemUpdateAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -282,7 +282,7 @@ class MenuItemUpdateAPIView(TenantAPIView):
         )
 
 
-class MenuItemDeleteAPIView(TenantAPIView):
+class MenuItemDeleteAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
