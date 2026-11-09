@@ -10,10 +10,9 @@ class BusinessService:
     @staticmethod
     @transaction.atomic
     def create_business(user, name, number="", address="", logo=None, request=None):
-        # Serialize business creation per user so the partial unique constraint
-        # (one active business per user) remains valid under concurrent requests.
+        # Serialize onboarding for one user; membership eligibility is independent
+        # from the business selected by any particular browser tab.
         User.objects.select_for_update().get(pk=user.pk)
-        Membership.objects.filter(user=user, is_active=True).update(is_active=False)
 
         business = Business.objects.create(
             name=name,

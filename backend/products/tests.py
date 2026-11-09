@@ -526,18 +526,15 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.READY)
 
-    def test_me_response_exposes_active_membership_permissions(self):
+    def test_me_response_does_not_infer_a_global_active_business(self):
         user = self.user_for("ACCOUNTANT")
         self.client.force_authenticate(user)
         response = self.client.get("/api/accounts/auth/me/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(
-            PermissionCode.PAYMENTS_MANAGE,
-            response.data["active_business"]["permissions"],
-        )
-        self.assertNotIn(
-            PermissionCode.ORDERS_UPDATE,
-            response.data["active_business"]["permissions"],
+        self.assertIsNone(response.data["active_business"])
+        self.assertEqual(
+            response.data["memberships"][0]["role"],
+            "ACCOUNTANT",
         )
 
     def test_role_initializer_preserves_extra_default_role_permissions(self):

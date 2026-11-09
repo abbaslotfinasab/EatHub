@@ -2,7 +2,6 @@ import uuid
 
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
-from django.db.models import Q
 
 from accounts.enums import InvitationStatus
 from accounts.managers import UserManager
@@ -201,9 +200,8 @@ class Membership(BaseModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["user"],
-                condition=Q(is_active=True),
-                name="one_active_business_per_user"
+                fields=["user", "business"],
+                name="unique_user_business_membership",
             )
         ]
 

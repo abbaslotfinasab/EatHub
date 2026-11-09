@@ -1,4 +1,3 @@
-from django.db import transaction
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -132,9 +131,7 @@ class LoginAPIView(APIView):
 class SelectBusinessAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @transaction.atomic
     def post(self, request):
-        User.objects.select_for_update().get(pk=request.user.pk)
         business_id = request.data.get("business_id")
         if not business_id:
             raise ValidationError({"business_id": "This field is required."})
@@ -145,14 +142,12 @@ class SelectBusinessAPIView(APIView):
             ).get(
                 user=request.user,
                 business_id=business_id,
+                is_active=True,
                 business__is_active=True,
             )
         except Membership.DoesNotExist:
-            return Response({"detail": "Invalid business"}, status=400)
+            return Response({"detail": "Invalid or inactive business membership"}, status=400)
 
-        Membership.objects.filter(user=request.user, is_active=True).update(is_active=False)
-        new_membership.is_active = True
-        new_membership.save(update_fields=["is_active"])
         return Response({
             "business": {
                 "id": new_membership.business.id,
@@ -160,7 +155,6 @@ class SelectBusinessAPIView(APIView):
             },
             "role": new_membership.role.code,
         })
-
 
 class MeAPIView(APIView):
     permission_classes = [IsAuthenticated]

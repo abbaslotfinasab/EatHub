@@ -289,7 +289,7 @@ class BusinessOnboardingAPITests(TestCase):
             }
             self.assertSetEqual(actual, configured, role_code.value)
 
-    def test_creating_another_business_switches_the_users_single_active_membership(self):
+    def test_creating_another_business_preserves_all_eligible_memberships(self):
         creator = self.create_user("multiple")
         first_business = self.create_business_through_api(creator, "First Business")
         first_membership = Membership.objects.get(user=creator, business=first_business)
@@ -299,11 +299,11 @@ class BusinessOnboardingAPITests(TestCase):
 
         first_membership.refresh_from_db()
         second_membership = Membership.objects.get(user=creator, business=second_business)
-        self.assertFalse(first_membership.is_active)
+        self.assertTrue(first_membership.is_active)
         self.assertTrue(second_membership.is_active)
         self.assertEqual(
             Membership.objects.filter(user=creator, is_active=True).count(),
-            1,
+            2,
         )
 
     def test_unauthenticated_and_invalid_business_requests_do_not_create_records(self):
@@ -445,7 +445,7 @@ class BusinessSwitchingAndProfileAPITests(TestCase):
         self.second_business = BusinessService.create_business(self.user, "Second Business")
         self.client.force_authenticate(user=self.user)
 
-    def test_me_returns_all_businesses_and_marks_the_current_business(self):
+    def test_me_returns_all_eligible_businesses_without_global_selection(self):
         response = self.client.get("/api/accounts/auth/me/")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["meta"]["business_count"], 2)
@@ -453,9 +453,9 @@ class BusinessSwitchingAndProfileAPITests(TestCase):
             {item["business_name"] for item in response.data["memberships"]},
             {"First Business", "Second Business"},
         )
-        self.assertEqual(response.data["active_business"]["id"], self.second_business.id)
+        self.assertIsNone(response.data["active_business"])
 
-    def test_user_can_switch_back_to_an_inactive_membership(self):
+    def test_business_selection_does_not_change_membership_eligibility(self):
         response = self.client.post(
             "/api/accounts/auth/select-business/",
             {"business_id": self.first_business.id},
@@ -465,12 +465,21 @@ class BusinessSwitchingAndProfileAPITests(TestCase):
         self.assertTrue(
             Membership.objects.get(user=self.user, business=self.first_business).is_active
         )
-        self.assertFalse(
+        self.assertTrue(
             Membership.objects.get(user=self.user, business=self.second_business).is_active
         )
         me = self.client.get("/api/accounts/auth/me/")
-        self.assertEqual(me.data["active_business"]["id"], self.first_business.id)
+        self.assertIsNone(me.data["active_business"])
         self.assertEqual(me.data["meta"]["business_count"], 2)
+
+    def test_business_selection_rejects_ineligible_membership(self):
+        Membership.objects.filter(user=self.user, business=self.first_business).update(is_active=False)
+        response = self.client.post(
+            "/api/accounts/auth/select-business/",
+            {"business_id": self.first_business.id},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_profile_can_be_updated_without_changing_email(self):
         response = self.client.patch(
