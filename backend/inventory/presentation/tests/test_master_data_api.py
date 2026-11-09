@@ -103,7 +103,10 @@ class InventoryMasterDataAPITests(APITestCase):
         self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get("/api/inventory/items/").status_code, 401)
         self.client.force_authenticate(self.no_membership)
-        self.assertEqual(self.client.get("/api/inventory/warehouses/").status_code, 403)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+        denied = self.client.get("/api/inventory/warehouses/")
+        self.assertEqual(denied.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(denied.data["code"], "BUSINESS_ACCESS_DENIED")
 
     def test_item_sku_unique_per_business_and_stock_fields_are_rejected(self):
         payload = {"name": "Salt", "sku": "SALT", "unit": "kg"}
