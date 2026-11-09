@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
-from accounts.views import TenantAPIView
+from accounts.views import ExplicitTenantAPIView
 from core.pagination import DashboardRecentOrdersPagination
 from core.serializers.DashboardSerializer import DashboardSerializer
 from core.serializers.UploadSerializer import UploadSerializer
@@ -25,7 +25,7 @@ class UploadAPIView(APIView):
         return Response(result, status=status.HTTP_201_CREATED)
 
 
-class DashboardAPIView(TenantAPIView):
+class DashboardAPIView(ExplicitTenantAPIView):
 
     def get(self, request):
         sales_period = request.query_params.get("sales_period", "weekly")

@@ -58,6 +58,7 @@ class DashboardRecentOrdersPaginationTests(APITestCase):
             is_active=True,
         )
         self.client.force_authenticate(self.user)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     def create_order(self, business=None, created_at=None, **overrides):
         order_fields = {
@@ -414,6 +415,18 @@ class DashboardRecentOrdersPaginationTests(APITestCase):
         self.assertEqual(order.payment_status, Order.PaymentStatus.PENDING)
         self.assertFalse(ActivityLog.objects.filter(entity_id=order.id).exists())
 
+
+    def test_dashboard_requires_explicit_business_context(self):
+        self.client.credentials()
+        response = self.client.get(self.endpoint)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_dashboard_rejects_another_users_business_context(self):
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        response = self.client.get(self.endpoint)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
 
 class SharedImageUploadApiTests(APITestCase):
     def setUp(self):
