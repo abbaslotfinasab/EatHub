@@ -24,6 +24,7 @@ class OpeningStockAPITests(APITestCase):
         self.warehouse = Warehouse.objects.create(business=self.business, name="Main")
         self.foreign_warehouse = Warehouse.objects.create(business=self.other_business, name="Foreign")
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _member(business, suffix, permissions, role_code="OWNER"):
