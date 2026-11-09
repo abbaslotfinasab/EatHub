@@ -1,5 +1,4 @@
 import json
-import os
 import unittest
 from unittest.mock import patch
 
@@ -13,11 +12,9 @@ if not settings.configured:
     )
 
 from django.test import RequestFactory
+from django.db import OperationalError
 
 from EatHub.readiness import release_readiness
-
-
-VALID_RELEASE_ID = "success-20261022t010203z-0123456789ab-abcdef01"
 
 
 class ReleaseReadinessTests(unittest.TestCase):
@@ -28,32 +25,40 @@ class ReleaseReadinessTests(unittest.TestCase):
         request = getattr(self.factory, method)("/api/ready/")
         return release_readiness(request)
 
-    def test_valid_configured_release_returns_only_release_identity(self):
-        with patch.dict(os.environ, {"EATHUB_RELEASE_ID": VALID_RELEASE_ID}):
-            response = self.call_endpoint()
+    @patch("EatHub.readiness.connection.ensure_connection")
+    def test_database_connection_returns_ready(self, ensure_connection):
+        response = self.call_endpoint()
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "text/plain; charset=utf-8")
+        self.assertEqual(
+            json.loads(response.content.decode()),
+            {"status": "ready", "checks": {"database": "ok"}},
+        )
         self.assertIn("no-store", response["Cache-Control"])
-        self.assertEqual(response.content.decode(), f"ready:{VALID_RELEASE_ID}")
+        ensure_connection.assert_called_once_with()
 
-    def test_missing_or_malformed_identity_fails_closed_without_echoing_value(self):
-        for invalid_value in (None, "", "success-20261399t256199z-0123456789ab-abcdef01", "secret-value"):
-            with self.subTest(identity=invalid_value), patch.dict(os.environ, {}, clear=False):
-                os.environ.pop("EATHUB_RELEASE_ID", None)
-                if invalid_value is not None:
-                    os.environ["EATHUB_RELEASE_ID"] = invalid_value
+    @patch(
+        "EatHub.readiness.connection.ensure_connection",
+        side_effect=OperationalError("database unavailable"),
+    )
+    def test_database_failure_returns_not_ready_without_leaking_details(
+        self, ensure_connection
+    ):
+        response = self.call_endpoint()
 
-                response = self.call_endpoint()
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            json.loads(response.content.decode()),
+            {"status": "not_ready", "checks": {"database": "error"}},
+        )
+        self.assertNotIn("database unavailable", response.content.decode())
+        self.assertIn("no-store", response["Cache-Control"])
+        ensure_connection.assert_called_once_with()
 
-                self.assertEqual(response.status_code, 503)
-                self.assertIn("no-store", response["Cache-Control"])
-                self.assertEqual(json.loads(response.content.decode()), {"status": "not_ready"})
-                self.assertNotIn("secret-value", response.content.decode())
-
-    def test_non_get_request_is_not_accepted(self):
-        with patch.dict(os.environ, {"EATHUB_RELEASE_ID": VALID_RELEASE_ID}):
-            response = self.call_endpoint(method="post")
+    @patch("EatHub.readiness.connection.ensure_connection")
+    def test_non_get_request_is_not_accepted(self, ensure_connection):
+        response = self.call_endpoint(method="post")
 
         self.assertEqual(response.status_code, 405)
         self.assertIn("no-store", response["Cache-Control"])
+        ensure_connection.assert_not_called()
