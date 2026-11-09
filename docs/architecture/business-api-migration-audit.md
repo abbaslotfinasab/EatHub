@@ -42,7 +42,7 @@ The Customer and Financial functionality is still implemented inside `products/v
 
 ## Immediate migration order
 
-1. Core dashboard, stock balances (PR #52), Inventory items / warehouses (PR #53), compound materials (PR #54), and Inventory operations (PR #63), and recipes (PR #64).
+1. Core dashboard, stock balances (PR #52), Inventory items / warehouses (PR #53), compound materials (PR #54), Inventory operations (PR #63), recipes (PR #64), and reservations (PR #65).
 2. Sales menu management (PR #66); then Sales orders. Migrate Customer CRUD and customer-account/transaction endpoints only after the Customer and Financial module boundaries are implemented or explicitly agreed.
 3. Account business profile.
 4. Remove `TenantAPIView` and its compatibility behavior.
