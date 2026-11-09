@@ -10,6 +10,7 @@ on:
       - develop
       - main
       - feature/purchase-frontend-foundation
+      - 'feat/**'
 
 permissions:
   contents: read
@@ -65,4 +66,4 @@ jobs:
         run: npm run build
 
       - name: Run frontend tests
-        run: node --experimental-transform-types --test src/core/presentation/components/order/*.test.mjs src/core/data/mappers/*.test.mjs
+        run: node --experimental-transform-types --test src/core/presentation/components/order/*.test.mjs src/core/presentation/store/*.test.mjs src/core/data/mappers/*.test.mjs

@@ -393,6 +393,7 @@ class BusinessInventorySettingsAPITests(TestCase):
             name="Inventory Owner", number="inventory-owner",
         )
         self.business = BusinessService.create_business(self.owner, "Orders Only Cafe")
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.id))
         self.url = "/api/accounts/business/inventory-settings/"
 
     def test_new_business_defaults_to_orders_only_mode_and_owner_can_enable_inventory(self):
