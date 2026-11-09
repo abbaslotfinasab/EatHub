@@ -142,6 +142,7 @@ class StockBalanceListAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         self.client.force_authenticate(self.other_user)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
         response = self.client.get(self.endpoint)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
