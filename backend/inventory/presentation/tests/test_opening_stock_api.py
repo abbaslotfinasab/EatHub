@@ -148,6 +148,7 @@ class OpeningStockAPITests(APITestCase):
         self.client.force_authenticate(self.viewer)
         self.assertEqual(self.client.get(endpoint).status_code, 200)
         self.client.force_authenticate(self.other_owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         self.assertEqual(self.client.get(endpoint).status_code, 404)
 
     def test_rejects_duplicates_invalid_values_missing_cost_and_incompatible_units(self):
