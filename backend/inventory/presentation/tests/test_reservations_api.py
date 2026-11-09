@@ -34,6 +34,19 @@ class InventoryReservationsAPITests(APITestCase):
         self.client.force_authenticate(self.owner)
         self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
+    def test_requires_explicit_business_context_and_rejects_foreign_business(self):
+        self.client.credentials()
+        missing = self.client.get("/api/inventory/reservations/")
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(missing.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        foreign = self.client.get("/api/inventory/reservations/")
+        self.assertEqual(foreign.status_code, 403)
+        self.assertEqual(foreign.data["code"], "BUSINESS_ACCESS_DENIED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+
     @staticmethod
     def _member(business, suffix, permissions, role_code):
         role = Role.objects.create(business=business, name=role_code, code=f"{role_code}-{suffix}")

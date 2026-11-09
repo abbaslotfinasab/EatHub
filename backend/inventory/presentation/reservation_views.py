@@ -3,7 +3,7 @@ from rest_framework.exceptions import APIException, NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import TenantAPIView
+from accounts.views import ExplicitTenantAPIView
 from core.enums import PermissionCode
 from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import InvalidApplicationInput, OperationConflict, ResourceNotFound
@@ -160,7 +160,7 @@ def _reservation_data(reservation):
     }
 
 
-class ReservationListCreateAPIView(TenantAPIView):
+class ReservationListCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -189,7 +189,7 @@ class ReservationListCreateAPIView(TenantAPIView):
         return Response(_reservation_data(reservation), status=status.HTTP_201_CREATED)
 
 
-class ReservationDetailAPIView(TenantAPIView):
+class ReservationDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk, action=None):
@@ -215,7 +215,7 @@ class ReservationDetailAPIView(TenantAPIView):
         return Response(_reservation_data(result))
 
 
-class ReservationAvailabilityAPIView(TenantAPIView):
+class ReservationAvailabilityAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
