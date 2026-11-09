@@ -27,7 +27,7 @@ export const BusinessSwitcher = () => {
 
     return (
         <FormControl size="small" sx={{ minWidth: { xs: 132, sm: 190 } }}>
-            <Select
+            <Select<number | "">
                 value={selectedBusinessId ?? ""}
                 displayEmpty
                 onChange={(event) => {
@@ -36,7 +36,7 @@ export const BusinessSwitcher = () => {
                 }}
                 inputProps={{ "aria-label": "انتخاب کسب‌وکار" }}
                 renderValue={(value) => {
-                    if (!value) return <Typography variant="body2" color="text.secondary">انتخاب کسب‌وکار</Typography>;
+                    if (value === "") return <Typography variant="body2" color="text.secondary">انتخاب کسب‌وکار</Typography>;
                     return memberships.find((item) => item.business_id === Number(value))?.business_name ?? "انتخاب کسب‌وکار";
                 }}
                 sx={{ borderRadius: 2, bgcolor: "#F9FAFB", fontSize: 14 }}
