@@ -32,6 +32,7 @@ class InventoryReservationsAPITests(APITestCase):
             unit="kg", quantity=Decimal("1"), average_cost=Decimal("3"),
         )
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _member(business, suffix, permissions, role_code):
@@ -200,8 +201,10 @@ class InventoryReservationsAPITests(APITestCase):
         self.assertEqual(foreign_warehouse.status_code, 404)
         created = self.client.post("/api/inventory/reservations/", self._payload(), format="json")
         self.client.force_authenticate(self.other_owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         self.assertEqual(self.client.get(f"/api/inventory/reservations/{created.data['id']}/").status_code, 404)
         self.client.force_authenticate(self.viewer)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
         self.assertEqual(self.client.get("/api/inventory/reservations/").status_code, 200)
         denied = self.client.post("/api/inventory/reservations/", self._payload(), format="json")
         self.assertEqual(denied.status_code, 403)
