@@ -2558,6 +2558,20 @@ class MenuItemRecipeApiTests(APITestCase):
             price=Decimal("12.00"),
         )
         self.client.force_authenticate(self.user)
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+
+
+    def test_menu_api_requires_explicit_business_context(self):
+        self.client.defaults.pop("HTTP_X_BUSINESS_ID", None)
+        response = self.client.get("/api/products/menus/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_menu_api_rejects_business_without_membership(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.other_business.id)
+        response = self.client.get("/api/products/menus/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
 
     def test_create_menu_item_accepts_business_recipe_and_returns_it(self):
         response = self.client.post(
