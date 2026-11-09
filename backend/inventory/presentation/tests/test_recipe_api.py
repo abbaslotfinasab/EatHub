@@ -41,6 +41,20 @@ class RecipeAPITests(APITestCase):
             business=self.other_business, name="Foreign Flour", unit="kg"
         )
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+
+    def test_requires_explicit_business_context_and_rejects_foreign_business(self):
+        self.client.credentials()
+        missing = self.client.get("/api/inventory/recipes/")
+        self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(missing.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        foreign = self.client.get("/api/inventory/recipes/")
+        self.assertEqual(foreign.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(foreign.data["code"], "BUSINESS_ACCESS_DENIED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _member(business, suffix, permissions, code="OWNER"):
@@ -141,6 +155,7 @@ class RecipeAPITests(APITestCase):
         self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get("/api/inventory/recipes/").status_code, 401)
         self.client.force_authenticate(self.viewer)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
         self.assertEqual(self.client.get("/api/inventory/recipes/").status_code, 200)
         self.assertEqual(self.client.post("/api/inventory/recipes/", self._payload(), format="json").status_code, 403)
         self.assertEqual(self.client.patch("/api/inventory/recipes/1/", {"name": "Denied"}, format="json").status_code, 403)
