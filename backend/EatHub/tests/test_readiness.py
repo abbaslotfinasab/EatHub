@@ -9,6 +9,7 @@ if not settings.configured:
         DEFAULT_CHARSET="utf-8",
         SECRET_KEY="test-only-not-a-real-secret",
         USE_I18N=False,
+        DATABASES={"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}},
     )
 
 from django.test import RequestFactory
