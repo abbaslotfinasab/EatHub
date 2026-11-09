@@ -3,7 +3,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import TenantAPIView
+from accounts.views import ExplicitTenantAPIView
 from core.enums import PermissionCode
 from inventory.application.exceptions import MasterDataConflict
 from inventory.infrastructure.django.master_data_repository import DjangoMasterDataRepository
@@ -31,7 +31,7 @@ def _save_or_validate(call):
         raise ValidationError({error.field: str(error)}) from error
 
 
-class ItemListCreateAPIView(TenantAPIView):
+class ItemListCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -67,7 +67,7 @@ class ItemListCreateAPIView(TenantAPIView):
         return Response(ItemSerializer(item).data, status=status.HTTP_201_CREATED)
 
 
-class ItemDetailAPIView(TenantAPIView):
+class ItemDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -91,7 +91,7 @@ class ItemDetailAPIView(TenantAPIView):
         return Response(ItemSerializer(item).data)
 
 
-class WarehouseListCreateAPIView(TenantAPIView):
+class WarehouseListCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -126,7 +126,7 @@ class WarehouseListCreateAPIView(TenantAPIView):
         return Response(WarehouseSerializer(warehouse).data, status=status.HTTP_201_CREATED)
 
 
-class WarehouseDetailAPIView(TenantAPIView):
+class WarehouseDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
