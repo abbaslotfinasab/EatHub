@@ -155,6 +155,7 @@ class RecipeAPITests(APITestCase):
         self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get("/api/inventory/recipes/").status_code, 401)
         self.client.force_authenticate(self.viewer)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
         self.assertEqual(self.client.get("/api/inventory/recipes/").status_code, 200)
         self.assertEqual(self.client.post("/api/inventory/recipes/", self._payload(), format="json").status_code, 403)
         self.assertEqual(self.client.patch("/api/inventory/recipes/1/", {"name": "Denied"}, format="json").status_code, 403)
