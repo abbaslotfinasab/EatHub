@@ -81,6 +81,7 @@ apiClient.interceptors.response.use(
         } catch (err) {
             queue.forEach((waiter) => waiter.reject(err));
             queue = [];
+            useBusinessContextStore.getState().clearBusiness();
             useAuthStore.getState().clear();
             return Promise.reject(err);
         } finally {
