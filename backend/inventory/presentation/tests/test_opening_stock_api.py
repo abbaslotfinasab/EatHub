@@ -25,7 +25,6 @@ class OpeningStockAPITests(APITestCase):
         self.foreign_warehouse = Warehouse.objects.create(business=self.other_business, name="Foreign")
         self.client.force_authenticate(self.owner)
         self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
-        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _member(business, suffix, permissions, role_code="OWNER"):
@@ -162,7 +161,6 @@ class OpeningStockAPITests(APITestCase):
         self.client.force_authenticate(self.viewer)
         self.assertEqual(self.client.get(endpoint).status_code, 200)
         self.client.force_authenticate(self.other_owner)
-        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         self.assertEqual(self.client.get(endpoint).status_code, 404)
 
