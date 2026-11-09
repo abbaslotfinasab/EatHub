@@ -1,18 +1,15 @@
 // src/features/auth/hooks/useLogout.ts
 
 import { useNavigate } from "react-router-dom";
-import {useAuthStore} from "../store/auth.store.ts";
+import { useAuthStore } from "../store/auth.store.ts";
+import { useBusinessContextStore } from "../store/business-context.store.ts";
 
 export const useLogout = () => {
     const navigate = useNavigate();
 
     return () => {
-        // پاک کردن token و me
+        useBusinessContextStore.getState().clearBusiness();
         useAuthStore.getState().clear();
-
-        // برگشت به صفحه لاگین
-        navigate("/login", {
-            replace: true,
-        });
+        navigate("/login", { replace: true });
     };
 };
