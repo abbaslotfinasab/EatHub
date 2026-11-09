@@ -23,11 +23,14 @@ Status: initial route inventory, based on `feat/tenant-context-resolver` at comm
 | Inventory operations | Issues, transfers, stocktakes, opening stock, movements | `ExplicitTenantAPIView` | Explicit context (PR #55) |
 | Inventory recipes | Recipes, inputs, outputs | `ExplicitTenantAPIView` | Explicit context (PR #56) |
 | Inventory reservations | List/create/detail/availability | `ExplicitTenantAPIView` | Explicit context (PR #57) |
-| Product / Sales | Menus, menu items, orders, refunds, customers, customer accounts and transactions | `TenantAPIView` | Pending |
+| Sales menu management | Menus and menu items | `ExplicitTenantAPIView` | Explicit context (PR #58) |
+| Sales orders | Orders, status, consumption and refunds | `TenantAPIView` | Pending |
+| Customer / CRM | Customer CRUD | `TenantAPIView` | Pending; domain ownership review required |
+| Customer account / Financial | Customer accounts, credits, debits, adjustments and transactions | `TenantAPIView` | Pending; Financial ownership review required |
 | Upload | `UploadAPIView` | `APIView` | User-scoped; not business-scoped by current implementation |
 | Public menu | `PublicRestaurantMenuAPIView` | `APIView` + `AllowAny` | Public route; no authenticated tenant header |
 
-The Customer and Financial functionality currently exposed through `products/views.py` is included in the Product / Sales route group above; separate `customer/views.py` and `financial/views.py` contain no view implementations in this revision.
+The Customer and Financial functionality is still implemented inside `products/views.py`, while `customer/views.py` and `financial/views.py` contain no view implementations in this revision. This is a code-ownership gap, not a reason to migrate those endpoints as Sales. Menu management is migrated independently; orders remain Sales, Customer CRUD is reserved for the Customer module, and customer balances/transactions require a Financial ownership decision.
 
 ## Safe incremental rollout
 
@@ -40,7 +43,7 @@ The Customer and Financial functionality currently exposed through `products/vie
 ## Immediate migration order
 
 1. Core dashboard, stock balances (PR #52), Inventory items / warehouses (PR #53), compound materials (PR #54), Inventory operations (PR #55), recipes (PR #56), and reservations (PR #57).
-2. Product / Sales endpoints, including Customer and CustomerAccount operations.
+2. Sales menu management (PR #58); then Sales orders. Migrate Customer CRUD and customer-account/transaction endpoints only after the Customer and Financial module boundaries are implemented or explicitly agreed.
 3. Account business profile.
 4. Remove `TenantAPIView` and its compatibility behavior.
 
