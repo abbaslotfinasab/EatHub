@@ -12,7 +12,6 @@ class Migration(migrations.Migration):
         migrations.SeparateDatabaseAndState(
             database_operations=[],
             state_operations=[
-                migrations.DeleteModel(name="Customer"),
                 migrations.AlterField(
                     model_name="order",
                     name="customer",
@@ -44,6 +43,7 @@ class Migration(migrations.Migration):
                         to="customer.customer",
                     ),
                 ),
+                migrations.DeleteModel(name="Customer"),
             ],
         ),
     ]
