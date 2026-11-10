@@ -880,7 +880,7 @@ class OrderDeleteAPIView(ExplicitTenantAPIView):
 
 
 
-class CustomerListAPIView(TenantAPIView):
+class CustomerListAPIView(ExplicitTenantAPIView):
 
     permission_classes = [
         IsAuthenticated
@@ -1055,7 +1055,7 @@ class CustomerListAPIView(TenantAPIView):
             serializer.data
         )
 
-class CustomerCreateAPIView(TenantAPIView):
+class CustomerCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -1072,7 +1072,7 @@ class CustomerCreateAPIView(TenantAPIView):
 
 
 
-class CustomerDetailAPIView(TenantAPIView):
+class CustomerDetailAPIView(ExplicitTenantAPIView):
 
     permission_classes = [
         IsAuthenticated,
@@ -1118,7 +1118,7 @@ class CustomerDetailAPIView(TenantAPIView):
             CustomerDetailSerializer(customer).data
         )
 
-class CustomerUpdateAPIView(TenantAPIView):
+class CustomerUpdateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
@@ -1139,7 +1139,7 @@ class CustomerUpdateAPIView(TenantAPIView):
 
         return Response(CustomerSerializer(customer).data)
 
-class CustomerDeleteAPIView(TenantAPIView):
+class CustomerDeleteAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
