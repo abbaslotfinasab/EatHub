@@ -60,7 +60,11 @@ class ProductAllergen(BaseModel):
     presence = models.CharField(max_length=16, choices=Presence.choices, default=Presence.CONTAINS)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=("product", "code"), name="catalog_product_allergen_uq")]
+        constraints = [
+            models.UniqueConstraint(fields=("product", "code"), name="catalog_product_allergen_uq"),
+            models.CheckConstraint(condition=models.Q(code__in=tuple(value for value, _ in Code.choices)), name="catalog_prod_allergen_code_ck"),
+            models.CheckConstraint(condition=models.Q(presence__in=tuple(value for value, _ in Presence.choices)), name="catalog_prod_allergen_presence_ck"),
+        ]
         ordering = ("code",)
 
 
@@ -79,5 +83,8 @@ class ProductDietaryTag(BaseModel):
     code = models.CharField(max_length=24, choices=Code.choices)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=("product", "code"), name="catalog_product_dietary_tag_uq")]
+        constraints = [
+            models.UniqueConstraint(fields=("product", "code"), name="catalog_product_dietary_tag_uq"),
+            models.CheckConstraint(condition=models.Q(code__in=tuple(value for value, _ in Code.choices)), name="catalog_prod_dietary_code_ck"),
+        ]
         ordering = ("code",)
