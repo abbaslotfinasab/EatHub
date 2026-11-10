@@ -22,6 +22,8 @@ class OrderItemSerializer(serializers.Serializer):
 
     menu_item_id = serializers.IntegerField(allow_null=True)
     menu_item_name = serializers.CharField()
+    catalog_product_id = serializers.IntegerField(allow_null=True, required=False)
+    catalog_product_name = serializers.CharField(allow_null=True, required=False)
 
     quantity = serializers.IntegerField()
     unit_price = serializers.DecimalField(max_digits=12, decimal_places=2)
