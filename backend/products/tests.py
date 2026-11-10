@@ -2337,6 +2337,24 @@ class OrderWalletPaymentTests(TestCase):
         self.assertEqual(transaction.order_id, self.order.id)
         self.assertEqual(self.account.balance, Decimal("105.00"))
 
+    def test_customer_with_unsettled_order_cannot_be_deleted_or_cascade_order(self):
+        customer = Customer.objects.create(
+            business=self.business, name="Order History", phone="98766"
+        )
+        order = Order.objects.create(
+            business=self.business,
+            customer=customer,
+            order_type=Order.OrderType.TAKEAWAY,
+            status=Order.Status.CANCELLED,
+            payment_status=Order.PaymentStatus.UNPAID,
+        )
+
+        with self.assertRaisesRegex(ValidationError, "order history"):
+            CustomerService.delete_customer(customer=customer)
+
+        self.assertTrue(Customer.objects.filter(pk=customer.pk).exists())
+        self.assertTrue(Order.objects.filter(pk=order.pk).exists())
+
     def test_unsettled_order_and_customer_without_wallet_history_can_be_deleted(self):
         order = Order.objects.create(
             business=self.business,
