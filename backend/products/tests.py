@@ -23,7 +23,7 @@ from products.models import CustomerAccount, CustomerTransaction, OrderRefund
 from products.services.menu_service import MenuService
 from products.services.order_service import OrderService
 from products.services.wallet_service import WalletService
-from products.services.customer_service import CustomerService
+from customer.services.customer_service import CustomerService
 from accounts.services.rbac_initializer import RBACInitializer
 
 
