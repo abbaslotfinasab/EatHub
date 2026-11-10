@@ -32,7 +32,7 @@ export const productCatalogMapper = {
             count: dto.count,
             page: dto.page,
             pageSize: dto.page_size,
-            results: dto.results.map(this.toDomain),
+            results: dto.results.map((product) => productCatalogMapper.toDomain(product)),
         };
     },
 };
