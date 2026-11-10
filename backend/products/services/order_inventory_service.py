@@ -249,20 +249,13 @@ class OrderInventoryService:
     @staticmethod
     @transaction.atomic
     def release_remaining(*, order: Order, actor_id: int, reason: str) -> None:
-        active = InventoryReservation.objects.select_for_update().filter(
+        from composition.order_reservations import release_remaining_order_reservation
+
+        _inventory_call(lambda: release_remaining_order_reservation(
             business_id=order.business_id,
-            warehouse__business_id=order.business_id,
-            source_type="order",
-            source_id=order.pk,
-            status=InventoryReservation.Status.ACTIVE,
-        ).first()
-        if active is None:
-            return
-        _inventory_call(lambda: _reservation_use_case().release(
-            _context(order, actor_id),
-            active.pk,
-            uuid5(_ORDER_KEY_NAMESPACE, f"release:{active.pk}"),
-            reason,
+            order_id=order.pk,
+            actor_id=actor_id,
+            reason=reason,
         ))
 
     @staticmethod
