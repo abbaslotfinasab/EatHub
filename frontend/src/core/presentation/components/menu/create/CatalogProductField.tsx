@@ -22,7 +22,7 @@ export const CatalogProductField = ({index}: Props) => {
     const {data, isLoading, isError} = useProducts(search, 1, 100);
 
     const options = useMemo<ProductOption[]>(() => {
-        const active = (data?.results ?? [])
+        const active: ProductOption[] = (data?.results ?? [])
             .filter((product) => product.status === "active")
             .map((product) => ({id: product.id, name: product.name}));
         if (productId != null && !active.some((product) => product.id === productId)) {
