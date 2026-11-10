@@ -40,6 +40,14 @@ class MenuItem(BaseModel):
         blank=True
     )
 
+    product = models.ForeignKey(
+        "catalog.Product",
+        on_delete=models.PROTECT,
+        related_name="menu_items",
+        null=True,
+        blank=True,
+    )
+
     recipe = models.OneToOneField(
         "inventory.Recipe",
         on_delete=models.PROTECT,
