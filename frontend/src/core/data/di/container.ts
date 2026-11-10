@@ -4,6 +4,7 @@ import {createMenuContainer} from "./menu.container";
 import {createOrderContainer} from "./order.container.ts";
 import {createUploadContainer} from "./upload.container.ts";
 import {createDashboardContainer} from "./dashboard.container.ts";
+import {createCatalogContainer} from "./catalog.container.ts";
 
 class Container {
     private _auth?: ReturnType<typeof createAuthContainer>;
@@ -77,6 +78,9 @@ class Container {
 
     }
 
+    get catalogContainer() {
+        return createCatalogContainer();
+    }
 }
 
 export const container = new Container();
