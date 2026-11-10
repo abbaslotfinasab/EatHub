@@ -809,6 +809,9 @@ class OrderService:
             WalletService.settle_order(
                 business=business,
                 order_id=order.id,
+                customer=order.customer,
+                amount=difference,
+                expected_settled_amount=settled_amount,
             )
         elif difference < 0:
             if refund is None:
@@ -818,6 +821,7 @@ class OrderService:
             WalletService.record_refund_credit(
                 business=business,
                 refund=refund,
+                expected_settled_amount=settled_amount,
                 description=f"Order #{order.id} settlement credit",
             )
 
@@ -825,78 +829,9 @@ class OrderService:
 
     @staticmethod
     def _validated_order_settlement(*, order, business):
-        if not order.customer_id:
-            transactions = list(
-                CustomerTransaction.objects.filter(order=order).order_by("id")
-            )
-            return Decimal("0"), transactions
-        if order.customer.business_id != business.id:
-            raise ValidationError("A customer belonging to this business is required.")
-
-        account = CustomerAccount.objects.select_for_update().filter(
-            customer_id=order.customer_id
-        ).first()
-        if account and account.business_id != business.id:
-            raise ValidationError("Customer account belongs to a different business.")
-
-        account_history = (
-            WalletService._validated_balance_history(account) if account else []
+        # Sales owns Order state; Financial owns wallet ledger validation.
+        return WalletService.validated_order_settlement(
+            business=business,
+            order_id=order.id,
+            customer_id=order.customer_id,
         )
-
-        transactions = [
-            entry for entry in account_history if entry.order_id == order.id
-        ]
-        if CustomerTransaction.objects.filter(order=order).exclude(
-            account_id=account.id if account else None
-        ).exists():
-            raise ValidationError("Order wallet entries belong to another customer account.")
-        if not account and CustomerTransaction.objects.filter(order=order).exists():
-            raise ValidationError("Order wallet entries have no customer account.")
-
-        settled_amount = Decimal("0")
-        for txn in transactions:
-            if (
-                not txn.is_order_settlement
-                or not txn.is_order_settlement_verified
-                or txn.account_id != account.id
-                or account.customer_id != order.customer_id
-                or account.business_id != business.id
-                or txn.amount <= 0
-                or txn.type not in (CustomerTransaction.Type.DEBIT, CustomerTransaction.Type.CREDIT)
-            ):
-                raise ValidationError(
-                    "Order wallet ledger is inconsistent or unclassified. Review the order ledger before retrying."
-                )
-            if txn.type == CustomerTransaction.Type.CREDIT:
-                if not txn.refund_id:
-                    raise ValidationError(
-                        "An order settlement credit has no refund record. Review the order ledger before retrying."
-                    )
-                refund = txn.refund
-                if (
-                    refund.order_id != order.id
-                    or refund.business_id != business.id
-                    or refund.customer_id != order.customer_id
-                    or refund.payment_method != Order.PaymentMethod.CUSTOMER_ACCOUNT
-                    or txn.amount != refund.amount
-                    or CustomerTransaction.objects.filter(refund_id=refund.id)
-                    .exclude(pk=txn.pk)
-                    .exists()
-                ):
-                    raise ValidationError(
-                        "The order refund ledger does not match its refund record. Review it before retrying."
-                    )
-            elif txn.refund_id:
-                raise ValidationError(
-                    "A refund record is linked to a non-credit order transaction. Review the order ledger before retrying."
-                )
-            if txn.type == CustomerTransaction.Type.DEBIT:
-                settled_amount += Decimal(str(txn.amount))
-            else:
-                settled_amount -= Decimal(str(txn.amount))
-
-        if settled_amount < 0:
-            raise ValidationError(
-                "Order wallet credits exceed its recorded charges. Review the order ledger before retrying."
-            )
-        return settled_amount, transactions
