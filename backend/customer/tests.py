@@ -3,7 +3,12 @@ from django.test import TestCase
 
 from accounts.models import Business
 from customer.models import Customer
-from products.models import Customer as LegacyCustomer
+from products.models import (
+    Customer as LegacyCustomer,
+    CustomerAccount,
+    Order,
+    OrderRefund,
+)
 
 
 class CustomerModelOwnershipTests(TestCase):
@@ -11,6 +16,9 @@ class CustomerModelOwnershipTests(TestCase):
         self.assertEqual(Customer._meta.label, "customer.Customer")
         self.assertEqual(Customer._meta.db_table, "products_customer")
         self.assertIs(LegacyCustomer, Customer)
+        self.assertIs(Order._meta.get_field("customer").remote_field.model, Customer)
+        self.assertIs(CustomerAccount._meta.get_field("customer").remote_field.model, Customer)
+        self.assertIs(OrderRefund._meta.get_field("customer").remote_field.model, Customer)
 
         business = Business.objects.create(name="Customer Model Ownership")
         customer = Customer.objects.create(
