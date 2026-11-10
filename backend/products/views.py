@@ -10,7 +10,7 @@ from products.serializers.customer_serializer import CustomerDetailSerializer, \
     CreateCustomerSerializer, UpdateCustomerSerializer, CustomerTransactionSerializer, \
     CustomerAccountSerializer, CustomerBalanceSerializer
 from products.serializers.order_serializer import *
-from products.services.customer_service import CustomerService
+from customer.services.customer_service import CustomerService
 from products.services.order_service import *
 from rest_framework.views import APIView
 from rest_framework.response import Response

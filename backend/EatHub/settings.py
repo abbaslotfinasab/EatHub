@@ -81,6 +81,7 @@ INSTALLED_APPS = [
     "corsheaders",
     'core',
     'products',
+    'customer.apps.CustomerConfig',
     'accounts.apps.AccountsConfig',
     'inventory',
     'purchase'
