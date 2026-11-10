@@ -13,7 +13,6 @@ class Container {
     private _customer?: ReturnType<typeof createCustomerContainer>;
     private _upload?: ReturnType<typeof createUploadContainer>;
     private _dashboard?: ReturnType<typeof createDashboardContainer>;
-    private _catalog?: ReturnType<typeof createCatalogContainer>;
 
 
     get authContainer() {
@@ -79,6 +78,9 @@ class Container {
 
     }
 
+    get catalogContainer() {
+        return createCatalogContainer();
+    }
 }
 
 export const container = new Container();
