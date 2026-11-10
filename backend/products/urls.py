@@ -8,6 +8,14 @@ from customer.presentation.views import (
     CustomerUpdateAPIView,
     CustomerDeleteAPIView,
 )
+from financial.views import (
+    CustomerAccountDetailAPIView,
+    CustomerCreditAPIView,
+    CustomerTransactionListAPIView,
+    CustomerDebitAPIView,
+    CustomerAdjustAPIView,
+)
+
 
 app_name = "products"
 

@@ -6,11 +6,6 @@ from rest_framework import status
 
 from accounts.models import Business
 from accounts.views import ExplicitTenantAPIView, TenantAPIView
-from products.serializers.customer_serializer import (
-    CustomerTransactionSerializer,
-    CustomerAccountSerializer,
-    CustomerBalanceSerializer,
-)
 from products.serializers.order_serializer import *
 from products.services.order_service import *
 from rest_framework.views import APIView
@@ -29,13 +24,11 @@ from products.models import (
     Menu,
     MenuItem,
     Customer,
-    CustomerAccount,
     Order,
     OrderRefund,
     OrderItemIngredientRequirement,
     OrderInventoryConsumptionLine,
 )
-from products.services.wallet_service import WalletService
 from django.db.models import (
     Q,
     Count,
@@ -881,129 +874,3 @@ class OrderDeleteAPIView(ExplicitTenantAPIView):
 
 
 
-class CustomerAccountDetailAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, customer_id):
-
-        account = get_object_or_404(
-            CustomerAccount,
-            customer_id=customer_id,
-            business=request.business
-        )
-
-        return Response(CustomerAccountSerializer(account).data)
-
-
-
-class CustomerCreditAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, customer_id):
-        _require_financial_access(
-            request, "You do not have permission to change customer balances."
-        )
-
-        serializer = CustomerBalanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        customer = get_object_or_404(
-            Customer,
-            id=customer_id,
-            business=request.business
-        )
-
-        WalletService.credit(
-            business=request.business,
-            customer=customer,
-            amount=serializer.validated_data["amount"],
-            description=serializer.validated_data.get("description")
-        )
-
-        return Response({"status": "credited"})
-
-
-
-class CustomerTransactionListAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, customer_id):
-
-        account = get_object_or_404(
-            CustomerAccount,
-            customer_id=customer_id,
-            business=request.business
-        )
-
-        transactions = account.transactions.all().order_by("-id")
-
-        return Response(CustomerTransactionSerializer(transactions, many=True).data)
-
-
-
-class CustomerDebitAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, customer_id):
-        _require_financial_access(
-            request, "You do not have permission to change customer balances."
-        )
-
-        serializer = CustomerBalanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        customer = get_object_or_404(
-            Customer,
-            id=customer_id,
-            business=request.business
-        )
-
-        WalletService.debit(
-            business=request.business,
-            customer=customer,
-            amount=serializer.validated_data["amount"],
-            description=serializer.validated_data.get(
-                "description",
-                "",
-            ),
-        )
-
-        return Response(
-            {
-                "status": "debited",
-            }
-        )
-
-
-class CustomerAdjustAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, customer_id):
-        _require_financial_access(
-            request, "You do not have permission to change customer balances."
-        )
-
-        serializer = CustomerBalanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        customer = get_object_or_404(
-            Customer,
-            id=customer_id,
-            business=request.business
-        )
-
-        WalletService.adjust(
-            business=request.business,
-            customer=customer,
-            amount=serializer.validated_data["amount"],
-            description=serializer.validated_data.get(
-                "description",
-                "",
-            ),
-        )
-
-        return Response(
-            {
-                "status": "adjusted",
-            }
-        )
