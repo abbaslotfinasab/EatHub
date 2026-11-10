@@ -35,3 +35,28 @@ class CustomerModelOwnershipTests(TestCase):
             LegacyCustomer.objects.get(pk=customer.pk).phone,
             "09120000000",
         )
+
+
+from django.test import SimpleTestCase
+
+from customer.presentation.read_serializers import (
+    CustomerDetailReadSerializer,
+    CustomerReadSerializer,
+)
+from products.serializers.customer_serializer import (
+    CustomerDetailSerializer,
+    CustomerSerializer,
+)
+
+
+class CustomerReadSerializerOwnershipTests(SimpleTestCase):
+    def test_customer_module_owns_read_serializers(self):
+        self.assertEqual(CustomerReadSerializer.__module__, "customer.presentation.read_serializers")
+        self.assertEqual(
+            CustomerDetailReadSerializer.__module__,
+            "customer.presentation.read_serializers",
+        )
+
+    def test_products_namespace_keeps_backward_compatible_aliases(self):
+        self.assertIs(CustomerSerializer, CustomerReadSerializer)
+        self.assertIs(CustomerDetailSerializer, CustomerDetailReadSerializer)

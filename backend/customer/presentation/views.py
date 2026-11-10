@@ -13,11 +13,9 @@ from customer.presentation.serializers import (
 )
 from customer.services.customer_service import CustomerService
 from products.models import Order
-# Transitional response serializers preserve the existing API payload while
-# Financial read projections are extracted in a dedicated follow-up.
-from products.serializers.customer_serializer import (
-    CustomerDetailSerializer,
-    CustomerSerializer,
+from customer.presentation.read_serializers import (
+    CustomerDetailReadSerializer,
+    CustomerReadSerializer,
 )
 
 
@@ -70,7 +68,7 @@ class CustomerListAPIView(ExplicitTenantAPIView):
         customers = customers.order_by(
             ordering if ordering in allowed_ordering else "-created_at"
         )
-        return Response(CustomerSerializer(customers, many=True).data)
+        return Response(CustomerReadSerializer(customers, many=True).data)
 
 
 class CustomerCreateAPIView(ExplicitTenantAPIView):
@@ -83,7 +81,7 @@ class CustomerCreateAPIView(ExplicitTenantAPIView):
             business=request.business,
             validated_data=serializer.validated_data,
         )
-        return Response(CustomerSerializer(customer).data, status=status.HTTP_201_CREATED)
+        return Response(CustomerReadSerializer(customer).data, status=status.HTTP_201_CREATED)
 
 
 class CustomerDetailAPIView(ExplicitTenantAPIView):
@@ -110,7 +108,7 @@ class CustomerDetailAPIView(ExplicitTenantAPIView):
             ),
             id=pk,
         )
-        return Response(CustomerDetailSerializer(customer).data)
+        return Response(CustomerDetailReadSerializer(customer).data)
 
 
 class CustomerUpdateAPIView(ExplicitTenantAPIView):
@@ -126,7 +124,7 @@ class CustomerUpdateAPIView(ExplicitTenantAPIView):
             customer=customer,
             validated_data=serializer.validated_data,
         )
-        return Response(CustomerSerializer(customer).data)
+        return Response(CustomerReadSerializer(customer).data)
 
 
 class CustomerDeleteAPIView(ExplicitTenantAPIView):
