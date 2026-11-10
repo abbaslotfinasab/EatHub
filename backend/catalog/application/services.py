@@ -4,6 +4,10 @@ from rest_framework.exceptions import ValidationError
 from catalog.models import Product, ProductAllergen, ProductDietaryTag
 
 
+class ProductNotFound(Exception):
+    """A Product does not exist inside the requested business."""
+
+
 class ProductCatalogService:
     @staticmethod
     def _save_restrictions(*, product, validated_data, replace=False):
@@ -53,6 +57,23 @@ class ProductCatalogService:
                 return product
         except IntegrityError as error:
             raise ValidationError({"sku": "This SKU is already used in this business."}) from error
+
+    @staticmethod
+    def get_product_read_model_for_business(*, business_id: int, product_id: int):
+        """Return Catalog-owned display and allergen data without exposing ORM objects."""
+        product = Product.objects.filter(
+            business_id=business_id,
+            pk=product_id,
+        ).prefetch_related("allergen_declarations").first()
+        if product is None:
+            raise ProductNotFound("Product does not exist in this business.")
+        return {
+            "name": product.name,
+            "allergens": tuple(
+                {"code": item.code, "presence": item.presence}
+                for item in product.allergen_declarations.all()
+            ),
+        }
 
     @staticmethod
     @transaction.atomic
