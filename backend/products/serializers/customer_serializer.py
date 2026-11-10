@@ -57,38 +57,6 @@ class CustomerSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-class CustomerAccountSerializer(serializers.ModelSerializer):
-    customer_name = serializers.CharField(source="customer.name", read_only=True)
-    customer_phone = serializers.CharField(source="customer.phone", read_only=True)
-
-    class Meta:
-        model = CustomerAccount
-        fields = [
-            "id",
-            "customer",
-            "customer_name",
-            "customer_phone",
-            "balance",
-            "created_at",
-            "updated_at",
-        ]
-
-
-class CustomerTransactionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomerTransaction
-        fields = [
-            "id",
-            "account",
-            "order",
-            "type",
-            "amount",
-            "balance_after",
-            "description",
-            "created_at",
-        ]
-
-
 class CustomerDetailSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
