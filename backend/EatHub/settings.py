@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     'core',
     'products',
     'customer.apps.CustomerConfig',
+    'financial.apps.FinancialConfig',
     'accounts.apps.AccountsConfig',
     'inventory',
     'purchase'

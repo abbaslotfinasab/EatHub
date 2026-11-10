@@ -169,108 +169,6 @@ class OrderItem(BaseModel):
 
 
 
-class CustomerAccount(BaseModel):
-    business = models.ForeignKey(Business, on_delete=models.CASCADE)
-    customer = models.OneToOneField(Customer, on_delete=models.CASCADE, related_name="account")
-    balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    ledger_opening_balance = models.DecimalField(
-        max_digits=12, decimal_places=2, default=Decimal("0")
-    )
-    ledger_opening_balance_verified = models.BooleanField(default=False)
-
-
-
-class OrderRefund(BaseModel):
-    """Auditable record of a completed full refund for an order."""
-
-    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="refunds")
-    business = models.ForeignKey(
-        Business, on_delete=models.PROTECT, related_name="order_refunds"
-    )
-    customer = models.ForeignKey(
-        Customer,
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="order_refunds",
-    )
-    payment_method = models.CharField(max_length=30, choices=Order.PaymentMethod.choices)
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-    reason = models.TextField()
-    reference = models.CharField(max_length=200, blank=True)
-    idempotency_key = models.UUIDField(unique=True)
-    actor = models.ForeignKey(
-        User,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name="order_refunds",
-    )
-
-    class Meta:
-        constraints = [
-            models.CheckConstraint(
-                condition=models.Q(amount__gt=0),
-                name="order_refund_positive_amt",
-            ),
-        ]
-
-
-class CustomerTransaction(BaseModel):
-
-    class Type(models.TextChoices):
-        CREDIT = "credit", "Credit"
-        DEBIT = "debit", "Debit"
-        ADJUST = "adjust", "Adjust"
-
-    account = models.ForeignKey(
-        CustomerAccount,
-        on_delete=models.CASCADE,
-        related_name="transactions"
-    )
-
-    order = models.ForeignKey(Order, null=True, blank=True, on_delete=models.SET_NULL)
-
-
-    type = models.CharField(max_length=10, choices=Type.choices)
-
-    amount = models.DecimalField(max_digits=12, decimal_places=2)
-
-    balance_after = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-    )
-
-    # Marks ledger entries that form the immutable settlement history for an order.
-    # Ordinary customer credits/debits may also carry an order reference and must
-    # not be mistaken for payment reconciliation. Historical rows may have been
-    # classified by migration heuristics, so reconciliation also requires the
-    # explicit verification marker below.
-    is_order_settlement = models.BooleanField(default=False)
-
-    is_order_settlement_verified = models.BooleanField(default=False)
-
-    refund = models.ForeignKey(
-        OrderRefund,
-        null=True,
-        blank=True,
-        on_delete=models.PROTECT,
-        related_name="transactions",
-    )
-
-    description = models.TextField(null=True, blank=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=("refund",),
-                condition=models.Q(refund__isnull=False),
-                name="uniq_txn_refund",
-            ),
-        ]
-
-
 INVENTORY_UNITS = (("kg", "kg"), ("g", "g"), ("l", "l"), ("ml", "ml"), ("pc", "pc"), ("pk", "pk"))
 
 
@@ -411,3 +309,7 @@ class OrderInventoryConsumptionLine(models.Model):
     def delete(self, *args, **kwargs):
         raise ValidationError("Posted order consumption history is retained for audit.")
 
+
+
+# Compatibility re-exports; financial models are owned by the Financial module.
+from financial.models import CustomerAccount, CustomerTransaction, OrderRefund
