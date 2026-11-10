@@ -894,7 +894,7 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
                 business=self.business,
                 customer=self.customer,
                 amount=Decimal("5.00"),
-                order=self.order,
+                order_id=self.order.id,
                 description="Attempted direct reversal",
             )
         self.account.refresh_from_db()
@@ -1846,7 +1846,9 @@ class OrderWalletPaymentTests(TestCase):
             business=self.business,
             customer=self.customer,
             amount=Decimal("5.00"),
-            order=self.order,
+            order_id=self.order.id,
+            order_business_id=self.business.id,
+            order_customer_id=self.customer.id,
         )
 
         self.assertFalse(debit.is_order_settlement)

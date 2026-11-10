@@ -5,7 +5,9 @@ from rest_framework.exceptions import ValidationError
 
 from customer.models import Customer
 from financial.models import CustomerAccount, CustomerTransaction, OrderRefund
-from products.models import Order
+
+
+CUSTOMER_ACCOUNT_PAYMENT_METHOD = "customer_account"
 
 
 class WalletService:
@@ -43,11 +45,11 @@ class WalletService:
         customer: Customer,
         amount: Decimal,
         description: str = "",
-        order: Order | None = None,
+        order_id=None,
         refund: OrderRefund | None = None,
     ) -> CustomerTransaction:
 
-        if order is not None or refund is not None:
+        if order_id is not None or refund is not None:
             raise ValidationError(
                 "Order-linked credits must use the dedicated refund-credit operation."
             )
@@ -85,42 +87,44 @@ class WalletService:
 
     @staticmethod
     @transaction.atomic
-    def record_refund_credit(*, business, refund: OrderRefund, description=""):
-        """Create the sole verified order-linked credit from refund evidence."""
+    def record_refund_credit(
+        *, business, refund: OrderRefund, expected_settled_amount=None, description=""
+    ):
+        """Post a refund credit after Sales has validated the refund command.
+
+        Financial revalidates its own ledger and refund evidence without loading
+        or depending on the Sales Order model or OrderService.
+        """
         if refund is None or refund.pk is None:
             raise ValidationError("A persisted refund record is required.")
         refund = OrderRefund.objects.select_for_update().get(
             pk=refund.pk,
             business=business,
         )
-        order = Order.objects.select_for_update().get(
-            pk=refund.order_id,
-            business=business,
-        )
         if (
-            order.payment_status != Order.PaymentStatus.PAID
-            or order.payment_method != Order.PaymentMethod.CUSTOMER_ACCOUNT
-            or refund.payment_method != Order.PaymentMethod.CUSTOMER_ACCOUNT
-            or refund.customer_id != order.customer_id
-            or not order.customer_id
-            or order.customer.business_id != business.id
+            expected_settled_amount is None
+            or Decimal(str(expected_settled_amount)) != refund.amount
+            or refund.payment_method != CUSTOMER_ACCOUNT_PAYMENT_METHOD
+            or not refund.customer_id
         ):
-            raise ValidationError("Refund does not match a paid customer-account order.")
-
-        from products.services.order_service import OrderService
-
-        settled_amount, _ = OrderService._validated_order_settlement(
-            order=order,
-            business=business,
-        )
-        if settled_amount <= 0 or refund.amount != settled_amount:
             raise ValidationError(
                 "Refund amount does not match the validated outstanding settlement."
             )
 
+        settled_amount, _ = WalletService.validated_order_settlement(
+            business=business,
+            order_id=refund.order_id,
+            customer_id=refund.customer_id,
+        )
+        if settled_amount != Decimal(str(expected_settled_amount)):
+            raise ValidationError(
+                "Refund amount does not match the validated outstanding settlement."
+            )
+
+        customer = Customer.objects.get(pk=refund.customer_id, business=business)
         account = WalletService.get_or_create_account(
             business=business,
-            customer=order.customer,
+            customer=customer,
         )
         account = CustomerAccount.objects.select_for_update().get(pk=account.pk)
         WalletService._validated_balance_history(account)
@@ -128,7 +132,7 @@ class WalletService:
         account.save(update_fields=["balance"])
         return CustomerTransaction.objects.create(
             account=account,
-            order=order,
+            order_id=refund.order_id,
             type=CustomerTransaction.Type.CREDIT,
             amount=refund.amount,
             balance_after=account.balance,
@@ -146,17 +150,19 @@ class WalletService:
         customer: Customer,
         amount: Decimal,
         description: str = "",
-        order: Order | None = None,
+        order_id=None,
+        order_business_id=None,
+        order_customer_id=None,
     ) -> CustomerTransaction:
 
-        WalletService._validate_order_reference(business, customer, order)
-
-        if order is not None:
-            order = Order.objects.select_for_update().get(pk=order.pk, business=business)
-            if order.customer_id != customer.id:
+        if order_id is not None:
+            if (
+                order_business_id != business.id
+                or order_customer_id != customer.id
+            ):
                 raise ValidationError("Order does not belong to this customer and business.")
             if CustomerTransaction.objects.filter(
-                order=order,
+                order_id=order_id,
                 type=CustomerTransaction.Type.DEBIT,
             ).exists():
                 raise ValidationError("Order already has a wallet payment debit.")
@@ -178,65 +184,60 @@ class WalletService:
             raise ValidationError("Amount must be positive.")
         return WalletService._record_debit(
             account=account,
-            order=order,
+            order_id=order_id,
             amount=amount,
             description=description,
         )
 
     @staticmethod
     @transaction.atomic
-    def settle_order(*, business, order_id) -> CustomerTransaction:
-        """Debit only the amount required to settle a persisted paid wallet order.
+    def settle_order(
+        *, business, order_id, customer: Customer, amount, expected_settled_amount
+    ) -> CustomerTransaction:
+        """Record a Sales-validated settlement delta in the wallet ledger.
 
-        Ordinary wallet debits cannot set the settlement marker. This narrow
-        operation derives the amount from the paid order and its validated
-        settlement entries instead of accepting a caller-provided amount/flag.
+        Order state and target amount are owned and validated by Sales. This
+        operation only verifies Financial ledger state and posts the delta.
         """
-        order = Order.objects.select_for_update().get(
-            pk=order_id,
-            business=business,
-        )
-        if (
-            order.payment_method != Order.PaymentMethod.CUSTOMER_ACCOUNT
-            or order.payment_status != Order.PaymentStatus.PAID
-            or order.status == Order.Status.CANCELLED
-        ):
-            raise ValidationError("Only an active, paid customer-account order can be settled.")
-        if not order.customer_id or order.customer.business_id != business.id:
+        if customer is None or customer.business_id != business.id:
             raise ValidationError("A customer belonging to this business is required.")
+
+        expected_settled_amount = Decimal(str(expected_settled_amount))
+        amount = Decimal(str(amount))
+        if amount <= 0:
+            raise ValidationError("The order has no positive outstanding settlement amount.")
+
+        settled_amount, _ = WalletService.validated_order_settlement(
+            business=business,
+            order_id=order_id,
+            customer_id=customer.pk,
+        )
+        if settled_amount != expected_settled_amount:
+            raise ValidationError(
+                "Order wallet ledger changed after Sales validated the settlement. Retry the operation."
+            )
 
         account = WalletService.get_or_create_account(
             business=business,
-            customer=order.customer,
+            customer=customer,
         )
         account = CustomerAccount.objects.select_for_update().get(pk=account.pk)
-        # Keep the full account-history and order-ledger validator authoritative
-        # even if this wallet operation is called outside OrderService.
-        from products.services.order_service import OrderService
-
-        settled_amount, _ = OrderService._validated_order_settlement(
-            order=order,
-            business=business,
-        )
-        difference = Decimal(str(order.total_amount)) - settled_amount
-        if difference <= 0:
-            raise ValidationError("The order has no positive outstanding settlement amount.")
-
-        account.balance -= difference
+        WalletService._validated_balance_history(account)
+        account.balance -= amount
         account.save(update_fields=["balance"])
         return CustomerTransaction.objects.create(
             account=account,
-            order=order,
+            order_id=order_id,
             type=CustomerTransaction.Type.DEBIT,
-            amount=difference,
+            amount=amount,
             balance_after=account.balance,
-            description=f"Order #{order.id} settlement debit",
+            description=f"Order #{order_id} settlement debit",
             is_order_settlement=True,
             is_order_settlement_verified=True,
         )
 
     @staticmethod
-    def _record_debit(*, account, order, amount, description):
+    def _record_debit(*, account, order_id, amount, description):
         amount = Decimal(str(amount))
         if amount <= 0:
             raise ValidationError("Amount must be positive.")
@@ -244,7 +245,7 @@ class WalletService:
         account.save(update_fields=["balance"])
         return CustomerTransaction.objects.create(
             account=account,
-            order=order,
+            order_id=order_id,
             type=CustomerTransaction.Type.DEBIT,
             amount=amount,
             balance_after=account.balance,
@@ -345,8 +346,86 @@ class WalletService:
         return history
 
     @staticmethod
-    def _validate_order_reference(business, customer, order):
-        if order is not None and (
-            order.business_id != business.id or order.customer_id != customer.id
-        ):
-            raise ValidationError("Order does not belong to this customer and business.")
+    def validated_order_settlement(*, business, order_id, customer_id):
+        """Validate the Financial ledger for one Sales-owned order reference."""
+        if not customer_id:
+            transactions = list(
+                CustomerTransaction.objects.filter(order_id=order_id).order_by("id")
+            )
+            return Decimal("0"), transactions
+
+        customer = Customer.objects.filter(pk=customer_id, business=business).first()
+        if customer is None:
+            raise ValidationError("A customer belonging to this business is required.")
+
+        account = CustomerAccount.objects.select_for_update().filter(
+            customer_id=customer_id
+        ).first()
+        if account and account.business_id != business.id:
+            raise ValidationError("Customer account belongs to a different business.")
+
+        account_history = (
+            WalletService._validated_balance_history(account) if account else []
+        )
+        transactions = [
+            entry for entry in account_history if entry.order_id == order_id
+        ]
+        order_entries = CustomerTransaction.objects.filter(order_id=order_id)
+        if order_entries.exclude(
+            account_id=account.id if account else None
+        ).exists():
+            raise ValidationError("Order wallet entries belong to another customer account.")
+        if not account and order_entries.exists():
+            raise ValidationError("Order wallet entries have no customer account.")
+
+        settled_amount = Decimal("0")
+        for txn in transactions:
+            if (
+                not txn.is_order_settlement
+                or not txn.is_order_settlement_verified
+                or txn.account_id != account.id
+                or account.customer_id != customer_id
+                or account.business_id != business.id
+                or txn.amount <= 0
+                or txn.type not in (
+                    CustomerTransaction.Type.DEBIT,
+                    CustomerTransaction.Type.CREDIT,
+                )
+            ):
+                raise ValidationError(
+                    "Order wallet ledger is inconsistent or unclassified. Review the order ledger before retrying."
+                )
+            if txn.type == CustomerTransaction.Type.CREDIT:
+                if not txn.refund_id:
+                    raise ValidationError(
+                        "An order settlement credit has no refund record. Review the order ledger before retrying."
+                    )
+                refund = txn.refund
+                if (
+                    refund.order_id != order_id
+                    or refund.business_id != business.id
+                    or refund.customer_id != customer_id
+                    or refund.payment_method != CUSTOMER_ACCOUNT_PAYMENT_METHOD
+                    or txn.amount != refund.amount
+                    or CustomerTransaction.objects.filter(refund_id=refund.id)
+                    .exclude(pk=txn.pk)
+                    .exists()
+                ):
+                    raise ValidationError(
+                        "The order refund ledger does not match its refund record. Review it before retrying."
+                    )
+            elif txn.refund_id:
+                raise ValidationError(
+                    "A refund record is linked to a non-credit order transaction. Review the order ledger before retrying."
+                )
+            if txn.type == CustomerTransaction.Type.DEBIT:
+                settled_amount += Decimal(str(txn.amount))
+            else:
+                settled_amount -= Decimal(str(txn.amount))
+
+        if settled_amount < 0:
+            raise ValidationError(
+                "Order wallet credits exceed its recorded charges. Review the order ledger before retrying."
+            )
+        return settled_amount, transactions
+
