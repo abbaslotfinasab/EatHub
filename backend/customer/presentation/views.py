@@ -75,13 +75,13 @@ class CustomerCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = CreateCustomerSerializer(data=request.data)
+        serializer = CreateCustomerReadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         customer = CustomerService.create_customer(
             business=request.business,
             validated_data=serializer.validated_data,
         )
-        return Response(CustomerSerializer(customer).data, status=status.HTTP_201_CREATED)
+        return Response(CustomerReadSerializer(customer).data, status=status.HTTP_201_CREATED)
 
 
 class CustomerDetailAPIView(ExplicitTenantAPIView):
@@ -118,13 +118,13 @@ class CustomerUpdateAPIView(ExplicitTenantAPIView):
         customer = get_object_or_404(
             Customer, id=pk, business=request.business
         )
-        serializer = UpdateCustomerSerializer(data=request.data)
+        serializer = UpdateCustomerReadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         customer = CustomerService.update_customer(
             customer=customer,
             validated_data=serializer.validated_data,
         )
-        return Response(CustomerSerializer(customer).data)
+        return Response(CustomerReadSerializer(customer).data)
 
 
 class CustomerDeleteAPIView(ExplicitTenantAPIView):
