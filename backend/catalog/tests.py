@@ -113,3 +113,75 @@ class ProductCatalogAPITests(APITestCase):
             "/api/catalog/products/", {"name": "Coffee", "status": "available"}, format="json"
         )
         self.assertEqual(invalid_status.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+    def test_product_restrictions_create_and_read(self):
+        response = self.client.post("/api/catalog/products/", {
+            "name": "Almond drink",
+            "status": "active",
+            "allergens": [
+                {"code": "tree_nuts", "presence": "contains"},
+                {"code": "soybeans", "presence": "may_contain"},
+            ],
+            "dietary_tags": ["vegan", "gluten_free"],
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["allergens"],
+            [
+                {"code": "soybeans", "presence": "may_contain"},
+                {"code": "tree_nuts", "presence": "contains"},
+            ],
+        )
+        self.assertEqual(response.data["dietary_tags"], ["gluten_free", "vegan"])
+
+        product_id = response.data["id"]
+        listed = self.client.get("/api/catalog/products/")
+        item = next(row for row in listed.data["results"] if row["id"] == product_id)
+        self.assertEqual(item["dietary_tags"], ["gluten_free", "vegan"])
+
+    def test_product_restrictions_patch_replaces_only_supplied_groups(self):
+        product = Product.objects.create(
+            business=self.business, name="Oat drink", status=Product.Status.ACTIVE
+        )
+        from catalog.models import ProductAllergen, ProductDietaryTag
+        ProductAllergen.objects.create(product=product, code="soybeans", presence="contains")
+        ProductDietaryTag.objects.create(product=product, code="vegan")
+
+        response = self.client.patch(
+            f"/api/catalog/products/{product.pk}/",
+            {"allergens": [], "dietary_tags": ["vegetarian", "gluten_free"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["allergens"], [])
+        self.assertEqual(response.data["dietary_tags"], ["gluten_free", "vegetarian"])
+
+    def test_product_restrictions_reject_unknown_and_duplicate_codes(self):
+        unknown = self.client.post("/api/catalog/products/", {
+            "name": "Unknown allergen",
+            "allergens": [{"code": "imaginary_allergen", "presence": "contains"}],
+        }, format="json")
+        self.assertEqual(unknown.status_code, status.HTTP_400_BAD_REQUEST)
+
+        duplicate = self.client.post("/api/catalog/products/", {
+            "name": "Duplicate allergen",
+            "allergens": [
+                {"code": "milk", "presence": "contains"},
+                {"code": "milk", "presence": "may_contain"},
+            ],
+        }, format="json")
+        self.assertEqual(duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+
+        duplicate_tag = self.client.post("/api/catalog/products/", {
+            "name": "Duplicate dietary tag",
+            "dietary_tags": ["vegan", "vegan"],
+        }, format="json")
+        self.assertEqual(duplicate_tag.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_product_restrictions_are_business_scoped(self):
+        product = Product.objects.create(
+            business=self.other_business, name="Other business product"
+        )
+        response = self.client.get(f"/api/catalog/products/{product.pk}/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
