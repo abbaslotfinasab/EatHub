@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import {
     Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
-    DialogTitle, IconButton, MenuItem, Paper, Stack, Table, TableBody, TableCell,
+    DialogTitle, IconButton, MenuItem, Paper, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
@@ -91,13 +91,13 @@ export const ProductsPage = () => {
 
     return (
         <Box sx={{ p: { xs: 2, md: 3 }, minHeight: "100%", bgcolor: "#F8FAFC" }}>
-            <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "stretch", sm: "center" }} spacing={2} sx={{ mb: 3 }}>
+            <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 2, mb: 3 }}>
                 <Box>
-                    <Typography variant="h4" fontWeight={800}>کاتالوگ محصولات</Typography>
+                    <Typography variant="h4" sx={{ fontWeight: 800 }}>کاتالوگ محصولات</Typography>
                     <Typography color="text.secondary" sx={{ mt: 0.5 }}>مدیریت هویت محصولات مستقل از قیمت‌گذاری منو و موجودی انبار</Typography>
                 </Box>
                 <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={openCreate}>محصول جدید</Button>
-            </Stack>
+            </Box>
 
             <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
                 <TextField
@@ -105,7 +105,7 @@ export const ProductsPage = () => {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="جستجو بر اساس نام یا کد کالا"
-                    InputProps={{ startAdornment: <SearchRoundedIcon sx={{ mr: 1, color: "text.secondary" }} /> }}
+                    slotProps={{ input: { startAdornment: <SearchRoundedIcon sx={{ mr: 1, color: "text.secondary" }} /> } }}
                 />
             </Paper>
 
@@ -128,18 +128,18 @@ export const ProductsPage = () => {
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {data.results.map((product) => (
+                                {data.results.map((product: Product) => (
                                     <TableRow key={product.id} hover>
                                         <TableCell>
-                                            <Stack direction="row" spacing={1.5} alignItems="center">
+                                            <Box sx={{ display: "flex", flexDirection: "row", gap: 1.5, alignItems: "center" }}>
                                                 <Box sx={{ width: 38, height: 38, borderRadius: 1, bgcolor: "action.hover", display: "grid", placeItems: "center" }}>
                                                     <Inventory2RoundedIcon color="action" />
                                                 </Box>
                                                 <Box>
-                                                    <Typography fontWeight={700}>{product.name}</Typography>
+                                                    <Typography sx={{ fontWeight: 700 }}>{product.name}</Typography>
                                                     {product.description && <Typography variant="caption" color="text.secondary">{product.description}</Typography>}
                                                 </Box>
-                                            </Stack>
+                                            </Box>
                                         </TableCell>
                                         <TableCell>{product.sku || "—"}</TableCell>
                                         <TableCell>{product.category || "—"}</TableCell>
@@ -156,24 +156,24 @@ export const ProductsPage = () => {
                         </Table>
                     </TableContainer>
                 ) : (
-                    <Stack alignItems="center" spacing={1} sx={{ py: 7, px: 2 }}>
+                    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, py: 7, px: 2 }}>
                         <Inventory2RoundedIcon sx={{ fontSize: 44, color: "text.disabled" }} />
-                        <Typography fontWeight={700}>{search ? "محصولی با این عبارت پیدا نشد" : "هنوز محصولی ثبت نشده است"}</Typography>
+                        <Typography sx={{ fontWeight: 700 }}>{search ? "محصولی با این عبارت پیدا نشد" : "هنوز محصولی ثبت نشده است"}</Typography>
                         <Typography variant="body2" color="text.secondary">برای شروع، اولین محصول کسب‌وکارت را ثبت کن.</Typography>
                         {!search && <Button onClick={openCreate} startIcon={<AddRoundedIcon />}>ثبت محصول</Button>}
-                    </Stack>
+                    </Box>
                 )}
             </Paper>
 
-            <Stack direction="row" justifyContent="space-between" sx={{ mt: 1.5 }}>
+            <Box sx={{ display: "flex", flexDirection: "row", justifyContent: "space-between", mt: 1.5 }}>
                 <Typography variant="caption" color="text.secondary">تعداد کل: {data?.count ?? 0}</Typography>
                 <Typography variant="caption" color="text.secondary">نمایش {data?.results.length ?? 0} مورد از هر صفحه</Typography>
-            </Stack>
+            </Box>
 
             <Dialog open={dialogOpen} onClose={() => !saving && setDialogOpen(false)} fullWidth maxWidth="sm">
                 <DialogTitle>{editing ? "ویرایش محصول" : "ثبت محصول جدید"}</DialogTitle>
                 <DialogContent>
-                    <Stack spacing={2} sx={{ pt: 1 }}>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
                         {formError && <Alert severity="error">{formError}</Alert>}
                         <TextField label="نام محصول" required autoFocus value={form.name ?? ""} onChange={(e) => setForm((old) => ({ ...old, name: e.target.value }))} />
                         <TextField label="کد کالا (SKU)" value={form.sku ?? ""} onChange={(e) => setForm((old) => ({ ...old, sku: e.target.value }))} />
@@ -184,7 +184,7 @@ export const ProductsPage = () => {
                             <MenuItem value="active">فعال</MenuItem>
                             <MenuItem value="archived">بایگانی‌شده</MenuItem>
                         </TextField>
-                    </Stack>
+                    </Box>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
                     <Button onClick={() => setDialogOpen(false)} disabled={saving}>انصراف</Button>
