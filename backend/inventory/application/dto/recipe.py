@@ -28,6 +28,7 @@ class RecipeDTO:
     outputs: tuple[RecipeLineDTO, ...]
     created_at: datetime
     updated_at: datetime
+    allergens: tuple[dict[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
