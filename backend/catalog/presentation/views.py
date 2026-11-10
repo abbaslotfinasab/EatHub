@@ -29,7 +29,7 @@ class ProductListCreateAPIView(ExplicitTenantAPIView):
         query = ProductQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         params = query.validated_data
-        products = Product.objects.filter(business=request.business)
+        products = Product.objects.filter(business=request.business).prefetch_related("allergen_declarations", "dietary_tags")
         if params.get("search"):
             term = params["search"].strip()
             products = products.filter(Q(name__icontains=term) | Q(sku__icontains=term))
@@ -63,7 +63,7 @@ class ProductDetailAPIView(ExplicitTenantAPIView):
 
     def get(self, request, pk):
         _require_permission(request, PermissionCode.PRODUCTS_VIEW)
-        product = Product.objects.filter(business=request.business, pk=pk).first()
+        product = Product.objects.filter(business=request.business, pk=pk).prefetch_related("allergen_declarations", "dietary_tags").first()
         if product is None:
             raise NotFound("Product does not exist in this business.")
         return Response(ProductSerializer(product).data)
