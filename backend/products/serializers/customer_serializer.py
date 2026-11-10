@@ -2,7 +2,10 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
 from customer.models import Customer
-from products.models import CustomerAccount, CustomerTransaction
+from financial.serializers import (
+    CustomerAccountSerializer,
+    CustomerTransactionSerializer,
+)
 
 
 from customer.presentation.serializers import (
@@ -122,15 +125,3 @@ class CustomerDetailSerializer(serializers.Serializer):
             ),
         }
 
-class CustomerBalanceSerializer(serializers.Serializer):
-    amount = serializers.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-    )
-
-    description = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True,
-        default="",
-    )
