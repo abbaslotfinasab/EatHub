@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from django.utils import timezone
 from django.db import close_old_connections, connection
+from django.db.models.deletion import ProtectedError
 from django.test import TestCase, TransactionTestCase
 from unittest.mock import Mock, patch
 from rest_framework import status
@@ -15,6 +16,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
+from catalog.models import Product
 from core.enums import PermissionCode
 from core.models import ActivityLog
 from products.models import Customer, Menu, MenuItem, Order, OrderItem
@@ -2921,3 +2923,121 @@ class CustomerTenantContextApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Customer.objects.filter(pk=self.customer.id).exists())
+
+
+
+class MenuItemCatalogProductApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="menu-catalog-link@example.com",
+            password="password",
+            name="Menu Catalog Link User",
+            number="99101",
+        )
+        self.business = Business.objects.create(name="Menu Catalog Business")
+        self.other_business = Business.objects.create(name="Other Menu Catalog Business")
+        role = Role.objects.create(business=self.business, name="Owner", code="OWNER")
+        Membership.objects.create(
+            user=self.user, business=self.business, role=role, is_active=True
+        )
+        self.menu = Menu.objects.create(
+            business=self.business, name="Main Menu", category="Food"
+        )
+        self.item = MenuItem.objects.create(
+            business=self.business, menu=self.menu, name="House Burger",
+            price=Decimal("12.00"),
+        )
+        self.active_product = Product.objects.create(
+            business=self.business, name="Burger Product", status=Product.Status.ACTIVE
+        )
+        self.foreign_product = Product.objects.create(
+            business=self.other_business, name="Foreign Product", status=Product.Status.ACTIVE
+        )
+        self.draft_product = Product.objects.create(
+            business=self.business, name="Draft Product", status=Product.Status.DRAFT
+        )
+        self.client.force_authenticate(self.user)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+
+    def test_create_and_reuse_active_catalog_product(self):
+        first = self.client.post(
+            f"/api/products/menus/{self.menu.pk}/items/create/",
+            {"name": "Burger Special", "price": "14.00", "product_id": self.active_product.pk},
+            format="json",
+        )
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data["product_id"], self.active_product.pk)
+        self.assertEqual(first.data["product_name"], self.active_product.name)
+
+        second = self.client.post(
+            f"/api/products/menus/{self.menu.pk}/items/create/",
+            {"name": "Double Burger", "price": "18.00", "product_id": self.active_product.pk},
+            format="json",
+        )
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            MenuItem.objects.filter(product=self.active_product).count(), 2
+        )
+
+    def test_create_menu_with_nested_catalog_product(self):
+        response = self.client.post(
+            "/api/products/menus/create/",
+            {
+                "name": "Lunch",
+                "category": "Food",
+                "items": [{
+                    "name": "Lunch Burger",
+                    "price": "15.00",
+                    "product_id": self.active_product.pk,
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        nested = response.data["items"][0]
+        self.assertEqual(nested["product_id"], self.active_product.pk)
+        self.assertEqual(nested["product_name"], self.active_product.name)
+
+    def test_create_rejects_foreign_or_non_active_product(self):
+        for product in (self.foreign_product, self.draft_product):
+            response = self.client.post(
+                f"/api/products/menus/{self.menu.pk}/items/create/",
+                {"name": "Invalid Product Link", "price": "10.00", "product_id": product.pk},
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            MenuItem.objects.filter(name="Invalid Product Link").exists()
+        )
+
+    def test_update_item_can_assign_and_clear_product(self):
+        assigned = self.client.patch(
+            f"/api/products/menu-items/{self.item.pk}/update/",
+            {"product_id": self.active_product.pk},
+            format="json",
+        )
+        self.assertEqual(assigned.status_code, status.HTTP_200_OK)
+        self.assertEqual(assigned.data["product_id"], self.active_product.pk)
+
+        cleared = self.client.patch(
+            f"/api/products/menu-items/{self.item.pk}/update/",
+            {"product_id": None},
+            format="json",
+        )
+        self.assertEqual(cleared.status_code, status.HTTP_200_OK)
+        self.assertIsNone(cleared.data["product_id"])
+
+    def test_nested_menu_update_can_assign_catalog_product(self):
+        response = self.client.patch(
+            f"/api/products/menus/{self.menu.pk}/update/",
+            {"items": [{"id": self.item.pk, "product_id": self.active_product.pk}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["items"][0]["product_id"], self.active_product.pk)
+
+    def test_product_delete_is_protected_while_menu_items_reference_it(self):
+        self.item.product = self.active_product
+        self.item.save(update_fields=["product"])
+        with self.assertRaises(ProtectedError):
+            self.active_product.delete()

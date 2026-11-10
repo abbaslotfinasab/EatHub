@@ -77,6 +77,7 @@ class MenuCreateAPIView(ExplicitTenantAPIView):
                 business=request.business,
                 validated_data=serializer.validated_data
             )
+            menu = Menu.objects.prefetch_related("items__product").get(pk=menu.pk)
         except IntegrityError as error:
             raise ValidationError({
                 "recipe_id": "A recipe can only be assigned to one menu item."
@@ -97,7 +98,7 @@ class MenuListAPIView(ExplicitTenantAPIView):
         menus = (
             Menu.objects
             .filter(business=request.business)
-            .prefetch_related("items")
+            .prefetch_related("items__product")
             .order_by("sort_order")
         )
 
@@ -110,7 +111,7 @@ class MenuDetailAPIView(ExplicitTenantAPIView):
 
     def get(self, request, pk):
         menu = get_object_or_404(
-            Menu.objects.prefetch_related("items"),
+            Menu.objects.prefetch_related("items__product"),
             pk=pk,
             business=request.business
         )
@@ -139,6 +140,7 @@ class MenuUpdateAPIView(ExplicitTenantAPIView):
                 menu,
                 serializer.validated_data
             )
+            menu = Menu.objects.prefetch_related("items__product").get(pk=menu.pk)
         except IntegrityError as error:
             raise ValidationError({
                 "recipe_id": "A recipe can only be assigned to one menu item."
@@ -247,7 +249,7 @@ class MenuItemUpdateAPIView(ExplicitTenantAPIView):
 
     def patch(self, request, pk):
         item = get_object_or_404(
-            MenuItem,
+            MenuItem.objects.select_related("product"),
             pk=pk,
             business=request.business,
         )
