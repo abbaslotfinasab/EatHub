@@ -117,6 +117,60 @@ class Ingredient(BaseModel):
 UNIT_VALUES = tuple(value for value, _label in Ingredient.Unit.choices)
 
 
+
+class IngredientAllergen(BaseModel):
+    """Business-owned allergen declaration for an inventory ingredient."""
+
+    class Code(models.TextChoices):
+        CELERY = "celery", "Celery"
+        CEREALS_GLUTEN = "cereals_gluten", "Cereals Gluten"
+        CRUSTACEANS = "crustaceans", "Crustaceans"
+        EGGS = "eggs", "Eggs"
+        FISH = "fish", "Fish"
+        LUPIN = "lupin", "Lupin"
+        MILK = "milk", "Milk"
+        MOLLUSCS = "molluscs", "Molluscs"
+        MUSTARD = "mustard", "Mustard"
+        PEANUTS = "peanuts", "Peanuts"
+        SESAME = "sesame", "Sesame"
+        SOYBEANS = "soybeans", "Soybeans"
+        SULPHITES = "sulphites", "Sulphites"
+        TREE_NUTS = "tree_nuts", "Tree Nuts"
+
+    class Presence(models.TextChoices):
+        CONTAINS = "contains", "Contains"
+        MAY_CONTAIN = "may_contain", "May contain"
+
+    ingredient = models.ForeignKey(
+        Ingredient,
+        on_delete=models.CASCADE,
+        related_name="allergen_declarations",
+    )
+    code = models.CharField(max_length=32, choices=Code.choices)
+    presence = models.CharField(max_length=16, choices=Presence.choices)
+
+    class Meta:
+        ordering = ["code"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ingredient", "code"],
+                name="inv_ingredient_allergen_uq",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(code__in=[
+                    "celery", "cereals_gluten", "crustaceans", "eggs", "fish",
+                    "lupin", "milk", "molluscs", "mustard", "peanuts", "sesame",
+                    "soybeans", "sulphites", "tree_nuts",
+                ]),
+                name="inv_ing_allergen_code_ck",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(presence__in=["contains", "may_contain"]),
+                name="inv_ing_allergen_presence_ck",
+            ),
+        ]
+
+
 class CompoundMaterialComponent(BaseModel):
     """A non-stock recipe line defining the raw inputs of a compound material."""
 
