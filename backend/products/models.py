@@ -169,6 +169,9 @@ class OrderItem(BaseModel):
 
 
 
+INVENTORY_UNITS = (("kg", "kg"), ("g", "g"), ("l", "l"), ("ml", "ml"), ("pc", "pc"), ("pk", "pk"))
+
+
 class OrderItemRecipeSnapshot(models.Model):
     """Immutable recipe/yield basis captured when an order is confirmed."""
 
