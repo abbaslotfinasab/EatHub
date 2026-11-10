@@ -1,12 +1,10 @@
-"""Backward-compatible imports for Customer presentation serializers.
-
-Customer owns the customer API read contract. Keep these aliases while legacy
-callers migrate away from the Products namespace.
-"""
+"""Backward-compatible imports for Customer presentation serializers."""
 
 from customer.presentation.read_serializers import (
-    CreateCustomerSerializer,
-    UpdateCustomerSerializer,
     CustomerReadSerializer as CustomerSerializer,
     CustomerDetailReadSerializer as CustomerDetailSerializer,
+)
+from customer.presentation.serializers import (
+    CreateCustomerSerializer,
+    UpdateCustomerSerializer,
 )
