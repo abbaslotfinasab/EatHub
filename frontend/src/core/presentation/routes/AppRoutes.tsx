@@ -31,6 +31,7 @@ import {GoodsReceivingPage} from "../pages/purchase/GoodsReceivingPage.tsx";
 import {CreatePurchaseOrderPage} from "../pages/purchase/CreatePurchaseOrderPage.tsx";
 import {PurchaseOrderDetailPage} from "../pages/purchase/PurchaseOrderDetailPage.tsx";
 import {ProfilePage} from "../pages/ProfilePage.tsx";
+import {ProductsPage} from "../pages/catalog/ProductsPage.tsx";
 
 export const AppRoutes = () => (
     <BrowserRouter>
@@ -73,6 +74,7 @@ export const AppRoutes = () => (
                         <Route path="/purchase/orders/:id/edit" element={<CreatePurchaseOrderPage/>}/>
                         <Route path="/purchase/orders/:id/receive" element={<GoodsReceivingPage/>}/>
                         <Route path="/purchase/orders/:id" element={<PurchaseOrderDetailPage/>}/>
+                        <Route path="/products" element={<ProductsPage/>}/>
                         <Route path="/menus" element={<MenuPage/>}/>
                         <Route path="/menus/create" element={<CreateMenuPage/>}/>
                         <Route path="/menus/:id/edit" element={<EditMenuPage/>}/>
