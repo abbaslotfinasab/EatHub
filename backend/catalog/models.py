@@ -62,8 +62,10 @@ class ProductAllergen(BaseModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=("product", "code"), name="catalog_product_allergen_uq"),
-            models.CheckConstraint(condition=models.Q(code__in=tuple(value for value, _ in Code.choices)), name="cat_prod_allergen_code_ck"),
-            models.CheckConstraint(condition=models.Q(presence__in=tuple(value for value, _ in Presence.choices)), name="cat_prod_allergen_presence_ck"),
+            # Nested Meta classes cannot resolve sibling nested TextChoices classes.
+            # Keep the DB enum allow-lists explicit here, matching the model choices.
+            models.CheckConstraint(condition=models.Q(code__in=("celery", "cereals_gluten", "crustaceans", "eggs", "fish", "lupin", "milk", "molluscs", "mustard", "peanuts", "sesame", "soybeans", "sulphites", "tree_nuts")), name="cat_prod_allergen_code_ck"),
+            models.CheckConstraint(condition=models.Q(presence__in=("contains", "may_contain")), name="cat_prod_allergen_presence_ck"),
         ]
         ordering = ("code",)
 
@@ -85,6 +87,6 @@ class ProductDietaryTag(BaseModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=("product", "code"), name="catalog_product_dietary_tag_uq"),
-            models.CheckConstraint(condition=models.Q(code__in=tuple(value for value, _ in Code.choices)), name="cat_prod_dietary_code_ck"),
+            models.CheckConstraint(condition=models.Q(code__in=("vegan", "vegetarian", "gluten_free", "dairy_free", "halal", "kosher")), name="cat_prod_dietary_code_ck"),
         ]
         ordering = ("code",)
