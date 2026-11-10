@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from inventory.models import Ingredient, Warehouse
+from inventory.models import Ingredient, IngredientAllergen, Warehouse
 
 
 class StrictSerializer(serializers.Serializer):
@@ -35,6 +35,11 @@ class WarehouseQuerySerializer(StrictSerializer):
     is_default = serializers.BooleanField(required=False, default=None, allow_null=True)
 
 
+class IngredientAllergenWriteSerializer(StrictSerializer):
+    code = serializers.ChoiceField(choices=IngredientAllergen.Code.choices)
+    presence = serializers.ChoiceField(choices=IngredientAllergen.Presence.choices)
+
+
 class ItemCreateSerializer(StrictSerializer):
     name = serializers.CharField(max_length=120, allow_blank=False, trim_whitespace=True)
     sku = serializers.CharField(max_length=50, required=False, allow_blank=True, allow_null=True)
@@ -45,6 +50,13 @@ class ItemCreateSerializer(StrictSerializer):
         default=Ingredient.PreparationLevel.RAW,
     )
     is_active = serializers.BooleanField(required=False, default=True)
+    allergens = IngredientAllergenWriteSerializer(many=True, required=False, default=list)
+
+    def validate(self, attrs):
+        codes = [row["code"] for row in attrs.get("allergens", [])]
+        if len(codes) != len(set(codes)):
+            raise serializers.ValidationError({"allergens": "Each allergen may be declared only once."})
+        return attrs
 
     def validate_sku(self, value):
         return value.strip() or None if value is not None else None
@@ -58,6 +70,13 @@ class ItemUpdateSerializer(StrictSerializer):
         choices=Ingredient.PreparationLevel.choices, required=False
     )
     is_active = serializers.BooleanField(required=False)
+    allergens = IngredientAllergenWriteSerializer(many=True, required=False)
+
+    def validate(self, attrs):
+        codes = [row["code"] for row in attrs.get("allergens", [])]
+        if len(codes) != len(set(codes)):
+            raise serializers.ValidationError({"allergens": "Each allergen may be declared only once."})
+        return attrs
 
     def validate_sku(self, value):
         return value.strip() or None if value is not None else None
@@ -104,6 +123,7 @@ class ItemSerializer(serializers.Serializer):
     is_active = serializers.BooleanField()
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
+    allergens = IngredientAllergenWriteSerializer(many=True, read_only=True)
 
 
 class WarehouseSerializer(serializers.Serializer):

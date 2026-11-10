@@ -12,6 +12,7 @@ class InventoryItemDTO:
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    allergens: tuple[dict[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
