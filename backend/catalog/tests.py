@@ -1,8 +1,9 @@
+from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
-from catalog.models import Product
+from catalog.models import Product, ProductAllergen, ProductDietaryTag
 from core.enums import PermissionCode
 
 
@@ -185,3 +186,24 @@ class ProductCatalogAPITests(APITestCase):
         )
         response = self.client.get(f"/api/catalog/products/{product.pk}/")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+    def test_product_restriction_enum_values_are_enforced_by_database(self):
+        product = Product.objects.create(business=self.business, name="Constraint test")
+
+        invalid_rows = (
+            lambda: ProductAllergen.objects.create(
+                product=product, code="not_an_allergen", presence="contains",
+            ),
+            lambda: ProductAllergen.objects.create(
+                product=product, code="milk", presence="unknown_presence",
+            ),
+            lambda: ProductDietaryTag.objects.create(
+                product=product, code="not_a_dietary_tag",
+            ),
+        )
+        for create_invalid_row in invalid_rows:
+            with self.subTest(write=create_invalid_row):
+                with self.assertRaises(IntegrityError):
+                    with transaction.atomic():
+                        create_invalid_row()
