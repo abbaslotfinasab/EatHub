@@ -2609,10 +2609,45 @@ class MenuItemRecipeApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["recipe_id"], self.recipe.id)
         self.assertEqual(response.data["recipe_name"], self.recipe.name)
+        self.assertEqual(response.data["recipe_allergens"], [])
+        self.assertIsNone(response.data["catalog_product_allergens"])
         self.assertEqual(
             MenuItem.objects.get(pk=response.data["id"]).recipe_id,
             self.recipe.id,
         )
+
+    def test_menu_item_exposes_recipe_allergens_separately(self):
+        recipe_read_model = SimpleNamespace(
+            id=self.recipe.id,
+            name=self.recipe.name,
+            allergens=(
+                {"code": "peanuts", "presence": "contains"},
+                {"code": "milk", "presence": "may_contain"},
+            ),
+        )
+        with patch(
+            "composition.recipe_queries.get_recipe_for_business",
+            return_value=recipe_read_model,
+        ):
+            response = self.client.post(
+                f"/api/products/menus/{self.menu.id}/items/create/",
+                {
+                    "name": "Allergen Profile Meal",
+                    "price": "15.00",
+                    "recipe_id": self.recipe.id,
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["recipe_allergens"],
+            [
+                {"code": "peanuts", "presence": "contains"},
+                {"code": "milk", "presence": "may_contain"},
+            ],
+        )
+        self.assertIsNone(response.data["catalog_product_allergens"])
 
     def test_create_menu_persists_recipe_on_nested_menu_item(self):
         response = self.client.post(
@@ -2631,6 +2666,9 @@ class MenuItemRecipeApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["items"][0]["recipe_id"], self.recipe.id)
+        self.assertEqual(response.data["items"][0]["recipe_name"], self.recipe.name)
+        self.assertEqual(response.data["items"][0]["recipe_allergens"], [])
+        self.assertIsNone(response.data["items"][0]["catalog_product_allergens"])
         self.assertEqual(
             MenuItem.objects.get(pk=response.data["items"][0]["id"]).recipe_id,
             self.recipe.id,
@@ -2670,6 +2708,29 @@ class MenuItemRecipeApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Menu.objects.filter(business=self.business, name="New Menu").exists())
+
+    def test_create_menu_rejects_unknown_recipe_id_without_creating_menu(self):
+        response = self.client.post(
+            "/api/products/menus/create/",
+            {
+                "name": "Unknown Recipe Menu",
+                "category": "Food",
+                "items": [{
+                    "name": "Unknown Recipe Meal",
+                    "price": "10.00",
+                    "recipe_id": 99999999,
+                }],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            Menu.objects.filter(
+                business=self.business,
+                name="Unknown Recipe Menu",
+            ).exists()
+        )
 
     def test_update_menu_item_can_assign_and_clear_recipe(self):
         assign = self.client.patch(
@@ -2997,6 +3058,32 @@ class MenuItemCatalogProductApiTests(APITestCase):
         nested = response.data["items"][0]
         self.assertEqual(nested["product_id"], self.active_product.pk)
         self.assertEqual(nested["product_name"], self.active_product.name)
+
+    def test_menu_item_exposes_catalog_allergens_separately(self):
+        from catalog.models import ProductAllergen
+
+        ProductAllergen.objects.create(
+            product=self.active_product,
+            code=ProductAllergen.Code.PEANUTS,
+            presence=ProductAllergen.Presence.MAY_CONTAIN,
+        )
+
+        response = self.client.post(
+            f"/api/products/menus/{self.menu.pk}/items/create/",
+            {
+                "name": "Peanut Warning Item",
+                "price": "14.00",
+                "product_id": self.active_product.pk,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["catalog_product_allergens"],
+            [{"code": "peanuts", "presence": "may_contain"}],
+        )
+        self.assertIsNone(response.data["recipe_allergens"])
 
     def test_create_rejects_foreign_or_non_active_product(self):
         for product in (self.foreign_product, self.draft_product):
