@@ -1,7 +1,8 @@
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
-from products.models import Customer, CustomerAccount, CustomerTransaction
+from customer.models import Customer
+from products.models import CustomerAccount, CustomerTransaction
 
 
 from customer.presentation.serializers import (
