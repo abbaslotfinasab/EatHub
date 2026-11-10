@@ -99,6 +99,7 @@ class OrderListPaginationTests(APITestCase):
             business=self.business, menu=self.menu, name="Test meal", price=Decimal("12.50")
         )
         self.client.force_authenticate(self.user)
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
 
     def create_order(self, business=None, **overrides):
         values = {
@@ -444,6 +445,7 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
             ledger_opening_balance=Decimal("100.00"),
             ledger_opening_balance_verified=True,
         )
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
         self.order = Order.objects.create(
             business=self.business,
             customer=self.customer,
@@ -957,6 +959,7 @@ class HistoricalOrderItemTests(APITestCase):
             is_active=True,
         )
         self.client.force_authenticate(self.user)
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
 
     def create_historical_order(self):
         menu = Menu.objects.create(

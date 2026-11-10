@@ -35,6 +35,7 @@ class OrderRBACApiTests(APITestCase):
                 defaults={"name": permission.label},
             )
         self.client.force_authenticate(self.user)
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
         self.order = self.create_order()
 
     def create_order(self):
@@ -55,6 +56,20 @@ class OrderRBACApiTests(APITestCase):
                 role=self.role,
                 permission=permission,
             )
+
+
+    def test_order_api_requires_explicit_business_context(self):
+        self.client.defaults.pop("HTTP_X_BUSINESS_ID", None)
+        response = self.client.get("/api/products/orders/list/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_order_api_rejects_business_without_membership(self):
+        foreign_business = Business.objects.create(name="Foreign Order Business")
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(foreign_business.id)
+        response = self.client.get("/api/products/orders/list/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
 
     def test_order_read_and_create_endpoints_require_explicit_permissions(self):
         list_response = self.client.get("/api/products/orders/list/")

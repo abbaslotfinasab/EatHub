@@ -299,7 +299,7 @@ class MenuItemDeleteAPIView(ExplicitTenantAPIView):
             status=status.HTTP_204_NO_CONTENT
         )
 
-class OrderCreateAPIView(TenantAPIView):
+class OrderCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     @transaction.atomic
@@ -328,7 +328,7 @@ class OrderCreateAPIView(TenantAPIView):
 
 
 
-class OrderListAPIView(TenantAPIView):
+class OrderListAPIView(ExplicitTenantAPIView):
 
     permission_classes = [
         IsAuthenticated
@@ -562,7 +562,7 @@ class OrderListAPIView(TenantAPIView):
         serializer = OrderSerializer(page, many=True)
 
         return paginator.get_paginated_response(serializer.data)
-class OrderDetailAPIView(TenantAPIView):
+class OrderDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -580,7 +580,7 @@ class OrderDetailAPIView(TenantAPIView):
         return Response(OrderSerializer(order).data)
 
 
-class OrderStatusUpdateAPIView(TenantAPIView):
+class OrderStatusUpdateAPIView(ExplicitTenantAPIView):
 
     permission_classes = [
         IsAuthenticated
@@ -647,7 +647,7 @@ class OrderStatusUpdateAPIView(TenantAPIView):
         )
 
 
-class OrderActualConsumptionAPIView(TenantAPIView):
+class OrderActualConsumptionAPIView(ExplicitTenantAPIView):
     """Record operator-entered actual use for a preparing, tenant-scoped order."""
 
     permission_classes = [IsAuthenticated]
@@ -765,7 +765,7 @@ class OrderActualConsumptionAPIView(TenantAPIView):
         }, status=status.HTTP_201_CREATED)
 
 
-class OrderRefundAPIView(TenantAPIView):
+class OrderRefundAPIView(ExplicitTenantAPIView):
     """Create full refunds and recover the committed refund receipt by order.
 
     GET is a durable recovery path after a lost POST response. It returns only
@@ -831,7 +831,7 @@ class OrderRefundAPIView(TenantAPIView):
         response["Cache-Control"] = "no-store"
         return response
 
-class OrderUpdateAPIView(TenantAPIView):
+class OrderUpdateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
@@ -855,7 +855,7 @@ class OrderUpdateAPIView(TenantAPIView):
         return Response(OrderSerializer(order).data)
 
 
-class OrderDeleteAPIView(TenantAPIView):
+class OrderDeleteAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
