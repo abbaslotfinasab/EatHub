@@ -7,6 +7,7 @@ import AssessmentRoundedIcon from "@mui/icons-material/AssessmentRounded";
 import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import PeopleRoundedIcon from "@mui/icons-material/PeopleRounded";
 import AlarmRoundedIcon from "@mui/icons-material/AlarmRounded";
+import CategoryRoundedIcon from "@mui/icons-material/CategoryRounded";
 
 import type { SidebarMenuItem } from "../../../domain/entities/account/SidebarMenuItem.ts";
 
@@ -26,6 +27,7 @@ export const sidebarSections: SidebarSectionConfig[] = [
         title: "فروش",
         items: [
             { title: "سفارش ها", path: "/orders", icon: ReceiptLongRoundedIcon },
+            { title: "محصولات", path: "/products", icon: CategoryRoundedIcon, requiredPermission: "products.view" },
             { title: "منو ها", path: "/menus", icon: RestaurantMenuRoundedIcon },
             {
                 title: "رزرو ها",
