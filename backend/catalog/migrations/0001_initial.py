@@ -30,8 +30,8 @@ class Migration(migrations.Migration):
                     models.Index(fields=["business", "status", "name"], name="catalog_prod_scope_status_ix"),
                 ],
                 "constraints": [
-                    models.UniqueConstraint(condition=models.Q(("sku__isnull", False), models.Q(("sku", ""), _negated=True)), fields=("business", "sku"), name="catalog_product_business_sku_uq"),
-                    models.CheckConstraint(condition=models.Q(("status__in", ("draft", "active", "archived"))), name="catalog_product_status_ck"),
+                    models.UniqueConstraint(condition=models.Q(sku__isnull=False) & ~models.Q(sku=""), fields=("business", "sku"), name="catalog_product_business_sku_uq"),
+                    models.CheckConstraint(condition=models.Q(status__in=("draft", "active", "archived")), name="catalog_product_status_ck"),
                 ],
             },
         ),
