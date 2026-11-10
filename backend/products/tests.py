@@ -2873,3 +2873,49 @@ class CustomerTenantContextApiTests(APITestCase):
         response = self.client.get("/api/products/customers/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual([item["id"] for item in response.data], [self.customer.id])
+
+    def test_customer_create_endpoint_uses_customer_module(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.post(
+            "/api/products/customers/create",
+            {"name": "Created Customer", "phone": "09120008102"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["name"], "Created Customer")
+        self.assertTrue(
+            Customer.objects.filter(
+                business=self.business,
+                phone="09120008102",
+            ).exists()
+        )
+
+    def test_customer_detail_endpoint_preserves_response_contract(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.get(
+            f"/api/products/customers/{self.customer.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["customer"]["id"], self.customer.id)
+        self.assertIsNone(response.data["account"])
+        self.assertEqual(response.data["transactions"], [])
+
+    def test_customer_update_endpoint_preserves_response_contract(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.patch(
+            f"/api/products/customers/{self.customer.id}/update/",
+            {"name": "Updated Customer"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "Updated Customer")
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.name, "Updated Customer")
+
+    def test_customer_delete_endpoint_uses_customer_service(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.delete(
+            f"/api/products/customers/{self.customer.id}/delete/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Customer.objects.filter(pk=self.customer.id).exists())
