@@ -4,6 +4,7 @@ import {createMenuContainer} from "./menu.container";
 import {createOrderContainer} from "./order.container.ts";
 import {createUploadContainer} from "./upload.container.ts";
 import {createDashboardContainer} from "./dashboard.container.ts";
+import {createCatalogContainer} from "./catalog.container.ts";
 
 class Container {
     private _auth?: ReturnType<typeof createAuthContainer>;
@@ -12,6 +13,7 @@ class Container {
     private _customer?: ReturnType<typeof createCustomerContainer>;
     private _upload?: ReturnType<typeof createUploadContainer>;
     private _dashboard?: ReturnType<typeof createDashboardContainer>;
+    private _catalog?: ReturnType<typeof createCatalogContainer>;
 
 
     get authContainer() {
