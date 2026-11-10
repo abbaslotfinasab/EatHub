@@ -62,15 +62,16 @@ class CustomerService:
         has_account_history = account is not None and (
             account.balance != 0 or account.transactions.exists()
         )
-        has_settled_orders = any(
-            order.payment_status == Order.PaymentStatus.PAID for order in orders
-        )
+        # Any order reference is historical business data. Customer.delete()
+        # would cascade through Order.customer and can silently erase unpaid,
+        # cancelled, failed, or otherwise unsettled orders as well.
+        has_orders = bool(orders)
         has_order_transactions = CustomerTransaction.objects.filter(
             order__customer=customer,
         ).exists()
 
-        if has_account_history or has_settled_orders or has_order_transactions:
+        if has_account_history or has_orders or has_order_transactions:
             raise ValidationError(
-                "Customers with wallet history or settled orders cannot be deleted."
+                "Customers with wallet history or order history cannot be deleted."
             )
         customer.delete()
