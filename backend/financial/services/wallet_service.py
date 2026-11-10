@@ -45,11 +45,10 @@ class WalletService:
         customer: Customer,
         amount: Decimal,
         description: str = "",
-        order: Order | None = None,
         refund: OrderRefund | None = None,
     ) -> CustomerTransaction:
 
-        if order is not None or refund is not None:
+        if refund is not None:
             raise ValidationError(
                 "Order-linked credits must use the dedicated refund-credit operation."
             )
