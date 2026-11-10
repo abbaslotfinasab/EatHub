@@ -3,6 +3,10 @@ from django.test import TestCase
 # Create your tests here.
 
 from django.test import SimpleTestCase
+from pathlib import Path
+import inspect
+
+from financial.services.wallet_service import WalletService
 
 from financial.models import CustomerAccount, CustomerTransaction, OrderRefund
 from products.models import (
@@ -167,4 +171,20 @@ class FinancialWalletApiTenantContextTests(APITestCase):
                 type=CustomerTransaction.Type.CREDIT,
             ).count(),
             1,
+        )
+
+
+
+class FinancialSalesDependencyBoundaryTests(SimpleTestCase):
+    def test_wallet_service_does_not_import_sales_models_or_services(self):
+        source_path = Path(inspect.getsourcefile(WalletService))
+        source = source_path.read_text(encoding="utf-8")
+        self.assertNotIn("products.models", source)
+        self.assertNotIn("products.services", source)
+
+    def test_order_settlement_contract_uses_primitive_identifiers(self):
+        parameters = inspect.signature(WalletService.validated_order_settlement).parameters
+        self.assertEqual(
+            set(parameters),
+            {"business", "order_id", "customer_id"},
         )
