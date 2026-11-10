@@ -26,13 +26,14 @@ class ProductCatalogService:
 
 
     @staticmethod
+    @transaction.atomic
     def resolve_active_products(*, business, product_ids):
         """Resolve reusable Product Catalog identities inside one business."""
         ids = set(product_ids)
         if not ids:
             return {}
 
-        products = Product.objects.filter(
+        products = Product.objects.select_for_update().filter(
             business=business,
             status=Product.Status.ACTIVE,
             pk__in=ids,
