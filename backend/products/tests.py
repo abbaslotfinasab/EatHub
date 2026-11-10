@@ -3041,3 +3041,84 @@ class MenuItemCatalogProductApiTests(APITestCase):
         self.item.save(update_fields=["product"])
         with self.assertRaises(ProtectedError):
             self.active_product.delete()
+
+
+class OrderCatalogProductSnapshotTests(TestCase):
+    def setUp(self):
+        from catalog.models import Product
+
+        self.business = Business.objects.create(name="Order Catalog Snapshot Business")
+        self.menu = Menu.objects.create(
+            business=self.business,
+            name="Snapshot Menu",
+            category="Main",
+        )
+        self.product = Product.objects.create(
+            business=self.business,
+            name="Original Catalog Product",
+            sku="ORDER-SNAPSHOT-1",
+            status=Product.Status.ACTIVE,
+        )
+        self.menu_item = MenuItem.objects.create(
+            business=self.business,
+            menu=self.menu,
+            name="Menu label",
+            price=Decimal("15.00"),
+            product=self.product,
+        )
+
+    def test_order_item_keeps_product_identity_when_catalog_and_menu_change(self):
+        order = OrderService.create_order(
+            business=self.business,
+            validated_data={
+                "order_type": Order.OrderType.TAKEAWAY,
+                "items": [{"menu_item_id": self.menu_item.pk, "quantity": 2}],
+            },
+            user=None,
+        )
+        order_item = order.items.get()
+
+        self.assertEqual(order_item.catalog_product_id, self.product.pk)
+        self.assertEqual(order_item.catalog_product_name, "Original Catalog Product")
+
+        self.product.name = "Renamed Catalog Product"
+        self.product.save(update_fields=("name", "updated_at"))
+        self.menu_item.delete()
+
+        order_item.refresh_from_db()
+        self.assertIsNone(order_item.menu_item_id)
+        self.assertEqual(order_item.catalog_product_id, self.product.pk)
+        self.assertEqual(order_item.catalog_product_name, "Original Catalog Product")
+
+    def test_editing_pending_order_refreshes_product_snapshot_from_current_menu_item(self):
+        order = OrderService.create_order(
+            business=self.business,
+            validated_data={
+                "order_type": Order.OrderType.TAKEAWAY,
+                "items": [{"menu_item_id": self.menu_item.pk, "quantity": 1}],
+            },
+            user=None,
+        )
+        from catalog.models import Product
+
+        replacement = Product.objects.create(
+            business=self.business,
+            name="Replacement Product",
+            sku="ORDER-SNAPSHOT-2",
+            status=Product.Status.ACTIVE,
+        )
+        self.menu_item.product = replacement
+        self.menu_item.save(update_fields=("product", "updated_at"))
+
+        OrderService.update_order(
+            business=self.business,
+            order_id=order.pk,
+            validated_data={
+                "items": [{"menu_item_id": self.menu_item.pk, "quantity": 3}],
+            },
+            user=None,
+        )
+
+        order_item = order.items.get()
+        self.assertEqual(order_item.catalog_product_id, replacement.pk)
+        self.assertEqual(order_item.catalog_product_name, "Replacement Product")
