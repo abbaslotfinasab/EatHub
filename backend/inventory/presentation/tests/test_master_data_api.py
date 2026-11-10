@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
 from core.enums import PermissionCode
 from inventory.infrastructure.django.master_data_repository import DjangoMasterDataRepository
-from inventory.models import Ingredient, Warehouse
+from inventory.models import Ingredient, IngredientAllergen, Warehouse
 
 
 class InventoryMasterDataAPITests(APITestCase):
@@ -235,3 +235,96 @@ class InventoryMasterDataAPITests(APITestCase):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 Warehouse.objects.create(business=self.business, name="DB default 2", is_default=True)
+
+
+    def test_ingredient_allergen_declarations_create_read_replace_and_clear(self):
+        created = self.client.post(
+            "/api/inventory/items/",
+            {
+                "name": "Almond flour",
+                "unit": "kg",
+                "allergens": [
+                    {"code": "tree_nuts", "presence": "contains"},
+                    {"code": "peanuts", "presence": "may_contain"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED, created.data)
+        item_id = created.data["id"]
+        self.assertEqual(
+            created.data["allergens"],
+            [
+                {"code": "peanuts", "presence": "may_contain"},
+                {"code": "tree_nuts", "presence": "contains"},
+            ],
+        )
+
+        # Omitting the relation group preserves existing declarations.
+        updated = self.client.patch(
+            f"/api/inventory/items/{item_id}/",
+            {"name": "Almond meal"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_200_OK, updated.data)
+        self.assertEqual(len(updated.data["allergens"]), 2)
+
+        replaced = self.client.patch(
+            f"/api/inventory/items/{item_id}/",
+            {"allergens": [{"code": "tree_nuts", "presence": "may_contain"}]},
+            format="json",
+        )
+        self.assertEqual(replaced.status_code, status.HTTP_200_OK, replaced.data)
+        self.assertEqual(
+            replaced.data["allergens"],
+            [{"code": "tree_nuts", "presence": "may_contain"}],
+        )
+
+        cleared = self.client.patch(
+            f"/api/inventory/items/{item_id}/", {"allergens": []}, format="json"
+        )
+        self.assertEqual(cleared.status_code, status.HTTP_200_OK, cleared.data)
+        self.assertEqual(cleared.data["allergens"], [])
+
+    def test_ingredient_allergens_reject_unknown_duplicate_and_foreign_item_scope(self):
+        invalid_payloads = [
+            [{"code": "unknown", "presence": "contains"}],
+            [
+                {"code": "milk", "presence": "contains"},
+                {"code": "milk", "presence": "may_contain"},
+            ],
+            [{"code": "milk", "presence": "unknown"}],
+        ]
+        for allergens in invalid_payloads:
+            with self.subTest(allergens=allergens):
+                response = self.client.post(
+                    "/api/inventory/items/",
+                    {"name": "Invalid item", "unit": "kg", "allergens": allergens},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        foreign = Ingredient.objects.create(
+            business=self.other_business, name="Foreign almond flour", unit="kg"
+        )
+        self.assertEqual(
+            self.client.get(f"/api/inventory/items/{foreign.pk}/").status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_database_rejects_invalid_ingredient_allergen_enums(self):
+        ingredient = Ingredient.objects.create(
+            business=self.business, name="Constraint test ingredient", unit="kg"
+        )
+        invalid_rows = [
+            {"code": "not_an_allergen", "presence": "contains"},
+            {"code": "milk", "presence": "sometimes"},
+        ]
+        for values in invalid_rows:
+            with self.subTest(values=values):
+                with self.assertRaises(IntegrityError):
+                    with transaction.atomic():
+                        IngredientAllergen.objects.create(
+                            ingredient=ingredient, **values
+                        )
+
