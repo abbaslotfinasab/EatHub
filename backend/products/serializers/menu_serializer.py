@@ -20,6 +20,8 @@ class BusinessRecipeField(serializers.PrimaryKeyRelatedField):
 
 class MenuItemCreateSerializer(serializers.Serializer):
 
+    product_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+
     recipe_id = BusinessRecipeField(
         source="recipe",
         queryset=Recipe.objects.none(),
@@ -56,6 +58,8 @@ class MenuItemCreateSerializer(serializers.Serializer):
 
 
 class MenuItemSerializer(serializers.ModelSerializer):
+    product_id = serializers.IntegerField(read_only=True, allow_null=True)
+    product_name = serializers.CharField(source="product.name", read_only=True, allow_null=True)
     recipe_id = serializers.IntegerField(read_only=True)
     recipe_name = serializers.CharField(source="recipe.name", read_only=True, allow_null=True)
 
@@ -68,6 +72,8 @@ class MenuItemSerializer(serializers.ModelSerializer):
             "price",
             "image_url",
             "is_available",
+            "product_id",
+            "product_name",
             "recipe_id",
             "recipe_name",
         ]
@@ -110,6 +116,8 @@ class CreateMenuWithItemsSerializer(serializers.Serializer):
 
 
 class MenuItemUpdateSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+
     recipe_id = BusinessRecipeField(
         source="recipe",
         queryset=Recipe.objects.none(),
