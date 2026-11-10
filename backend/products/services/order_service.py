@@ -106,7 +106,7 @@ class OrderService:
         menu_items = MenuItem.objects.filter(
             id__in=menu_item_ids,
             business=business
-        ).in_bulk()
+        ).select_related("product").in_bulk()
 
         for item in items_data:
 
@@ -123,6 +123,8 @@ class OrderService:
                 order=order,
                 menu_item=menu_item,
                 menu_item_name=menu_item.name,
+                catalog_product_id=menu_item.product_id,
+                catalog_product_name=menu_item.product.name if menu_item.product_id else None,
                 quantity=quantity,
                 unit_price=unit_price,
                 total_price=total_price,
@@ -262,7 +264,7 @@ class OrderService:
         menu_items = MenuItem.objects.filter(
             business=business,
             id__in=menu_item_ids,
-        ).in_bulk()
+        ).select_related("product").in_bulk()
 
         for item in items_data:
 
@@ -283,6 +285,8 @@ class OrderService:
                 order=order,
                 menu_item=menu_item,
                 menu_item_name=menu_item.name,
+                catalog_product_id=menu_item.product_id,
+                catalog_product_name=menu_item.product.name if menu_item.product_id else None,
                 quantity=quantity,
                 unit_price=unit_price,
                 total_price=total_price,
