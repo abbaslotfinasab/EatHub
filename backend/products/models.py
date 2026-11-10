@@ -157,6 +157,10 @@ class OrderItem(BaseModel):
 
     menu_item_name = models.CharField(max_length=120)
 
+    # Immutable Catalog identity captured at order creation; intentionally no cross-module FK.
+    catalog_product_id = models.PositiveBigIntegerField(null=True, blank=True)
+    catalog_product_name = models.CharField(max_length=120, null=True, blank=True)
+
     quantity = models.PositiveIntegerField()
 
     unit_price = models.DecimalField(
