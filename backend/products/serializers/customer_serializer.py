@@ -4,14 +4,10 @@ from rest_framework import serializers
 from products.models import Customer, CustomerAccount, CustomerTransaction
 
 
-class CreateCustomerSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=120)
-    phone = serializers.CharField(max_length=20)
-
-
-class UpdateCustomerSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=120, required=False)
-    phone = serializers.CharField(max_length=20, required=False)
+from customer.presentation.serializers import (
+    CreateCustomerSerializer,
+    UpdateCustomerSerializer,
+)
 
 
 class CustomerSerializer(serializers.ModelSerializer):
