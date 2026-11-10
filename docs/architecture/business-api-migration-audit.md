@@ -25,7 +25,7 @@ Status: initial route inventory, based on `feat/tenant-context-resolver` at comm
 | Inventory reservations | List/create/detail/availability | `ExplicitTenantAPIView` | Explicit context (PR #65) |
 | Sales menu management | Menus and menu items | `ExplicitTenantAPIView` | Explicit context (PR #66) |
 | Sales orders | Create/list/detail, status, actual consumption, refunds, update and delete | `ExplicitTenantAPIView` | Explicit context (PR #67) |
-| Customer / CRM | Customer CRUD | `TenantAPIView` | Pending; domain ownership review required |
+| Customer / CRM | Customer CRUD | `ExplicitTenantAPIView` | Explicit context (PR #70); module extraction remains follow-up |
 | Customer account / Financial | Customer accounts, credits, debits, adjustments and transactions | `TenantAPIView` | Pending; Financial ownership review required |
 | Upload | `UploadAPIView` | `APIView` | User-scoped; not business-scoped by current implementation |
 | Public menu | `PublicRestaurantMenuAPIView` | `APIView` + `AllowAny` | Public route; no authenticated tenant header |
@@ -43,7 +43,7 @@ The Customer and Financial functionality is still implemented inside `products/v
 ## Immediate migration order
 
 1. Core dashboard, stock balances (PR #52), Inventory items / warehouses (PR #53), compound materials (PR #54), Inventory operations (PR #63), recipes (PR #64), and reservations (PR #65).
-2. Sales menu management (PR #66) and Sales order lifecycle (PR #67). Migrate Customer CRUD and customer-account/transaction endpoints only after the Customer and Financial module boundaries are implemented or explicitly agreed.
+2. Sales menu management (PR #66), Sales order lifecycle (PR #67), and explicit Customer CRUD context (PR #70). Extract Customer-owned application/presentation code next; migrate customer-account/transaction endpoints only as part of Financial ownership work.
 3. Account business profile.
 4. Remove `TenantAPIView` and its compatibility behavior.
 

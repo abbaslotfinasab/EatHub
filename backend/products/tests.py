@@ -2822,3 +2822,54 @@ class MenuItemRecipeApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         other_item.refresh_from_db()
         self.assertEqual(other_item.name, "Other Burger")
+
+
+class CustomerTenantContextApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="customer-context@example.com",
+            password="password",
+            name="Customer Context User",
+            number="81001",
+        )
+        self.business = Business.objects.create(name="Customer Context Business")
+        self.foreign_business = Business.objects.create(name="Foreign Customer Business")
+        role = Role.objects.create(
+            business=self.business,
+            name="Owner",
+            code="OWNER",
+        )
+        Membership.objects.create(
+            user=self.user,
+            business=self.business,
+            role=role,
+            is_active=True,
+        )
+        self.customer = Customer.objects.create(
+            business=self.business,
+            name="Local Customer",
+            phone="09120008100",
+        )
+        Customer.objects.create(
+            business=self.foreign_business,
+            name="Foreign Customer",
+            phone="09120008101",
+        )
+        self.client.force_authenticate(self.user)
+
+    def test_customer_api_requires_explicit_business_context(self):
+        response = self.client.get("/api/products/customers/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_customer_api_rejects_business_without_active_membership(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.foreign_business.id)
+        response = self.client.get("/api/products/customers/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
+
+    def test_customer_list_is_scoped_to_explicit_business(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.get("/api/products/customers/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["id"] for item in response.data], [self.customer.id])
