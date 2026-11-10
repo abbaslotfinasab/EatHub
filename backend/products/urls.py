@@ -1,6 +1,13 @@
 from django.urls import path
 
 from products.views import *
+from customer.presentation.views import (
+    CustomerListAPIView,
+    CustomerCreateAPIView,
+    CustomerDetailAPIView,
+    CustomerUpdateAPIView,
+    CustomerDeleteAPIView,
+)
 from financial.views import (
     CustomerAccountDetailAPIView,
     CustomerCreditAPIView,
