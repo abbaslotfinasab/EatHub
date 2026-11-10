@@ -73,6 +73,7 @@ class FinancialWalletApiTenantContextTests(APITestCase):
         self.user = User.objects.create_user(
             email="financial-api-owner@example.test",
             password="test-password",
+            name="Financial API Owner",
             number="95001",
         )
         Membership.objects.create(
