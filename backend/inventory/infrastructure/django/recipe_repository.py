@@ -18,7 +18,9 @@ class DjangoRecipeRepository:
     @staticmethod
     def _recipes(business_id: int, *, lock: bool = False) -> QuerySet:
         rows = RecipeModel.objects.filter(business_id=business_id).prefetch_related(
-            "inputs__ingredient", "outputs__ingredient",
+            "inputs__ingredient__allergen_declarations",
+            "inputs__ingredient__compound_components__ingredient__allergen_declarations",
+            "outputs__ingredient",
         )
         if lock and connection.in_atomic_block:
             rows = rows.select_for_update(of=("self",))
@@ -53,6 +55,33 @@ class DjangoRecipeRepository:
         )
         if any(line.ingredient.business_id != row.business_id for line in (*row.inputs.all(), *row.outputs.all())):
             raise TenantMismatch("Persisted Recipe references an Ingredient from another Business.")
+
+        # Derived at read time so ingredient declaration changes flow through.
+        allergen_presence: dict[str, str] = {}
+
+        def include_declarations(declarations) -> None:
+            for declaration in declarations:
+                current = allergen_presence.get(declaration.code)
+                allergen_presence[declaration.code] = (
+                    "contains"
+                    if current == "contains" or declaration.presence == "contains"
+                    else "may_contain"
+                )
+
+        for line in row.inputs.all():
+            ingredient = line.ingredient
+            include_declarations(ingredient.allergen_declarations.all())
+            if ingredient.preparation_level == "semi_prepared":
+                for component in ingredient.compound_components.all():
+                    raw_ingredient = component.ingredient
+                    if raw_ingredient.business_id != row.business_id or raw_ingredient.preparation_level != "raw":
+                        raise TenantMismatch("Persisted Compound Material references an invalid Ingredient.")
+                    include_declarations(raw_ingredient.allergen_declarations.all())
+
+        derived_allergens = tuple(
+            {"code": code, "presence": allergen_presence[code]}
+            for code in sorted(allergen_presence)
+        )
         return RecipeDTO(
             id=row.pk,
             business_id=row.business_id,
@@ -65,6 +94,7 @@ class DjangoRecipeRepository:
             outputs=outputs,
             created_at=row.created_at,
             updated_at=row.updated_at,
+            allergens=derived_allergens,
         )
 
     def list_for_business(
@@ -81,7 +111,9 @@ class DjangoRecipeRepository:
         count = rows.count()
         offset = (page - 1) * page_size
         results = rows.order_by("name", "pk")[offset:offset + page_size].prefetch_related(
-            "inputs__ingredient", "outputs__ingredient",
+            "inputs__ingredient__allergen_declarations",
+            "inputs__ingredient__compound_components__ingredient__allergen_declarations",
+            "outputs__ingredient",
         )
         return RecipePageDTO(
             count=count,
