@@ -4,6 +4,8 @@ export interface MenuItemDTO {
     name: string;
     recipe_id?: number | null;
     recipe_name?: string | null;
+    product_id?: number | null;
+    product_name?: string | null;
     description: string | null;
     price: number;
     image_url: string | null;

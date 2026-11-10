@@ -24,6 +24,7 @@ import {FormTextarea} from "../../form/FormTextarea.tsx";
 import {FormInput} from "../../form/FormInput.tsx";
 import type {MenuFormInput} from "../../../forms/menu/MenuFormInput.ts";
 import {UploadField} from "../../upload/UploadField.tsx";
+import {CatalogProductField} from "./CatalogProductField.tsx";
 
 
 interface Props {
@@ -195,6 +196,10 @@ export const MenuItemCard = ({
                                 </TextField>
                             )}
                         />
+                    </Grid>
+
+                    <Grid size={{xs: 12, md: 6}}>
+                        <CatalogProductField index={index}/>
                     </Grid>
 
                     <Grid size={{xs: 12}}>
