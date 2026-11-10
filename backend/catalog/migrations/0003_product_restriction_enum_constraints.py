@@ -11,21 +11,21 @@ class Migration(migrations.Migration):
             model_name="productallergen",
             constraint=models.CheckConstraint(
                 condition=models.Q(code__in=("celery", "cereals_gluten", "crustaceans", "eggs", "fish", "lupin", "milk", "molluscs", "mustard", "peanuts", "sesame", "soybeans", "sulphites", "tree_nuts")),
-                name="catalog_prod_allergen_code_ck",
+                name="cat_prod_allergen_code_ck",
             ),
         ),
         migrations.AddConstraint(
             model_name="productallergen",
             constraint=models.CheckConstraint(
                 condition=models.Q(presence__in=("contains", "may_contain")),
-                name="catalog_prod_allergen_presence_ck",
+                name="cat_prod_allergen_presence_ck",
             ),
         ),
         migrations.AddConstraint(
             model_name="productdietarytag",
             constraint=models.CheckConstraint(
                 condition=models.Q(code__in=("vegan", "vegetarian", "gluten_free", "dairy_free", "halal", "kosher")),
-                name="catalog_prod_dietary_code_ck",
+                name="cat_prod_dietary_code_ck",
             ),
         ),
     ]
