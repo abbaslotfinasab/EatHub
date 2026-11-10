@@ -150,16 +150,19 @@ class WalletService:
         customer: Customer,
         amount: Decimal,
         description: str = "",
-        order=None,
+        order_id=None,
+        order_business_id=None,
+        order_customer_id=None,
     ) -> CustomerTransaction:
 
-        WalletService._validate_order_reference(business, customer, order)
-
-        if order is not None:
-            if order.business_id != business.id or order.customer_id != customer.id:
+        if order_id is not None:
+            if (
+                order_business_id != business.id
+                or order_customer_id != customer.id
+            ):
                 raise ValidationError("Order does not belong to this customer and business.")
             if CustomerTransaction.objects.filter(
-                order_id=order.pk,
+                order_id=order_id,
                 type=CustomerTransaction.Type.DEBIT,
             ).exists():
                 raise ValidationError("Order already has a wallet payment debit.")
@@ -181,7 +184,7 @@ class WalletService:
             raise ValidationError("Amount must be positive.")
         return WalletService._record_debit(
             account=account,
-            order_id=order.pk if order is not None else None,
+            order_id=order_id,
             amount=amount,
             description=description,
         )
@@ -426,9 +429,3 @@ class WalletService:
             )
         return settled_amount, transactions
 
-    @staticmethod
-    def _validate_order_reference(business, customer, order):
-        if order is not None and (
-            order.business_id != business.id or order.customer_id != customer.id
-        ):
-            raise ValidationError("Order does not belong to this customer and business.")
