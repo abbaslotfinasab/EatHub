@@ -1,17 +1,14 @@
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
 
-from products.models import Customer, CustomerAccount, CustomerTransaction
+from customer.models import Customer
+from products.models import CustomerAccount, CustomerTransaction
 
 
-class CreateCustomerSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=120)
-    phone = serializers.CharField(max_length=20)
-
-
-class UpdateCustomerSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=120, required=False)
-    phone = serializers.CharField(max_length=20, required=False)
+from customer.presentation.serializers import (
+    CreateCustomerSerializer,
+    UpdateCustomerSerializer,
+)
 
 
 class CustomerSerializer(serializers.ModelSerializer):
