@@ -6,6 +6,8 @@ from django.db import models
 from core.models import BaseModel
 
 from accounts.models import Business, User
+from customer.models import Customer
+
 
 
 class Menu(BaseModel):
@@ -47,20 +49,6 @@ class MenuItem(BaseModel):
     )
 
     is_available = models.BooleanField(default=True)
-
-
-class Customer(BaseModel):
-    business = models.ForeignKey(Business, on_delete=models.CASCADE)
-
-    name = models.CharField(max_length=120)
-    phone = models.CharField(max_length=20)
-
-    user = models.ForeignKey(
-        User,
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL
-    )
 
 
 class Order(BaseModel):
