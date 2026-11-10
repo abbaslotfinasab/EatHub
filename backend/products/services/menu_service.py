@@ -1,6 +1,8 @@
 from django.db import transaction
+from rest_framework.exceptions import ValidationError
 
 from catalog.application.services import ProductCatalogService
+from composition.recipe_queries import RecipeUnavailable, get_recipe_for_business
 from products.models import Menu, MenuItem
 
 
@@ -16,6 +18,21 @@ def _resolve_products(*, business, items_data):
     )
 
 
+def _validate_recipe_ids(*, business, items_data):
+    """Validate Recipe references through Inventory's public application query."""
+    recipe_ids = {
+        item["recipe_id"]
+        for item in items_data
+        if item.get("recipe_id") is not None
+    }
+    for recipe_id in recipe_ids:
+        try:
+            get_recipe_for_business(business_id=business.pk, recipe_id=recipe_id)
+        except RecipeUnavailable as error:
+            raise ValidationError({"recipe_id": "Selected recipe is not available in this business."}) from None
+    return recipe_ids
+
+
 class MenuService:
 
     @staticmethod
@@ -23,6 +40,7 @@ class MenuService:
     def create_menu_with_items(*, business, validated_data):
         items_data = validated_data.pop("items", [])
         products = _resolve_products(business=business, items_data=items_data)
+        _validate_recipe_ids(business=business, items_data=items_data)
 
         menu = Menu.objects.create(business=business, **validated_data)
         items = [
@@ -35,7 +53,7 @@ class MenuService:
                 image_url=item.get("image_url"),
                 is_available=item.get("is_available", True),
                 product=products.get(item.get("product_id")),
-                recipe=item.get("recipe"),
+                recipe_id=item.get("recipe_id"),
             )
             for item in items_data
         ]
@@ -56,6 +74,7 @@ class MenuService:
             return menu
 
         products = _resolve_products(business=menu.business, items_data=items_data)
+        _validate_recipe_ids(business=menu.business, items_data=items_data)
         existing_items = {
             item.id: item
             for item in MenuItem.objects.filter(menu=menu, business=menu.business)
@@ -69,9 +88,11 @@ class MenuService:
             else:
                 item = MenuItem(menu=menu, business=menu.business)
 
-            for field in ("name", "description", "price", "image_url", "is_available", "recipe"):
+            for field in ("name", "description", "price", "image_url", "is_available"):
                 if field in item_data:
                     setattr(item, field, item_data[field])
+            if "recipe_id" in item_data:
+                item.recipe_id = item_data["recipe_id"]
             if "product_id" in item_data:
                 item.product = products.get(item_data["product_id"])
 
@@ -92,6 +113,7 @@ class MenuService:
     @transaction.atomic
     def create_item(*, business, menu, data):
         products = _resolve_products(business=business, items_data=[data])
+        _validate_recipe_ids(business=business, items_data=[data])
         return MenuItem.objects.create(
             business=business,
             menu=menu,
@@ -101,16 +123,19 @@ class MenuService:
             image_url=data.get("image_url"),
             is_available=data.get("is_available", True),
             product=products.get(data.get("product_id")),
-            recipe=data.get("recipe"),
+            recipe_id=data.get("recipe_id"),
         )
 
     @staticmethod
     @transaction.atomic
     def update_item(item, data):
         products = _resolve_products(business=item.business, items_data=[data])
-        for field in ("name", "description", "price", "image_url", "is_available", "recipe"):
+        _validate_recipe_ids(business=item.business, items_data=[data])
+        for field in ("name", "description", "price", "image_url", "is_available"):
             if field in data:
                 setattr(item, field, data[field])
+        if "recipe_id" in data:
+            item.recipe_id = data["recipe_id"]
         if "product_id" in data:
             item.product = products.get(data["product_id"])
         item.save()

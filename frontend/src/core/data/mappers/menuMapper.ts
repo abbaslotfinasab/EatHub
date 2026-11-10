@@ -36,6 +36,8 @@ export const menuMapper = {
             recipeId: dto.recipe_id == null ? null : String(dto.recipe_id),
             productId: dto.product_id ?? null,
             productName: dto.product_name ?? null,
+            recipeAllergens: dto.recipe_allergens ?? null,
+            catalogProductAllergens: dto.catalog_product_allergens ?? null,
             description: dto.description,
             price: dto.price,
             imageUrl: dto.image_url,
