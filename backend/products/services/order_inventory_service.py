@@ -17,13 +17,7 @@ from inventory.domain.entities.reservation import ReservationLine
 from inventory.domain.exceptions import InventoryDomainError
 from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
-from inventory.infrastructure.django.models import (
-    InventoryOperation,
-    InventoryOperationLine,
-    InventoryReservation,
-    InventoryV1StockMovement,
-)
-from inventory.infrastructure.django.operations_service import OperationInputError, create_operation, post_issue
+from inventory.infrastructure.django.models import InventoryReservation
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Recipe, Warehouse
@@ -55,7 +49,7 @@ def _inventory_call(call):
         return call()
     except ResourceNotFound as error:
         raise ValidationError(str(error)) from error
-    except (OperationConflict, InvalidApplicationInput, InventoryDomainError, OperationInputError) as error:
+    except (OperationConflict, InvalidApplicationInput, InventoryDomainError) as error:
         raise ValidationError({"inventory": str(error)}) from error
 
 
@@ -406,32 +400,17 @@ class OrderInventoryService:
         ) for requirement, amount, unit in normalized]
 
         if positive_actual:
-            use_case = _reservation_use_case()
-            _inventory_call(lambda: use_case.release(
-                _context(order, actor_id),
-                reservation.pk,
-                uuid5(_ORDER_KEY_NAMESPACE, f"consume-release:{event.pk}"),
-                f"Replaced by consumption {event.pk}",
-            ))
-            if remaining:
-                _inventory_call(lambda: use_case.create_for_order(
-                    _context(order, actor_id),
-                    warehouse_id=reservation.warehouse_id,
-                    order_id=order.pk,
-                    reason=f"Order {order.pk} remaining requirement after consumption {event.pk}",
-                    idempotency_key=uuid5(_ORDER_KEY_NAMESPACE, f"consume-reserve:{event.pk}"),
-                    lines=remaining,
-                ))
+            from composition.order_consumption import apply_order_consumption_inventory
 
-            operation = _inventory_call(lambda: create_operation(
+            operation_id, movement_ids = _inventory_call(lambda: apply_order_consumption_inventory(
                 business_id=business_id,
+                order_id=order.pk,
                 actor_id=actor_id,
-                operation_type=InventoryOperation.Type.ISSUE,
+                consumption_id=event.pk,
                 warehouse_id=reservation.warehouse_id,
-                reference=f"Order {order.pk}",
-                reason=f"Actual consumption for order {order.pk}",
-                notes=f"OrderInventoryConsumption:{event.pk}",
-                lines=[
+                reservation_id=reservation.pk,
+                remaining_lines=remaining,
+                actual_lines=[
                     {
                         "ingredient_id": ingredient_id,
                         "quantity": str(amount),
@@ -440,23 +419,11 @@ class OrderInventoryService:
                     for ingredient_id, (amount, unit) in sorted(positive_actual.items())
                 ],
             ))
-            _inventory_call(lambda: post_issue(business_id=business_id, actor_id=actor_id, operation_id=operation.pk))
-            event.inventory_operation = operation
+            event.inventory_operation_id = operation_id
             event.save(update_fields=("inventory_operation", "updated_at"))
-            movement_by_ingredient = {}
-            for operation_line in InventoryOperationLine.objects.filter(
-                operation=operation
-            ).order_by("ingredient_id"):
-                movement_by_ingredient[operation_line.ingredient_id] = InventoryV1StockMovement.objects.get(
-                    business_id=business_id,
-                    source_type="inventory_issue",
-                    source_document_id=operation.pk,
-                    source_line_id=operation_line.pk,
-                    operation_kind="post",
-                )
             for line in event_lines:
                 if line.actual_quantity > 0:
-                    line.inventory_movement = movement_by_ingredient[line.requirement.ingredient_id]
+                    line.inventory_movement_id = movement_ids[line.requirement.ingredient_id]
                     line.save(update_fields=("inventory_movement",))
         return event
 
