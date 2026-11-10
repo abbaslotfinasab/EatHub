@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from django.db.models import Count, DecimalField, Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
