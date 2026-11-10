@@ -1,5 +1,5 @@
 import {useMemo, useState} from "react";
-import {Autocomplete, CircularProgress, TextField} from "@mui/material";
+import {Autocomplete, TextField} from "@mui/material";
 import {useFormContext, useWatch} from "react-hook-form";
 import type {MenuFormInput} from "../../../forms/menu/MenuFormInput.ts";
 import {useProducts} from "../../../hooks/catalog/useProducts.ts";
@@ -28,7 +28,7 @@ export const CatalogProductField = ({index}: Props) => {
         if (productId != null && !active.some((product) => product.id === productId)) {
             active.unshift({
                 id: productId,
-                name: productName ? `${productName} (وضعیت فعلی)` : `محصول #${productId}`,
+                name: productName ? `${productName} (اتصال فعلی)` : `محصول #${productId}`,
                 inactive: true,
             });
         }
@@ -69,15 +69,6 @@ export const CatalogProductField = ({index}: Props) => {
                             ? "بارگذاری محصولات با خطا مواجه شد."
                             : "فقط محصولات فعال همین کسب‌وکار قابل انتخاب هستند. نام و قیمت آیتم منو مستقل باقی می‌ماند."
                     }
-                    InputProps={{
-                        ...params.InputProps,
-                        endAdornment: (
-                            <>
-                                {isLoading ? <CircularProgress color="inherit" size={18}/> : null}
-                                {params.InputProps.endAdornment}
-                            </>
-                        ),
-                    }}
                 />
             )}
         />
