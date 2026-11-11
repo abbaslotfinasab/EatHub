@@ -1,5 +1,6 @@
 import type {OrderRepository} from "../../domain/repositories/product/OrderRepository.ts";
 import type {OrderWithItems} from "../../domain/entities/product/order/OrderWithItems.ts";
+import type {OrderStatusHistory} from "../../domain/entities/product/order/OrderStatusHistory.ts";
 
 
 import {OrderRemoteDataSource} from "../datasources/OrderRemoteDataSource";
@@ -59,6 +60,20 @@ export class OrderRepositoryImpl implements OrderRepository {
         const data = await this.remote.getOrderById(id);
 
         return orderMapper.toDomain(data);
+    }
+
+    async getStatusHistory(orderId: string): Promise<OrderStatusHistory> {
+        const data = await this.remote.getOrderStatusHistory(orderId);
+        return {
+            orderId: String(data.order_id),
+            history: data.history.map((entry) => ({
+                id: entry.id,
+                fromStatus: entry.from_status,
+                toStatus: entry.to_status,
+                actor: entry.actor,
+                createdAt: entry.created_at,
+            })),
+        };
     }
 
     // =========================
