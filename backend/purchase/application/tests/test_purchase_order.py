@@ -202,8 +202,11 @@ class PurchaseOrderApplicationTests(TestCase):
 
         self.assertEqual(order.requisition_id, 1)
 
-    def test_rejects_purchase_order_quantity_above_approved_requisition(self) -> None:
-        with self.assertRaisesRegex(ValueError, "must match the approved requisition quantity"):
+    def test_rejects_quantity_above_approved_requisition(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "must match the approved requisition quantity",
+        ):
             self.create_use_case.execute(
                 self.create_command(
                     requisition_id=1,
@@ -218,7 +221,7 @@ class PurchaseOrderApplicationTests(TestCase):
                 )
             )
 
-    def test_rejects_purchase_order_quantity_below_approved_requisition(self) -> None:
+    def test_rejects_quantity_below_approved_requisition(self) -> None:
         with self.assertRaisesRegex(ValueError, "must match the approved requisition quantity"):
             self.create_use_case.execute(
                 self.create_command(
@@ -235,7 +238,10 @@ class PurchaseOrderApplicationTests(TestCase):
             )
 
     def test_rejects_unrequested_ingredient_in_purchase_order(self) -> None:
-        with self.assertRaisesRegex(ValueError, "must match the approved requisition ingredients"):
+        with self.assertRaisesRegex(
+            ValueError,
+            "must match the approved requisition ingredients",
+        ):
             self.create_use_case.execute(
                 self.create_command(
                     requisition_id=1,
@@ -250,7 +256,7 @@ class PurchaseOrderApplicationTests(TestCase):
                 )
             )
 
-    def test_aggregates_duplicate_purchase_order_lines_for_requisition_matching(self) -> None:
+    def test_aggregates_duplicate_order_lines_for_requisition_matching(self) -> None:
         order = self.create_use_case.execute(
             self.create_command(
                 requisition_id=1,
