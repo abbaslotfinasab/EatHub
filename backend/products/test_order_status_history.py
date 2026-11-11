@@ -84,7 +84,7 @@ class OrderStatusHistoryServiceTests(TestCase):
         history.refresh_from_db()
         self.assertEqual(history.to_status, Order.Status.PENDING)
 
-    @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
+    @skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
     def test_bulk_delete_cannot_remove_status_history(self):
         history = OrderStatusHistory.objects.create(
             business=self.business,
@@ -98,6 +98,24 @@ class OrderStatusHistoryServiceTests(TestCase):
         with self.assertRaises(DatabaseError):
             with transaction.atomic():
                 OrderStatusHistory.objects.filter(pk=history.pk).delete()
+
+        self.assertTrue(OrderStatusHistory.objects.filter(pk=history.pk).exists())
+
+    @skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
+    def test_truncate_cannot_remove_status_history(self):
+        history = OrderStatusHistory.objects.create(
+            business=self.business,
+            order=self.order,
+            order_id_snapshot=self.order.pk,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+            actor=self.actor,
+        )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute("TRUNCATE TABLE order_status_history")
 
         self.assertTrue(OrderStatusHistory.objects.filter(pk=history.pk).exists())
 
