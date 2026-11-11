@@ -251,8 +251,6 @@ class ManageReservations:
         """Release the sole active order hold; tolerate orders with no reservation."""
         if not isinstance(context, InventoryExecutionContext):
             raise InvalidApplicationInput("A trusted inventory execution context is required.")
-        if context.actor_id is None:
-            raise InvalidApplicationInput("A reservation actor is required.")
         if isinstance(order_id, bool) or not isinstance(order_id, int) or order_id <= 0:
             raise InvalidApplicationInput("Order ID must be a positive integer.")
         reason = reason.strip() if isinstance(reason, str) else ""
@@ -273,6 +271,8 @@ class ManageReservations:
             )
         if not active:
             return None
+        if context.actor_id is None:
+            raise InvalidApplicationInput("A reservation actor is required.")
         if context.actor_id is None:
             raise InvalidApplicationInput("A reservation actor is required.")
 
