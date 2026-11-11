@@ -37,6 +37,9 @@ class DjangoRecipeRepository:
                 unit=line.unit,
                 notes=line.notes,
                 material_type="compound" if line.ingredient.preparation_level == "semi_prepared" else "raw",
+                ingredient_unit=line.ingredient.unit,
+                ingredient_is_active=line.ingredient.is_active,
+                ingredient_business_id=line.ingredient.business_id,
             )
             for line in row.inputs.all()
         )
