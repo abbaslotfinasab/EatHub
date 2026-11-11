@@ -606,7 +606,7 @@ class OrderInventoryRefundTests(TestCase):
         self.assertFalse(InventoryV1StockMovement.objects.exists())
         self.assertEqual(self.order.status, Order.Status.CANCELLED)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.REFUNDED)
-        history = OrderStatusHistory.objects.filter(order=self.order).order_by("created_at", "pk").last()
+        history = OrderStatusHistory.objects.filter(order_id_snapshot=self.order.pk).order_by("created_at", "pk").last()
         self.assertEqual(history.from_status, Order.Status.CONFIRMED)
         self.assertEqual(history.to_status, Order.Status.CANCELLED)
         self.assertEqual(history.actor_id, self.actor.pk)
@@ -645,7 +645,7 @@ class OrderInventoryRefundTests(TestCase):
         released = InventoryReservation.objects.get(source_id=self.order.pk)
         released_at = released.released_at
         transaction_count = CustomerTransaction.objects.filter(order=self.order).count()
-        history_count = OrderStatusHistory.objects.filter(order=self.order).count()
+        history_count = OrderStatusHistory.objects.filter(order_id_snapshot=self.order.pk).count()
 
         self.refund(key)
 
@@ -655,10 +655,10 @@ class OrderInventoryRefundTests(TestCase):
         self.assertEqual(released.released_at, released_at)
         self.assertEqual(CustomerTransaction.objects.filter(order=self.order).count(), transaction_count)
         self.assertEqual(OrderRefund.objects.filter(order=self.order).count(), 1)
-        self.assertEqual(OrderStatusHistory.objects.filter(order=self.order).count(), history_count)
+        self.assertEqual(OrderStatusHistory.objects.filter(order_id_snapshot=self.order.pk).count(), history_count)
         self.assertEqual(
             OrderStatusHistory.objects.filter(
-                order=self.order, to_status=Order.Status.CANCELLED
+                order_id_snapshot=self.order.pk, to_status=Order.Status.CANCELLED
             ).count(),
             1,
         )
@@ -666,7 +666,7 @@ class OrderInventoryRefundTests(TestCase):
     def test_reservation_release_failure_rolls_back_refund_and_wallet_credit(self):
         self.confirm()
         transaction_count = CustomerTransaction.objects.filter(order=self.order).count()
-        history_count = OrderStatusHistory.objects.filter(order=self.order).count()
+        history_count = OrderStatusHistory.objects.filter(order_id_snapshot=self.order.pk).count()
         account = self.customer.account
         account.refresh_from_db()
         account_balance = account.balance
@@ -685,10 +685,10 @@ class OrderInventoryRefundTests(TestCase):
         self.assertEqual(account.balance, account_balance)
         self.assertEqual(CustomerTransaction.objects.filter(order=self.order).count(), transaction_count)
         self.assertFalse(OrderRefund.objects.filter(order=self.order).exists())
-        self.assertEqual(OrderStatusHistory.objects.filter(order=self.order).count(), history_count)
+        self.assertEqual(OrderStatusHistory.objects.filter(order_id_snapshot=self.order.pk).count(), history_count)
         self.assertFalse(
             OrderStatusHistory.objects.filter(
-                order=self.order, to_status=Order.Status.CANCELLED
+                order_id_snapshot=self.order.pk, to_status=Order.Status.CANCELLED
             ).exists()
         )
         self.assertEqual(
