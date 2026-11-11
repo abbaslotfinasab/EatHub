@@ -13,12 +13,14 @@ from rest_framework.exceptions import ValidationError
 from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import InvalidApplicationInput, OperationConflict, ResourceNotFound
 from inventory.application.use_cases.manage_reservations import ManageReservations
+from inventory.application.use_cases.prepare_order_confirmation import PrepareOrderConfirmation
 from inventory.domain.exceptions import InventoryDomainError
 from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
-from inventory.models import Ingredient, Recipe, Warehouse
+from inventory.infrastructure.django.recipe_repository import DjangoRecipeRepository
+from inventory.infrastructure.django.repositories import DjangoWarehouseRepository
 from products.models import (
     MenuItem,
     Order,
@@ -36,6 +38,12 @@ _MAX_QUANTITY = Decimal("999999999999999999999999.999999999999")
 
 def _reservation_use_case():
     return ManageReservations(DjangoReservationRepository(), DjangoInventoryUnitOfWork())
+
+
+def _prepare_order_confirmation_use_case():
+    return PrepareOrderConfirmation(
+        DjangoRecipeRepository(), DjangoWarehouseRepository(), DjangoInventoryUnitOfWork()
+    )
 
 
 def _context(order: Order, actor_id: int) -> InventoryExecutionContext:
@@ -95,50 +103,38 @@ class OrderInventoryService:
 
         order.inventory_tracking_enabled = True
         order.save(update_fields=("inventory_tracking_enabled",))
-        defaults = list(
-            Warehouse.objects.filter(
-                business_id=order.business_id, is_active=True, is_default=True
-            ).order_by("pk")
-        )
-        if len(defaults) != 1:
-            raise ValidationError("Configure exactly one active default warehouse before confirming recipe-based orders.")
-        warehouse = defaults[0]
-
         menu_items = {
             row.pk: row
             for row in MenuItem.objects.select_for_update(of=("self",)).filter(
                 business_id=order.business_id,
                 pk__in=[item.menu_item_id for item in items if item.menu_item_id is not None],
-            ).select_related("recipe").order_by("pk")
+            ).order_by("pk")
         }
-
-        snapshots = []
-        requirements = []
-        reservation_by_ingredient: dict[int, tuple[Decimal, Unit]] = {}
         for item in items:
             menu_item = menu_items.get(item.menu_item_id)
             if menu_item is None or menu_item.business_id != order.business_id:
                 raise ValidationError({"items": "Every order item must resolve to a menu item in this business."})
-            recipe_id = menu_item.recipe_id
-            if recipe_id is None:
+            if menu_item.recipe_id is None:
                 raise ValidationError({"items": f"Menu item '{item.menu_item_name}' has no usable recipe."})
-            try:
-                recipe = (
-                    Recipe.objects.select_for_update()
-                    .prefetch_related("inputs__ingredient", "outputs__ingredient")
-                    .get(pk=recipe_id, business_id=order.business_id)
-                )
-            except Recipe.DoesNotExist as error:
-                raise ValidationError({"items": "A linked recipe was not found in this business."}) from error
-            if not recipe.is_active:
-                raise ValidationError({"items": f"Recipe '{recipe.name}' is inactive."})
-            primary_outputs = [line for line in recipe.outputs.all() if line.is_primary]
+
+        prepared = _inventory_call(lambda: _prepare_order_confirmation_use_case().execute(
+            _context(order, actor_id), [menu_items[item.menu_item_id].recipe_id for item in items]
+        ))
+        warehouse_id = prepared.warehouse_id
+        recipes = {recipe.id: recipe for recipe in prepared.recipes}
+
+        requirements = []
+        reservation_by_ingredient: dict[int, tuple[Decimal, Unit]] = {}
+        for item in items:
+            menu_item = menu_items[item.menu_item_id]
+            recipe = recipes.get(menu_item.recipe_id)
+            if recipe is None:
+                raise ValidationError({"items": "A linked recipe was not found in this business."})
+            primary_outputs = [line for line in recipe.outputs if line.is_primary]
             if len(primary_outputs) != 1:
                 raise ValidationError({"items": f"Recipe '{recipe.name}' must have one primary output."})
             primary = primary_outputs[0]
-            if primary.ingredient.business_id != order.business_id or not primary.ingredient.is_active:
-                raise ValidationError({"items": "The primary recipe output is not an active ingredient in this business."})
-            if primary.unit != "pc" or primary.ingredient.unit != "pc":
+            if primary.unit != "pc" or primary.ingredient_unit != "pc":
                 raise ValidationError({
                     "items": "Order quantity is a piece count; the linked recipe must declare its primary output in pc."
                 })
@@ -150,49 +146,44 @@ class OrderInventoryService:
                 business_id=order.business_id,
                 order=order,
                 order_item=item,
-                recipe=recipe,
-                recipe_output_ingredient=primary.ingredient,
+                recipe_id=recipe.id,
+                recipe_output_ingredient_id=primary.ingredient_id,
                 recipe_updated_at=recipe.updated_at,
                 output_quantity=output_quantity,
                 output_unit="pc",
             )
-            snapshots.append(snapshot)
-            input_rows = list(recipe.inputs.select_related("ingredient").order_by("pk"))
-            if not input_rows:
+            if not recipe.inputs:
                 raise ValidationError({"items": f"Recipe '{recipe.name}' has no inventory inputs."})
-            for input_line in input_rows:
-                ingredient = input_line.ingredient
-                if ingredient.business_id != order.business_id or not ingredient.is_active:
-                    raise ValidationError({"items": "A recipe input is inactive or outside this business."})
+            for input_line in recipe.inputs:
                 try:
-                    canonical_unit = Unit(ingredient.unit)
+                    canonical_unit = Unit(input_line.ingredient_unit)
                     input_quantity = Quantity(input_line.quantity, Unit(input_line.unit)).convert_to(canonical_unit)
                 except (InventoryDomainError, TypeError, ValueError) as error:
                     raise ValidationError({"items": "A recipe input has an invalid or incompatible unit."}) from error
                 required = _scaled_quantity(input_quantity.amount, item.quantity, output_quantity)
                 requirement = OrderItemIngredientRequirement.objects.create(
                     snapshot=snapshot,
-                    ingredient=ingredient,
-                    recipe_input_id=input_line.pk,
+                    ingredient_id=input_line.ingredient_id,
+                    recipe_input_id=input_line.id,
                     standard_quantity=required,
                     unit=canonical_unit.value,
                 )
                 requirements.append(requirement)
                 previous, previous_unit = reservation_by_ingredient.get(
-                    ingredient.pk, (Decimal("0"), canonical_unit)
+                    input_line.ingredient_id, (Decimal("0"), canonical_unit)
                 )
                 if previous_unit is not canonical_unit:
                     raise ValidationError("A recipe uses incompatible canonical units for one ingredient.")
                 with localcontext() as ctx:
                     ctx.prec = 80
-                    reservation_by_ingredient[ingredient.pk] = (previous + required, canonical_unit)
+                    reservation_by_ingredient[input_line.ingredient_id] = (previous + required, canonical_unit)
 
         if not requirements:
             raise ValidationError("No inventory requirements could be resolved for this order.")
         use_case = _reservation_use_case()
         _inventory_call(lambda: use_case.create_for_order(
             _context(order, actor_id),
-            warehouse_id=warehouse.pk,
+            warehouse_id=warehouse_id,
             order_id=order.pk,
             reason=f"Order {order.pk} confirmation",
             idempotency_key=uuid5(_ORDER_KEY_NAMESPACE, f"reserve:{order.business_id}:{order.pk}"),
