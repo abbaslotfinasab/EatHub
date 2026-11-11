@@ -159,16 +159,6 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
             )
             return self.save(purchase_order)
 
-    def exists_by_requisition(
-        self,
-        business_id: int,
-        requisition_id: int,
-    ) -> bool:
-        return DjangoPurchaseOrder.objects.filter(
-            business_id=business_id,
-            requisition_id=requisition_id,
-        ).exists()
-
     def save(self, purchase_order: PurchaseOrder) -> PurchaseOrder:
         with transaction.atomic():
             self._validate_cross_aggregate_ownership(purchase_order)
