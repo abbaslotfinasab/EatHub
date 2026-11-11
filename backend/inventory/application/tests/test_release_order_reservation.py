@@ -67,6 +67,17 @@ class ReleaseOrderReservationTests(TestCase):
         self.assertIsNone(result)
         self.assertEqual(repository.release_calls, [])
 
+    def test_missing_reservation_is_noop_without_actor(self):
+        repository = FakeRepository()
+        context = InventoryExecutionContext(business_id=7, actor_id=None)
+
+        result = self.use_case(repository).release_for_order(
+            context, 21, "Order refunded"
+        )
+
+        self.assertIsNone(result)
+        self.assertEqual(repository.release_calls, [])
+
     def test_multiple_active_reservations_require_reconciliation(self):
         repository = FakeRepository([self.reservation, SimpleNamespace(id=42)], total=2)
 
