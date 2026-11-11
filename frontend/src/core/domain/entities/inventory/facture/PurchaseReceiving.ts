@@ -69,6 +69,7 @@ export interface GoodsReceipt {
 export interface ReceiptLineInput {
     purchaseOrderItemId: string;
     receivedQuantity: string;
+    rejectedQuantity: string;
     purchaseUnit: string;
 }
 
