@@ -530,12 +530,21 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.READY)
 
-    def test_me_response_does_not_infer_a_global_active_business(self):
+    def test_me_response_uses_explicit_business_context_permissions(self):
         user = self.user_for("ACCOUNTANT")
         self.client.force_authenticate(user)
         response = self.client.get("/api/accounts/auth/me/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsNone(response.data["active_business"])
+        self.assertEqual(response.data["active_business"]["id"], self.business.pk)
+        self.assertEqual(response.data["active_business"]["role"], "ACCOUNTANT")
+        self.assertIn(
+            "purchase.view",
+            response.data["active_business"]["permissions"],
+        )
+        self.assertNotIn(
+            "orders.view",
+            response.data["active_business"]["permissions"],
+        )
         self.assertEqual(
             response.data["memberships"][0]["role"],
             "ACCOUNTANT",
