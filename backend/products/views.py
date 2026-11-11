@@ -672,14 +672,16 @@ class OrderActualConsumptionAPIView(ExplicitTenantAPIView):
             )
         )
         ingredient_ids = {item.ingredient_id for item in requirements}
-        try:
-            ingredient_rows = OrderInventoryService.resolve_requirement_ingredients(
-                business_id=request.business.id,
-                ingredient_ids=sorted(ingredient_ids),
-            )
-        except ResourceNotFound as error:
-            raise Http404("An order requirement was not found in this business.") from error
-        ingredients = {ingredient.id: ingredient for ingredient in ingredient_rows}
+        ingredients = {}
+        if ingredient_ids:
+            try:
+                ingredient_rows = OrderInventoryService.resolve_requirement_ingredients(
+                    business_id=request.business.id,
+                    ingredient_ids=sorted(ingredient_ids),
+                )
+            except ResourceNotFound as error:
+                raise Http404("An order requirement was not found in this business.") from error
+            ingredients = {ingredient.id: ingredient for ingredient in ingredient_rows}
 
         actual_totals = {
             row["requirement_id"]: {
