@@ -1,6 +1,9 @@
 from decimal import Decimal
+from unittest import skipUnless
 from unittest.mock import patch
 
+from django.db import DatabaseError, connection, transaction
+from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -38,17 +41,81 @@ class OrderStatusHistoryServiceTests(TestCase):
         )
 
         self.assertEqual(updated.status, Order.Status.CANCELLED)
-        entry = OrderStatusHistory.objects.get(order=self.order)
+        entry = OrderStatusHistory.objects.get(order_id_snapshot=self.order.pk)
         self.assertEqual(entry.business_id, self.business.pk)
         self.assertEqual(entry.from_status, Order.Status.PENDING)
         self.assertEqual(entry.to_status, Order.Status.CANCELLED)
         self.assertEqual(entry.actor_id, self.actor.pk)
         release.assert_called_once()
 
+    def test_business_deletion_is_protected_while_audit_history_exists(self):
+        history = OrderStatusHistory.objects.create(
+            business=self.business,
+            order_id_snapshot=self.order.pk,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+            actor=self.actor,
+        )
+
+        with self.assertRaises(ProtectedError):
+            self.business.delete()
+
+        self.assertTrue(OrderStatusHistory.objects.filter(pk=history.pk).exists())
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+
+    @skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
+    def test_bulk_update_cannot_mutate_status_history(self):
+        history = OrderStatusHistory.objects.create(
+            business=self.business,
+            order_id_snapshot=self.order.pk,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+            actor=self.actor,
+        )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                OrderStatusHistory.objects.filter(pk=history.pk).update(
+                    to_status=Order.Status.COMPLETED
+                )
+
+        history.refresh_from_db()
+        self.assertEqual(history.to_status, Order.Status.PENDING)
+
+    @skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
+    def test_bulk_delete_cannot_remove_status_history(self):
+        history = OrderStatusHistory.objects.create(
+            business=self.business,
+            order_id_snapshot=self.order.pk,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+            actor=self.actor,
+        )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                OrderStatusHistory.objects.filter(pk=history.pk).delete()
+
+        self.assertTrue(OrderStatusHistory.objects.filter(pk=history.pk).exists())
+
+    def test_actor_deletion_is_protected_to_preserve_audit_attribution(self):
+        history = OrderStatusHistory.objects.create(
+            business=self.business,
+            order_id_snapshot=self.order.pk,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+            actor=self.actor,
+        )
+
+        with self.assertRaises(ProtectedError):
+            self.actor.delete()
+
+        history.refresh_from_db()
+        self.assertEqual(history.actor_id, self.actor.pk)
+
     def test_history_survives_deletion_of_a_pending_order(self):
         history = OrderStatusHistory.objects.create(
             business=self.business,
-            order=self.order,
             order_id_snapshot=self.order.pk,
             from_status=None,
             to_status=Order.Status.PENDING,
@@ -59,8 +126,8 @@ class OrderStatusHistoryServiceTests(TestCase):
         self.order.delete()
 
         history.refresh_from_db()
-        self.assertIsNone(history.order_id)
         self.assertEqual(history.order_id_snapshot, order_id)
+        self.assertTrue(OrderStatusHistory.objects.filter(order_id_snapshot=order_id).exists())
 
     def test_repeating_current_status_does_not_create_a_transition_event(self):
         OrderService.update_status(
@@ -70,7 +137,7 @@ class OrderStatusHistoryServiceTests(TestCase):
             user=self.actor,
         )
 
-        self.assertFalse(OrderStatusHistory.objects.filter(order=self.order).exists())
+        self.assertFalse(OrderStatusHistory.objects.filter(order_id_snapshot=self.order.pk).exists())
 
     @patch(
         "products.services.order_service.OrderInventoryService.release_remaining",
@@ -87,7 +154,7 @@ class OrderStatusHistoryServiceTests(TestCase):
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.PENDING)
-        self.assertFalse(OrderStatusHistory.objects.filter(order=self.order).exists())
+        self.assertFalse(OrderStatusHistory.objects.filter(order_id_snapshot=self.order.pk).exists())
 
     def test_order_creation_records_initial_pending_state(self):
         menu = Menu.objects.create(
@@ -113,7 +180,7 @@ class OrderStatusHistoryServiceTests(TestCase):
             },
         )
 
-        entry = OrderStatusHistory.objects.get(order=order)
+        entry = OrderStatusHistory.objects.get(order_id_snapshot=order.pk)
         self.assertIsNone(entry.from_status)
         self.assertEqual(entry.to_status, Order.Status.PENDING)
         self.assertEqual(entry.actor_id, self.actor.pk)
@@ -162,7 +229,6 @@ class OrderStatusHistoryApiTests(APITestCase):
         self.grant_order_view()
         OrderStatusHistory.objects.create(
             business=self.business,
-            order=self.order,
             order_id_snapshot=self.order.pk,
             from_status=None,
             to_status=Order.Status.PENDING,
@@ -170,7 +236,6 @@ class OrderStatusHistoryApiTests(APITestCase):
         )
         OrderStatusHistory.objects.create(
             business=self.business,
-            order=self.order,
             order_id_snapshot=self.order.pk,
             from_status=Order.Status.PENDING,
             to_status=Order.Status.CONFIRMED,

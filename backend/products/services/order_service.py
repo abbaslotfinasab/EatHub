@@ -100,7 +100,6 @@ class OrderService:
 
         OrderStatusHistory.objects.create(
             business=business,
-            order=order,
             order_id_snapshot=order.pk,
             from_status=None,
             to_status=order.status,
@@ -532,7 +531,6 @@ class OrderService:
         if order.status != previous_status:
             OrderStatusHistory.objects.create(
                 business=business,
-                order=order,
                 order_id_snapshot=order.pk,
                 from_status=previous_status,
                 to_status=order.status,
@@ -745,7 +743,6 @@ class OrderService:
         if previous_order_status != Order.Status.CANCELLED:
             OrderStatusHistory.objects.create(
                 business=business,
-                order=order,
                 order_id_snapshot=order.pk,
                 from_status=previous_order_status,
                 to_status=Order.Status.CANCELLED,
