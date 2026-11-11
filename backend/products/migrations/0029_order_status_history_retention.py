@@ -52,6 +52,21 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RemoveField(
+            model_name="orderstatushistory",
+            name="order",
+        ),
+        migrations.AlterField(
+            model_name="orderstatushistory",
+            name="actor",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="order_status_changes",
+                to="accounts.user",
+            ),
+        ),
         migrations.AlterField(
             model_name="orderstatushistory",
             name="business",
