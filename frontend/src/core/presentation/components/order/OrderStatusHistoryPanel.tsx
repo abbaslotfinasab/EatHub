@@ -41,7 +41,7 @@ export function OrderStatusHistoryPanel({orderId, enabled = true}: Props) {
                     <Divider />
 
                     {query.isLoading && (
-                        <Stack direction="row" spacing={1} alignItems="center">
+                        <Stack direction="row" spacing={1} sx={{alignItems: "center"}}>
                             <CircularProgress size={20} />
                             <Typography variant="body2">در حال دریافت تاریخچه...</Typography>
                         </Stack>
@@ -60,8 +60,8 @@ export function OrderStatusHistoryPanel({orderId, enabled = true}: Props) {
                     )}
 
                     {query.data?.history.map((entry, index) => (
-                        <Stack key={entry.id} direction="row" spacing={1.5} alignItems="stretch">
-                            <Stack alignItems="center" sx={{width: 18, flexShrink: 0}}>
+                        <Stack key={entry.id} direction="row" spacing={1.5} sx={{alignItems: "stretch"}}>
+                            <Stack sx={{width: 18, flexShrink: 0, alignItems: "center"}}>
                                 <Box sx={{
                                     width: 10,
                                     height: 10,
@@ -75,10 +75,10 @@ export function OrderStatusHistoryPanel({orderId, enabled = true}: Props) {
                             </Stack>
 
                             <Stack spacing={0.75} sx={{pb: 1.5, flex: 1, minWidth: 0}}>
-                                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                                <Stack direction="row" spacing={1} sx={{alignItems: "center", flexWrap: "wrap"}}>
                                     <Typography sx={{fontWeight: 700}}>
                                         {entry.fromStatus
-                                            ? `${statusLabel(entry.fromStatus)} ← ${statusLabel(entry.toStatus)}`
+                                            ? `از ${statusLabel(entry.fromStatus)} به ${statusLabel(entry.toStatus)}`
                                             : statusLabel(entry.toStatus)}
                                     </Typography>
                                     <Chip
