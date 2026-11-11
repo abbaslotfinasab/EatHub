@@ -24,7 +24,10 @@ from purchase.application.use_cases.purchase_order.update_purchase_order import 
     UpdatePurchaseOrderUseCase,
 )
 from purchase.domain.entities.purchase_order import PurchaseOrder
-from purchase.domain.entities.requisition import PurchaseRequisition
+from purchase.domain.entities.requisition import (
+    PurchaseRequisition,
+    PurchaseRequisitionItem,
+)
 from purchase.domain.entities.supplier import Supplier
 from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.domain.enums.purchase_unit import PurchaseUnit
@@ -128,7 +131,7 @@ class PurchaseOrderApplicationTests(TestCase):
                 requested_by_id=1,
                 status=RequisitionStatus.APPROVED,
                 items=[
-                    __import__("purchase.domain.entities.requisition", fromlist=["PurchaseRequisitionItem"]).PurchaseRequisitionItem(
+                    PurchaseRequisitionItem(
                         ingredient_id=1,
                         quantity=Decimal("2"),
                     )
