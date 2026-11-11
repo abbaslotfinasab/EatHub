@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import Sum
 
 from purchase.domain.entities.purchase_order import PurchaseOrder
+from purchase.domain.entities.requisition import PurchaseRequisition
 from purchase.domain.enums.purchase_order_status import PurchaseOrderStatus
 from purchase.domain.repositories.purchase_order_repository import (
     PurchaseOrderRepository,
 )
 from purchase.infrastructure.persistence.django.mappers import (
     PurchaseOrderMapper,
+    PurchaseRequisitionMapper,
 )
 from purchase.models import (
     PurchaseOrder as DjangoPurchaseOrder,
@@ -93,15 +97,67 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
             for model in queryset.order_by("id")
         ]
 
-    def exists_by_requisition(
+    def save_for_requisition(
         self,
-        business_id: int,
-        requisition_id: int,
-    ) -> bool:
-        return DjangoPurchaseOrder.objects.filter(
-            business_id=business_id,
-            requisition_id=requisition_id,
-        ).exists()
+        purchase_order: PurchaseOrder,
+    ) -> PurchaseOrder:
+        if purchase_order.requisition_id is None:
+            raise ValueError("A requisition is required for this purchase order.")
+
+        with transaction.atomic():
+            requisition_model = (
+                DjangoPurchaseRequisition.objects.select_for_update()
+                .filter(
+                    id=purchase_order.requisition_id,
+                    business_id=purchase_order.business_id,
+                )
+                .first()
+            )
+            if requisition_model is None:
+                raise ValueError("Requisition does not exist in this business.")
+
+            if requisition_model.status != DjangoPurchaseRequisition.Status.APPROVED:
+                raise ValueError("Requisition must be approved before creating an order.")
+
+            requisition_model = (
+                DjangoPurchaseRequisition.objects.select_related(
+                    "business",
+                    "requested_by",
+                )
+                .prefetch_related("items")
+                .get(id=requisition_model.id)
+            )
+            current_requisition = PurchaseRequisitionMapper.to_domain(
+                requisition_model
+            )
+
+            ordered_rows = (
+                DjangoPurchaseOrderItem.objects.filter(
+                    purchase_order__business_id=purchase_order.business_id,
+                    purchase_order__requisition_id=purchase_order.requisition_id,
+                )
+                .exclude(
+                    purchase_order__status=PurchaseOrderStatus.CANCELLED.value
+                )
+                .exclude(purchase_order_id=purchase_order.id)
+                .values("ingredient_id")
+                .annotate(ordered_quantity=Sum("quantity"))
+            )
+            already_ordered = {
+                row["ingredient_id"]: row["ordered_quantity"]
+                for row in ordered_rows
+            }
+            new_order_quantities: dict[int, Decimal] = {}
+            for item in purchase_order.items:
+                new_order_quantities[item.ingredient_id] = (
+                    new_order_quantities.get(item.ingredient_id, Decimal("0")) + item.quantity
+                )
+
+            current_requisition.validate_order_quantities(
+                already_ordered,
+                new_order_quantities,
+            )
+            return self.save(purchase_order)
 
     def save(self, purchase_order: PurchaseOrder) -> PurchaseOrder:
         with transaction.atomic():

@@ -881,28 +881,6 @@ class DjangoPurchaseOrderRepositoryTests(TestCase):
         )
         self.assertNotIn(other.id, [order.id for order in self.repository.list(self.business_1.id)])
 
-    def test_exists_by_requisition_is_tenant_scoped(self) -> None:
-        requisition = DjangoPurchaseRequisition.objects.create(
-            business=self.business_1,
-            requested_by=self.user_1,
-            status=DjangoPurchaseRequisition.Status.APPROVED,
-        )
-        order = self.create_order(requisition_id=requisition.id)
-
-        self.assertTrue(
-            self.repository.exists_by_requisition(
-                self.business_1.id,
-                requisition.id,
-            )
-        )
-        self.assertFalse(
-            self.repository.exists_by_requisition(
-                self.business_2.id,
-                requisition.id,
-            )
-        )
-        self.assertEqual(order.requisition_id, requisition.id)
-
     def test_update_synchronizes_stale_new_and_duplicate_items(self) -> None:
         order = self.create_order()
         stale_item_id = DjangoPurchaseOrderItem.objects.get(
