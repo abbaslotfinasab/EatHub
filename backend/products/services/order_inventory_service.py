@@ -65,7 +65,7 @@ class OrderInventoryService:
 
     @staticmethod
     def resolve_requirement_ingredients(*, business_id: int, ingredient_ids: list[int]):
-        return _resolve_order_requirement_ingredients(business_id, ingredient_ids)
+        return resolve_order_requirement_ingredients(business_id=business_id, ingredient_ids=ingredient_ids)
 
     @staticmethod
     @transaction.atomic
