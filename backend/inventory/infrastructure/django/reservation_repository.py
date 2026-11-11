@@ -121,14 +121,18 @@ class DjangoReservationRepository:
         )
         if connection.features.has_select_for_update:
             rows = rows.select_for_update(of=("self",))
-        header = (
+        headers = list(
             rows.select_related("warehouse")
             .prefetch_related("lines__ingredient")
-            .order_by("pk")
-            .first()
+            .order_by("pk")[:2]
         )
-        if header is None:
+        if not headers:
             return None
+        if len(headers) != 1:
+            raise OperationConflict(
+                "Multiple active reservations exist for this order; inventory reconciliation is required."
+            )
+        header = headers[0]
 
         ingredient_ids = list(
             header.lines.order_by("ingredient_id").values_list("ingredient_id", flat=True)
