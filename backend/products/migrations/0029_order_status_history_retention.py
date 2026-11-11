@@ -24,12 +24,6 @@ def install_order_status_history_guards(apps, schema_editor):
         FOR EACH ROW
         EXECUTE FUNCTION prevent_order_status_history_mutation();
     """)
-    schema_editor.execute("""
-        CREATE TRIGGER order_status_history_no_truncate
-        BEFORE TRUNCATE ON order_status_history
-        FOR EACH STATEMENT
-        EXECUTE FUNCTION prevent_order_status_history_mutation();
-    """)
 
 
 def remove_order_status_history_guards(apps, schema_editor):
