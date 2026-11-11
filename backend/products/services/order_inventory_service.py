@@ -170,13 +170,13 @@ class OrderInventoryService:
                 )
                 requirements.append(requirement)
                 previous, previous_unit = reservation_by_ingredient.get(
-                    ingredient.pk, (Decimal("0"), canonical_unit)
+                    input_line.ingredient_id, (Decimal("0"), canonical_unit)
                 )
                 if previous_unit is not canonical_unit:
                     raise ValidationError("A recipe uses incompatible canonical units for one ingredient.")
                 with localcontext() as ctx:
                     ctx.prec = 80
-                    reservation_by_ingredient[ingredient.pk] = (previous + required, canonical_unit)
+                    reservation_by_ingredient[input_line.ingredient_id] = (previous + required, canonical_unit)
 
         if not requirements:
             raise ValidationError("No inventory requirements could be resolved for this order.")
