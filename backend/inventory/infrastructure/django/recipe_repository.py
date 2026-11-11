@@ -132,7 +132,26 @@ class DjangoRecipeRepository:
         self, business_id: int, recipe_id: int, *, lock: bool = False,
     ) -> RecipeDTO | None:
         row = self._recipes(business_id, lock=lock).filter(pk=recipe_id).first()
-        return None if row is None else self._dto(row)
+        if row is None:
+            return None
+        if lock and connection.in_atomic_block:
+            ingredient_ids = set(RecipeInputModel.objects.filter(
+                recipe_id=row.pk
+            ).values_list("ingredient_id", flat=True))
+            ingredient_ids.update(RecipeOutputModel.objects.filter(
+                recipe_id=row.pk
+            ).values_list("ingredient_id", flat=True))
+            # Lock the referenced master rows in deterministic order. Re-read
+            # the DTO after locking so activity/unit facts reflect the locked rows.
+            locked_ids = set(IngredientModel.objects.select_for_update(of=("self",)).filter(
+                business_id=business_id, pk__in=ingredient_ids
+            ).order_by("pk").values_list("pk", flat=True))
+            if locked_ids != ingredient_ids:
+                raise TenantMismatch("Recipe references an Ingredient outside its Business.")
+            row = self._recipes(business_id).filter(pk=recipe_id).first()
+            if row is None:
+                return None
+        return self._dto(row)
 
     def get_ingredient_for_update(
         self, business_id: int, ingredient_id: int,
