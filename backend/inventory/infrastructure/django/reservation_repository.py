@@ -105,6 +105,48 @@ class DjangoReservationRepository:
             ingredients,
         )
 
+    def lock_active_order_reservation_for_consumption(self, business_id, order_id):
+        """Lock an order reservation and its stock scope in the shared lock order.
+
+        The reservation header is locked first, followed by Warehouse,
+        Ingredients (ascending PK), and Stock positions. The caller's outer
+        transaction owns the lifetime of every lock acquired here.
+        """
+        rows = InventoryReservation.objects.filter(
+            business_id=business_id,
+            warehouse__business_id=business_id,
+            source_type="order",
+            source_id=order_id,
+            status=InventoryReservation.Status.ACTIVE,
+        )
+        if connection.features.has_select_for_update:
+            rows = rows.select_for_update(of=("self",))
+        header = (
+            rows.select_related("warehouse")
+            .prefetch_related("lines__ingredient")
+            .order_by("pk")
+            .first()
+        )
+        if header is None:
+            return None
+
+        ingredient_ids = list(
+            header.lines.order_by("ingredient_id").values_list("ingredient_id", flat=True)
+        )
+        if not ingredient_ids or len(ingredient_ids) != len(set(ingredient_ids)):
+            raise OperationConflict(
+                "The active order reservation has an invalid ingredient scope; inventory reconciliation is required."
+            )
+        warehouse, ingredients = self.lock_scope(
+            business_id, header.warehouse_id, ingredient_ids
+        )
+        if warehouse is None or set(ingredients) != set(ingredient_ids):
+            raise OperationConflict(
+                "Reservation scope changed during consumption; inventory reconciliation is required."
+            )
+        self.lock_stock_positions(business_id, header.warehouse_id, ingredient_ids)
+        return self._dto(header)
+
     def get_by_idempotency_key(self, business_id, key, *, lock=False):
         rows = InventoryReservation.objects.filter(
             business_id=business_id, idempotency_key=key
