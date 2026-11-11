@@ -45,6 +45,23 @@ class OrderStatusHistoryServiceTests(TestCase):
         self.assertEqual(entry.actor_id, self.actor.pk)
         release.assert_called_once()
 
+    def test_history_survives_deletion_of_a_pending_order(self):
+        history = OrderStatusHistory.objects.create(
+            business=self.business,
+            order=self.order,
+            order_id_snapshot=self.order.pk,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+            actor=self.actor,
+        )
+        order_id = self.order.pk
+
+        self.order.delete()
+
+        history.refresh_from_db()
+        self.assertIsNone(history.order_id)
+        self.assertEqual(history.order_id_snapshot, order_id)
+
     def test_repeating_current_status_does_not_create_a_transition_event(self):
         OrderService.update_status(
             business=self.business,
@@ -146,6 +163,7 @@ class OrderStatusHistoryApiTests(APITestCase):
         OrderStatusHistory.objects.create(
             business=self.business,
             order=self.order,
+            order_id_snapshot=self.order.pk,
             from_status=None,
             to_status=Order.Status.PENDING,
             actor=self.user,
@@ -153,6 +171,7 @@ class OrderStatusHistoryApiTests(APITestCase):
         OrderStatusHistory.objects.create(
             business=self.business,
             order=self.order,
+            order_id_snapshot=self.order.pk,
             from_status=Order.Status.PENDING,
             to_status=Order.Status.CONFIRMED,
             actor=self.user,
