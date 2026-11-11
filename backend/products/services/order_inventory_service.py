@@ -243,6 +243,8 @@ class OrderInventoryService:
             for requirement in requirements.values()
         ):
             raise OperationConflict("Persisted recipe requirements do not match this business and order.")
+        if not requirements:
+            raise ValidationError("This order has no immutable inventory requirement snapshot.")
         try:
             _resolve_order_requirement_ingredients(
                 business_id, sorted({row.ingredient_id for row in requirements.values()})
@@ -251,8 +253,6 @@ class OrderInventoryService:
             raise OperationConflict(
                 "Persisted recipe requirements reference an ingredient outside this business."
             ) from error
-        if not requirements:
-            raise ValidationError("This order has no immutable inventory requirement snapshot.")
 
         normalized = []
         seen = set()
