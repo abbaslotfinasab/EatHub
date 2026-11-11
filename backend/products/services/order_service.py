@@ -738,9 +738,19 @@ class OrderService:
             reason="Order refunded; remaining reservation released",
         )
 
+        previous_order_status = order.status
         order.status = Order.Status.CANCELLED
         order.payment_status = Order.PaymentStatus.REFUNDED
         order.save(update_fields=["status", "payment_status"])
+        if previous_order_status != Order.Status.CANCELLED:
+            OrderStatusHistory.objects.create(
+                business=business,
+                order=order,
+                order_id_snapshot=order.pk,
+                from_status=previous_order_status,
+                to_status=Order.Status.CANCELLED,
+                actor=user,
+            )
         ActivityLogService.record(
             business=business,
             user=user,
