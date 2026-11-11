@@ -108,7 +108,7 @@ class OrderInventoryLifecycleTests(TestCase):
         self.confirm()
         self.start_preparation()
         use_case = ManageReservations(
-            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource(), DjangoOrderReservationSource()
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
         )
 
         prepared = use_case.prepare_order_consumption(
