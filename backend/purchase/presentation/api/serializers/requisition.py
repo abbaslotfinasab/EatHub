@@ -71,3 +71,18 @@ class RequisitionDecisionSerializer(serializers.Serializer):
     previous_status = serializers.CharField()
     resulting_status = serializers.CharField()
     rejection_reason = serializers.CharField(allow_null=True)
+
+
+
+class RequisitionOrderSummaryItemSerializer(serializers.Serializer):
+    ingredient_id = serializers.IntegerField()
+    requested_quantity = serializers.DecimalField(max_digits=14, decimal_places=3)
+    ordered_quantity = serializers.DecimalField(max_digits=14, decimal_places=3)
+    remaining_quantity = serializers.DecimalField(max_digits=14, decimal_places=3)
+
+
+class RequisitionOrderSummarySerializer(serializers.Serializer):
+    requisition_id = serializers.IntegerField()
+    business_id = serializers.IntegerField()
+    status = serializers.CharField()
+    items = RequisitionOrderSummaryItemSerializer(many=True)
