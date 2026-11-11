@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from unittest import TestCase
 from uuid import UUID
 
@@ -26,12 +27,17 @@ class FakePosting:
         return OrderConsumptionPostingDTO(71, {4: 91})
 
 
+class FakeUnitOfWork:
+    def atomic(self):
+        return nullcontext()
+
+
 class ApplyOrderConsumptionTests(TestCase):
     def test_replaces_reservation_before_posting_and_returns_ledger_ids(self):
         calls = []
         reservations = FakeReservations()
         reservations.calls = calls
-        use_case = ApplyOrderConsumption(reservations, FakePosting(calls))
+        use_case = ApplyOrderConsumption(reservations, FakePosting(calls), FakeUnitOfWork())
         context = InventoryExecutionContext(business_id=7, actor_id=12)
 
         result = use_case.execute(
@@ -54,7 +60,7 @@ class ApplyOrderConsumptionTests(TestCase):
         calls = []
         reservations = FakeReservations()
         reservations.calls = calls
-        use_case = ApplyOrderConsumption(reservations, FakePosting(calls))
+        use_case = ApplyOrderConsumption(reservations, FakePosting(calls), FakeUnitOfWork())
         context = InventoryExecutionContext(business_id=7, actor_id=12)
 
         use_case.execute(
