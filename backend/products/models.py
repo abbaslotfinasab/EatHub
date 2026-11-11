@@ -153,9 +153,12 @@ class OrderStatusHistory(models.Model):
     )
     order = models.ForeignKey(
         "Order",
-        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
         related_name="status_history",
     )
+    order_id_snapshot = models.PositiveBigIntegerField()
     from_status = models.CharField(
         max_length=20,
         choices=Order.Status.choices,
@@ -179,7 +182,7 @@ class OrderStatusHistory(models.Model):
         db_table = "order_status_history"
         indexes = [
             models.Index(
-                fields=("business", "order", "created_at"),
+                fields=("business", "order_id_snapshot", "created_at"),
                 name="order_status_hist_scope_ix",
             ),
         ]
