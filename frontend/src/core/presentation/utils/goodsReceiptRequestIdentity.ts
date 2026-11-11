@@ -27,3 +27,11 @@ export const clearGoodsReceiptRequestIdentity = (fingerprint: string, storage: G
     delete identities[fingerprint];
     storage.setItem(STORAGE_KEY, JSON.stringify(identities));
 };
+
+export const listGoodsReceiptRequestIdentities = (storage: GoodsReceiptIdentityStorage): GoodsReceiptRequestIdentity[] =>
+    Object.values(readIdentities(storage)).filter((identity) =>
+        Boolean(identity)
+        && typeof identity.fingerprint === 'string'
+        && typeof identity.key === 'string'
+        && typeof identity.receivedDate === 'string'
+    );
