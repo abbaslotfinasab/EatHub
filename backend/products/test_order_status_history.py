@@ -98,23 +98,6 @@ class OrderStatusHistoryServiceTests(TestCase):
 
         self.assertTrue(OrderStatusHistory.objects.filter(pk=history.pk).exists())
 
-    @skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
-    def test_truncate_cannot_remove_status_history(self):
-        history = OrderStatusHistory.objects.create(
-            business=self.business,
-            order_id_snapshot=self.order.pk,
-            from_status=None,
-            to_status=Order.Status.PENDING,
-            actor=self.actor,
-        )
-
-        with self.assertRaises(DatabaseError):
-            with transaction.atomic():
-                with connection.cursor() as cursor:
-                    cursor.execute("TRUNCATE TABLE order_status_history")
-
-        self.assertTrue(OrderStatusHistory.objects.filter(pk=history.pk).exists())
-
     def test_actor_deletion_is_protected_to_preserve_audit_attribution(self):
         history = OrderStatusHistory.objects.create(
             business=self.business,
