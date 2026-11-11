@@ -363,24 +363,21 @@ class PurchaseOrderApplicationTests(TestCase):
         )
         self.assertNotEqual(order.id, replacement.id)
 
-    def test_rejects_quantity_below_approved_requisition(self) -> None:
-        with self.assertRaisesRegex(
-            ValueError,
-            "exceeds the remaining approved requisition quantity",
-        ):
-            self.create_use_case.execute(
-                self.create_command(
-                    requisition_id=1,
-                    items=[
-                        CreatePurchaseOrderItemDTO(
-                            ingredient_id=1,
-                            quantity=Decimal("1.999"),
-                            unit_price=Decimal("3"),
-                            purchase_unit=PurchaseUnit.KG,
-                        )
-                    ],
-                )
+    def test_allows_quantity_below_total_requisition_amount(self) -> None:
+        order = self.create_use_case.execute(
+            self.create_command(
+                requisition_id=1,
+                items=[
+                    CreatePurchaseOrderItemDTO(
+                        ingredient_id=1,
+                        quantity=Decimal("1.999"),
+                        unit_price=Decimal("3"),
+                        purchase_unit=PurchaseUnit.KG,
+                    )
+                ],
             )
+        )
+        self.assertEqual(order.items[0].quantity, Decimal("1.999"))
 
     def test_rejects_unrequested_ingredient_in_purchase_order(self) -> None:
         with self.assertRaisesRegex(
