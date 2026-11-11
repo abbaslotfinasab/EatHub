@@ -660,7 +660,7 @@ class OrderStatusHistoryAPIView(ExplicitTenantAPIView):
         )
         history = (
             OrderStatusHistory.objects
-            .filter(business=request.business, order=order)
+            .filter(business=request.business, order_id_snapshot=order.pk)
             .select_related("actor")
             .order_by("created_at", "pk")
         )
