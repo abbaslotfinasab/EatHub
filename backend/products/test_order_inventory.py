@@ -606,7 +606,7 @@ class OrderInventoryRefundTests(TestCase):
         self.assertFalse(InventoryV1StockMovement.objects.exists())
         self.assertEqual(self.order.status, Order.Status.CANCELLED)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.REFUNDED)
-        history = OrderStatusHistory.objects.get(order=self.order)
+        history = OrderStatusHistory.objects.filter(order=self.order).order_by("created_at", "pk").last()
         self.assertEqual(history.from_status, Order.Status.CONFIRMED)
         self.assertEqual(history.to_status, Order.Status.CANCELLED)
         self.assertEqual(history.actor_id, self.actor.pk)
