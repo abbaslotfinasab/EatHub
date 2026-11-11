@@ -142,8 +142,8 @@ export const GoodsReceivingPage = () => {
         for (const line of order.data.items) {
             const acceptedText = quantities[line.id]?.trim() ?? '';
             const rejectedText = rejectedQuantities[line.id]?.trim() ?? '';
-            if ((!acceptedText || /^0+(?:\\.0{1,3})?$/.test(acceptedText))
-                && (!rejectedText || /^0+(?:\\.0{1,3})?$/.test(rejectedText))) continue;
+            if ((!acceptedText || /^0+(?:\.0{1,3})?$/.test(acceptedText))
+                && (!rejectedText || /^0+(?:\.0{1,3})?$/.test(rejectedText))) continue;
             const accepted = acceptedText ? toMilli(acceptedText) : 0n;
             const rejected = rejectedText ? toMilli(rejectedText) : 0n;
             const ordered = toMilli(line.orderedQuantity);
