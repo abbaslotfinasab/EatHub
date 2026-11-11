@@ -55,7 +55,7 @@ def validate_order_reservation_for_confirmation(*, business_id: int, actor_id: i
 
 
 def prepare_order_consumption_reservation(*, business_id: int, actor_id: int, order_id: int):
-    return _reservation_use_case().prepare_order_consumption_reservation(
+    return _reservation_use_case().prepare_order_consumption(
         _context(business_id, actor_id), order_id
     )
 
