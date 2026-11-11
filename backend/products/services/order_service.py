@@ -101,6 +101,7 @@ class OrderService:
         OrderStatusHistory.objects.create(
             business=business,
             order=order,
+            order_id_snapshot=order.pk,
             from_status=None,
             to_status=order.status,
             actor=user,
@@ -532,6 +533,7 @@ class OrderService:
             OrderStatusHistory.objects.create(
                 business=business,
                 order=order,
+                order_id_snapshot=order.pk,
                 from_status=previous_status,
                 to_status=order.status,
                 actor=user,
