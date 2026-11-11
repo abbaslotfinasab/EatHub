@@ -5,7 +5,6 @@ import { DrawerTrigger } from "./DrawerTrigger.tsx";
 import { NavbarLogo } from "./NavbarLogo.tsx";
 import { NotificationButton } from "./NotificationButton.tsx";
 import { UserMenu } from "./UserMenu.tsx";
-import { BusinessSwitcher } from "./BusinessSwitcher.tsx";
 import { useSidebar } from "../../../hooks/useSidebar.ts";
 import {
     NAVBAR_HEIGHT,
@@ -36,7 +35,6 @@ export const Navbar = () => {
                 <DrawerTrigger />
                 <NavbarLogo />
                 <Box sx={{ flexGrow: 1 }} />
-                <BusinessSwitcher />
                 <NotificationButton />
                 <UserMenu />
             </Toolbar>
