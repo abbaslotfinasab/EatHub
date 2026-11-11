@@ -116,6 +116,7 @@ export class PurchaseReceivingRepositoryImpl implements PurchaseReceivingReposit
             items: input.items.map((item) => ({
                 purchase_order_item_id: Number(item.purchaseOrderItemId),
                 received_quantity: item.receivedQuantity,
+                rejected_quantity: item.rejectedQuantity,
                 purchase_unit: item.purchaseUnit,
             })),
         };

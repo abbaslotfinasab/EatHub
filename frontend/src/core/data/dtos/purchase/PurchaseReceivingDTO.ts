@@ -75,6 +75,7 @@ export interface CreateGoodsReceiptDTO {
     items: {
         purchase_order_item_id: number;
         received_quantity: string;
+        rejected_quantity: string;
         purchase_unit: string;
     }[];
 }

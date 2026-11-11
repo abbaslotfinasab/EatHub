@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Box, Button, CircularProgress, Container, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { WarehouseRepositoryImpl } from '../../../data/repositories/WarehouseRep
 import { createOrderGoodsReceipt, getReceivingOrder, listOrderGoodsReceipts, listPurchaseSuppliers } from '../../../data/di/purchaseReceiving.ts';
 import type { CreateGoodsReceiptInput } from '../../../domain/entities/inventory/facture/PurchaseReceiving.ts';
 import { useAuthStore } from '../../store/auth.store.ts';
+import { clearGoodsReceiptRequestIdentity, getOrCreateGoodsReceiptRequestIdentity, listGoodsReceiptRequestIdentities } from '../../utils/goodsReceiptRequestIdentity.ts';
 
 const ingredientRepository = new IngredientRepositoryImpl();
 const warehouseRepository = new WarehouseRepositoryImpl();
@@ -44,16 +45,7 @@ const errorMessage = (error: unknown): string => {
     return 'ثبت دریافت انجام نشد. اتصال را بررسی کنید؛ برای تلاش مجدد، مقادیر را تغییر ندهید.';
 };
 
-type RequestIdentity = { fingerprint: string; key: string; receivedDate: string };
-
-const getKey = (fingerprint: string, identities: Map<string, RequestIdentity>): RequestIdentity => {
-    const current = identities.get(fingerprint);
-    if (current) return current;
-    if (!globalThis.crypto?.randomUUID) throw new Error('ساخت شناسه امن برای درخواست ممکن نیست.');
-    const created = { fingerprint, key: globalThis.crypto.randomUUID(), receivedDate: new Date().toISOString() };
-    identities.set(fingerprint, created);
-    return created;
-};
+type PendingReceiptRequest = { fingerprint: string; input: CreateGoodsReceiptInput };
 
 export const GoodsReceivingPage = () => {
     const { id = '' } = useParams();
@@ -68,9 +60,10 @@ export const GoodsReceivingPage = () => {
     const [warehouseId, setWarehouseId] = useState('');
     const [notes, setNotes] = useState('');
     const [quantities, setQuantities] = useState<Record<string, string>>({});
+    const [rejectedQuantities, setRejectedQuantities] = useState<Record<string, string>>({});
     const [success, setSuccess] = useState('');
     const [formError, setFormError] = useState('');
-    const idempotency = useRef(new Map<string, RequestIdentity>());
+    const [pendingRequest, setPendingRequest] = useState<PendingReceiptRequest | null>(null);
 
     const order = useQuery({
         queryKey: ['purchase-orders', userId, businessId, id],
@@ -105,6 +98,42 @@ export const GoodsReceivingPage = () => {
         enabled: Boolean(canViewInventory && userId !== null && businessId !== null),
     });
 
+    useEffect(() => {
+        if (!businessId || !id) {
+            setPendingRequest(null);
+            return;
+        }
+        try {
+            const identity = listGoodsReceiptRequestIdentities(window.sessionStorage).find((candidate) => {
+                const payload = JSON.parse(candidate.fingerprint) as { businessId?: string; purchaseOrderId?: string };
+                return String(payload.businessId) === String(businessId) && String(payload.purchaseOrderId) === id;
+            });
+            if (!identity) {
+                setPendingRequest(null);
+                return;
+            }
+            const payload = JSON.parse(identity.fingerprint) as {
+                purchaseOrderId: string;
+                warehouseId: string;
+                notes: string;
+                items: CreateGoodsReceiptInput['items'];
+            };
+            setPendingRequest({
+                fingerprint: identity.fingerprint,
+                input: {
+                    idempotencyKey: identity.key,
+                    purchaseOrderId: String(payload.purchaseOrderId),
+                    receivedDate: identity.receivedDate,
+                    notes: payload.notes,
+                    warehouseId: String(payload.warehouseId),
+                    items: payload.items,
+                },
+            });
+        } catch {
+            setPendingRequest(null);
+        }
+    }, [businessId, id]);
+
     const selectedWarehouseId = (warehouses.data?.some((warehouse) => warehouse.id === warehouseId) ? warehouseId : '')
         || warehouses.data?.find((warehouse) => warehouse.isDefault)?.id
         || warehouses.data?.[0]?.id
@@ -127,10 +156,12 @@ export const GoodsReceivingPage = () => {
     const dataReady = Boolean(order.data && receipts.data && ingredients.data && warehouses.data && warehouses.data.length && canViewInventory);
 
     const receive = useMutation({
-        mutationFn: (input: CreateGoodsReceiptInput) => createOrderGoodsReceipt.execute(input),
-        onSuccess: async (receipt) => {
-            idempotency.current.clear();
+        mutationFn: (request: { input: CreateGoodsReceiptInput; fingerprint: string }) => createOrderGoodsReceipt.execute(request.input),
+        onSuccess: async (receipt, request) => {
+            try { clearGoodsReceiptRequestIdentity(request.fingerprint, window.sessionStorage); } catch { /* server success remains authoritative */ }
             setQuantities({});
+            setRejectedQuantities({});
+            setPendingRequest(null);
             setSuccess(`دریافت شماره ${receipt.id} ثبت شد و موجودی از طریق گردش انبار به‌روزرسانی شد.`);
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['purchase-orders', userId, businessId] }),
@@ -139,41 +170,60 @@ export const GoodsReceivingPage = () => {
                 queryClient.invalidateQueries({ queryKey: ['inventory-movement-history', userId, businessId] }),
             ]);
         },
+        onError: (error, request) => {
+            const status = (error as { response?: { status?: number } })?.response?.status ?? 0;
+            if (status >= 400 && status < 500) {
+                try { clearGoodsReceiptRequestIdentity(request.fingerprint, window.sessionStorage); } catch { /* keep the original error visible */ }
+                setPendingRequest(null);
+            }
+        },
     });
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
         setSuccess('');
         setFormError('');
+        if (pendingRequest) {
+            setFormError('یک درخواست قبلی هنوز تعیین تکلیف نشده است. ابتدا همان درخواست را از بخش هشدار بالای فرم دوباره ارسال کنید.');
+            return;
+        }
         if (!order.data || !eligible || !canReceive || !dataReady || !selectedWarehouseId) return;
         const items: CreateGoodsReceiptInput['items'] = [];
         const quantityErrors: string[] = [];
         for (const line of order.data.items) {
-            const text = quantities[line.id]?.trim() ?? '';
-            if (!text || /^0+(?:\.0{1,3})?$/.test(text)) continue;
-            const actual = toMilli(text);
+            const acceptedText = quantities[line.id]?.trim() ?? '';
+            const rejectedText = rejectedQuantities[line.id]?.trim() ?? '';
+            if (!acceptedText && !rejectedText) continue;
+            const accepted = acceptedText ? toMilli(acceptedText) : 0n;
+            const rejected = rejectedText ? toMilli(rejectedText) : 0n;
             const ordered = toMilli(line.orderedQuantity);
             const received = previouslyReceived.get(line.id) ?? 0n;
-            if (actual === null || actual <= 0n) {
-                quantityErrors.push(`مقدار ردیف ${line.id} باید عددی مثبت با حداکثر سه رقم اعشار باشد.`);
+            if (accepted === null || rejected === null || accepted < 0n || rejected < 0n) {
+                quantityErrors.push(`مقادیر پذیرفته‌شده و مردود ردیف ${line.id} باید عددی نامنفی با حداکثر سه رقم اعشار باشند.`);
                 continue;
             }
-            if (ordered === null || actual > ordered - received) {
-                quantityErrors.push(`مقدار ردیف ${line.id} از مقدار باقی‌مانده بیشتر است.`);
+            if (accepted === 0n && rejected === 0n) continue;
+            if (ordered === null || accepted > ordered - received) {
+                quantityErrors.push(`مقدار پذیرفته‌شده ردیف ${line.id} از مقدار باقی‌مانده سفارش بیشتر است.`);
                 continue;
             }
             if (!line.purchaseUnit) {
                 quantityErrors.push(`واحد خرید ردیف ${line.id} مشخص نیست و دریافت آن ممکن نیست.`);
                 continue;
             }
-            items.push({ purchaseOrderItemId: line.id, receivedQuantity: fromMilli(actual), purchaseUnit: line.purchaseUnit });
+            items.push({
+                purchaseOrderItemId: line.id,
+                receivedQuantity: fromMilli(accepted),
+                rejectedQuantity: fromMilli(rejected),
+                purchaseUnit: line.purchaseUnit,
+            });
         }
         if (quantityErrors.length) {
             setFormError(quantityErrors.join(' '));
             return;
         }
-        if (!items.length) {
-            setFormError('برای ثبت دریافت، مقدار مثبت حداقل یک ردیف را وارد کنید.');
+        if (!items.length || !items.some((item) => (toMilli(item.receivedQuantity) ?? 0n) > 0n)) {
+            setFormError('برای ثبت دریافت، حداقل یک مقدار پذیرفته‌شده مثبت وارد کنید. مقدار مردود به‌تنهایی موجودی ایجاد نمی‌کند.');
             return;
         }
         const fingerprint = JSON.stringify({
@@ -183,21 +233,27 @@ export const GoodsReceivingPage = () => {
             notes: notes.trim(),
             items: [...items].sort((a, b) => a.purchaseOrderItemId.localeCompare(b.purchaseOrderItemId)),
         });
-        let requestIdentity: RequestIdentity;
+        let requestIdentity: ReturnType<typeof getOrCreateGoodsReceiptRequestIdentity>;
         try {
-            requestIdentity = getKey(fingerprint, idempotency.current);
+            if (!globalThis.crypto?.randomUUID) throw new Error('ساخت شناسه امن برای درخواست ممکن نیست.');
+            requestIdentity = getOrCreateGoodsReceiptRequestIdentity(fingerprint, window.sessionStorage, () => globalThis.crypto.randomUUID());
         } catch (error) {
             setFormError(error instanceof Error ? error.message : 'ساخت شناسه درخواست ناموفق بود.');
             return;
         }
-        receive.mutate({
+        const request = {
+            fingerprint,
+            input: {
             idempotencyKey: requestIdentity.key,
             purchaseOrderId: id,
             receivedDate: requestIdentity.receivedDate,
             notes: notes.trim(),
             warehouseId: selectedWarehouseId,
             items,
-        });
+            },
+        };
+        setPendingRequest(request);
+        receive.mutate(request);
     };
 
     const loading = order.isLoading || receipts.isLoading || suppliers.isLoading || (canViewInventory && (ingredients.isLoading || warehouses.isLoading));
@@ -237,13 +293,16 @@ export const GoodsReceivingPage = () => {
                             <Typography><strong>وضعیت:</strong> {order.data.status === 'partial' ? 'دریافت جزئی' : order.data.status === 'sent' ? 'ارسال‌شده' : order.data.status}</Typography>
                         </Stack>
                     </Paper>
+                    {pendingRequest && <Alert severity="warning" action={<Button color="inherit" size="small" disabled={receive.isPending} onClick={() => receive.mutate(pendingRequest)}>تلاش مجدد درخواست قبلی</Button>}>
+                        یک درخواست دریافت قبلی هنوز تعیین تکلیف نشده است. برای جلوگیری از ثبت تکراری، همان درخواست با همان شناسه امن دوباره ارسال می‌شود.
+                    </Alert>}
                     {!eligible && <Alert severity="info">ثبت دریافت فقط برای سفارش‌های ارسال‌شده یا دارای دریافت جزئی ممکن است.</Alert>}
                     {eligible && !order.data.items.length && <Alert severity="warning">این سفارش ردیف قابل دریافتی ندارد.</Alert>}
                     {receipts.data?.length ? <Paper sx={{ p: 2 }}>
                         <Typography variant="h6" sx={{ mb: 1 }}>سوابق دریافت</Typography>
                         <Stack spacing={1}>{receipts.data.map((receipt) => <Box key={receipt.id} sx={{ borderBottom: '1px solid', borderColor: 'divider', pb: 1 }}>
                             <Typography variant="body2">دریافت #{receipt.id} — {new Date(receipt.receivedDate).toLocaleString('fa-IR')} — انبار {receipt.warehouseId ?? 'پیش‌فرض'}</Typography>
-                            <Typography variant="body2" color="text.secondary">{receipt.items.map((line) => `ردیف ${line.purchaseOrderItemId}: ${line.receivedQuantity} ${line.purchaseUnit ?? ''}`).join('، ')}</Typography>
+                            <Typography variant="body2" color="text.secondary">{receipt.items.map((line) => `ردیف ${line.purchaseOrderItemId}: ${line.receivedQuantity} پذیرفته‌شده + ${line.rejectedQuantity} مردود ${line.purchaseUnit ?? ''}`).join('، ')}</Typography>
                         </Box>)}</Stack>
                     </Paper> : receipts.data && <Alert severity="info">هنوز دریافتی برای این سفارش ثبت نشده است.</Alert>}
                     {eligible && !!order.data.items.length && <Paper component="form" onSubmit={submit} sx={{ p: { xs: 1.5, sm: 2.5 } }}>
@@ -255,7 +314,7 @@ export const GoodsReceivingPage = () => {
                                 {(warehouses.data ?? []).map((warehouse) => <MenuItem key={warehouse.id} value={warehouse.id}>{warehouse.name}{warehouse.isDefault ? ' (پیش‌فرض)' : ''}</MenuItem>)}
                             </TextField>
                             <Box sx={{ overflowX: 'auto' }}><Table size="small" aria-label="اقلام سفارش برای دریافت">
-                                <TableHead><TableRow><TableCell>قلم</TableCell><TableCell>مقدار سفارش</TableCell><TableCell>قبلاً دریافت‌شده</TableCell><TableCell>باقی‌مانده</TableCell><TableCell>دریافت فعلی</TableCell></TableRow></TableHead>
+                                <TableHead><TableRow><TableCell>قلم</TableCell><TableCell>مقدار سفارش</TableCell><TableCell>قبلاً پذیرفته‌شده</TableCell><TableCell>باقی‌مانده</TableCell><TableCell>پذیرفته‌شده</TableCell><TableCell>مردود</TableCell></TableRow></TableHead>
                                 <TableBody>{order.data.items.map((line) => {
                                     const ordered = toMilli(line.orderedQuantity) ?? 0n;
                                     const received = previouslyReceived.get(line.id) ?? 0n;
@@ -266,14 +325,15 @@ export const GoodsReceivingPage = () => {
                                         <TableCell>{line.orderedQuantity} {line.purchaseUnit ?? '—'}</TableCell>
                                         <TableCell>{fromMilli(received)} {line.purchaseUnit ?? ''}</TableCell>
                                         <TableCell>{fromMilli(remaining)} {line.purchaseUnit ?? ''}</TableCell>
-                                        <TableCell sx={{ minWidth: 170 }}><TextField size="small" fullWidth value={quantities[line.id] ?? ''} onChange={(event) => setQuantities((current) => ({ ...current, [line.id]: event.target.value }))} placeholder="۰" disabled={receive.isPending || !line.purchaseUnit || remaining === 0n} slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `مقدار دریافت ردیف ${line.id}` } }} helperText={line.purchaseUnit ? `حداکثر ${fromMilli(remaining)} ${line.purchaseUnit}` : 'واحد خرید مشخص نیست'} /></TableCell>
+                                        <TableCell sx={{ minWidth: 150 }}><TextField size="small" fullWidth value={quantities[line.id] ?? ''} onChange={(event) => setQuantities((current) => ({ ...current, [line.id]: event.target.value }))} placeholder="۰" disabled={receive.isPending || !line.purchaseUnit || remaining === 0n} slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `مقدار پذیرفته‌شده ردیف ${line.id}` } }} helperText={line.purchaseUnit ? 'وارد موجودی می‌شود' : 'واحد خرید مشخص نیست'} /></TableCell>
+                                        <TableCell sx={{ minWidth: 150 }}><TextField size="small" fullWidth value={rejectedQuantities[line.id] ?? ''} onChange={(event) => setRejectedQuantities((current) => ({ ...current, [line.id]: event.target.value }))} placeholder="۰" disabled={receive.isPending || !line.purchaseUnit || remaining === 0n} slotProps={{ htmlInput: { inputMode: 'decimal', 'aria-label': `مقدار مردود ردیف ${line.id}` } }} helperText="وارد موجودی نمی‌شود" /></TableCell>
                                     </TableRow>;
                                 })}</TableBody>
                             </Table></Box>
                             <TextField label="توضیحات (اختیاری)" multiline minRows={2} value={notes} onChange={(event) => setNotes(event.target.value)} disabled={receive.isPending} />
                             {receive.isError && <Alert severity="error">{errorMessage(receive.error)}</Alert>}
                             <Stack direction="row" spacing={1}>
-                                <Button type="submit" variant="contained" disabled={!canReceive || !dataReady || !selectedWarehouseId || receive.isPending || !eligible}>
+                                <Button type="submit" variant="contained" disabled={!canReceive || !dataReady || !selectedWarehouseId || receive.isPending || !eligible || Boolean(pendingRequest)}>
                                     {receive.isPending ? <CircularProgress size={20} color="inherit" /> : 'ثبت دریافت انتخاب‌شده'}
                                 </Button>
                                 <Button type="button" onClick={() => navigate('/purchase/orders')} disabled={receive.isPending}>انصراف</Button>
