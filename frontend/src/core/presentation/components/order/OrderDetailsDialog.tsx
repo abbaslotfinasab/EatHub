@@ -9,6 +9,7 @@ import {
 import type {OrderWithItems} from "../../../domain/entities/product/order/OrderWithItems";
 
 import {ReceiptCard} from "./details/ReceiptCard.tsx";
+import {OrderStatusHistoryPanel} from "./OrderStatusHistoryPanel.tsx";
 import {ReceiptThermal} from "./thermal/ReceiptThermal.tsx";
 
 import {usePrintReceipt} from "../../hooks/usePrintReceipt.ts";
@@ -95,6 +96,10 @@ export const OrderDetailsDialog = ({
                     onEdit={onEdit}
                     onChangeStatus={onStatusChange}
                 />
+
+                <Box sx={{px: 2, pb: 2}}>
+                    <OrderStatusHistoryPanel orderId={order.order.id} enabled={open} />
+                </Box>
 
                 <Box
                     sx={{
