@@ -13,6 +13,7 @@ import os
 from datetime import timedelta
 
 from dotenv import load_dotenv
+from corsheaders.defaults import default_headers
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -46,6 +47,7 @@ SECURE_REFERRER_POLICY = "same-origin"
 SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = (*default_headers, "x-business-id")
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
