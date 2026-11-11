@@ -216,7 +216,7 @@ class ManageReservations:
         if isinstance(order_id, bool) or not isinstance(order_id, int) or order_id <= 0:
             raise InvalidApplicationInput("Order ID must be a positive integer.")
         with self._unit_of_work.atomic():
-            if not self._reservations.order_source_is_active(context.business_id, order_id):
+            if not self._require_order_source().is_active(context.business_id, order_id):
                 raise ResourceNotFound("Active order was not found in this Business.")
             reservation = self._reservations.lock_active_order_reservation_for_consumption(
                 context.business_id, order_id
