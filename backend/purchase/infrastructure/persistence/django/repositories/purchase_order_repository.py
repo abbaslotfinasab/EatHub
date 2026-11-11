@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Sum
@@ -19,7 +20,6 @@ from purchase.models import (
     PurchaseOrder as DjangoPurchaseOrder,
     PurchaseOrderItem as DjangoPurchaseOrderItem,
     PurchaseRequisition as DjangoPurchaseRequisition,
-    PurchaseRequisitionItem as DjangoPurchaseRequisitionItem,
     Supplier as DjangoSupplier,
 )
 
@@ -102,8 +102,12 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
         purchase_order: PurchaseOrder,
         requisition: PurchaseRequisition,
     ) -> PurchaseOrder:
-        if purchase_order.requisition_id is None:
-            raise ValueError("A requisition is required for this purchase order.")
+        if (
+            purchase_order.requisition_id is None
+            or requisition.id != purchase_order.requisition_id
+            or requisition.business_id != purchase_order.business_id
+        ):
+            raise ValueError("A matching requisition is required for this purchase order.")
 
         with transaction.atomic():
             requisition_model = (
@@ -147,10 +151,10 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
                 row["ingredient_id"]: row["ordered_quantity"]
                 for row in ordered_rows
             }
-            new_order_quantities: dict[int, object] = {}
+            new_order_quantities: dict[int, Decimal] = {}
             for item in purchase_order.items:
                 new_order_quantities[item.ingredient_id] = (
-                    new_order_quantities.get(item.ingredient_id, 0) + item.quantity
+                    new_order_quantities.get(item.ingredient_id, Decimal("0")) + item.quantity
                 )
 
             current_requisition.validate_order_quantities(
