@@ -179,6 +179,8 @@ class ManageReservations:
         """Resolve and lock the active order reservation and its stock scope."""
         if not isinstance(context, InventoryExecutionContext):
             raise InvalidApplicationInput("A trusted inventory execution context is required.")
+        if context.actor_id is None:
+            raise InvalidApplicationInput("A reservation actor is required.")
         if isinstance(order_id, bool) or not isinstance(order_id, int) or order_id <= 0:
             raise InvalidApplicationInput("Order ID must be a positive integer.")
         with self._unit_of_work.atomic():
@@ -271,8 +273,6 @@ class ManageReservations:
             )
         if not active:
             return None
-        if context.actor_id is None:
-            raise InvalidApplicationInput("A reservation actor is required.")
         if context.actor_id is None:
             raise InvalidApplicationInput("A reservation actor is required.")
 
