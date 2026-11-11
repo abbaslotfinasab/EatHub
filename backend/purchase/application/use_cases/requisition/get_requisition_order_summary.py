@@ -5,7 +5,6 @@ from purchase.application.dto.requisition_order_summary import (
     RequisitionOrderSummaryDTO,
     RequisitionOrderSummaryItemDTO,
 )
-from purchase.domain.enums.purchase_order_status import PurchaseOrderStatus
 from purchase.domain.repositories.purchase_order_repository import (
     PurchaseOrderRepository,
 )
@@ -42,16 +41,10 @@ class GetRequisitionOrderSummaryUseCase:
         for item in requisition.items:
             requested[item.ingredient_id] += item.quantity
 
-        ordered: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
-        purchase_orders = self._purchase_order_repository.list(
+        ordered = self._purchase_order_repository.get_ordered_quantities_by_requisition(
             business_id,
-            requisition_id=requisition_id,
+            requisition_id,
         )
-        for purchase_order in purchase_orders:
-            if purchase_order.status == PurchaseOrderStatus.CANCELLED:
-                continue
-            for item in purchase_order.items:
-                ordered[item.ingredient_id] += item.quantity
 
         summary_items = [
             RequisitionOrderSummaryItemDTO(
