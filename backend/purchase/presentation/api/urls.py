@@ -8,6 +8,7 @@ from purchase.presentation.api.views.requisition import (
     RequisitionApproveAPIView,
     RequisitionDecisionHistoryAPIView,
     RequisitionDetailAPIView,
+    RequisitionOrderSummaryAPIView,
     RequisitionListCreateAPIView,
     RequisitionRejectAPIView,
     RequisitionSubmitAPIView,
@@ -147,6 +148,11 @@ urlpatterns = [
         "requisitions/<int:pk>/",
         RequisitionDetailAPIView.as_view(),
         name="requisition-detail",
+    ),
+    path(
+        "requisitions/<int:pk>/order-summary/",
+        RequisitionOrderSummaryAPIView.as_view(),
+        name="requisition-order-summary",
     ),
     path(
         "requisitions/<int:pk>/decisions/",
