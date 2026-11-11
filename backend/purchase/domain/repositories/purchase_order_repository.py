@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from datetime import date
 
 from purchase.domain.entities.purchase_order import PurchaseOrder
-from purchase.domain.entities.requisition import PurchaseRequisition
 from purchase.domain.enums.purchase_order_status import (
     PurchaseOrderStatus,
 )
@@ -65,7 +64,6 @@ class PurchaseOrderRepository(ABC):
     def save_for_requisition(
         self,
         purchase_order: PurchaseOrder,
-        requisition: PurchaseRequisition,
     ) -> PurchaseOrder:
         """Atomically validate remaining quantities and persist a requisition PO."""
         raise NotImplementedError
