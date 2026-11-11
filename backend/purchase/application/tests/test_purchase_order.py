@@ -78,6 +78,37 @@ class FakePurchaseOrderRepository:
             for order in self.orders.values()
         )
 
+    def save_for_requisition(
+        self,
+        purchase_order: PurchaseOrder,
+        requisition: PurchaseRequisition,
+    ) -> PurchaseOrder:
+        already_ordered: dict[int, Decimal] = {}
+        for order in self.orders.values():
+            if (
+                order.business_id != purchase_order.business_id
+                or order.requisition_id != requisition.id
+                or order.status.value == "cancelled"
+            ):
+                continue
+            for item in order.items:
+                already_ordered[item.ingredient_id] = (
+                    already_ordered.get(item.ingredient_id, Decimal("0"))
+                    + item.quantity
+                )
+
+        new_order_quantities: dict[int, Decimal] = {}
+        for item in purchase_order.items:
+            new_order_quantities[item.ingredient_id] = (
+                new_order_quantities.get(item.ingredient_id, Decimal("0"))
+                + item.quantity
+            )
+        requisition.validate_order_quantities(
+            already_ordered,
+            new_order_quantities,
+        )
+        return self.save(purchase_order)
+
 
 class FakeSupplierRepository:
     def __init__(self, suppliers: list[Supplier]) -> None:
@@ -205,7 +236,7 @@ class PurchaseOrderApplicationTests(TestCase):
     def test_rejects_quantity_above_approved_requisition(self) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            "must match the approved requisition quantity",
+            "exceeds the remaining approved requisition quantity",
         ):
             self.create_use_case.execute(
                 self.create_command(
@@ -221,10 +252,121 @@ class PurchaseOrderApplicationTests(TestCase):
                 )
             )
 
+    def test_allows_partial_purchase_order_quantity(self) -> None:
+        order = self.create_use_case.execute(
+            self.create_command(
+                requisition_id=1,
+                items=[
+                    CreatePurchaseOrderItemDTO(
+                        ingredient_id=1,
+                        quantity=Decimal("1"),
+                        unit_price=Decimal("3"),
+                        purchase_unit=PurchaseUnit.KG,
+                    )
+                ],
+            )
+        )
+        self.assertEqual(sum(item.quantity for item in order.items), Decimal("1"))
+
+    def test_allows_multiple_purchase_orders_up_to_requisition_quantity(self) -> None:
+        first = self.create_use_case.execute(
+            self.create_command(
+                requisition_id=1,
+                items=[
+                    CreatePurchaseOrderItemDTO(
+                        ingredient_id=1,
+                        quantity=Decimal("1"),
+                        unit_price=Decimal("3"),
+                        purchase_unit=PurchaseUnit.KG,
+                    )
+                ],
+            )
+        )
+        second = self.create_use_case.execute(
+            self.create_command(
+                requisition_id=1,
+                items=[
+                    CreatePurchaseOrderItemDTO(
+                        ingredient_id=1,
+                        quantity=Decimal("1"),
+                        unit_price=Decimal("3"),
+                        purchase_unit=PurchaseUnit.KG,
+                    )
+                ],
+            )
+        )
+        self.assertNotEqual(first.id, second.id)
+
+    def test_rejects_cumulative_quantity_above_requisition(self) -> None:
+        self.create_use_case.execute(
+            self.create_command(
+                requisition_id=1,
+                items=[
+                    CreatePurchaseOrderItemDTO(
+                        ingredient_id=1,
+                        quantity=Decimal("1.5"),
+                        unit_price=Decimal("3"),
+                        purchase_unit=PurchaseUnit.KG,
+                    )
+                ],
+            )
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "exceeds the remaining approved requisition quantity",
+        ):
+            self.create_use_case.execute(
+                self.create_command(
+                    requisition_id=1,
+                    items=[
+                        CreatePurchaseOrderItemDTO(
+                            ingredient_id=1,
+                            quantity=Decimal("0.6"),
+                            unit_price=Decimal("3"),
+                            purchase_unit=PurchaseUnit.KG,
+                        )
+                    ],
+                )
+            )
+
+    def test_cancelled_order_does_not_consume_requisition_quantity(self) -> None:
+        order = self.create_use_case.execute(
+            self.create_command(
+                requisition_id=1,
+                items=[
+                    CreatePurchaseOrderItemDTO(
+                        ingredient_id=1,
+                        quantity=Decimal("2"),
+                        unit_price=Decimal("3"),
+                        purchase_unit=PurchaseUnit.KG,
+                    )
+                ],
+            )
+        )
+        CancelPurchaseOrderUseCase(
+            self.purchase_order_repository,
+            self.transaction_manager,
+        ).execute(order.id, business_id=1)
+
+        replacement = self.create_use_case.execute(
+            self.create_command(
+                requisition_id=1,
+                items=[
+                    CreatePurchaseOrderItemDTO(
+                        ingredient_id=1,
+                        quantity=Decimal("2"),
+                        unit_price=Decimal("3"),
+                        purchase_unit=PurchaseUnit.KG,
+                    )
+                ],
+            )
+        )
+        self.assertNotEqual(order.id, replacement.id)
+
     def test_rejects_quantity_below_approved_requisition(self) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            "must match the approved requisition quantity",
+            "exceeds the remaining approved requisition quantity",
         ):
             self.create_use_case.execute(
                 self.create_command(
@@ -243,7 +385,7 @@ class PurchaseOrderApplicationTests(TestCase):
     def test_rejects_unrequested_ingredient_in_purchase_order(self) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            "must match the approved requisition ingredients",
+            "must match approved requisition ingredients",
         ):
             self.create_use_case.execute(
                 self.create_command(
