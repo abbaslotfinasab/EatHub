@@ -40,6 +40,7 @@ from products.models import (
     OrderItemIngredientRequirement,
     OrderItem,
     OrderRefund,
+    OrderStatusHistory,
 )
 from products.services.order_inventory_service import OrderInventoryService
 from products.services.order_service import OrderService
@@ -605,6 +606,10 @@ class OrderInventoryRefundTests(TestCase):
         self.assertFalse(InventoryV1StockMovement.objects.exists())
         self.assertEqual(self.order.status, Order.Status.CANCELLED)
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.REFUNDED)
+        history = OrderStatusHistory.objects.get(order=self.order)
+        self.assertEqual(history.from_status, Order.Status.CONFIRMED)
+        self.assertEqual(history.to_status, Order.Status.CANCELLED)
+        self.assertEqual(history.actor_id, self.actor.pk)
 
     def test_refund_after_partial_consumption_releases_only_remaining_hold(self):
         self.confirm()
