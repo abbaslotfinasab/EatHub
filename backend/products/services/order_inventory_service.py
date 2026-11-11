@@ -18,6 +18,8 @@ from inventory.domain.exceptions import InventoryDomainError
 from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
+from inventory.infrastructure.django.models import InventoryReservation
+from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.models import Ingredient, Recipe, Warehouse
 from products.models import (
     MenuItem,
