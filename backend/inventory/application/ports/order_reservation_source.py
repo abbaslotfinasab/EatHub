@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Protocol
 
 from inventory.domain.entities.reservation import ReservationLine
@@ -9,5 +10,5 @@ class OrderReservationSource(Protocol):
     def is_active(self, business_id: int, order_id: int) -> bool: ...
 
     def reservation_matches(
-        self, business_id: int, order_id: int, lines: list[ReservationLine]
+        self, business_id: int, order_id: int, lines: Sequence[ReservationLine]
     ) -> bool: ...
