@@ -100,14 +100,9 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
     def save_for_requisition(
         self,
         purchase_order: PurchaseOrder,
-        requisition: PurchaseRequisition,
     ) -> PurchaseOrder:
-        if (
-            purchase_order.requisition_id is None
-            or requisition.id != purchase_order.requisition_id
-            or requisition.business_id != purchase_order.business_id
-        ):
-            raise ValueError("A matching requisition is required for this purchase order.")
+        if purchase_order.requisition_id is None:
+            raise ValueError("A requisition is required for this purchase order.")
 
         with transaction.atomic():
             requisition_model = (
@@ -144,6 +139,7 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
                 .exclude(
                     purchase_order__status=PurchaseOrderStatus.CANCELLED.value
                 )
+                .exclude(purchase_order_id=purchase_order.id)
                 .values("ingredient_id")
                 .annotate(ordered_quantity=Sum("quantity"))
             )
