@@ -25,36 +25,41 @@ interface RestaurantListProps {
 }
 
 export const RestaurantList = ({
-                                   restaurants,
-                                   selectedRestaurantId,
-                                   onSelect,
-                                   onAddRestaurant,
-                               }: RestaurantListProps) => {
+    restaurants = [],
+    selectedRestaurantId,
+    onSelect,
+    onAddRestaurant,
+}: RestaurantListProps) => {
     return (
-        <Box>
+        <Box
+            sx={{
+                maxHeight: 280,
+                overflowY: "auto",
+                overflowX: "hidden",
+                "&::-webkit-scrollbar": { width: 5 },
+                "&::-webkit-scrollbar-thumb": {
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                    borderRadius: 8,
+                },
+            }}
+        >
             <List disablePadding>
-                {restaurants!.map((restaurant) => {
-                    const isSelected =
-                        restaurant.id === selectedRestaurantId;
+                {restaurants.map((restaurant) => {
+                    const isSelected = restaurant.id === selectedRestaurantId;
 
                     return (
                         <ListItemButton
                             key={restaurant.id}
-                            onClick={() =>
-                                onSelect(restaurant.id)
-                            }
+                            onClick={() => onSelect(restaurant.id)}
                             sx={{
                                 mx: 1,
                                 my: 0.5,
                                 borderRadius: 2,
-
                                 backgroundColor: isSelected
                                     ? "rgba(255,255,255,0.14)"
                                     : "transparent",
-
                                 "&:hover": {
-                                    backgroundColor:
-                                        "rgba(255,255,255,0.08)",
+                                    backgroundColor: "rgba(255,255,255,0.08)",
                                 },
                             }}
                         >
@@ -67,9 +72,8 @@ export const RestaurantList = ({
                                     fontSize: 14,
                                 }}
                             >
-                                🍕
+                                🏪
                             </Avatar>
-
                             <ListItemText
                                 primary={
                                     <Typography
@@ -93,20 +97,12 @@ export const RestaurantList = ({
                         mx: 1,
                         my: 1,
                         borderRadius: 2,
-
                         "&:hover": {
-                            backgroundColor:
-                                "rgba(255,255,255,0.08)",
+                            backgroundColor: "rgba(255,255,255,0.08)",
                         },
                     }}
                 >
-                    <AddRoundedIcon
-                        sx={{
-                            color: "#FFFFFF",
-                            ml: 1.5,
-                        }}
-                    />
-
+                    <AddRoundedIcon sx={{ color: "#FFFFFF", ml: 1.5 }} />
                     <Typography
                         sx={{
                             color: "#FFFFFF",

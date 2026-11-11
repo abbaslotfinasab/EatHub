@@ -6,6 +6,7 @@ import {UpdateOrder} from "../../domain/use-cases/product/order/UpdateOrder";
 import {DeleteOrder} from "../../domain/use-cases/product/order/DeleteOrder";
 import {GetAllOrdersWithItems} from "../../domain/use-cases/product/order/GetAllOrdersWithItems.ts";
 import {GetOrderByIdWithItems} from "../../domain/use-cases/product/order/GetOrderByIdWithItems.ts";
+import {GetOrderStatusHistory} from "../../domain/use-cases/product/order/GetOrderStatusHistory.ts";
 import {UpdateOrderStatus} from "../../domain/use-cases/product/order/UpdateOrderStatus.ts";
 import {RefundOrder} from "../../domain/use-cases/product/order/RefundOrder.ts";
 import {GetOrderConsumptionRequirements} from "../../domain/use-cases/product/order/GetOrderConsumptionRequirements.ts";
@@ -22,6 +23,8 @@ export const createOrderContainer = () => {
         getAllOrdersUseCase: new GetAllOrdersWithItems(repository),
 
         getOrderByIdUseCase: new GetOrderByIdWithItems(repository),
+
+        getOrderStatusHistoryUseCase: new GetOrderStatusHistory(repository),
 
         updateOrderUseCase: new UpdateOrder(repository),
 

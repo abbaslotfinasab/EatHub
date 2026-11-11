@@ -1,6 +1,7 @@
 import {apiClient} from "../http/http-client";
 
 import type {OrderDTO} from "../dtos/order/OrderDTO";
+import type {OrderStatusHistoryDTO} from "../dtos/order/OrderStatusHistoryDTO.ts";
 import type {CreateOrderDTO} from "../dtos/order/CreateOrderDTO";
 import type {UpdateOrderDTO} from "../dtos/order/UpdateOrderDTO";
 import type {UpdateOrderStatusDTO} from "../dtos/order/UpdateOrderStatusDTO.ts";
@@ -49,6 +50,13 @@ export class OrderRemoteDataSource {
     async getOrderById(id: string): Promise<OrderDTO> {
         const {data} = await apiClient.get<OrderDTO>(
             `/products/orders/${id}/`,
+        );
+        return data;
+    }
+
+    async getOrderStatusHistory(orderId: string): Promise<OrderStatusHistoryDTO> {
+        const {data} = await apiClient.get<OrderStatusHistoryDTO>(
+            `/products/orders/${orderId}/history/`,
         );
         return data;
     }

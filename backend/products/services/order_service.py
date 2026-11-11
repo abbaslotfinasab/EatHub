@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
 from products.models import CustomerTransaction, OrderRefund
 
-from products.models import CustomerAccount, OrderItem, Order, MenuItem
+from products.models import CustomerAccount, OrderItem, Order, MenuItem, OrderStatusHistory
 from django.db import IntegrityError, transaction
 from decimal import Decimal
 import hashlib
@@ -96,6 +96,14 @@ class OrderService:
             total_amount=Decimal("0"),
             idempotency_key=idempotency_key,
             payload_fingerprint=payload_fingerprint if idempotency_key is not None else None,
+        )
+
+        OrderStatusHistory.objects.create(
+            business=business,
+            order_id_snapshot=order.pk,
+            from_status=None,
+            to_status=order.status,
+            actor=user,
         )
 
         subtotal = Decimal("0")
@@ -520,6 +528,15 @@ class OrderService:
                 ),
             )
 
+        if order.status != previous_status:
+            OrderStatusHistory.objects.create(
+                business=business,
+                order_id_snapshot=order.pk,
+                from_status=previous_status,
+                to_status=order.status,
+                actor=user,
+            )
+
         if (
             order.status != previous_status
             or order.payment_status != previous_payment_status
@@ -719,9 +736,18 @@ class OrderService:
             reason="Order refunded; remaining reservation released",
         )
 
+        previous_order_status = order.status
         order.status = Order.Status.CANCELLED
         order.payment_status = Order.PaymentStatus.REFUNDED
         order.save(update_fields=["status", "payment_status"])
+        if previous_order_status != Order.Status.CANCELLED:
+            OrderStatusHistory.objects.create(
+                business=business,
+                order_id_snapshot=order.pk,
+                from_status=previous_order_status,
+                to_status=Order.Status.CANCELLED,
+                actor=user,
+            )
         ActivityLogService.record(
             business=business,
             user=user,

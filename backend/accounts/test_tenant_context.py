@@ -55,7 +55,6 @@ class TenantContextResolverTests(TestCase):
             resolve_tenant_context(user=self.user, business_id=self.business.pk)
 
 
-
 class TenantAPIViewContextTests(TestCase):
     def setUp(self):
         from rest_framework.test import APIClient
@@ -88,7 +87,6 @@ class TenantAPIViewContextTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["inventory_enabled"], self.business.inventory_enabled)
-
 
     def test_user_can_resolve_each_of_multiple_active_business_contexts(self):
         second_business = BusinessService.create_business(self.user, "Second Tenant Cafe")
@@ -175,15 +173,26 @@ class MeAPIViewBusinessContextTests(TestCase):
         self.assertIn("orders.view", active_business["permissions"])
         self.assertIn("orders.create", active_business["permissions"])
         self.assertEqual(active_business["inventory_enabled"], self.business.inventory_enabled)
+        self.assertEqual(len(response.data["memberships"]), 1)
+        self.assertEqual(response.data["memberships"][0]["business_id"], self.business.pk)
 
     def test_multiple_memberships_require_explicit_selection_for_active_business(self):
-        BusinessService.create_business(self.user, "Second Me Context Cafe")
+        second_business = BusinessService.create_business(self.user, "Second Me Context Cafe")
 
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.data["active_business"])
         self.assertEqual(response.data["meta"]["business_count"], 2)
+        self.assertEqual(len(response.data["memberships"]), 2)
+        self.assertEqual(
+            {membership["business_id"] for membership in response.data["memberships"]},
+            {self.business.pk, second_business.pk},
+        )
+        self.assertEqual(
+            {membership["business_name"] for membership in response.data["memberships"]},
+            {self.business.name, second_business.name},
+        )
 
     def test_explicit_business_header_returns_only_selected_membership_permissions(self):
         second_business = BusinessService.create_business(
