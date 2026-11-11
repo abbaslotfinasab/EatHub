@@ -103,6 +103,40 @@ class OrderInventoryLifecycleTests(TestCase):
     def requirement(self):
         return self.order_item.inventory_recipe_snapshot.requirements.get()
 
+    def test_inventory_application_prepares_active_order_reservation_scope(self):
+        self.confirm()
+        self.start_preparation()
+        use_case = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+        )
+
+        prepared = use_case.prepare_order_consumption(
+            InventoryExecutionContext(self.business.pk, self.actor.pk),
+            self.order.pk,
+        )
+
+        self.assertEqual(prepared.business_id, self.business.pk)
+        self.assertEqual(prepared.source_type, "order")
+        self.assertEqual(prepared.source_id, self.order.pk)
+        self.assertEqual(prepared.warehouse_id, self.warehouse.pk)
+        self.assertEqual(len(prepared.lines), 1)
+        self.assertEqual(prepared.lines[0].ingredient_id, self.flour.pk)
+        self.assertEqual(prepared.lines[0].quantity, Decimal("3.000000000000"))
+        self.assertEqual(prepared.lines[0].unit.value, "kg")
+
+    def test_inventory_application_rejects_order_reservation_from_another_business(self):
+        self.confirm()
+        other_business = Business.objects.create(name="Foreign Reservation Business")
+        use_case = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+        )
+
+        with self.assertRaises(ResourceNotFound):
+            use_case.prepare_order_consumption(
+                InventoryExecutionContext(other_business.pk, self.actor.pk),
+                self.order.pk,
+            )
+
     def test_confirmation_scales_and_converts_then_reserves_without_physical_deduction(self):
         self.confirm()
 
