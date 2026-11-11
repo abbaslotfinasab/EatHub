@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest import skipUnless
 from unittest.mock import patch
 
 from django.db import DatabaseError, connection, transaction
@@ -63,7 +64,7 @@ class OrderStatusHistoryServiceTests(TestCase):
         self.assertTrue(OrderStatusHistory.objects.filter(pk=history.pk).exists())
         self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
 
-    @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
+    @skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
     def test_bulk_update_cannot_mutate_status_history(self):
         history = OrderStatusHistory.objects.create(
             business=self.business,
