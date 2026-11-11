@@ -388,7 +388,7 @@ class OrderInventoryService:
                 actor_id=actor_id,
                 consumption_id=event.pk,
                 warehouse_id=reservation.warehouse_id,
-                reservation_id=reservation.pk,
+                reservation_id=reservation.id,
                 remaining_lines=remaining,
                 actual_lines=[
                     {
