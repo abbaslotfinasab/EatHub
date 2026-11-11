@@ -1,6 +1,8 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.db import DatabaseError, connection, transaction
+from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -44,6 +46,59 @@ class OrderStatusHistoryServiceTests(TestCase):
         self.assertEqual(entry.to_status, Order.Status.CANCELLED)
         self.assertEqual(entry.actor_id, self.actor.pk)
         release.assert_called_once()
+
+    def test_business_deletion_is_protected_while_audit_history_exists(self):
+        history = OrderStatusHistory.objects.create(
+            business=self.business,
+            order=self.order,
+            order_id_snapshot=self.order.pk,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+            actor=self.actor,
+        )
+
+        with self.assertRaises(ProtectedError):
+            self.business.delete()
+
+        self.assertTrue(OrderStatusHistory.objects.filter(pk=history.pk).exists())
+        self.assertTrue(Business.objects.filter(pk=self.business.pk).exists())
+
+    @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
+    def test_bulk_update_cannot_mutate_status_history(self):
+        history = OrderStatusHistory.objects.create(
+            business=self.business,
+            order=self.order,
+            order_id_snapshot=self.order.pk,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+            actor=self.actor,
+        )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                OrderStatusHistory.objects.filter(pk=history.pk).update(
+                    to_status=Order.Status.COMPLETED
+                )
+
+        history.refresh_from_db()
+        self.assertEqual(history.to_status, Order.Status.PENDING)
+
+    @unittest.skipUnless(connection.vendor == "postgresql", "PostgreSQL trigger enforcement")
+    def test_bulk_delete_cannot_remove_status_history(self):
+        history = OrderStatusHistory.objects.create(
+            business=self.business,
+            order=self.order,
+            order_id_snapshot=self.order.pk,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+            actor=self.actor,
+        )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                OrderStatusHistory.objects.filter(pk=history.pk).delete()
+
+        self.assertTrue(OrderStatusHistory.objects.filter(pk=history.pk).exists())
 
     def test_history_survives_deletion_of_a_pending_order(self):
         history = OrderStatusHistory.objects.create(
