@@ -8,6 +8,7 @@ from inventory.infrastructure.django.order_consumption_repository import (
 )
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
+from composition.order_reservation_source import DjangoOrderReservationSource
 
 
 def apply_order_consumption_inventory(
@@ -24,7 +25,7 @@ def apply_order_consumption_inventory(
     """Wire Inventory adapters and execute its application-owned workflow."""
     unit_of_work = DjangoInventoryUnitOfWork()
     use_case = ApplyOrderConsumption(
-        ManageReservations(DjangoReservationRepository(), unit_of_work),
+        ManageReservations(DjangoReservationRepository(), unit_of_work, DjangoOrderReservationSource()),
         DjangoOrderConsumptionPostingRepository(),
         unit_of_work,
     )

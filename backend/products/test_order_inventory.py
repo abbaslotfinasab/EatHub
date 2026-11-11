@@ -26,6 +26,7 @@ from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from inventory.application.use_cases.manage_reservations import ManageReservations
 from inventory.domain.entities.reservation import MANUAL_RESERVATION_SOURCE
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
+from composition.order_reservation_source import DjangoOrderReservationSource
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Recipe, RecipeInput, RecipeOutput, Warehouse
 from products.models import (
@@ -107,7 +108,7 @@ class OrderInventoryLifecycleTests(TestCase):
         self.confirm()
         self.start_preparation()
         use_case = ManageReservations(
-            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
         )
 
         prepared = use_case.prepare_order_consumption(
@@ -128,7 +129,7 @@ class OrderInventoryLifecycleTests(TestCase):
         self.confirm()
         other_business = Business.objects.create(name="Foreign Reservation Business")
         use_case = ManageReservations(
-            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
         )
 
         with self.assertRaises(ResourceNotFound):
@@ -140,7 +141,7 @@ class OrderInventoryLifecycleTests(TestCase):
     def test_inventory_application_validates_confirmation_retry_reservation(self):
         self.confirm()
         use_case = ManageReservations(
-            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
         )
 
         prepared = use_case.validate_order_reservation_for_confirmation(
@@ -158,7 +159,7 @@ class OrderInventoryLifecycleTests(TestCase):
             quantity=Decimal("2")
         )
         use_case = ManageReservations(
-            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
         )
 
         with self.assertRaises(OperationConflict):
@@ -1045,7 +1046,7 @@ class ConcurrentConsumptionReservationReplacementTests(TransactionTestCase):
             thread_roles.role = "manual_reservation"
             try:
                 use_case = ManageReservations(
-                    DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+                    DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
                 )
                 try:
                     use_case.create(

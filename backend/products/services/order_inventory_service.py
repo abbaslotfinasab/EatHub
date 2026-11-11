@@ -19,6 +19,7 @@ from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
+from composition.order_reservation_source import DjangoOrderReservationSource
 from inventory.infrastructure.django.recipe_repository import DjangoRecipeRepository
 from inventory.infrastructure.django.repositories import DjangoIngredientRepository
 from inventory.infrastructure.django.repositories import DjangoWarehouseRepository
@@ -39,7 +40,9 @@ _MAX_QUANTITY = Decimal("999999999999999999999999.999999999999")
 
 
 def _reservation_use_case():
-    return ManageReservations(DjangoReservationRepository(), DjangoInventoryUnitOfWork())
+    return ManageReservations(
+        DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
+    )
 
 
 def _prepare_order_confirmation_use_case():
