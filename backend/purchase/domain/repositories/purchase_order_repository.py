@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import date
+from decimal import Decimal
 
 from purchase.domain.entities.purchase_order import PurchaseOrder
 from purchase.domain.enums.purchase_order_status import (
@@ -47,6 +48,15 @@ class PurchaseOrderRepository(ABC):
         """
         Return purchase orders for a business.
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_ordered_quantities_by_requisition(
+        self,
+        business_id: int,
+        requisition_id: int,
+    ) -> dict[int, Decimal]:
+        """Return non-cancelled ordered quantities grouped by ingredient."""
         raise NotImplementedError
 
     @abstractmethod
