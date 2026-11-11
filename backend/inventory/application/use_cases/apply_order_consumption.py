@@ -4,6 +4,7 @@ from inventory.application.context import InventoryExecutionContext
 from inventory.application.dto.order_consumption_posting import OrderConsumptionPostingDTO
 from inventory.application.exceptions import InvalidApplicationInput
 from inventory.application.ports.order_consumption import OrderConsumptionPostingRepository
+from inventory.application.ports.unit_of_work import InventoryUnitOfWork
 from inventory.application.use_cases.manage_reservations import ManageReservations
 
 
@@ -17,9 +18,11 @@ class ApplyOrderConsumption:
         self,
         reservations: ManageReservations,
         posting: OrderConsumptionPostingRepository,
+        unit_of_work: InventoryUnitOfWork,
     ) -> None:
         self._reservations = reservations
         self._posting = posting
+        self._unit_of_work = unit_of_work
 
     def execute(
         self,
@@ -47,25 +50,26 @@ class ApplyOrderConsumption:
         if any(not isinstance(line, dict) for line in remaining_lines + actual_lines):
             raise InvalidApplicationInput("Consumption lines must be objects.")
 
-        self._reservations.release(
-            context,
-            reservation_id,
-            uuid5(_ORDER_KEY_NAMESPACE, f"consume-release:{consumption_id}"),
-            f"Replaced by consumption {consumption_id}",
-        )
-        if remaining_lines:
-            self._reservations.create_for_order(
+        with self._unit_of_work.atomic():
+            self._reservations.release(
+                context,
+                reservation_id,
+                uuid5(_ORDER_KEY_NAMESPACE, f"consume-release:{consumption_id}"),
+                f"Replaced by consumption {consumption_id}",
+            )
+            if remaining_lines:
+                self._reservations.create_for_order(
+                    context,
+                    warehouse_id=warehouse_id,
+                    order_id=order_id,
+                    reason=f"Order {order_id} remaining requirement after consumption {consumption_id}",
+                    idempotency_key=uuid5(_ORDER_KEY_NAMESPACE, f"consume-reserve:{consumption_id}"),
+                    lines=remaining_lines,
+                )
+            return self._posting.post_order_issue(
                 context,
                 warehouse_id=warehouse_id,
                 order_id=order_id,
-                reason=f"Order {order_id} remaining requirement after consumption {consumption_id}",
-                idempotency_key=uuid5(_ORDER_KEY_NAMESPACE, f"consume-reserve:{consumption_id}"),
-                lines=remaining_lines,
+                consumption_id=consumption_id,
+                lines=actual_lines,
             )
-        return self._posting.post_order_issue(
-            context,
-            warehouse_id=warehouse_id,
-            order_id=order_id,
-            consumption_id=consumption_id,
-            lines=actual_lines,
-        )
