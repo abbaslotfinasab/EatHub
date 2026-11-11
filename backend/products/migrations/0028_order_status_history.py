@@ -66,6 +66,7 @@ class Migration(migrations.Migration):
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
+                ("order_id_snapshot", models.PositiveBigIntegerField()),
                 (
                     "business",
                     models.ForeignKey(
@@ -77,7 +78,9 @@ class Migration(migrations.Migration):
                 (
                     "order",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
                         related_name="status_history",
                         to="products.order",
                     ),
@@ -91,7 +94,7 @@ class Migration(migrations.Migration):
         migrations.AddIndex(
             model_name="orderstatushistory",
             index=models.Index(
-                fields=["business", "order", "created_at"],
+                fields=["business", "order_id_snapshot", "created_at"],
                 name="order_status_hist_scope_ix",
             ),
         ),
