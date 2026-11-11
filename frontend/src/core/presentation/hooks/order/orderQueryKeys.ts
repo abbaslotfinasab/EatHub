@@ -6,6 +6,8 @@ export const orderQueryKeys = {
         ["orders", userId, businessId, "list", filters] as const,
     detail: (userId: number | null, businessId: number | null, orderId?: string) =>
         ["orders", userId, businessId, "detail", orderId] as const,
+    statusHistory: (userId: number | null, businessId: number | null, orderId?: string) =>
+        ["orders", userId, businessId, "status-history", orderId] as const,
     consumption: (userId: number | null, businessId: number | null, orderId?: string) =>
         ["orders", userId, businessId, "consumption", orderId] as const,
     refund: (userId: number | null, businessId: number | null, orderId?: string) =>
