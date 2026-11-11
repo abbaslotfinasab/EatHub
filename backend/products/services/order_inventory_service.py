@@ -20,7 +20,9 @@ from inventory.domain.value_objects.unit import Unit
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.infrastructure.django.recipe_repository import DjangoRecipeRepository
+from inventory.infrastructure.django.repositories import DjangoIngredientRepository
 from inventory.infrastructure.django.repositories import DjangoWarehouseRepository
+from inventory.application.use_cases.resolve_order_requirement_ingredients import ResolveOrderRequirementIngredients
 from products.models import (
     MenuItem,
     Order,
@@ -43,6 +45,12 @@ def _reservation_use_case():
 def _prepare_order_confirmation_use_case():
     return PrepareOrderConfirmation(
         DjangoRecipeRepository(), DjangoWarehouseRepository(), DjangoInventoryUnitOfWork()
+    )
+
+
+def _resolve_order_requirement_ingredients(business_id: int, ingredient_ids: list[int]):
+    return ResolveOrderRequirementIngredients(DjangoIngredientRepository()).execute(
+        business_id=business_id, ingredient_ids=ingredient_ids
     )
 
 
@@ -74,6 +82,10 @@ def _scaled_quantity(input_quantity: Decimal, order_quantity: int, output_quanti
 
 class OrderInventoryService:
     """Coordinates immutable recipe snapshots, reservation holds and actual issues."""
+
+    @staticmethod
+    def resolve_requirement_ingredients(*, business_id: int, ingredient_ids: list[int]):
+        return _resolve_order_requirement_ingredients(business_id, ingredient_ids)
 
     @staticmethod
     @transaction.atomic
@@ -224,16 +236,23 @@ class OrderInventoryService:
                 snapshot__business_id=business_id,
                 snapshot__order_id=order.pk,
                 snapshot__order__business_id=business_id,
-            ).select_related("ingredient", "snapshot__order_item").order_by("pk")
+            ).select_related("snapshot__order_item").order_by("pk")
         }
         if any(
-            requirement.ingredient.business_id != business_id
-            or requirement.snapshot.order_item.order_id != order.pk
+            requirement.snapshot.order_item.order_id != order.pk
             for requirement in requirements.values()
         ):
             raise OperationConflict("Persisted recipe requirements do not match this business and order.")
         if not requirements:
             raise ValidationError("This order has no immutable inventory requirement snapshot.")
+        try:
+            _resolve_order_requirement_ingredients(
+                business_id, sorted({row.ingredient_id for row in requirements.values()})
+            )
+        except ResourceNotFound as error:
+            raise OperationConflict(
+                "Persisted recipe requirements reference an ingredient outside this business."
+            ) from error
 
         normalized = []
         seen = set()

@@ -18,6 +18,11 @@ class IngredientRepository(Protocol):
     ) -> Ingredient | None:
         """Load an Ingredient only when it belongs to the requested Business."""
 
+    def get_many_for_business(
+        self, ingredient_ids: list[int], business_id: int
+    ) -> list[Ingredient]:
+        """Load a set of Ingredients scoped to one Business in one query."""
+
 
 class WarehouseRepository(Protocol):
     def get_by_id_for_business(

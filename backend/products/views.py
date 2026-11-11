@@ -13,7 +13,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from core.enums import PermissionCode
-from inventory.models import Ingredient
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, MenuSerializer, \
     PublicRestaurantSerializer, PublicMenuSerializer, UpdateMenuSerializer, MenuItemSerializer, \
@@ -673,15 +672,16 @@ class OrderActualConsumptionAPIView(ExplicitTenantAPIView):
             )
         )
         ingredient_ids = {item.ingredient_id for item in requirements}
-        ingredients = {
-            ingredient.pk: ingredient
-            for ingredient in Ingredient.objects.filter(
-                business_id=request.business.id,
-                pk__in=ingredient_ids,
-            )
-        }
-        if len(ingredients) != len(ingredient_ids):
-            raise Http404("An order requirement was not found in this business.")
+        ingredients = {}
+        if ingredient_ids:
+            try:
+                ingredient_rows = OrderInventoryService.resolve_requirement_ingredients(
+                    business_id=request.business.id,
+                    ingredient_ids=sorted(ingredient_ids),
+                )
+            except ResourceNotFound as error:
+                raise Http404("An order requirement was not found in this business.") from error
+            ingredients = {ingredient.id: ingredient for ingredient in ingredient_rows}
 
         actual_totals = {
             row["requirement_id"]: {
