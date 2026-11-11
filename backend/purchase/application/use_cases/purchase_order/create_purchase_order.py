@@ -71,7 +71,6 @@ class CreatePurchaseOrderUseCase:
         if requisition is not None:
             return self._purchase_order_repository.save_for_requisition(
                 purchase_order,
-                requisition,
             )
         return self._purchase_order_repository.save(purchase_order)
 
