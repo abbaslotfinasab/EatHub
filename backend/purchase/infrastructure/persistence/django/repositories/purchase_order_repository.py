@@ -97,6 +97,25 @@ class DjangoPurchaseOrderRepository(PurchaseOrderRepository):
             for model in queryset.order_by("id")
         ]
 
+    def get_ordered_quantities_by_requisition(
+        self,
+        business_id: int,
+        requisition_id: int,
+    ) -> dict[int, Decimal]:
+        rows = (
+            DjangoPurchaseOrderItem.objects.filter(
+                purchase_order__business_id=business_id,
+                purchase_order__requisition_id=requisition_id,
+            )
+            .exclude(purchase_order__status=PurchaseOrderStatus.CANCELLED.value)
+            .values("ingredient_id")
+            .annotate(ordered_quantity=Sum("quantity"))
+        )
+        return {
+            row["ingredient_id"]: row["ordered_quantity"]
+            for row in rows
+        }
+
     def save_for_requisition(
         self,
         purchase_order: PurchaseOrder,
