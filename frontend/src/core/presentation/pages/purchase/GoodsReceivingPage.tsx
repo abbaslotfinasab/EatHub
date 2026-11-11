@@ -333,7 +333,7 @@ export const GoodsReceivingPage = () => {
                             <TextField label="توضیحات (اختیاری)" multiline minRows={2} value={notes} onChange={(event) => setNotes(event.target.value)} disabled={receive.isPending} />
                             {receive.isError && <Alert severity="error">{errorMessage(receive.error)}</Alert>}
                             <Stack direction="row" spacing={1}>
-                                <Button type="submit" variant="contained" disabled={!canReceive || !dataReady || !selectedWarehouseId || receive.isPending || !eligible}>
+                                <Button type="submit" variant="contained" disabled={!canReceive || !dataReady || !selectedWarehouseId || receive.isPending || !eligible || Boolean(pendingRequest)}>
                                     {receive.isPending ? <CircularProgress size={20} color="inherit" /> : 'ثبت دریافت انتخاب‌شده'}
                                 </Button>
                                 <Button type="button" onClick={() => navigate('/purchase/orders')} disabled={receive.isPending}>انصراف</Button>
