@@ -24,6 +24,7 @@ from products.models import (
     MenuItem,
     Customer,
     Order,
+    OrderStatusHistory,
     OrderRefund,
     OrderItemIngredientRequirement,
     OrderInventoryConsumptionLine,
@@ -640,6 +641,45 @@ class OrderStatusUpdateAPIView(ExplicitTenantAPIView):
                 "payment_method": order.payment_method,
             }
         )
+
+
+class OrderStatusHistoryAPIView(ExplicitTenantAPIView):
+    """Return the chronological, tenant-scoped status history for an order."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id):
+        _require_permission(
+            request,
+            PermissionCode.ORDERS_VIEW,
+            "You do not have permission to view orders.",
+        )
+        order = get_object_or_404(
+            Order.objects.filter(business=request.business),
+            pk=order_id,
+        )
+        history = (
+            OrderStatusHistory.objects
+            .filter(business=request.business, order_id_snapshot=order.pk)
+            .select_related("actor")
+            .order_by("created_at", "pk")
+        )
+        return Response({
+            "order_id": order.pk,
+            "history": [
+                {
+                    "id": entry.pk,
+                    "from_status": entry.from_status,
+                    "to_status": entry.to_status,
+                    "actor": (
+                        {"id": entry.actor_id, "name": entry.actor.name}
+                        if entry.actor_id else None
+                    ),
+                    "created_at": entry.created_at,
+                }
+                for entry in history
+            ],
+        })
 
 
 class OrderActualConsumptionAPIView(ExplicitTenantAPIView):

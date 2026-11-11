@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from django.conf import settings
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -139,6 +141,60 @@ class Order(BaseModel):
                 name="order_business_idem_key_uq",
             ),
         ]
+
+
+class OrderStatusHistory(models.Model):
+    """Append-only record of an order status transition."""
+
+    business = models.ForeignKey(
+        "accounts.Business",
+        on_delete=models.CASCADE,
+        related_name="order_status_history",
+    )
+    order = models.ForeignKey(
+        "Order",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="status_history",
+    )
+    order_id_snapshot = models.PositiveBigIntegerField()
+    from_status = models.CharField(
+        max_length=20,
+        choices=Order.Status.choices,
+        null=True,
+        blank=True,
+    )
+    to_status = models.CharField(
+        max_length=20,
+        choices=Order.Status.choices,
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="order_status_changes",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "order_status_history"
+        indexes = [
+            models.Index(
+                fields=("business", "order_id_snapshot", "created_at"),
+                name="order_status_hist_scope_ix",
+            ),
+        ]
+        ordering = ("created_at", "pk")
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Order status history entries are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Order status history entries are retained for audit.")
 
 
 class OrderItem(BaseModel):
