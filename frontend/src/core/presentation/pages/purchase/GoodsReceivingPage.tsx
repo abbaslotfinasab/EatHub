@@ -171,8 +171,8 @@ export const GoodsReceivingPage = () => {
             setFormError(quantityErrors.join(' '));
             return;
         }
-        if (!items.length) {
-            setFormError('برای ثبت دریافت، مقدار مثبت حداقل یک ردیف را وارد کنید.');
+        if (!items.length || !items.some((item) => (toMilli(item.receivedQuantity) ?? 0n) > 0n)) {
+            setFormError('برای ثبت دریافت، حداقل یک مقدار پذیرفته‌شده مثبت وارد کنید. مقدار مردود به‌تنهایی موجودی ایجاد نمی‌کند.');
             return;
         }
         const fingerprint = JSON.stringify({
@@ -182,7 +182,7 @@ export const GoodsReceivingPage = () => {
             notes: notes.trim(),
             items: [...items].sort((a, b) => a.purchaseOrderItemId.localeCompare(b.purchaseOrderItemId)),
         });
-        let requestIdentity;
+        let requestIdentity: ReturnType<typeof getOrCreateGoodsReceiptRequestIdentity>;
         try {
             if (!globalThis.crypto?.randomUUID) throw new Error('ساخت شناسه امن برای درخواست ممکن نیست.');
             requestIdentity = getOrCreateGoodsReceiptRequestIdentity(fingerprint, window.sessionStorage, () => globalThis.crypto.randomUUID());
