@@ -6,6 +6,7 @@ from purchase.domain.entities.purchase_order import (
     PurchaseOrder,
     PurchaseOrderItem,
 )
+from purchase.domain.entities.requisition import PurchaseRequisitionItem
 from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.domain.repositories.purchase_order_repository import (
