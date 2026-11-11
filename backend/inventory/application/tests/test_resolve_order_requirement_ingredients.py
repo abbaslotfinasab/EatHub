@@ -11,10 +11,13 @@ class FakeIngredients:
         self.rows = rows
         self.calls = []
 
-    def get_by_id_for_business(self, ingredient_id, business_id):
-        self.calls.append((ingredient_id, business_id))
-        row = self.rows.get(ingredient_id)
-        return row if row and row.business_id == business_id else None
+    def get_many_for_business(self, ingredient_ids, business_id):
+        self.calls.append((tuple(ingredient_ids), business_id))
+        return [
+            self.rows[ingredient_id]
+            for ingredient_id in ingredient_ids
+            if ingredient_id in self.rows and self.rows[ingredient_id].business_id == business_id
+        ]
 
 
 class ResolveOrderRequirementIngredientsTests(TestCase):
@@ -28,7 +31,7 @@ class ResolveOrderRequirementIngredientsTests(TestCase):
     def test_resolves_unique_ids_in_deterministic_order(self):
         result = self.use_case.execute(business_id=7, ingredient_ids=[9, 4, 9])
         self.assertEqual([row.id for row in result], [4, 9])
-        self.assertEqual(self.ingredients.calls, [(4, 7), (9, 7)])
+        self.assertEqual(self.ingredients.calls, [((4, 9), 7)])
         self.assertEqual(result[0].name, "Flour")
         self.assertEqual(result[0].canonical_unit, "kg")
 
