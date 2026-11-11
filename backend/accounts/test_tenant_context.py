@@ -145,3 +145,74 @@ class TenantAPIViewCompatibilityTests(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
+
+
+class MeAPIViewBusinessContextTests(TestCase):
+    def setUp(self):
+        from rest_framework.test import APIClient
+
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            email="me-context@example.test",
+            password="test-password",
+            name="Me Context User",
+            number="me-context-user",
+        )
+        self.business = BusinessService.create_business(
+            self.user, "Me Context Cafe"
+        )
+        self.client.force_authenticate(user=self.user)
+        self.url = "/api/accounts/auth/me/"
+
+    def test_single_membership_returns_business_and_permissions_without_header(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        active_business = response.data["active_business"]
+        self.assertEqual(active_business["id"], self.business.pk)
+        self.assertEqual(active_business["role"], "OWNER")
+        self.assertIn("orders.view", active_business["permissions"])
+        self.assertEqual(active_business["inventory_enabled"], self.business.inventory_enabled)
+
+    def test_multiple_memberships_require_explicit_selection_for_active_business(self):
+        BusinessService.create_business(self.user, "Second Me Context Cafe")
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["active_business"])
+        self.assertEqual(response.data["meta"]["business_count"], 2)
+
+    def test_explicit_business_header_returns_only_selected_membership_permissions(self):
+        second_business = BusinessService.create_business(
+            self.user, "Second Selected Cafe"
+        )
+        second_membership = Membership.objects.get(
+            user=self.user, business=second_business
+        )
+        from accounts.models import Permission, RolePermission
+
+        orders_view = Permission.objects.get(code="orders.view")
+        RolePermission.objects.filter(
+            role=second_membership.role,
+            permission=orders_view,
+        ).delete()
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(second_business.pk))
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["active_business"]["id"], second_business.pk)
+        self.assertNotIn(
+            "orders.view",
+            response.data["active_business"]["permissions"],
+        )
+
+    def test_unowned_explicit_business_header_is_rejected(self):
+        other_business = Business.objects.create(name="Unowned Me Context Cafe")
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(other_business.pk))
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
