@@ -95,6 +95,8 @@ class CreatePurchaseOrderUseCase:
         if requisition.status != RequisitionStatus.APPROVED:
             raise ValueError("Requisition must be approved before creating an order.")
 
+        self._validate_requisition_items(requisition.items, purchase_order_items)
+
         if self._purchase_order_repository.exists_by_requisition(
             business_id,
             validated_requisition_id,
@@ -104,6 +106,33 @@ class CreatePurchaseOrderUseCase:
             )
 
         return validated_requisition_id
+
+    @staticmethod
+    def _validate_requisition_items(requisition_items, purchase_order_items) -> None:
+        requested: dict[int, Decimal] = {}
+        ordered: dict[int, Decimal] = {}
+
+        for item in requisition_items:
+            requested[item.ingredient_id] = (
+                requested.get(item.ingredient_id, Decimal("0")) + item.quantity
+            )
+
+        for item in purchase_order_items:
+            ordered[item.ingredient_id] = (
+                ordered.get(item.ingredient_id, Decimal("0")) + item.quantity
+            )
+
+        if set(ordered) != set(requested):
+            raise ValueError(
+                "Purchase order items must match the approved requisition ingredients."
+            )
+
+        for ingredient_id, requested_quantity in requested.items():
+            if ordered[ingredient_id] != requested_quantity:
+                raise ValueError(
+                    "Purchase order quantity must match the approved requisition "
+                    f"quantity for ingredient {ingredient_id}."
+                )
 
     @classmethod
     def _create_items(cls, commands: list) -> list[PurchaseOrderItem]:
