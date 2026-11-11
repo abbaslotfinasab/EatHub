@@ -41,7 +41,7 @@ class OrderStatusHistoryServiceTests(TestCase):
         )
 
         self.assertEqual(updated.status, Order.Status.CANCELLED)
-        entry = OrderStatusHistory.objects.get(order=self.order)
+        entry = OrderStatusHistory.objects.get(order_id_snapshot=self.order.pk)
         self.assertEqual(entry.business_id, self.business.pk)
         self.assertEqual(entry.from_status, Order.Status.PENDING)
         self.assertEqual(entry.to_status, Order.Status.CANCELLED)
@@ -137,7 +137,7 @@ class OrderStatusHistoryServiceTests(TestCase):
             user=self.actor,
         )
 
-        self.assertFalse(OrderStatusHistory.objects.filter(order=self.order).exists())
+        self.assertFalse(OrderStatusHistory.objects.filter(order_id_snapshot=self.order.pk).exists())
 
     @patch(
         "products.services.order_service.OrderInventoryService.release_remaining",
@@ -154,7 +154,7 @@ class OrderStatusHistoryServiceTests(TestCase):
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.PENDING)
-        self.assertFalse(OrderStatusHistory.objects.filter(order=self.order).exists())
+        self.assertFalse(OrderStatusHistory.objects.filter(order_id_snapshot=self.order.pk).exists())
 
     def test_order_creation_records_initial_pending_state(self):
         menu = Menu.objects.create(
