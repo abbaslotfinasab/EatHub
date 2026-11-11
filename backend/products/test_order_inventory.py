@@ -425,7 +425,7 @@ class OrderInventoryLifecycleTests(TestCase):
         requirement = self.requirement()
         reservation_id = InventoryReservation.objects.get(source_id=self.order.pk).pk
 
-        with patch("composition.order_consumption.post_issue", side_effect=RuntimeError("ledger failed")):
+        with patch("inventory.infrastructure.django.order_consumption_repository.post_issue", side_effect=RuntimeError("ledger failed")):
             with self.assertRaisesRegex(RuntimeError, "ledger failed"):
                 OrderInventoryService.record_consumption(
                     business_id=self.business.pk, order_id=self.order.pk, actor_id=self.actor.pk,
