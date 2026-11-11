@@ -2,7 +2,7 @@ from __future__ import annotations
 from decimal import Decimal, localcontext
 import hashlib
 import json
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from inventory.application.context import InventoryExecutionContext
 from inventory.application.dto.reservation import ReservationDTO, StockAvailabilityDTO
@@ -19,6 +19,9 @@ from inventory.domain.enums.reservation import ReservationStatus
 from inventory.domain.exceptions import InventoryDomainError, InvalidReservation
 from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
+
+
+_ORDER_KEY_NAMESPACE = UUID("90144542-95ef-4eef-a498-0e73f429725d")
 
 
 class ManageReservations:
@@ -243,6 +246,43 @@ class ManageReservations:
                 # The repository verifies the original release key and reason.
                 return self._reservations.release(context.business_id, reservation_id, context.actor_id or 0, idempotency_key, reason)
             return self._reservations.release(context.business_id, reservation_id, context.actor_id or 0, idempotency_key, reason)
+
+    def release_for_order(
+        self, context: InventoryExecutionContext, order_id: int, reason: str
+    ) -> ReservationDTO | None:
+        """Release the sole active order hold; tolerate orders with no reservation."""
+        if not isinstance(context, InventoryExecutionContext):
+            raise InvalidApplicationInput("A trusted inventory execution context is required.")
+        if isinstance(order_id, bool) or not isinstance(order_id, int) or order_id <= 0:
+            raise InvalidApplicationInput("Order ID must be a positive integer.")
+        reason = reason.strip() if isinstance(reason, str) else ""
+        if not reason:
+            raise InvalidApplicationInput("A release reason is required.")
+
+        total, active = self.list(
+            context,
+            source_type=ORDER_RESERVATION_SOURCE,
+            source_id=order_id,
+            status=ReservationStatus.ACTIVE.value,
+            page=1,
+            page_size=2,
+        )
+        if total > 1 or len(active) > 1:
+            raise OperationConflict(
+                "Multiple active reservations exist for this order; inventory reconciliation is required."
+            )
+        if not active:
+            return None
+        if context.actor_id is None:
+            raise InvalidApplicationInput("A reservation actor is required.")
+
+        reservation = active[0]
+        return self.release(
+            context,
+            reservation.id,
+            uuid5(_ORDER_KEY_NAMESPACE, f"release:{reservation.id}"),
+            reason,
+        )
 
     def get(self, context: InventoryExecutionContext, reservation_id: int) -> ReservationDTO:
         if not isinstance(context, InventoryExecutionContext):
