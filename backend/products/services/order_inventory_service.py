@@ -10,20 +10,19 @@ from django.db import IntegrityError
 from django.db.models import Sum
 from rest_framework.exceptions import ValidationError
 
-from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import InvalidApplicationInput, OperationConflict, ResourceNotFound
-from inventory.application.use_cases.manage_reservations import ManageReservations
-from inventory.application.use_cases.prepare_order_confirmation import PrepareOrderConfirmation
 from inventory.domain.exceptions import InventoryDomainError
 from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
-from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
-from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
-from composition.order_reservation_source import DjangoOrderReservationSource
-from inventory.infrastructure.django.recipe_repository import DjangoRecipeRepository
-from inventory.infrastructure.django.repositories import DjangoIngredientRepository
-from inventory.infrastructure.django.repositories import DjangoWarehouseRepository
-from inventory.application.use_cases.resolve_order_requirement_ingredients import ResolveOrderRequirementIngredients
+from composition.order_inventory import (
+    create_order_reservation,
+    prepare_order_confirmation_inventory,
+    prepare_order_consumption_reservation,
+    release_remaining_order_reservation,
+    resolve_order_requirement_ingredients,
+    validate_order_reservation_for_confirmation,
+)
+from composition.order_consumption import apply_order_consumption_inventory
 from products.models import (
     MenuItem,
     Order,
@@ -37,28 +36,6 @@ from products.models import (
 _ORDER_KEY_NAMESPACE = UUID("90144542-95ef-4eef-a498-0e73f429725d")
 _QUANTITY_QUANTUM = Decimal("0.000000000001")
 _MAX_QUANTITY = Decimal("999999999999999999999999.999999999999")
-
-
-def _reservation_use_case():
-    return ManageReservations(
-        DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
-    )
-
-
-def _prepare_order_confirmation_use_case():
-    return PrepareOrderConfirmation(
-        DjangoRecipeRepository(), DjangoWarehouseRepository(), DjangoInventoryUnitOfWork()
-    )
-
-
-def _resolve_order_requirement_ingredients(business_id: int, ingredient_ids: list[int]):
-    return ResolveOrderRequirementIngredients(DjangoIngredientRepository()).execute(
-        business_id=business_id, ingredient_ids=ingredient_ids
-    )
-
-
-def _context(order: Order, actor_id: int) -> InventoryExecutionContext:
-    return InventoryExecutionContext(order.business_id, actor_id)
 
 
 def _inventory_call(call):
@@ -101,8 +78,8 @@ class OrderInventoryService:
                 raise ValidationError("This order has an incomplete legacy recipe snapshot and needs review.")
 
             # Inventory owns reservation lookup, lock ordering and reconciliation.
-            _inventory_call(lambda: _reservation_use_case().validate_order_reservation_for_confirmation(
-                _context(order, actor_id), order.pk
+            _inventory_call(lambda: validate_order_reservation_for_confirmation(
+                business_id=order.business_id, actor_id=actor_id, order_id=order.pk
             ))
             return
 
@@ -132,8 +109,10 @@ class OrderInventoryService:
             if menu_item.recipe_id is None:
                 raise ValidationError({"items": f"Menu item '{item.menu_item_name}' has no usable recipe."})
 
-        prepared = _inventory_call(lambda: _prepare_order_confirmation_use_case().execute(
-            _context(order, actor_id), [menu_items[item.menu_item_id].recipe_id for item in items]
+        prepared = _inventory_call(lambda: prepare_order_confirmation_inventory(
+            business_id=order.business_id,
+            actor_id=actor_id,
+            recipe_ids=[menu_items[item.menu_item_id].recipe_id for item in items],
         ))
         warehouse_id = prepared.warehouse_id
         recipes = {recipe.id: recipe for recipe in prepared.recipes}
@@ -195,9 +174,9 @@ class OrderInventoryService:
 
         if not requirements:
             raise ValidationError("No inventory requirements could be resolved for this order.")
-        use_case = _reservation_use_case()
-        _inventory_call(lambda: use_case.create_for_order(
-            _context(order, actor_id),
+        _inventory_call(lambda: create_order_reservation(
+            business_id=order.business_id,
+            actor_id=actor_id,
             warehouse_id=warehouse_id,
             order_id=order.pk,
             reason=f"Order {order.pk} confirmation",
@@ -211,8 +190,6 @@ class OrderInventoryService:
     @staticmethod
     @transaction.atomic
     def release_remaining(*, order: Order, actor_id: int, reason: str) -> None:
-        from composition.order_reservations import release_remaining_order_reservation
-
         _inventory_call(lambda: release_remaining_order_reservation(
             business_id=order.business_id,
             order_id=order.pk,
@@ -249,8 +226,8 @@ class OrderInventoryService:
         if not requirements:
             raise ValidationError("This order has no immutable inventory requirement snapshot.")
         try:
-            _resolve_order_requirement_ingredients(
-                business_id, sorted({row.ingredient_id for row in requirements.values()})
+            resolve_order_requirement_ingredients(
+                business_id=business_id, ingredient_ids=sorted({row.ingredient_id for row in requirements.values()})
             )
         except ResourceNotFound as error:
             raise OperationConflict(
@@ -315,8 +292,8 @@ class OrderInventoryService:
         old_reservation_lines = []
         if positive_actual:
             reservation = _inventory_call(
-                lambda: _reservation_use_case().prepare_order_consumption(
-                    _context(order, actor_id), order.pk
+                lambda: prepare_order_consumption_reservation(
+                    business_id=business_id, actor_id=actor_id, order_id=order.pk
                 )
             )
             old_reservation_lines = reservation.lines
@@ -355,8 +332,6 @@ class OrderInventoryService:
         ) for requirement, amount, unit in normalized]
 
         if positive_actual:
-            from composition.order_consumption import apply_order_consumption_inventory
-
             operation_id, movement_ids = _inventory_call(lambda: apply_order_consumption_inventory(
                 business_id=business_id,
                 order_id=order.pk,
