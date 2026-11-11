@@ -26,6 +26,7 @@ from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from inventory.application.use_cases.manage_reservations import ManageReservations
 from inventory.domain.entities.reservation import MANUAL_RESERVATION_SOURCE
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
+from composition.order_reservation_source import DjangoOrderReservationSource
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Recipe, RecipeInput, RecipeOutput, Warehouse
 from products.models import (
@@ -107,7 +108,7 @@ class OrderInventoryLifecycleTests(TestCase):
         self.confirm()
         self.start_preparation()
         use_case = ManageReservations(
-            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
         )
 
         prepared = use_case.prepare_order_consumption(
