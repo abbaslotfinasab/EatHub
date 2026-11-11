@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
 from products.models import CustomerTransaction, OrderRefund
 
-from products.models import CustomerAccount, OrderItem, Order, MenuItem
+from products.models import CustomerAccount, OrderItem, Order, MenuItem, OrderStatusHistory
 from django.db import IntegrityError, transaction
 from decimal import Decimal
 import hashlib
@@ -96,6 +96,14 @@ class OrderService:
             total_amount=Decimal("0"),
             idempotency_key=idempotency_key,
             payload_fingerprint=payload_fingerprint if idempotency_key is not None else None,
+        )
+
+        OrderStatusHistory.objects.create(
+            business=business,
+            order=order,
+            from_status=None,
+            to_status=order.status,
+            actor=user,
         )
 
         subtotal = Decimal("0")
@@ -518,6 +526,15 @@ class OrderService:
                     if previous_payment_method == Order.PaymentMethod.CUSTOMER_ACCOUNT
                     else None
                 ),
+            )
+
+        if order.status != previous_status:
+            OrderStatusHistory.objects.create(
+                business=business,
+                order=order,
+                from_status=previous_status,
+                to_status=order.status,
+                actor=user,
             )
 
         if (
