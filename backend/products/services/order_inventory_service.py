@@ -17,9 +17,9 @@ from inventory.domain.entities.reservation import ReservationLine
 from inventory.domain.exceptions import InventoryDomainError
 from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
+from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.infrastructure.django.models import InventoryReservation
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
-from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Recipe, Warehouse
 from products.models import (
     MenuItem,
@@ -335,24 +335,20 @@ class OrderInventoryService:
             if previous.get(requirement.pk, Decimal("0")) + amount > requirement.standard_quantity:
                 raise OperationConflict("Actual consumption cannot exceed the confirmed reserved requirement.")
 
-        # The tenant join is a validation predicate, not part of this
-        # serialization boundary. Lock only the reservation header; the
-        # warehouse, ingredients and stock rows are acquired below in the
-        # shared Warehouse -> Ingredients -> Stock order.
-        reservation = InventoryReservation.objects.select_for_update(of=("self",)).filter(
-            business_id=business_id,
-            warehouse__business_id=business_id,
-            source_type="order",
-            source_id=order.pk,
-            status=InventoryReservation.Status.ACTIVE,
-        ).first()
         positive_actual = {key: value for key, value in actual_by_ingredient.items() if value[0] > 0}
+        reservation = None
         old_reservation_lines = []
         if positive_actual:
-            if reservation is None:
-                raise OperationConflict("No active reservation remains for this order.")
-            old_reservation_lines = list(reservation.lines.select_related("ingredient").order_by("ingredient_id"))
-            reserved = {row.ingredient_id: (Decimal(row.quantity), Unit(row.unit)) for row in old_reservation_lines}
+            reservation = _inventory_call(
+                lambda: _reservation_use_case().prepare_order_consumption(
+                    _context(order, actor_id), order.pk
+                )
+            )
+            old_reservation_lines = reservation.lines
+            reserved = {
+                row.ingredient_id: (row.quantity, row.unit)
+                for row in old_reservation_lines
+            }
             remaining = []
             for ingredient_id, (used, unit) in sorted(actual_by_ingredient.items()):
                 current, reserved_unit = reserved.get(ingredient_id, (Decimal("0"), unit))
@@ -364,22 +360,6 @@ class OrderInventoryService:
             for ingredient_id, (current, unit) in reserved.items():
                 if ingredient_id not in actual_by_ingredient and current > 0:
                     remaining.append({"ingredient_id": ingredient_id, "quantity": str(current), "unit": unit.value})
-
-            # The reservation header is already locked. Acquire the shared
-            # scope in the same order as reservation creation (Warehouse ->
-            # Ingredients -> Stock) before release() takes any stock locks.
-            # All nested atomic blocks join this transaction, so these locks
-            # remain held while the old reservation is replaced.
-            reservation_repository = DjangoReservationRepository()
-            ingredient_ids = sorted(reserved)
-            warehouse, locked_ingredients = reservation_repository.lock_scope(
-                business_id, reservation.warehouse_id, ingredient_ids
-            )
-            if warehouse is None or set(locked_ingredients) != set(ingredient_ids):
-                raise OperationConflict("Reservation scope changed during consumption; inventory reconciliation is required.")
-            reservation_repository.lock_stock_positions(
-                business_id, reservation.warehouse_id, ingredient_ids
-            )
 
         try:
             with transaction.atomic():
@@ -408,7 +388,7 @@ class OrderInventoryService:
                 actor_id=actor_id,
                 consumption_id=event.pk,
                 warehouse_id=reservation.warehouse_id,
-                reservation_id=reservation.pk,
+                reservation_id=reservation.id,
                 remaining_lines=remaining,
                 actual_lines=[
                     {
