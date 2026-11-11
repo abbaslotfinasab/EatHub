@@ -148,7 +148,7 @@ class OrderStatusHistory(models.Model):
 
     business = models.ForeignKey(
         "accounts.Business",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="order_status_history",
     )
     order = models.ForeignKey(
