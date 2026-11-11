@@ -171,7 +171,9 @@ class MeAPIViewBusinessContextTests(TestCase):
         active_business = response.data["active_business"]
         self.assertEqual(active_business["id"], self.business.pk)
         self.assertEqual(active_business["role"], "OWNER")
+        self.assertEqual(active_business["slug"], self.business.slug)
         self.assertIn("orders.view", active_business["permissions"])
+        self.assertIn("orders.create", active_business["permissions"])
         self.assertEqual(active_business["inventory_enabled"], self.business.inventory_enabled)
 
     def test_multiple_memberships_require_explicit_selection_for_active_business(self):
