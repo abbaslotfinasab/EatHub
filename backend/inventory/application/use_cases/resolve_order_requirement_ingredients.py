@@ -22,15 +22,17 @@ class ResolveOrderRequirementIngredients:
         ):
             raise InvalidApplicationInput("Ingredient IDs must be positive integers.")
 
-        resolved = []
-        for ingredient_id in sorted(set(ingredient_ids)):
-            ingredient = self._ingredients.get_by_id_for_business(ingredient_id, business_id)
-            if ingredient is None:
-                raise ResourceNotFound("An order requirement ingredient was not found in this business.")
-            resolved.append(OrderRequirementIngredientDTO(
+        requested_ids = sorted(set(ingredient_ids))
+        rows = self._ingredients.get_many_for_business(requested_ids, business_id)
+        by_id = {ingredient.id: ingredient for ingredient in rows}
+        if set(by_id) != set(requested_ids):
+            raise ResourceNotFound("An order requirement ingredient was not found in this business.")
+        return tuple(
+            OrderRequirementIngredientDTO(
                 id=ingredient.id,
                 business_id=ingredient.business_id,
                 name=ingredient.name,
                 canonical_unit=ingredient.canonical_unit.value,
-            ))
-        return tuple(resolved)
+            )
+            for ingredient in (by_id[ingredient_id] for ingredient_id in requested_ids)
+        )
