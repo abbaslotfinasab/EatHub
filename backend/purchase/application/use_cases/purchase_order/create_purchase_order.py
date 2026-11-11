@@ -52,6 +52,7 @@ class CreatePurchaseOrderUseCase:
         requisition_id = self._validate_requisition(
             business_id,
             command.requisition_id,
+            items,
         )
 
         purchase_order = PurchaseOrder(
@@ -72,6 +73,7 @@ class CreatePurchaseOrderUseCase:
         self,
         business_id: int,
         requisition_id: int | None,
+        purchase_order_items: list[PurchaseOrderItem],
     ) -> int | None:
         if requisition_id is None:
             return None
