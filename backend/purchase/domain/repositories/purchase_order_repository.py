@@ -67,15 +67,3 @@ class PurchaseOrderRepository(ABC):
     ) -> PurchaseOrder:
         """Atomically validate remaining quantities and persist a requisition PO."""
         raise NotImplementedError
-
-    @abstractmethod
-    def exists_by_requisition(
-        self,
-        business_id: int,
-        requisition_id: int,
-    ) -> bool:
-        """
-        Check whether a purchase order has already
-        been created from a specific requisition.
-        """
-        raise NotImplementedError
