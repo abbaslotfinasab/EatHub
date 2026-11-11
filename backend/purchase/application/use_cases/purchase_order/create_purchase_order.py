@@ -6,7 +6,7 @@ from purchase.domain.entities.purchase_order import (
     PurchaseOrder,
     PurchaseOrderItem,
 )
-from purchase.domain.entities.requisition import PurchaseRequisitionItem
+from purchase.domain.entities.requisition import PurchaseRequisition
 from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.domain.enums.purchase_unit import PurchaseUnit
 from purchase.domain.repositories.purchase_order_repository import (
@@ -50,7 +50,7 @@ class CreatePurchaseOrderUseCase:
         if supplier is None:
             raise ValueError("Supplier does not exist in this business.")
 
-        requisition_id = self._validate_requisition(
+        requisition = self._validate_requisition(
             business_id,
             command.requisition_id,
             items,
@@ -60,7 +60,7 @@ class CreatePurchaseOrderUseCase:
             id=None,
             business_id=business_id,
             supplier_id=supplier_id,
-            requisition_id=requisition_id,
+            requisition_id=requisition.id if requisition is not None else None,
             order_date=order_date,
             expected_date=expected_date,
             discount=discount,
@@ -68,6 +68,11 @@ class CreatePurchaseOrderUseCase:
             items=items,
         )
 
+        if requisition is not None:
+            return self._purchase_order_repository.save_for_requisition(
+                purchase_order,
+                requisition,
+            )
         return self._purchase_order_repository.save(purchase_order)
 
     def _validate_requisition(
@@ -75,7 +80,7 @@ class CreatePurchaseOrderUseCase:
         business_id: int,
         requisition_id: int | None,
         purchase_order_items: list[PurchaseOrderItem],
-    ) -> int | None:
+    ) -> PurchaseRequisition | None:
         if requisition_id is None:
             return None
 
@@ -98,47 +103,14 @@ class CreatePurchaseOrderUseCase:
         if requisition.status != RequisitionStatus.APPROVED:
             raise ValueError("Requisition must be approved before creating an order.")
 
-        self._validate_requisition_items(requisition.items, purchase_order_items)
-
-        if self._purchase_order_repository.exists_by_requisition(
-            business_id,
-            validated_requisition_id,
-        ):
-            raise ValueError(
-                "A purchase order already exists for this requisition."
-            )
-
-        return validated_requisition_id
-
-    @staticmethod
-    def _validate_requisition_items(
-        requisition_items: list[PurchaseRequisitionItem],
-        purchase_order_items: list[PurchaseOrderItem],
-    ) -> None:
-        requested: dict[int, Decimal] = {}
-        ordered: dict[int, Decimal] = {}
-
-        for item in requisition_items:
-            requested[item.ingredient_id] = (
-                requested.get(item.ingredient_id, Decimal("0")) + item.quantity
-            )
-
+        new_order_quantities: dict[int, Decimal] = {}
         for item in purchase_order_items:
-            ordered[item.ingredient_id] = (
-                ordered.get(item.ingredient_id, Decimal("0")) + item.quantity
+            new_order_quantities[item.ingredient_id] = (
+                new_order_quantities.get(item.ingredient_id, Decimal("0"))
+                + item.quantity
             )
-
-        if set(ordered) != set(requested):
-            raise ValueError(
-                "Purchase order items must match the approved requisition ingredients."
-            )
-
-        for ingredient_id, requested_quantity in requested.items():
-            if ordered[ingredient_id] != requested_quantity:
-                raise ValueError(
-                    "Purchase order quantity must match the approved requisition "
-                    f"quantity for ingredient {ingredient_id}."
-                )
+        requisition.validate_order_quantities({}, new_order_quantities)
+        return requisition
 
     @classmethod
     def _create_items(cls, commands: list) -> list[PurchaseOrderItem]:
