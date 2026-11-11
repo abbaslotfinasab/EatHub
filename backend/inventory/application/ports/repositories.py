@@ -18,6 +18,11 @@ class IngredientRepository(Protocol):
     ) -> Ingredient | None:
         """Load an Ingredient only when it belongs to the requested Business."""
 
+    def get_many_for_business(
+        self, ingredient_ids: list[int], business_id: int
+    ) -> list[Ingredient]:
+        """Load a set of Ingredients scoped to one Business in one query."""
+
 
 class WarehouseRepository(Protocol):
     def get_by_id_for_business(
@@ -25,7 +30,7 @@ class WarehouseRepository(Protocol):
     ) -> Warehouse | None:
         """Load a Warehouse only when it belongs to the requested Business."""
 
-    def get_active_defaults_for_business(self, business_id: int) -> list[Warehouse]:
+    def get_active_defaults_for_business(self, business_id: int, *, lock: bool = False) -> list[Warehouse]:
         """Return active defaults scoped to a Business."""
 
 

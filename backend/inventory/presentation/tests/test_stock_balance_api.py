@@ -104,6 +104,19 @@ class StockBalanceListAPITests(APITestCase):
 
     def setUp(self):
         self.client.force_authenticate(self.user)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+
+    def test_requires_explicit_business_context(self):
+        self.client.credentials()
+        response = self.client.get(self.endpoint)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_rejects_another_business_context(self):
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        response = self.client.get(self.endpoint)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
 
     def create_stock(
         self,
@@ -129,6 +142,7 @@ class StockBalanceListAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
         self.client.force_authenticate(self.other_user)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
         response = self.client.get(self.endpoint)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 

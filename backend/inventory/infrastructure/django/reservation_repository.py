@@ -30,61 +30,6 @@ class ReservationPersistenceError(RuntimeError):
 class DjangoReservationRepository:
     """Business-scoped reservation persistence and stock-row serialization."""
 
-    @staticmethod
-    def order_source_is_active(business_id, order_id):
-        # Imported at the infrastructure boundary to keep Inventory's domain
-        # and application layers independent from the Products ORM.
-        from products.models import Order
-
-        return Order.objects.filter(
-            pk=order_id,
-            business_id=business_id,
-            status__in=(Order.Status.CONFIRMED, Order.Status.PREPARING),
-        ).exists()
-
-    @staticmethod
-    def order_reservation_matches(business_id, order_id, lines):
-        from products.models import (
-            OrderInventoryConsumptionLine,
-            OrderItemIngredientRequirement,
-        )
-
-        expected = {}
-        requirements = OrderItemIngredientRequirement.objects.filter(
-            snapshot__business_id=business_id,
-            snapshot__order_id=order_id,
-            snapshot__order__business_id=business_id,
-            ingredient__business_id=business_id,
-        ).values_list("pk", "ingredient_id", "standard_quantity", "unit")
-        requirement_ids = set()
-        for requirement_id, ingredient_id, quantity, unit in requirements:
-            requirement_ids.add(requirement_id)
-            previous, previous_unit = expected.get(ingredient_id, (Decimal("0"), unit))
-            if previous_unit != unit:
-                return False
-            expected[ingredient_id] = (previous + Decimal(quantity), unit)
-        if not expected:
-            return False
-
-        for line in OrderInventoryConsumptionLine.objects.filter(
-            consumption__business_id=business_id,
-            consumption__order_id=order_id,
-            requirement_id__in=requirement_ids,
-        ).select_related("requirement"):
-            ingredient_id = line.requirement.ingredient_id
-            current, unit = expected.get(ingredient_id, (Decimal("0"), line.unit))
-            if unit != line.unit:
-                return False
-            expected[ingredient_id] = (current - Decimal(line.actual_quantity), unit)
-
-        remaining = {key: value for key, value in expected.items() if value[0] > 0}
-        provided = {}
-        for line in lines:
-            if line.ingredient_id in provided:
-                return False
-            provided[line.ingredient_id] = (line.quantity.amount, line.quantity.unit.value)
-        return provided == {key: (value[0], value[1]) for key, value in remaining.items()}
-
     def lock_scope(self, business_id, warehouse_id, ingredient_ids):
         warehouse_rows = Warehouse.objects.filter(pk=warehouse_id, business_id=business_id)
         if connection.features.has_select_for_update:
@@ -104,6 +49,52 @@ class DjangoReservationRepository:
             warehouse_to_domain(warehouse_row) if warehouse_row is not None else None,
             ingredients,
         )
+
+    def lock_active_order_reservation_for_consumption(self, business_id, order_id):
+        """Lock an order reservation and its stock scope in the shared lock order.
+
+        The reservation header is locked first, followed by Warehouse,
+        Ingredients (ascending PK), and Stock positions. The caller's outer
+        transaction owns the lifetime of every lock acquired here.
+        """
+        rows = InventoryReservation.objects.filter(
+            business_id=business_id,
+            warehouse__business_id=business_id,
+            source_type="order",
+            source_id=order_id,
+            status=InventoryReservation.Status.ACTIVE,
+        )
+        if connection.features.has_select_for_update:
+            rows = rows.select_for_update(of=("self",))
+        headers = list(
+            rows.select_related("warehouse")
+            .prefetch_related("lines__ingredient")
+            .order_by("pk")[:2]
+        )
+        if not headers:
+            return None
+        if len(headers) != 1:
+            raise OperationConflict(
+                "Multiple active reservations exist for this order; inventory reconciliation is required."
+            )
+        header = headers[0]
+
+        ingredient_ids = list(
+            header.lines.order_by("ingredient_id").values_list("ingredient_id", flat=True)
+        )
+        if not ingredient_ids or len(ingredient_ids) != len(set(ingredient_ids)):
+            raise OperationConflict(
+                "The active order reservation has an invalid ingredient scope; inventory reconciliation is required."
+            )
+        warehouse, ingredients = self.lock_scope(
+            business_id, header.warehouse_id, ingredient_ids
+        )
+        if warehouse is None or set(ingredients) != set(ingredient_ids):
+            raise OperationConflict(
+                "Reservation scope changed during consumption; inventory reconciliation is required."
+            )
+        self.lock_stock_positions(business_id, header.warehouse_id, ingredient_ids)
+        return self._dto(header)
 
     def get_by_idempotency_key(self, business_id, key, *, lock=False):
         rows = InventoryReservation.objects.filter(

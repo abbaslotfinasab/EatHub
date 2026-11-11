@@ -10,7 +10,7 @@ from inventory.infrastructure.django.models import (
     InventoryReservationLine,
     InventoryV1Stock,
 )
-from inventory.models import CompoundMaterialComponent, Ingredient, Warehouse
+from inventory.models import CompoundMaterialComponent, Ingredient, IngredientAllergen, Warehouse
 from inventory.models import RecipeInput, RecipeOutput
 
 
@@ -20,7 +20,7 @@ _CONSTRAINT_FIELDS = {
     "unique_warehouse_name_per_business": "name",
     "inv_wh_active_default_uq": "is_default",
 }
-_ITEM_WRITABLE_FIELDS = {"name", "sku", "unit", "preparation_level", "is_active"}
+_ITEM_WRITABLE_FIELDS = {"name", "sku", "unit", "preparation_level", "is_active", "allergens"}
 _WAREHOUSE_WRITABLE_FIELDS = {"name", "code", "is_active", "is_default"}
 
 
@@ -48,6 +48,10 @@ class DjangoMasterDataRepository:
             id=row.pk, name=row.name, sku=row.sku, unit=row.unit,
             preparation_level=row.preparation_level, is_active=row.is_active,
             created_at=row.created_at, updated_at=row.updated_at,
+            allergens=tuple(
+                {"code": declaration.code, "presence": declaration.presence}
+                for declaration in row.allergen_declarations.all()
+            ),
         )
 
     @staticmethod
@@ -136,7 +140,10 @@ class DjangoMasterDataRepository:
         try:
             with transaction.atomic():
                 if item is None:
-                    item = Ingredient(business_id=business_id, **values)
+                    item = Ingredient(
+                        business_id=business_id,
+                        **{key: value for key, value in values.items() if key != "allergens"},
+                    )
                 else:
                     item = Ingredient.objects.select_for_update().get(
                         business_id=business_id, pk=item.pk,
@@ -184,8 +191,17 @@ class DjangoMasterDataRepository:
                                 "The unit cannot change after this material is referenced by inventory, an operation, a recipe, or a compound composition.",
                             )
                     for field, value in values.items():
-                        setattr(item, field, value)
+                        if field != "allergens":
+                            setattr(item, field, value)
                 item.save()
+                if "allergens" in values:
+                    item.allergen_declarations.all().delete()
+                    IngredientAllergen.objects.bulk_create([
+                        IngredientAllergen(
+                            ingredient=item, code=row["code"], presence=row["presence"],
+                        )
+                        for row in values["allergens"]
+                    ])
         except IntegrityError as error:
             field = _conflict_field(error)
             if field is None and connection.vendor == "sqlite" and _is_sqlite_unique_violation(error):

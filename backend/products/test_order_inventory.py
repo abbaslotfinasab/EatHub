@@ -26,6 +26,7 @@ from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from inventory.application.use_cases.manage_reservations import ManageReservations
 from inventory.domain.entities.reservation import MANUAL_RESERVATION_SOURCE
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
+from composition.order_reservation_source import DjangoOrderReservationSource
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Recipe, RecipeInput, RecipeOutput, Warehouse
 from products.models import (
@@ -102,6 +103,70 @@ class OrderInventoryLifecycleTests(TestCase):
 
     def requirement(self):
         return self.order_item.inventory_recipe_snapshot.requirements.get()
+
+    def test_inventory_application_prepares_active_order_reservation_scope(self):
+        self.confirm()
+        self.start_preparation()
+        use_case = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
+        )
+
+        prepared = use_case.prepare_order_consumption(
+            InventoryExecutionContext(self.business.pk, self.actor.pk),
+            self.order.pk,
+        )
+
+        self.assertEqual(prepared.business_id, self.business.pk)
+        self.assertEqual(prepared.source_type, "order")
+        self.assertEqual(prepared.source_id, self.order.pk)
+        self.assertEqual(prepared.warehouse_id, self.warehouse.pk)
+        self.assertEqual(len(prepared.lines), 1)
+        self.assertEqual(prepared.lines[0].ingredient_id, self.flour.pk)
+        self.assertEqual(prepared.lines[0].quantity, Decimal("3.000000000000"))
+        self.assertEqual(prepared.lines[0].unit.value, "kg")
+
+    def test_inventory_application_rejects_order_reservation_from_another_business(self):
+        self.confirm()
+        other_business = Business.objects.create(name="Foreign Reservation Business")
+        use_case = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
+        )
+
+        with self.assertRaises(ResourceNotFound):
+            use_case.prepare_order_consumption(
+                InventoryExecutionContext(other_business.pk, self.actor.pk),
+                self.order.pk,
+            )
+
+    def test_inventory_application_validates_confirmation_retry_reservation(self):
+        self.confirm()
+        use_case = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
+        )
+
+        prepared = use_case.validate_order_reservation_for_confirmation(
+            InventoryExecutionContext(self.business.pk, self.actor.pk),
+            self.order.pk,
+        )
+
+        self.assertEqual(prepared.business_id, self.business.pk)
+        self.assertEqual(prepared.source_id, self.order.pk)
+        self.assertEqual(prepared.lines[0].quantity, Decimal("3.000000000000"))
+
+    def test_inventory_application_rejects_mismatched_confirmation_retry_reservation(self):
+        self.confirm()
+        InventoryReservation.objects.get(source_id=self.order.pk).lines.update(
+            quantity=Decimal("2")
+        )
+        use_case = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
+        )
+
+        with self.assertRaises(OperationConflict):
+            use_case.validate_order_reservation_for_confirmation(
+                InventoryExecutionContext(self.business.pk, self.actor.pk),
+                self.order.pk,
+            )
 
     def test_confirmation_scales_and_converts_then_reserves_without_physical_deduction(self):
         self.confirm()
@@ -361,7 +426,7 @@ class OrderInventoryLifecycleTests(TestCase):
         requirement = self.requirement()
         reservation_id = InventoryReservation.objects.get(source_id=self.order.pk).pk
 
-        with patch("products.services.order_inventory_service.post_issue", side_effect=RuntimeError("ledger failed")):
+        with patch("inventory.infrastructure.django.order_consumption_repository.post_issue", side_effect=RuntimeError("ledger failed")):
             with self.assertRaisesRegex(RuntimeError, "ledger failed"):
                 OrderInventoryService.record_consumption(
                     business_id=self.business.pk, order_id=self.order.pk, actor_id=self.actor.pk,
@@ -981,7 +1046,7 @@ class ConcurrentConsumptionReservationReplacementTests(TransactionTestCase):
             thread_roles.role = "manual_reservation"
             try:
                 use_case = ManageReservations(
-                    DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+                    DjangoReservationRepository(), DjangoInventoryUnitOfWork(), DjangoOrderReservationSource()
                 )
                 try:
                     use_case.create(

@@ -51,6 +51,7 @@ export class MenuRepositoryImpl implements MenuRepository {
         const payload: UpdateMenuItemDTO = {
             ...(input.name !== undefined ? {name: input.name} : {}),
             ...(input.recipeId !== undefined ? {recipe_id: input.recipeId == null || input.recipeId === "" ? null : Number(input.recipeId)} : {}),
+            ...(input.productId !== undefined ? {product_id: input.productId ?? null} : {}),
             ...(input.description !== undefined ? {description: input.description} : {}),
             ...(input.price !== undefined ? {price: input.price} : {}),
             ...(input.imageUrl !== undefined ? {image_url: input.imageUrl} : {}),

@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
 from core.enums import PermissionCode
 from inventory.infrastructure.django.master_data_repository import DjangoMasterDataRepository
-from inventory.models import Ingredient, Warehouse
+from inventory.models import Ingredient, IngredientAllergen, Warehouse
 
 
 class InventoryMasterDataAPITests(APITestCase):
@@ -34,6 +34,7 @@ class InventoryMasterDataAPITests(APITestCase):
             name="No membership", number="919999",
         )
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _member(business, suffix, permissions, code="OWNER"):
@@ -50,6 +51,19 @@ class InventoryMasterDataAPITests(APITestCase):
         )
         Membership.objects.create(user=user, business=business, role=role, is_active=True)
         return user
+
+    def test_requires_explicit_business_context_and_rejects_foreign_business(self):
+        self.client.credentials()
+        missing = self.client.get("/api/inventory/items/")
+        self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(missing.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        foreign = self.client.get("/api/inventory/warehouses/")
+        self.assertEqual(foreign.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(foreign.data["code"], "BUSINESS_ACCESS_DENIED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     def test_item_list_create_detail_and_patch_use_the_business_scope(self):
         response = self.client.post("/api/inventory/items/", {
@@ -89,7 +103,10 @@ class InventoryMasterDataAPITests(APITestCase):
         self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get("/api/inventory/items/").status_code, 401)
         self.client.force_authenticate(self.no_membership)
-        self.assertEqual(self.client.get("/api/inventory/warehouses/").status_code, 403)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+        denied = self.client.get("/api/inventory/warehouses/")
+        self.assertEqual(denied.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(denied.data["code"], "BUSINESS_ACCESS_DENIED")
 
     def test_item_sku_unique_per_business_and_stock_fields_are_rejected(self):
         payload = {"name": "Salt", "sku": "SALT", "unit": "kg"}
@@ -132,6 +149,7 @@ class InventoryMasterDataAPITests(APITestCase):
         self.assertEqual(locked_unit.status_code, status.HTTP_400_BAD_REQUEST)
 
         self.client.force_authenticate(self.other_owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         same_sku_other_business = self.client.post("/api/inventory/items/", payload, format="json")
         self.assertEqual(same_sku_other_business.status_code, status.HTTP_201_CREATED)
 
@@ -183,6 +201,7 @@ class InventoryMasterDataAPITests(APITestCase):
         self.assertTrue(Warehouse.objects.get(pk=second.data["id"]).is_default)
 
         self.client.force_authenticate(self.other_owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
         other_default = self.client.post("/api/inventory/warehouses/", {"name": "Other Main", "is_default": True}, format="json")
         self.assertEqual(other_default.status_code, 201)
         self.assertTrue(
@@ -196,6 +215,7 @@ class InventoryMasterDataAPITests(APITestCase):
         self.assertEqual(listing.data["count"], 1)
 
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
         disabled = self.client.patch(f"/api/inventory/warehouses/{second.data['id']}/", {"is_active": False}, format="json")
         self.assertEqual(disabled.status_code, 200)
         self.assertFalse(disabled.data["is_default"])
@@ -215,3 +235,96 @@ class InventoryMasterDataAPITests(APITestCase):
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
                 Warehouse.objects.create(business=self.business, name="DB default 2", is_default=True)
+
+
+    def test_ingredient_allergen_declarations_create_read_replace_and_clear(self):
+        created = self.client.post(
+            "/api/inventory/items/",
+            {
+                "name": "Almond flour",
+                "unit": "kg",
+                "allergens": [
+                    {"code": "tree_nuts", "presence": "contains"},
+                    {"code": "peanuts", "presence": "may_contain"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED, created.data)
+        item_id = created.data["id"]
+        self.assertEqual(
+            created.data["allergens"],
+            [
+                {"code": "peanuts", "presence": "may_contain"},
+                {"code": "tree_nuts", "presence": "contains"},
+            ],
+        )
+
+        # Omitting the relation group preserves existing declarations.
+        updated = self.client.patch(
+            f"/api/inventory/items/{item_id}/",
+            {"name": "Almond meal"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_200_OK, updated.data)
+        self.assertEqual(len(updated.data["allergens"]), 2)
+
+        replaced = self.client.patch(
+            f"/api/inventory/items/{item_id}/",
+            {"allergens": [{"code": "tree_nuts", "presence": "may_contain"}]},
+            format="json",
+        )
+        self.assertEqual(replaced.status_code, status.HTTP_200_OK, replaced.data)
+        self.assertEqual(
+            replaced.data["allergens"],
+            [{"code": "tree_nuts", "presence": "may_contain"}],
+        )
+
+        cleared = self.client.patch(
+            f"/api/inventory/items/{item_id}/", {"allergens": []}, format="json"
+        )
+        self.assertEqual(cleared.status_code, status.HTTP_200_OK, cleared.data)
+        self.assertEqual(cleared.data["allergens"], [])
+
+    def test_ingredient_allergens_reject_unknown_duplicate_and_foreign_item_scope(self):
+        invalid_payloads = [
+            [{"code": "unknown", "presence": "contains"}],
+            [
+                {"code": "milk", "presence": "contains"},
+                {"code": "milk", "presence": "may_contain"},
+            ],
+            [{"code": "milk", "presence": "unknown"}],
+        ]
+        for allergens in invalid_payloads:
+            with self.subTest(allergens=allergens):
+                response = self.client.post(
+                    "/api/inventory/items/",
+                    {"name": "Invalid item", "unit": "kg", "allergens": allergens},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        foreign = Ingredient.objects.create(
+            business=self.other_business, name="Foreign almond flour", unit="kg"
+        )
+        self.assertEqual(
+            self.client.get(f"/api/inventory/items/{foreign.pk}/").status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_database_rejects_invalid_ingredient_allergen_enums(self):
+        ingredient = Ingredient.objects.create(
+            business=self.business, name="Constraint test ingredient", unit="kg"
+        )
+        invalid_rows = [
+            {"code": "not_an_allergen", "presence": "contains"},
+            {"code": "milk", "presence": "sometimes"},
+        ]
+        for values in invalid_rows:
+            with self.subTest(values=values):
+                with self.assertRaises(IntegrityError):
+                    with transaction.atomic():
+                        IngredientAllergen.objects.create(
+                            ingredient=ingredient, **values
+                        )
+

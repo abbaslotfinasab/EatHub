@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from django.utils import timezone
 from django.db import close_old_connections, connection
+from django.db.models.deletion import ProtectedError
 from django.test import TestCase, TransactionTestCase
 from unittest.mock import Mock, patch
 from rest_framework import status
@@ -15,6 +16,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
+from catalog.models import Product
 from core.enums import PermissionCode
 from core.models import ActivityLog
 from products.models import Customer, Menu, MenuItem, Order, OrderItem
@@ -23,7 +25,7 @@ from products.models import CustomerAccount, CustomerTransaction, OrderRefund
 from products.services.menu_service import MenuService
 from products.services.order_service import OrderService
 from products.services.wallet_service import WalletService
-from products.services.customer_service import CustomerService
+from customer.services.customer_service import CustomerService
 from accounts.services.rbac_initializer import RBACInitializer
 
 
@@ -99,6 +101,7 @@ class OrderListPaginationTests(APITestCase):
             business=self.business, menu=self.menu, name="Test meal", price=Decimal("12.50")
         )
         self.client.force_authenticate(self.user)
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
 
     def create_order(self, business=None, **overrides):
         values = {
@@ -444,6 +447,7 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
             ledger_opening_balance=Decimal("100.00"),
             ledger_opening_balance_verified=True,
         )
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
         self.order = Order.objects.create(
             business=self.business,
             customer=self.customer,
@@ -526,18 +530,15 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.READY)
 
-    def test_me_response_exposes_active_membership_permissions(self):
+    def test_me_response_does_not_infer_a_global_active_business(self):
         user = self.user_for("ACCOUNTANT")
         self.client.force_authenticate(user)
         response = self.client.get("/api/accounts/auth/me/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn(
-            PermissionCode.PAYMENTS_MANAGE,
-            response.data["active_business"]["permissions"],
-        )
-        self.assertNotIn(
-            PermissionCode.ORDERS_UPDATE,
-            response.data["active_business"]["permissions"],
+        self.assertIsNone(response.data["active_business"])
+        self.assertEqual(
+            response.data["memberships"][0]["role"],
+            "ACCOUNTANT",
         )
 
     def test_role_initializer_preserves_extra_default_role_permissions(self):
@@ -895,7 +896,7 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
                 business=self.business,
                 customer=self.customer,
                 amount=Decimal("5.00"),
-                order=self.order,
+                order_id=self.order.id,
                 description="Attempted direct reversal",
             )
         self.account.refresh_from_db()
@@ -960,6 +961,7 @@ class HistoricalOrderItemTests(APITestCase):
             is_active=True,
         )
         self.client.force_authenticate(self.user)
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
 
     def create_historical_order(self):
         menu = Menu.objects.create(
@@ -1846,7 +1848,9 @@ class OrderWalletPaymentTests(TestCase):
             business=self.business,
             customer=self.customer,
             amount=Decimal("5.00"),
-            order=self.order,
+            order_id=self.order.id,
+            order_business_id=self.business.id,
+            order_customer_id=self.customer.id,
         )
 
         self.assertFalse(debit.is_order_settlement)
@@ -2337,6 +2341,24 @@ class OrderWalletPaymentTests(TestCase):
         self.assertEqual(transaction.order_id, self.order.id)
         self.assertEqual(self.account.balance, Decimal("105.00"))
 
+    def test_customer_with_unsettled_order_cannot_be_deleted_or_cascade_order(self):
+        customer = Customer.objects.create(
+            business=self.business, name="Order History", phone="98766"
+        )
+        order = Order.objects.create(
+            business=self.business,
+            customer=customer,
+            order_type=Order.OrderType.TAKEAWAY,
+            status=Order.Status.CANCELLED,
+            payment_status=Order.PaymentStatus.UNPAID,
+        )
+
+        with self.assertRaisesRegex(ValidationError, "order history"):
+            CustomerService.delete_customer(customer=customer)
+
+        self.assertTrue(Customer.objects.filter(pk=customer.pk).exists())
+        self.assertTrue(Order.objects.filter(pk=order.pk).exists())
+
     def test_unsettled_order_and_customer_without_wallet_history_can_be_deleted(self):
         order = Order.objects.create(
             business=self.business,
@@ -2558,6 +2580,20 @@ class MenuItemRecipeApiTests(APITestCase):
             price=Decimal("12.00"),
         )
         self.client.force_authenticate(self.user)
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+
+    def test_menu_api_requires_explicit_business_context(self):
+        self.client.defaults.pop("HTTP_X_BUSINESS_ID", None)
+        response = self.client.get("/api/products/menus/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_menu_api_rejects_business_without_membership(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.other_business.id)
+        response = self.client.get("/api/products/menus/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
 
     def test_create_menu_item_accepts_business_recipe_and_returns_it(self):
         response = self.client.post(
@@ -2573,10 +2609,45 @@ class MenuItemRecipeApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["recipe_id"], self.recipe.id)
         self.assertEqual(response.data["recipe_name"], self.recipe.name)
+        self.assertEqual(response.data["recipe_allergens"], [])
+        self.assertIsNone(response.data["catalog_product_allergens"])
         self.assertEqual(
             MenuItem.objects.get(pk=response.data["id"]).recipe_id,
             self.recipe.id,
         )
+
+    def test_menu_item_exposes_recipe_allergens_separately(self):
+        recipe_read_model = SimpleNamespace(
+            id=self.recipe.id,
+            name=self.recipe.name,
+            allergens=(
+                {"code": "peanuts", "presence": "contains"},
+                {"code": "milk", "presence": "may_contain"},
+            ),
+        )
+        with patch(
+            "composition.recipe_queries.get_recipe_for_business",
+            return_value=recipe_read_model,
+        ):
+            response = self.client.post(
+                f"/api/products/menus/{self.menu.id}/items/create/",
+                {
+                    "name": "Allergen Profile Meal",
+                    "price": "15.00",
+                    "recipe_id": self.recipe.id,
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["recipe_allergens"],
+            [
+                {"code": "peanuts", "presence": "contains"},
+                {"code": "milk", "presence": "may_contain"},
+            ],
+        )
+        self.assertIsNone(response.data["catalog_product_allergens"])
 
     def test_create_menu_persists_recipe_on_nested_menu_item(self):
         response = self.client.post(
@@ -2595,6 +2666,9 @@ class MenuItemRecipeApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["items"][0]["recipe_id"], self.recipe.id)
+        self.assertEqual(response.data["items"][0]["recipe_name"], self.recipe.name)
+        self.assertEqual(response.data["items"][0]["recipe_allergens"], [])
+        self.assertIsNone(response.data["items"][0]["catalog_product_allergens"])
         self.assertEqual(
             MenuItem.objects.get(pk=response.data["items"][0]["id"]).recipe_id,
             self.recipe.id,
@@ -2634,6 +2708,29 @@ class MenuItemRecipeApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Menu.objects.filter(business=self.business, name="New Menu").exists())
+
+    def test_create_menu_rejects_unknown_recipe_id_without_creating_menu(self):
+        response = self.client.post(
+            "/api/products/menus/create/",
+            {
+                "name": "Unknown Recipe Menu",
+                "category": "Food",
+                "items": [{
+                    "name": "Unknown Recipe Meal",
+                    "price": "10.00",
+                    "recipe_id": 99999999,
+                }],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            Menu.objects.filter(
+                business=self.business,
+                name="Unknown Recipe Menu",
+            ).exists()
+        )
 
     def test_update_menu_item_can_assign_and_clear_recipe(self):
         assign = self.client.patch(
@@ -2790,3 +2887,325 @@ class MenuItemRecipeApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         other_item.refresh_from_db()
         self.assertEqual(other_item.name, "Other Burger")
+
+
+class CustomerTenantContextApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="customer-context@example.com",
+            password="password",
+            name="Customer Context User",
+            number="81001",
+        )
+        self.business = Business.objects.create(name="Customer Context Business")
+        self.foreign_business = Business.objects.create(name="Foreign Customer Business")
+        role = Role.objects.create(
+            business=self.business,
+            name="Owner",
+            code="OWNER",
+        )
+        Membership.objects.create(
+            user=self.user,
+            business=self.business,
+            role=role,
+            is_active=True,
+        )
+        self.customer = Customer.objects.create(
+            business=self.business,
+            name="Local Customer",
+            phone="09120008100",
+        )
+        Customer.objects.create(
+            business=self.foreign_business,
+            name="Foreign Customer",
+            phone="09120008101",
+        )
+        self.client.force_authenticate(self.user)
+
+    def test_customer_api_requires_explicit_business_context(self):
+        response = self.client.get("/api/products/customers/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_customer_api_rejects_business_without_active_membership(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.foreign_business.id)
+        response = self.client.get("/api/products/customers/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["code"], "BUSINESS_ACCESS_DENIED")
+
+    def test_customer_list_is_scoped_to_explicit_business(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.get("/api/products/customers/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item["id"] for item in response.data], [self.customer.id])
+
+    def test_customer_create_endpoint_uses_customer_module(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.post(
+            "/api/products/customers/create",
+            {"name": "Created Customer", "phone": "09120008102"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["name"], "Created Customer")
+        self.assertTrue(
+            Customer.objects.filter(
+                business=self.business,
+                phone="09120008102",
+            ).exists()
+        )
+
+    def test_customer_detail_endpoint_preserves_response_contract(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.get(
+            f"/api/products/customers/{self.customer.id}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["customer"]["id"], self.customer.id)
+        self.assertIsNone(response.data["account"])
+        self.assertEqual(response.data["transactions"], [])
+
+    def test_customer_update_endpoint_preserves_response_contract(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.patch(
+            f"/api/products/customers/{self.customer.id}/update/",
+            {"name": "Updated Customer"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "Updated Customer")
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.name, "Updated Customer")
+
+    def test_customer_delete_endpoint_uses_customer_service(self):
+        self.client.defaults["HTTP_X_BUSINESS_ID"] = str(self.business.id)
+        response = self.client.delete(
+            f"/api/products/customers/{self.customer.id}/delete/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Customer.objects.filter(pk=self.customer.id).exists())
+
+
+
+class MenuItemCatalogProductApiTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="menu-catalog-link@example.com",
+            password="password",
+            name="Menu Catalog Link User",
+            number="99101",
+        )
+        self.business = Business.objects.create(name="Menu Catalog Business")
+        self.other_business = Business.objects.create(name="Other Menu Catalog Business")
+        role = Role.objects.create(business=self.business, name="Owner", code="OWNER")
+        Membership.objects.create(
+            user=self.user, business=self.business, role=role, is_active=True
+        )
+        self.menu = Menu.objects.create(
+            business=self.business, name="Main Menu", category="Food"
+        )
+        self.item = MenuItem.objects.create(
+            business=self.business, menu=self.menu, name="House Burger",
+            price=Decimal("12.00"),
+        )
+        self.active_product = Product.objects.create(
+            business=self.business, name="Burger Product", status=Product.Status.ACTIVE
+        )
+        self.foreign_product = Product.objects.create(
+            business=self.other_business, name="Foreign Product", status=Product.Status.ACTIVE
+        )
+        self.draft_product = Product.objects.create(
+            business=self.business, name="Draft Product", status=Product.Status.DRAFT
+        )
+        self.client.force_authenticate(self.user)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+
+    def test_create_and_reuse_active_catalog_product(self):
+        first = self.client.post(
+            f"/api/products/menus/{self.menu.pk}/items/create/",
+            {"name": "Burger Special", "price": "14.00", "product_id": self.active_product.pk},
+            format="json",
+        )
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data["product_id"], self.active_product.pk)
+        self.assertEqual(first.data["product_name"], self.active_product.name)
+
+        second = self.client.post(
+            f"/api/products/menus/{self.menu.pk}/items/create/",
+            {"name": "Double Burger", "price": "18.00", "product_id": self.active_product.pk},
+            format="json",
+        )
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            MenuItem.objects.filter(product=self.active_product).count(), 2
+        )
+
+    def test_create_menu_with_nested_catalog_product(self):
+        response = self.client.post(
+            "/api/products/menus/create/",
+            {
+                "name": "Lunch",
+                "category": "Food",
+                "items": [{
+                    "name": "Lunch Burger",
+                    "price": "15.00",
+                    "product_id": self.active_product.pk,
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        nested = response.data["items"][0]
+        self.assertEqual(nested["product_id"], self.active_product.pk)
+        self.assertEqual(nested["product_name"], self.active_product.name)
+
+    def test_menu_item_exposes_catalog_allergens_separately(self):
+        from catalog.models import ProductAllergen
+
+        ProductAllergen.objects.create(
+            product=self.active_product,
+            code=ProductAllergen.Code.PEANUTS,
+            presence=ProductAllergen.Presence.MAY_CONTAIN,
+        )
+
+        response = self.client.post(
+            f"/api/products/menus/{self.menu.pk}/items/create/",
+            {
+                "name": "Peanut Warning Item",
+                "price": "14.00",
+                "product_id": self.active_product.pk,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["catalog_product_allergens"],
+            [{"code": "peanuts", "presence": "may_contain"}],
+        )
+        self.assertIsNone(response.data["recipe_allergens"])
+
+    def test_create_rejects_foreign_or_non_active_product(self):
+        for product in (self.foreign_product, self.draft_product):
+            response = self.client.post(
+                f"/api/products/menus/{self.menu.pk}/items/create/",
+                {"name": "Invalid Product Link", "price": "10.00", "product_id": product.pk},
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            MenuItem.objects.filter(name="Invalid Product Link").exists()
+        )
+
+    def test_update_item_can_assign_and_clear_product(self):
+        assigned = self.client.patch(
+            f"/api/products/menu-items/{self.item.pk}/update/",
+            {"product_id": self.active_product.pk},
+            format="json",
+        )
+        self.assertEqual(assigned.status_code, status.HTTP_200_OK)
+        self.assertEqual(assigned.data["product_id"], self.active_product.pk)
+
+        cleared = self.client.patch(
+            f"/api/products/menu-items/{self.item.pk}/update/",
+            {"product_id": None},
+            format="json",
+        )
+        self.assertEqual(cleared.status_code, status.HTTP_200_OK)
+        self.assertIsNone(cleared.data["product_id"])
+
+    def test_nested_menu_update_can_assign_catalog_product(self):
+        response = self.client.patch(
+            f"/api/products/menus/{self.menu.pk}/update/",
+            {"items": [{"id": self.item.pk, "product_id": self.active_product.pk}]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["items"][0]["product_id"], self.active_product.pk)
+
+    def test_product_delete_is_protected_while_menu_items_reference_it(self):
+        self.item.product = self.active_product
+        self.item.save(update_fields=["product"])
+        with self.assertRaises(ProtectedError):
+            self.active_product.delete()
+
+
+class OrderCatalogProductSnapshotTests(TestCase):
+    def setUp(self):
+        from catalog.models import Product
+
+        self.business = Business.objects.create(name="Order Catalog Snapshot Business")
+        self.menu = Menu.objects.create(
+            business=self.business,
+            name="Snapshot Menu",
+            category="Main",
+        )
+        self.product = Product.objects.create(
+            business=self.business,
+            name="Original Catalog Product",
+            sku="ORDER-SNAPSHOT-1",
+            status=Product.Status.ACTIVE,
+        )
+        self.menu_item = MenuItem.objects.create(
+            business=self.business,
+            menu=self.menu,
+            name="Menu label",
+            price=Decimal("15.00"),
+            product=self.product,
+        )
+
+    def test_order_item_keeps_product_identity_when_catalog_and_menu_change(self):
+        order = OrderService.create_order(
+            business=self.business,
+            validated_data={
+                "order_type": Order.OrderType.TAKEAWAY,
+                "items": [{"menu_item_id": self.menu_item.pk, "quantity": 2}],
+            },
+            user=None,
+        )
+        order_item = order.items.get()
+
+        self.assertEqual(order_item.catalog_product_id, self.product.pk)
+        self.assertEqual(order_item.catalog_product_name, "Original Catalog Product")
+
+        self.product.name = "Renamed Catalog Product"
+        self.product.save(update_fields=("name", "updated_at"))
+        self.menu_item.delete()
+
+        order_item.refresh_from_db()
+        self.assertIsNone(order_item.menu_item_id)
+        self.assertEqual(order_item.catalog_product_id, self.product.pk)
+        self.assertEqual(order_item.catalog_product_name, "Original Catalog Product")
+
+    def test_editing_pending_order_refreshes_product_snapshot_from_current_menu_item(self):
+        order = OrderService.create_order(
+            business=self.business,
+            validated_data={
+                "order_type": Order.OrderType.TAKEAWAY,
+                "items": [{"menu_item_id": self.menu_item.pk, "quantity": 1}],
+            },
+            user=None,
+        )
+        from catalog.models import Product
+
+        replacement = Product.objects.create(
+            business=self.business,
+            name="Replacement Product",
+            sku="ORDER-SNAPSHOT-2",
+            status=Product.Status.ACTIVE,
+        )
+        self.menu_item.product = replacement
+        self.menu_item.save(update_fields=("product", "updated_at"))
+
+        OrderService.update_order(
+            business=self.business,
+            order_id=order.pk,
+            validated_data={
+                "items": [{"menu_item_id": self.menu_item.pk, "quantity": 3}],
+            },
+            user=None,
+        )
+
+        order_item = order.items.get()
+        self.assertEqual(order_item.catalog_product_id, replacement.pk)
+        self.assertEqual(order_item.catalog_product_name, "Replacement Product")

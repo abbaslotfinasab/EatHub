@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
 from core.enums import PermissionCode
 from inventory.infrastructure.django.models import InventoryV1StockMovement
-from inventory.models import Ingredient, Recipe, RecipeInput, RecipeOutput
+from inventory.models import CompoundMaterialComponent, Ingredient, IngredientAllergen, Recipe, RecipeInput, RecipeOutput
 
 
 class RecipeAPITests(APITestCase):
@@ -41,6 +41,20 @@ class RecipeAPITests(APITestCase):
             business=self.other_business, name="Foreign Flour", unit="kg"
         )
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+
+    def test_requires_explicit_business_context_and_rejects_foreign_business(self):
+        self.client.credentials()
+        missing = self.client.get("/api/inventory/recipes/")
+        self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(missing.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        foreign = self.client.get("/api/inventory/recipes/")
+        self.assertEqual(foreign.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(foreign.data["code"], "BUSINESS_ACCESS_DENIED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _member(business, suffix, permissions, code="OWNER"):
@@ -141,6 +155,7 @@ class RecipeAPITests(APITestCase):
         self.client.force_authenticate(user=None)
         self.assertEqual(self.client.get("/api/inventory/recipes/").status_code, 401)
         self.client.force_authenticate(self.viewer)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
         self.assertEqual(self.client.get("/api/inventory/recipes/").status_code, 200)
         self.assertEqual(self.client.post("/api/inventory/recipes/", self._payload(), format="json").status_code, 403)
         self.assertEqual(self.client.patch("/api/inventory/recipes/1/", {"name": "Denied"}, format="json").status_code, 403)
@@ -214,3 +229,68 @@ class RecipeAPITests(APITestCase):
         inactive = self.client.get("/api/inventory/recipes/?is_active=false")
         self.assertEqual(inactive.data["count"], 0)
 
+
+
+    def test_recipe_allergen_profile_is_derived_from_raw_and_compound_inputs(self):
+        milk = IngredientAllergen.objects.create(
+            ingredient=self.flour,
+            code=IngredientAllergen.Code.MILK,
+            presence=IngredientAllergen.Presence.MAY_CONTAIN,
+        )
+        nuts = Ingredient.objects.create(
+            business=self.business, name="Hazelnut", unit="kg", preparation_level="raw"
+        )
+        IngredientAllergen.objects.create(
+            ingredient=nuts,
+            code=IngredientAllergen.Code.TREE_NUTS,
+            presence=IngredientAllergen.Presence.CONTAINS,
+        )
+        compound = Ingredient.objects.create(
+            business=self.business,
+            name="Nut blend",
+            unit="kg",
+            preparation_level="semi_prepared",
+        )
+        second = Ingredient.objects.create(
+            business=self.business, name="Cocoa", unit="kg", preparation_level="raw"
+        )
+        CompoundMaterialComponent.objects.create(
+            compound=compound, ingredient=nuts, quantity="1", unit="kg"
+        )
+        CompoundMaterialComponent.objects.create(
+            compound=compound, ingredient=second, quantity="1", unit="kg"
+        )
+
+        created = self._create_recipe(
+            inputs=[
+                {"ingredient_id": self.flour.pk, "quantity": "1", "unit": "kg"},
+                {"ingredient_id": compound.pk, "quantity": "1", "unit": "kg"},
+            ],
+            outputs=[],
+        )
+        self.assertEqual(
+            created.data["allergens"],
+            [
+                {"code": "milk", "presence": "may_contain"},
+                {"code": "tree_nuts", "presence": "contains"},
+            ],
+        )
+        listed = self.client.get("/api/inventory/recipes/")
+        self.assertEqual(listed.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            listed.data["results"][0]["allergens"],
+            created.data["allergens"],
+        )
+
+        # Stronger evidence wins when the same allergen appears more than once.
+        milk.presence = IngredientAllergen.Presence.CONTAINS
+        milk.save(update_fields=("presence", "updated_at"))
+        detail = self.client.get(f"/api/inventory/recipes/{created.data['id']}/")
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            detail.data["allergens"],
+            [
+                {"code": "milk", "presence": "contains"},
+                {"code": "tree_nuts", "presence": "contains"},
+            ],
+        )

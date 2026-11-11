@@ -3,6 +3,8 @@ export interface OrderItemDTO {
     order_id: number;
     menu_item_id: number | null;
     menu_item_name: string;
+    catalog_product_id?: number | null;
+    catalog_product_name?: string | null;
     quantity: number;
     unit_price: number;
     total_price: number;

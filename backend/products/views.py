@@ -5,19 +5,14 @@ from django.shortcuts import get_object_or_404
 from rest_framework import status
 
 from accounts.models import Business
-from accounts.views import TenantAPIView
-from products.serializers.customer_serializer import CustomerDetailSerializer, \
-    CreateCustomerSerializer, UpdateCustomerSerializer, CustomerTransactionSerializer, \
-    CustomerAccountSerializer, CustomerBalanceSerializer
+from accounts.views import ExplicitTenantAPIView, TenantAPIView
 from products.serializers.order_serializer import *
-from products.services.customer_service import CustomerService
 from products.services.order_service import *
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from core.enums import PermissionCode
-from inventory.models import Ingredient
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, MenuSerializer, \
     PublicRestaurantSerializer, PublicMenuSerializer, UpdateMenuSerializer, MenuItemSerializer, \
@@ -28,13 +23,11 @@ from products.models import (
     Menu,
     MenuItem,
     Customer,
-    CustomerAccount,
     Order,
     OrderRefund,
     OrderItemIngredientRequirement,
     OrderInventoryConsumptionLine,
 )
-from products.services.wallet_service import WalletService
 from django.db.models import (
     Q,
     Count,
@@ -65,7 +58,7 @@ def _require_financial_access(request, message):
 
 
 
-class MenuCreateAPIView(TenantAPIView):
+class MenuCreateAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -83,6 +76,7 @@ class MenuCreateAPIView(TenantAPIView):
                 business=request.business,
                 validated_data=serializer.validated_data
             )
+            menu = Menu.objects.prefetch_related("items__product").get(pk=menu.pk)
         except IntegrityError as error:
             raise ValidationError({
                 "recipe_id": "A recipe can only be assigned to one menu item."
@@ -94,7 +88,7 @@ class MenuCreateAPIView(TenantAPIView):
         )
 
 
-class MenuListAPIView(TenantAPIView):
+class MenuListAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -103,20 +97,20 @@ class MenuListAPIView(TenantAPIView):
         menus = (
             Menu.objects
             .filter(business=request.business)
-            .prefetch_related("items")
+            .prefetch_related("items__product")
             .order_by("sort_order")
         )
 
         return Response(MenuSerializer(menus, many=True).data)
 
 
-class MenuDetailAPIView(TenantAPIView):
+class MenuDetailAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         menu = get_object_or_404(
-            Menu.objects.prefetch_related("items"),
+            Menu.objects.prefetch_related("items__product"),
             pk=pk,
             business=request.business
         )
@@ -125,7 +119,7 @@ class MenuDetailAPIView(TenantAPIView):
 
 
 
-class MenuUpdateAPIView(TenantAPIView):
+class MenuUpdateAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -145,6 +139,7 @@ class MenuUpdateAPIView(TenantAPIView):
                 menu,
                 serializer.validated_data
             )
+            menu = Menu.objects.prefetch_related("items__product").get(pk=menu.pk)
         except IntegrityError as error:
             raise ValidationError({
                 "recipe_id": "A recipe can only be assigned to one menu item."
@@ -153,7 +148,7 @@ class MenuUpdateAPIView(TenantAPIView):
         return Response(MenuSerializer(menu).data)
 
 
-class MenuDeleteAPIView(TenantAPIView):
+class MenuDeleteAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
@@ -212,7 +207,7 @@ class PublicRestaurantMenuAPIView(APIView):
 
 
 
-class MenuItemCreateAPIView(TenantAPIView):
+class MenuItemCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, menu_id):
@@ -247,13 +242,13 @@ class MenuItemCreateAPIView(TenantAPIView):
             status=status.HTTP_201_CREATED
         )
 
-class MenuItemUpdateAPIView(TenantAPIView):
+class MenuItemUpdateAPIView(ExplicitTenantAPIView):
 
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
         item = get_object_or_404(
-            MenuItem,
+            MenuItem.objects.select_related("product"),
             pk=pk,
             business=request.business,
         )
@@ -282,7 +277,7 @@ class MenuItemUpdateAPIView(TenantAPIView):
         )
 
 
-class MenuItemDeleteAPIView(TenantAPIView):
+class MenuItemDeleteAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
@@ -299,7 +294,7 @@ class MenuItemDeleteAPIView(TenantAPIView):
             status=status.HTTP_204_NO_CONTENT
         )
 
-class OrderCreateAPIView(TenantAPIView):
+class OrderCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     @transaction.atomic
@@ -328,7 +323,7 @@ class OrderCreateAPIView(TenantAPIView):
 
 
 
-class OrderListAPIView(TenantAPIView):
+class OrderListAPIView(ExplicitTenantAPIView):
 
     permission_classes = [
         IsAuthenticated
@@ -562,7 +557,7 @@ class OrderListAPIView(TenantAPIView):
         serializer = OrderSerializer(page, many=True)
 
         return paginator.get_paginated_response(serializer.data)
-class OrderDetailAPIView(TenantAPIView):
+class OrderDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -580,7 +575,7 @@ class OrderDetailAPIView(TenantAPIView):
         return Response(OrderSerializer(order).data)
 
 
-class OrderStatusUpdateAPIView(TenantAPIView):
+class OrderStatusUpdateAPIView(ExplicitTenantAPIView):
 
     permission_classes = [
         IsAuthenticated
@@ -647,7 +642,7 @@ class OrderStatusUpdateAPIView(TenantAPIView):
         )
 
 
-class OrderActualConsumptionAPIView(TenantAPIView):
+class OrderActualConsumptionAPIView(ExplicitTenantAPIView):
     """Record operator-entered actual use for a preparing, tenant-scoped order."""
 
     permission_classes = [IsAuthenticated]
@@ -677,15 +672,16 @@ class OrderActualConsumptionAPIView(TenantAPIView):
             )
         )
         ingredient_ids = {item.ingredient_id for item in requirements}
-        ingredients = {
-            ingredient.pk: ingredient
-            for ingredient in Ingredient.objects.filter(
-                business_id=request.business.id,
-                pk__in=ingredient_ids,
-            )
-        }
-        if len(ingredients) != len(ingredient_ids):
-            raise Http404("An order requirement was not found in this business.")
+        ingredients = {}
+        if ingredient_ids:
+            try:
+                ingredient_rows = OrderInventoryService.resolve_requirement_ingredients(
+                    business_id=request.business.id,
+                    ingredient_ids=sorted(ingredient_ids),
+                )
+            except ResourceNotFound as error:
+                raise Http404("An order requirement was not found in this business.") from error
+            ingredients = {ingredient.id: ingredient for ingredient in ingredient_rows}
 
         actual_totals = {
             row["requirement_id"]: {
@@ -765,7 +761,7 @@ class OrderActualConsumptionAPIView(TenantAPIView):
         }, status=status.HTTP_201_CREATED)
 
 
-class OrderRefundAPIView(TenantAPIView):
+class OrderRefundAPIView(ExplicitTenantAPIView):
     """Create full refunds and recover the committed refund receipt by order.
 
     GET is a durable recovery path after a lost POST response. It returns only
@@ -831,7 +827,7 @@ class OrderRefundAPIView(TenantAPIView):
         response["Cache-Control"] = "no-store"
         return response
 
-class OrderUpdateAPIView(TenantAPIView):
+class OrderUpdateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
@@ -855,7 +851,7 @@ class OrderUpdateAPIView(TenantAPIView):
         return Response(OrderSerializer(order).data)
 
 
-class OrderDeleteAPIView(TenantAPIView):
+class OrderDeleteAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
@@ -880,406 +876,3 @@ class OrderDeleteAPIView(TenantAPIView):
 
 
 
-class CustomerListAPIView(TenantAPIView):
-
-    permission_classes = [
-        IsAuthenticated
-    ]
-
-
-    def get(self, request):
-
-        search = request.query_params.get(
-            "search",
-            "",
-        ).strip()
-
-
-        balance = request.query_params.get(
-            "balance"
-        )
-
-
-        min_orders = request.query_params.get(
-            "minOrders"
-        )
-
-
-        ordering = request.query_params.get(
-            "ordering",
-            "-created_at",
-        )
-
-
-        customers = Customer.objects.filter(
-            business=request.business,
-        )
-
-
-        if search:
-
-            customers = customers.filter(
-
-                Q(name__icontains=search)
-                |
-                Q(phone__istartswith=search)
-
-            )
-
-
-        customers = customers.select_related(
-            "account",
-        ).annotate(
-
-
-            total_orders=Count(
-                "orders",
-                distinct=True,
-            ),
-
-
-            total_spent=Coalesce(
-
-                Sum(
-
-                    "orders__total_amount",
-
-                    filter=Q(
-                        orders__status=Order.Status.COMPLETED
-                    ),
-
-                ),
-
-                Value(0),
-
-                output_field=DecimalField(
-                    max_digits=12,
-                    decimal_places=2,
-                ),
-
-            ),
-
-
-        )
-
-
-
-        # -------------------------
-        # فیلتر تعداد سفارش
-        # -------------------------
-
-        if min_orders:
-
-            try:
-
-                min_orders = int(
-                    min_orders
-                )
-
-                customers = customers.filter(
-                    total_orders__gte=min_orders
-                )
-
-            except ValueError:
-
-                pass
-
-
-
-        # -------------------------
-        # فیلتر وضعیت حساب
-        # -------------------------
-
-        if balance:
-
-            if balance == "CREDITOR":
-
-                customers = customers.filter(
-                    account__balance__gt=0
-                )
-
-
-            elif balance == "DEBTOR":
-
-                customers = customers.filter(
-                    account__balance__lt=0
-                )
-
-
-            elif balance == "ZERO":
-
-                customers = customers.filter(
-
-                    Q(account__balance=0)
-                    |
-                    Q(account__isnull=True)
-
-                )
-
-
-
-        # -------------------------
-        # مرتب سازی
-        # -------------------------
-
-        allowed_ordering = {
-
-            "-created_at",
-            "created_at",
-            "-total_spent",
-            "-total_orders",
-            "name",
-
-        }
-
-
-        if ordering in allowed_ordering:
-
-            customers = customers.order_by(
-                ordering
-            )
-
-        else:
-
-            customers = customers.order_by(
-                "-created_at"
-            )
-
-        serializer = CustomerSerializer(
-            customers,
-            many=True,
-        )
-
-
-        return Response(
-            serializer.data
-        )
-
-class CustomerCreateAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request):
-
-        serializer = CreateCustomerSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        customer = CustomerService.create_customer(
-            business=request.business,
-            validated_data=serializer.validated_data
-        )
-
-        return Response(CustomerSerializer(customer).data, status=201)
-
-
-
-class CustomerDetailAPIView(TenantAPIView):
-
-    permission_classes = [
-        IsAuthenticated,
-    ]
-
-    def get(self, request, pk):
-
-        customer = get_object_or_404(
-            Customer.objects
-            .filter(
-                business=request.business,
-            )
-            .select_related(
-                "account",
-            )
-            .annotate(
-                total_orders=Count(
-                    "orders",
-                    filter=Q(
-                        orders__status=Order.Status.COMPLETED,
-                    ),
-                    distinct=True,
-                ),
-
-                total_spent=Coalesce(
-                    Sum(
-                        "orders__total_amount",
-                        filter=Q(
-                            orders__status=Order.Status.COMPLETED,
-                        ),
-                    ),
-                    Value(0),
-                    output_field=DecimalField(
-                        max_digits=12,
-                        decimal_places=2,
-                    ),
-                ),
-            ),
-            id=pk,
-        )
-
-        return Response(
-            CustomerDetailSerializer(customer).data
-        )
-
-class CustomerUpdateAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def patch(self, request, pk):
-
-        customer = get_object_or_404(
-            Customer,
-            id=pk,
-            business=request.business
-        )
-
-        serializer = UpdateCustomerSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        customer = CustomerService.update_customer(
-            customer=customer,
-            validated_data=serializer.validated_data
-        )
-
-        return Response(CustomerSerializer(customer).data)
-
-class CustomerDeleteAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def delete(self, request, pk):
-
-        customer = get_object_or_404(
-            Customer,
-            id=pk,
-            business=request.business
-        )
-
-        CustomerService.delete_customer(
-            customer=customer,
-        )
-        return Response(status=204)
-
-
-
-class CustomerAccountDetailAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, customer_id):
-
-        account = get_object_or_404(
-            CustomerAccount,
-            customer_id=customer_id,
-            business=request.business
-        )
-
-        return Response(CustomerAccountSerializer(account).data)
-
-
-
-class CustomerCreditAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, customer_id):
-        _require_financial_access(
-            request, "You do not have permission to change customer balances."
-        )
-
-        serializer = CustomerBalanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        customer = get_object_or_404(
-            Customer,
-            id=customer_id,
-            business=request.business
-        )
-
-        WalletService.credit(
-            business=request.business,
-            customer=customer,
-            amount=serializer.validated_data["amount"],
-            description=serializer.validated_data.get("description")
-        )
-
-        return Response({"status": "credited"})
-
-
-
-class CustomerTransactionListAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, customer_id):
-
-        account = get_object_or_404(
-            CustomerAccount,
-            customer_id=customer_id,
-            business=request.business
-        )
-
-        transactions = account.transactions.all().order_by("-id")
-
-        return Response(CustomerTransactionSerializer(transactions, many=True).data)
-
-
-
-class CustomerDebitAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, customer_id):
-        _require_financial_access(
-            request, "You do not have permission to change customer balances."
-        )
-
-        serializer = CustomerBalanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        customer = get_object_or_404(
-            Customer,
-            id=customer_id,
-            business=request.business
-        )
-
-        WalletService.debit(
-            business=request.business,
-            customer=customer,
-            amount=serializer.validated_data["amount"],
-            description=serializer.validated_data.get(
-                "description",
-                "",
-            ),
-        )
-
-        return Response(
-            {
-                "status": "debited",
-            }
-        )
-
-
-class CustomerAdjustAPIView(TenantAPIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, customer_id):
-        _require_financial_access(
-            request, "You do not have permission to change customer balances."
-        )
-
-        serializer = CustomerBalanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        customer = get_object_or_404(
-            Customer,
-            id=customer_id,
-            business=request.business
-        )
-
-        WalletService.adjust(
-            business=request.business,
-            customer=customer,
-            amount=serializer.validated_data["amount"],
-            description=serializer.validated_data.get(
-                "description",
-                "",
-            ),
-        )
-
-        return Response(
-            {
-                "status": "adjusted",
-            }
-        )

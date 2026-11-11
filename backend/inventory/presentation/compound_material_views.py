@@ -3,7 +3,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import TenantAPIView
+from accounts.views import ExplicitTenantAPIView
 from core.enums import PermissionCode
 from inventory.application.exceptions import MasterDataConflict
 from inventory.infrastructure.django.compound_material_repository import DjangoCompoundMaterialRepository
@@ -28,7 +28,7 @@ def _save_or_validate(call):
         raise ValidationError({error.field: str(error)}) from error
 
 
-class CompoundMaterialListCreateAPIView(TenantAPIView):
+class CompoundMaterialListCreateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -55,7 +55,7 @@ class CompoundMaterialListCreateAPIView(TenantAPIView):
         return Response(CompoundMaterialSerializer(material).data, status=status.HTTP_201_CREATED)
 
 
-class CompoundMaterialDetailAPIView(TenantAPIView):
+class CompoundMaterialDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):

@@ -12,6 +12,23 @@ import type {MenuItem} from "../../../domain/entities/product/menu/MenuItem.ts";
 import {buildMediaUrl} from "../../utils/media.ts";
 
 
+const allergenLabels: Record<string, string> = {
+    celery: "کرفس",
+    cereals_gluten: "غلات حاوی گلوتن",
+    crustaceans: "سخت‌پوستان",
+    eggs: "تخم‌مرغ",
+    fish: "ماهی",
+    lupin: "لوپین",
+    milk: "شیر",
+    molluscs: "نرم‌تنان",
+    mustard: "خردل",
+    peanuts: "بادام‌زمینی",
+    sesame: "کنجد",
+    soybeans: "سویا",
+    sulphites: "سولفیت",
+    tree_nuts: "مغزها",
+};
+
 interface Props {
     item: MenuItem;
     onEdit?: (item: MenuItem) => void;
@@ -223,6 +240,59 @@ export const MenuItemTile = ({
                         }
                     </Typography>
                 )}
+
+                {(item.recipeAllergens != null || item.catalogProductAllergens != null) ? (
+                    <Box sx={{ mt: 2, display: "flex", flexDirection: "column", gap: 1.25 }}>
+                        {item.recipeAllergens != null ? (
+                            <Box>
+                                <Typography sx={{ fontSize: 12, color: "text.secondary", mb: 0.75 }}>
+                                    آلرژن‌های رسپی
+                                </Typography>
+                                {item.recipeAllergens.length ? (
+                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                        {item.recipeAllergens.map((allergen) => (
+                                        <Chip
+                                            key={`recipe-${allergen.code}`}
+                                            size="small"
+                                            variant="outlined"
+                                            color={allergen.presence === "contains" ? "error" : "warning"}
+                                            label={`${allergenLabels[allergen.code] ?? allergen.code} · ${allergen.presence === "contains" ? "حاوی" : "احتمال وجود"}`}
+                                        />
+                                        ))}
+                                    </Box>
+                                ) : (
+                                    <Typography sx={{ fontSize: 12, color: "text.disabled" }}>
+                                        اعلامیه‌ای برای آلرژن‌های رسپی ثبت نشده است.
+                                    </Typography>
+                                )}
+                            </Box>
+                        ) : null}
+                        {item.catalogProductAllergens != null ? (
+                            <Box>
+                                <Typography sx={{ fontSize: 12, color: "text.secondary", mb: 0.75 }}>
+                                    اعلام آلرژن محصول
+                                </Typography>
+                                {item.catalogProductAllergens.length ? (
+                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                        {item.catalogProductAllergens.map((allergen) => (
+                                        <Chip
+                                            key={`catalog-${allergen.code}`}
+                                            size="small"
+                                            variant="outlined"
+                                            color={allergen.presence === "contains" ? "error" : "warning"}
+                                            label={`${allergenLabels[allergen.code] ?? allergen.code} · ${allergen.presence === "contains" ? "حاوی" : "احتمال وجود"}`}
+                                        />
+                                        ))}
+                                    </Box>
+                                ) : (
+                                    <Typography sx={{ fontSize: 12, color: "text.disabled" }}>
+                                        اعلامیه‌ای برای آلرژن‌های محصول ثبت نشده است.
+                                    </Typography>
+                                )}
+                            </Box>
+                        ) : null}
+                    </Box>
+                ) : null}
 
                 <Box
                     sx={{

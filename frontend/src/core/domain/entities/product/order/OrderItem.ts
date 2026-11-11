@@ -4,6 +4,8 @@ export interface OrderItem {
     orderId: number;
     menuItemId: number | null;
     menuItemName?: string;        // نام آیتم منو (برای نمایش/ گزارش)
+    catalogProductId?: number | null;
+    catalogProductName?: string | null;
     quantity: number;
     unitPrice?: number;           // قیمت واحد در زمان سفارش (قفل شود)
     totalPrice?: number;          // = quantity * unitPrice

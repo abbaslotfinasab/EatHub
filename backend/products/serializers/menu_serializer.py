@@ -3,29 +3,15 @@ from rest_framework import serializers
 from accounts.models import Business
 from products.models import MenuItem
 from products.models import Menu
-from inventory.models import Recipe
 
 
-
-
-class BusinessRecipeField(serializers.PrimaryKeyRelatedField):
-    """Resolve recipe IDs only inside the authenticated business."""
-
-    def get_queryset(self):
-        business = self.context.get("business")
-        if business is None:
-            return Recipe.objects.none()
-        return Recipe.objects.filter(business=business)
 
 
 class MenuItemCreateSerializer(serializers.Serializer):
 
-    recipe_id = BusinessRecipeField(
-        source="recipe",
-        queryset=Recipe.objects.none(),
-        required=False,
-        allow_null=True,
-    )
+    product_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+
+    recipe_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
     name = serializers.CharField(
         max_length=120
@@ -56,8 +42,62 @@ class MenuItemCreateSerializer(serializers.Serializer):
 
 
 class MenuItemSerializer(serializers.ModelSerializer):
+    product_id = serializers.IntegerField(read_only=True, allow_null=True)
+    product_name = serializers.SerializerMethodField()
     recipe_id = serializers.IntegerField(read_only=True)
-    recipe_name = serializers.CharField(source="recipe.name", read_only=True, allow_null=True)
+    recipe_name = serializers.SerializerMethodField()
+    recipe_allergens = serializers.SerializerMethodField()
+    catalog_product_allergens = serializers.SerializerMethodField()
+
+    def _recipe_read_model(self, obj):
+        if obj.recipe_id is None:
+            return None
+        cache = getattr(self, "_recipe_read_models", {})
+        key = (obj.business_id, obj.recipe_id)
+        if key not in cache:
+            from composition.recipe_queries import RecipeUnavailable, get_recipe_for_business
+            try:
+                cache[key] = get_recipe_for_business(
+                    business_id=obj.business_id,
+                    recipe_id=obj.recipe_id,
+                )
+            except RecipeUnavailable:
+                cache[key] = None
+            self._recipe_read_models = cache
+        return cache[key]
+
+    def _product_read_model(self, obj):
+        if obj.product_id is None:
+            return None
+        cache = getattr(self, "_product_read_models", {})
+        key = (obj.business_id, obj.product_id)
+        if key not in cache:
+            from catalog.application.services import ProductCatalogService, ProductNotFound
+            try:
+                cache[key] = ProductCatalogService.get_product_read_model_for_business(
+                    business_id=obj.business_id,
+                    product_id=obj.product_id,
+                )
+            except ProductNotFound:
+                cache[key] = None
+            self._product_read_models = cache
+        return cache[key]
+
+    def get_product_name(self, obj):
+        product = self._product_read_model(obj)
+        return None if product is None else product["name"]
+
+    def get_recipe_name(self, obj):
+        recipe = self._recipe_read_model(obj)
+        return None if recipe is None else recipe.name
+
+    def get_recipe_allergens(self, obj):
+        recipe = self._recipe_read_model(obj)
+        return None if recipe is None else list(recipe.allergens)
+
+    def get_catalog_product_allergens(self, obj):
+        product = self._product_read_model(obj)
+        return None if product is None else list(product["allergens"])
 
     class Meta:
         model = MenuItem
@@ -68,13 +108,14 @@ class MenuItemSerializer(serializers.ModelSerializer):
             "price",
             "image_url",
             "is_available",
+            "product_id",
+            "product_name",
             "recipe_id",
             "recipe_name",
+            "recipe_allergens",
+            "catalog_product_allergens",
         ]
         read_only_fields = ("id", "created_at", "updated_at")
-
-
-
 
 
 class MenuSerializer(serializers.ModelSerializer):
@@ -110,12 +151,9 @@ class CreateMenuWithItemsSerializer(serializers.Serializer):
 
 
 class MenuItemUpdateSerializer(serializers.Serializer):
-    recipe_id = BusinessRecipeField(
-        source="recipe",
-        queryset=Recipe.objects.none(),
-        required=False,
-        allow_null=True,
-    )
+    product_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
+
+    recipe_id = serializers.IntegerField(required=False, allow_null=True, min_value=1)
 
     id = serializers.IntegerField(
         required=False

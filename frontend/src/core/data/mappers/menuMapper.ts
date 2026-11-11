@@ -1,10 +1,8 @@
 import type { MenuDTO } from "../dtos/menu/MenuDto.ts";
 import type { MenuItemDTO } from "../dtos/menu/MenuItemDTO.ts";
-
 import type { Menu } from "../../domain/entities/product/menu/Menu.ts";
 import type { MenuItem } from "../../domain/entities/product/menu/MenuItem.ts";
 import type { MenuWithItems } from "../../domain/entities/product/menu/MenuWithItems.ts";
-
 import type { UpdateMenuDTO } from "../dtos/menu/UpdateMenuDTO.ts";
 import type {CreateMenuDTO} from "../dtos/menu/CreateMenuDTO.ts";
 import type { CreateMenuItemDTO } from "../dtos/menu/CreateMenuItemDTO.ts";
@@ -36,6 +34,10 @@ export const menuMapper = {
             menuId: dto.menuId,
             name: dto.name,
             recipeId: dto.recipe_id == null ? null : String(dto.recipe_id),
+            productId: dto.product_id ?? null,
+            productName: dto.product_name ?? null,
+            recipeAllergens: dto.recipe_allergens ?? null,
+            catalogProductAllergens: dto.catalog_product_allergens ?? null,
             description: dto.description,
             price: dto.price,
             imageUrl: dto.image_url,
@@ -59,6 +61,7 @@ export const menuMapper = {
         return {
             name: domain.name,
             recipe_id: domain.recipeId ? Number(domain.recipeId) : null,
+            product_id: domain.productId ?? null,
             description: domain.description,
             price: domain.price,
             image_url: domain.imageUrl,
@@ -80,6 +83,7 @@ export const menuMapper = {
         return {
             name: domain.name,
             recipe_id: domain.recipeId ? Number(domain.recipeId) : null,
+            product_id: domain.productId ?? null,
             description: domain.description,
             price: domain.price,
             image_url: domain.imageUrl,

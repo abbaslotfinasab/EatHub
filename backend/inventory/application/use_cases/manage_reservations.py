@@ -2,12 +2,13 @@ from __future__ import annotations
 from decimal import Decimal, localcontext
 import hashlib
 import json
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from inventory.application.context import InventoryExecutionContext
 from inventory.application.dto.reservation import ReservationDTO, StockAvailabilityDTO
 from inventory.application.exceptions import InvalidApplicationInput, OperationConflict, ResourceNotFound
 from inventory.application.ports.reservations import ReservationRepository
+from inventory.application.ports.order_reservation_source import OrderReservationSource
 from inventory.application.ports.unit_of_work import InventoryUnitOfWork
 from inventory.domain.entities.reservation import (
     MANUAL_RESERVATION_SOURCE,
@@ -21,12 +22,26 @@ from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
 
 
+_ORDER_KEY_NAMESPACE = UUID("90144542-95ef-4eef-a498-0e73f429725d")
+
+
 class ManageReservations:
     MAX_PAGE_SIZE = 100
 
-    def __init__(self, reservations: ReservationRepository, unit_of_work: InventoryUnitOfWork) -> None:
+    def __init__(
+        self,
+        reservations: ReservationRepository,
+        unit_of_work: InventoryUnitOfWork,
+        order_source: OrderReservationSource | None = None,
+    ) -> None:
         self._reservations = reservations
         self._unit_of_work = unit_of_work
+        self._order_source = order_source
+
+    def _require_order_source(self) -> OrderReservationSource:
+        if self._order_source is None:
+            raise InvalidApplicationInput("Order reservation operations require an order-source adapter.")
+        return self._order_source
 
     def create(self, context: InventoryExecutionContext, *, warehouse_id: int, source_type: str,
                source_id: int | None, reason: str, idempotency_key: UUID,
@@ -83,7 +98,7 @@ class ManageReservations:
             raise InvalidApplicationInput("Manual reservations cannot reference external source lines.")
 
         with self._unit_of_work.atomic():
-            if order_source and not self._reservations.order_source_is_active(
+            if order_source and not self._require_order_source().is_active(
                 context.business_id, source_id
             ):
                 raise ResourceNotFound("Active order was not found in this Business.")
@@ -96,7 +111,7 @@ class ManageReservations:
                 _request, fingerprint = self._build_request(
                     context, warehouse_id, source_type, source_id, reason, idempotency_key, lines, ingredients
                 )
-                if order_source and not self._reservations.order_reservation_matches(
+                if order_source and not self._require_order_source().reservation_matches(
                     context.business_id, source_id, _request.lines
                 ):
                     raise OperationConflict("Order reservation quantities must match its immutable requirements.")
@@ -118,7 +133,7 @@ class ManageReservations:
             request, fingerprint = self._build_request(
                 context, warehouse_id, source_type, source_id, reason, idempotency_key, lines, ingredients
             )
-            if order_source and not self._reservations.order_reservation_matches(
+            if order_source and not self._require_order_source().reservation_matches(
                 context.business_id, source_id, request.lines
             ):
                 raise OperationConflict("Order reservation quantities must match its immutable requirements.")
@@ -170,6 +185,60 @@ class ManageReservations:
 
             return self._reservations.create(request, fingerprint, context.actor_id or 0)
 
+    def prepare_order_consumption(
+        self, context: InventoryExecutionContext, order_id: int
+    ) -> ReservationDTO:
+        """Resolve and lock the active order reservation and its stock scope."""
+        if not isinstance(context, InventoryExecutionContext):
+            raise InvalidApplicationInput("A trusted inventory execution context is required.")
+        if context.actor_id is None:
+            raise InvalidApplicationInput("A reservation actor is required.")
+        if isinstance(order_id, bool) or not isinstance(order_id, int) or order_id <= 0:
+            raise InvalidApplicationInput("Order ID must be a positive integer.")
+        with self._unit_of_work.atomic():
+            if not self._require_order_source().is_active(context.business_id, order_id):
+                raise ResourceNotFound("Active order was not found in this Business.")
+            reservation = self._reservations.lock_active_order_reservation_for_consumption(
+                context.business_id, order_id
+            )
+            if reservation is None:
+                raise OperationConflict("No active reservation remains for this order.")
+            return reservation
+
+    def validate_order_reservation_for_confirmation(
+        self, context: InventoryExecutionContext, order_id: int
+    ) -> ReservationDTO:
+        """Lock the active order hold and verify it matches remaining immutable requirements."""
+        if not isinstance(context, InventoryExecutionContext):
+            raise InvalidApplicationInput("A trusted inventory execution context is required.")
+        if context.actor_id is None:
+            raise InvalidApplicationInput("A reservation actor is required.")
+        if isinstance(order_id, bool) or not isinstance(order_id, int) or order_id <= 0:
+            raise InvalidApplicationInput("Order ID must be a positive integer.")
+        with self._unit_of_work.atomic():
+            if not self._require_order_source().is_active(context.business_id, order_id):
+                raise ResourceNotFound("Active order was not found in this Business.")
+            reservation = self._reservations.lock_active_order_reservation_for_consumption(
+                context.business_id, order_id
+            )
+            if reservation is None:
+                raise OperationConflict("No active reservation remains for this order.")
+            lines = [
+                ReservationLine(
+                    ingredient_id=line.ingredient_id,
+                    quantity=Quantity(line.quantity, line.unit),
+                )
+                for line in reservation.lines
+            ]
+            if not self._require_order_source().reservation_matches(
+                context.business_id, order_id, lines
+            ):
+                raise OperationConflict(
+                    "The active order reservation does not match its remaining immutable requirements; "
+                    "inventory reconciliation is required."
+                )
+            return reservation
+
     def release(self, context: InventoryExecutionContext, reservation_id: int,
                 idempotency_key: UUID, reason: str) -> ReservationDTO:
         if not isinstance(context, InventoryExecutionContext):
@@ -189,6 +258,43 @@ class ManageReservations:
                 # The repository verifies the original release key and reason.
                 return self._reservations.release(context.business_id, reservation_id, context.actor_id or 0, idempotency_key, reason)
             return self._reservations.release(context.business_id, reservation_id, context.actor_id or 0, idempotency_key, reason)
+
+    def release_for_order(
+        self, context: InventoryExecutionContext, order_id: int, reason: str
+    ) -> ReservationDTO | None:
+        """Release the sole active order hold; tolerate orders with no reservation."""
+        if not isinstance(context, InventoryExecutionContext):
+            raise InvalidApplicationInput("A trusted inventory execution context is required.")
+        if isinstance(order_id, bool) or not isinstance(order_id, int) or order_id <= 0:
+            raise InvalidApplicationInput("Order ID must be a positive integer.")
+        reason = reason.strip() if isinstance(reason, str) else ""
+        if not reason:
+            raise InvalidApplicationInput("A release reason is required.")
+
+        total, active = self.list(
+            context,
+            source_type=ORDER_RESERVATION_SOURCE,
+            source_id=order_id,
+            status=ReservationStatus.ACTIVE.value,
+            page=1,
+            page_size=2,
+        )
+        if total > 1 or len(active) > 1:
+            raise OperationConflict(
+                "Multiple active reservations exist for this order; inventory reconciliation is required."
+            )
+        if not active:
+            return None
+        if context.actor_id is None:
+            raise InvalidApplicationInput("A reservation actor is required.")
+
+        reservation = active[0]
+        return self.release(
+            context,
+            reservation.id,
+            uuid5(_ORDER_KEY_NAMESPACE, f"release:{reservation.id}"),
+            reason,
+        )
 
     def get(self, context: InventoryExecutionContext, reservation_id: int) -> ReservationDTO:
         if not isinstance(context, InventoryExecutionContext):

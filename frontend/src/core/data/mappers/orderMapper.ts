@@ -60,6 +60,8 @@ export const orderMapper = {
             orderId: dto.order_id,
             menuItemId: dto.menu_item_id,
             menuItemName: dto.menu_item_name,
+            catalogProductId: dto.catalog_product_id ?? null,
+            catalogProductName: dto.catalog_product_name ?? null,
             quantity: dto.quantity,
             unitPrice: dto.unit_price,
             totalPrice: dto.total_price,

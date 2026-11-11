@@ -1,4 +1,3 @@
-from django.db import transaction
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -22,19 +21,46 @@ from accounts.serializers.business_serializer import (
 )
 from accounts.services.business_service import BusinessService
 from accounts.services.me_service import MeService
+from accounts.tenant_context import resolve_tenant_context
 
 
 class TenantAPIView(APIView):
+    """Compatibility tenant base with explicit selection for multi-business users.
+
+    Existing single-business clients remain compatible during the route migration.
+    Multi-business users must send X-Business-Id; it is always validated server-side.
+    New endpoints should use ExplicitTenantAPIView directly.
+    """
+
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
-        membership = (
-            Membership.objects
-            .select_related("business", "role")
+        business_id = request.headers.get("X-Business-Id")
+        if business_id:
+            context = resolve_tenant_context(
+                user=request.user,
+                business_id=business_id,
+            )
+            request.tenant_context = context
+            request.business = context.business
+            request.membership = context.membership
+            request.role = context.membership.role
+            request.permissions = list(context.permissions)
+            return
+
+        memberships = list(
+            Membership.objects.select_related("business", "role")
             .filter(user=request.user, is_active=True, business__is_active=True)
-            .first()
+            .order_by("id")[:2]
         )
-        if not membership:
+        if not memberships:
             raise PermissionDenied("No active business.")
+        if len(memberships) > 1:
+            raise ValidationError({
+                "code": "BUSINESS_CONTEXT_REQUIRED",
+                "detail": "X-Business-Id is required when the user has multiple active businesses.",
+            })
+
+        membership = memberships[0]
         request.business = membership.business
         request.membership = membership
         request.role = membership.role
@@ -42,6 +68,22 @@ class TenantAPIView(APIView):
             membership.role.role_permissions.select_related("permission")
             .values_list("permission__code", flat=True)
         )
+
+
+class ExplicitTenantAPIView(APIView):
+    """Require an explicit, authorized business context from X-Business-Id."""
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        context = resolve_tenant_context(
+            user=request.user,
+            business_id=request.headers.get("X-Business-Id"),
+        )
+        request.tenant_context = context
+        request.business = context.business
+        request.membership = context.membership
+        request.role = context.membership.role
+        request.permissions = list(context.permissions)
 
 
 class RegisterAPIView(APIView):
@@ -89,9 +131,7 @@ class LoginAPIView(APIView):
 class SelectBusinessAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @transaction.atomic
     def post(self, request):
-        User.objects.select_for_update().get(pk=request.user.pk)
         business_id = request.data.get("business_id")
         if not business_id:
             raise ValidationError({"business_id": "This field is required."})
@@ -102,14 +142,12 @@ class SelectBusinessAPIView(APIView):
             ).get(
                 user=request.user,
                 business_id=business_id,
+                is_active=True,
                 business__is_active=True,
             )
         except Membership.DoesNotExist:
-            return Response({"detail": "Invalid business"}, status=400)
+            return Response({"detail": "Invalid or inactive business membership"}, status=400)
 
-        Membership.objects.filter(user=request.user, is_active=True).update(is_active=False)
-        new_membership.is_active = True
-        new_membership.save(update_fields=["is_active"])
         return Response({
             "business": {
                 "id": new_membership.business.id,
@@ -117,7 +155,6 @@ class SelectBusinessAPIView(APIView):
             },
             "role": new_membership.role.code,
         })
-
 
 class MeAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -223,7 +260,7 @@ class BusinessProfileAPIView(TenantAPIView):
         return Response(BusinessSerializer(business, context={"request": request}).data)
 
 
-class BusinessInventorySettingsAPIView(TenantAPIView):
+class BusinessInventorySettingsAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):

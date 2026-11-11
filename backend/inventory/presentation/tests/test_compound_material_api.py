@@ -28,6 +28,7 @@ class CompoundMaterialAPITests(APITestCase):
         self.inactive = Ingredient.objects.create(business=self.business, name="Inactive", unit="kg", preparation_level="raw", is_active=False)
         self.foreign = Ingredient.objects.create(business=self.other_business, name="Foreign", unit="kg", preparation_level="raw")
         self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     @staticmethod
     def _permission(code):
@@ -41,6 +42,19 @@ class CompoundMaterialAPITests(APITestCase):
         user = User.objects.create_user(email=f"{email}@example.test", password="not-used", name=email, number=f"95{business.pk}{len(email)}")
         Membership.objects.create(user=user, business=business, role=role, is_active=True)
         return user
+
+    def test_requires_explicit_business_context_and_rejects_foreign_business(self):
+        self.client.credentials()
+        missing = self.client.get("/api/inventory/compound-materials/")
+        self.assertEqual(missing.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(missing.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        foreign = self.client.get("/api/inventory/compound-materials/")
+        self.assertEqual(foreign.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(foreign.data["code"], "BUSINESS_ACCESS_DENIED")
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
 
     def _payload(self, **changes):
         return {

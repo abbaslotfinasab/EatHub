@@ -81,6 +81,11 @@ class RecipeLineSerializer(serializers.Serializer):
     is_primary = serializers.BooleanField(required=False)
 
 
+class RecipeAllergenSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    presence = serializers.ChoiceField(choices=("contains", "may_contain"))
+
+
 class RecipeSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     name = serializers.CharField()
@@ -90,6 +95,7 @@ class RecipeSerializer(serializers.Serializer):
     is_active = serializers.BooleanField()
     inputs = RecipeLineSerializer(many=True)
     outputs = RecipeLineSerializer(many=True)
+    allergens = RecipeAllergenSerializer(many=True)
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
 
