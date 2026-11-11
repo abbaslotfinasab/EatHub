@@ -190,6 +190,40 @@ class ManageReservations:
                 raise OperationConflict("No active reservation remains for this order.")
             return reservation
 
+    def validate_order_reservation_for_confirmation(
+        self, context: InventoryExecutionContext, order_id: int
+    ) -> ReservationDTO:
+        """Lock the active order hold and verify it matches remaining immutable requirements."""
+        if not isinstance(context, InventoryExecutionContext):
+            raise InvalidApplicationInput("A trusted inventory execution context is required.")
+        if context.actor_id is None:
+            raise InvalidApplicationInput("A reservation actor is required.")
+        if isinstance(order_id, bool) or not isinstance(order_id, int) or order_id <= 0:
+            raise InvalidApplicationInput("Order ID must be a positive integer.")
+        with self._unit_of_work.atomic():
+            if not self._reservations.order_source_is_active(context.business_id, order_id):
+                raise ResourceNotFound("Active order was not found in this Business.")
+            reservation = self._reservations.lock_active_order_reservation_for_consumption(
+                context.business_id, order_id
+            )
+            if reservation is None:
+                raise OperationConflict("No active reservation remains for this order.")
+            lines = [
+                ReservationLine(
+                    ingredient_id=line.ingredient_id,
+                    quantity=Quantity(line.quantity, line.unit),
+                )
+                for line in reservation.lines
+            ]
+            if not self._reservations.order_reservation_matches(
+                context.business_id, order_id, lines
+            ):
+                raise OperationConflict(
+                    "The active order reservation does not match its remaining immutable requirements; "
+                    "inventory reconciliation is required."
+                )
+            return reservation
+
     def release(self, context: InventoryExecutionContext, reservation_id: int,
                 idempotency_key: UUID, reason: str) -> ReservationDTO:
         if not isinstance(context, InventoryExecutionContext):

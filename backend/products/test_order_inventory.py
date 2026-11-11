@@ -137,6 +137,36 @@ class OrderInventoryLifecycleTests(TestCase):
                 self.order.pk,
             )
 
+    def test_inventory_application_validates_confirmation_retry_reservation(self):
+        self.confirm()
+        use_case = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+        )
+
+        prepared = use_case.validate_order_reservation_for_confirmation(
+            InventoryExecutionContext(self.business.pk, self.actor.pk),
+            self.order.pk,
+        )
+
+        self.assertEqual(prepared.business_id, self.business.pk)
+        self.assertEqual(prepared.source_id, self.order.pk)
+        self.assertEqual(prepared.lines[0].quantity, Decimal("3.000000000000"))
+
+    def test_inventory_application_rejects_mismatched_confirmation_retry_reservation(self):
+        self.confirm()
+        InventoryReservation.objects.get(source_id=self.order.pk).lines.update(
+            quantity=Decimal("2")
+        )
+        use_case = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+        )
+
+        with self.assertRaises(OperationConflict):
+            use_case.validate_order_reservation_for_confirmation(
+                InventoryExecutionContext(self.business.pk, self.actor.pk),
+                self.order.pk,
+            )
+
     def test_confirmation_scales_and_converts_then_reserves_without_physical_deduction(self):
         self.confirm()
 
