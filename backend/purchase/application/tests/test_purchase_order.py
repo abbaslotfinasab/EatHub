@@ -127,6 +127,12 @@ class PurchaseOrderApplicationTests(TestCase):
                 business_id=1,
                 requested_by_id=1,
                 status=RequisitionStatus.APPROVED,
+                items=[
+                    __import__("purchase.domain.entities.requisition", fromlist=["PurchaseRequisitionItem"]).PurchaseRequisitionItem(
+                        ingredient_id=1,
+                        quantity=Decimal("2"),
+                    )
+                ],
             ),
             PurchaseRequisition(
                 id=2,
@@ -192,6 +198,78 @@ class PurchaseOrderApplicationTests(TestCase):
         order = self.create_use_case.execute(self.create_command(requisition_id=1))
 
         self.assertEqual(order.requisition_id, 1)
+
+    def test_rejects_purchase_order_quantity_above_approved_requisition(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must match the approved requisition quantity"):
+            self.create_use_case.execute(
+                self.create_command(
+                    requisition_id=1,
+                    items=[
+                        CreatePurchaseOrderItemDTO(
+                            ingredient_id=1,
+                            quantity=Decimal("2.001"),
+                            unit_price=Decimal("3"),
+                            purchase_unit=PurchaseUnit.KG,
+                        )
+                    ],
+                )
+            )
+
+    def test_rejects_purchase_order_quantity_below_approved_requisition(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must match the approved requisition quantity"):
+            self.create_use_case.execute(
+                self.create_command(
+                    requisition_id=1,
+                    items=[
+                        CreatePurchaseOrderItemDTO(
+                            ingredient_id=1,
+                            quantity=Decimal("1.999"),
+                            unit_price=Decimal("3"),
+                            purchase_unit=PurchaseUnit.KG,
+                        )
+                    ],
+                )
+            )
+
+    def test_rejects_unrequested_ingredient_in_purchase_order(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must match the approved requisition ingredients"):
+            self.create_use_case.execute(
+                self.create_command(
+                    requisition_id=1,
+                    items=[
+                        CreatePurchaseOrderItemDTO(
+                            ingredient_id=2,
+                            quantity=Decimal("2"),
+                            unit_price=Decimal("3"),
+                            purchase_unit=PurchaseUnit.KG,
+                        )
+                    ],
+                )
+            )
+
+    def test_aggregates_duplicate_purchase_order_lines_for_requisition_matching(self) -> None:
+        order = self.create_use_case.execute(
+            self.create_command(
+                requisition_id=1,
+                items=[
+                    CreatePurchaseOrderItemDTO(
+                        ingredient_id=1,
+                        quantity=Decimal("1"),
+                        unit_price=Decimal("3"),
+                        purchase_unit=PurchaseUnit.KG,
+                    ),
+                    CreatePurchaseOrderItemDTO(
+                        ingredient_id=1,
+                        quantity=Decimal("1"),
+                        unit_price=Decimal("3"),
+                        purchase_unit=PurchaseUnit.KG,
+                    ),
+                ],
+            )
+        )
+
+        self.assertEqual(order.requisition_id, 1)
+        self.assertEqual(sum(item.quantity for item in order.items), Decimal("2"))
 
     def test_rejects_requisition_from_another_business(self) -> None:
         with self.assertRaises(ValueError):
