@@ -1,5 +1,6 @@
 // core/domain/repositories/sales/OrderRepository.ts
 import type {OrderWithItems} from "../../entities/product/order/OrderWithItems.ts";
+import type {OrderStatusHistory} from "../../entities/product/order/OrderStatusHistory.ts";
 import type {UpdateOrderStatusInput} from "../../entities/product/order/UpdateOrderStatusInput.ts";
 import type {RefundOrderInput, RefundOrderResult} from "../../entities/product/order/RefundOrderInput.ts";
 import type {
@@ -21,6 +22,8 @@ export interface OrderRepository {
 
     // پیدا کردن سفارش با شناسه (بدون آیتم‌ها)
     findById(id: string): Promise<OrderWithItems>;
+
+    getStatusHistory(orderId: string): Promise<OrderStatusHistory>;
 
     // دریافت لیست سفارش‌ها با فیلتر (بدون آیتم‌ها)
     findAll(filters?: OrderFilters): Promise<PaginatedResult<OrderWithItems>>;
