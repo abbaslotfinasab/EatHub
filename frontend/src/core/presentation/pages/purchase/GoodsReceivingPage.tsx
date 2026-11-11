@@ -142,18 +142,18 @@ export const GoodsReceivingPage = () => {
         for (const line of order.data.items) {
             const acceptedText = quantities[line.id]?.trim() ?? '';
             const rejectedText = rejectedQuantities[line.id]?.trim() ?? '';
-            if ((!acceptedText || /^0+(?:\.0{1,3})?$/.test(acceptedText))
-                && (!rejectedText || /^0+(?:\.0{1,3})?$/.test(rejectedText))) continue;
+            if (!acceptedText && !rejectedText) continue;
             const accepted = acceptedText ? toMilli(acceptedText) : 0n;
             const rejected = rejectedText ? toMilli(rejectedText) : 0n;
             const ordered = toMilli(line.orderedQuantity);
             const received = previouslyReceived.get(line.id) ?? 0n;
-            if (accepted === null || rejected === null || accepted < 0n || rejected < 0n || (accepted === 0n && rejected === 0n)) {
-                quantityErrors.push(`مقادیر پذیرفته‌شده و مردود ردیف ${line.id} باید عددی نامنفی با حداکثر سه رقم اعشار باشند و مجموع آن‌ها صفر نباشد.`);
+            if (accepted === null || rejected === null || accepted < 0n || rejected < 0n) {
+                quantityErrors.push(`مقادیر پذیرفته‌شده و مردود ردیف ${line.id} باید عددی نامنفی با حداکثر سه رقم اعشار باشند.`);
                 continue;
             }
-            if (ordered === null || accepted + rejected > ordered - received) {
-                quantityErrors.push(`مجموع مقدار پذیرفته‌شده و مردود ردیف ${line.id} از مقدار باقی‌مانده بیشتر است.`);
+            if (accepted === 0n && rejected === 0n) continue;
+            if (ordered === null || accepted > ordered - received) {
+                quantityErrors.push(`مقدار پذیرفته‌شده ردیف ${line.id} از مقدار باقی‌مانده سفارش بیشتر است.`);
                 continue;
             }
             if (!line.purchaseUnit) {
