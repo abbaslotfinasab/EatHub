@@ -180,7 +180,7 @@ class OrderStatusHistoryServiceTests(TestCase):
             },
         )
 
-        entry = OrderStatusHistory.objects.get(order=order)
+        entry = OrderStatusHistory.objects.get(order_id_snapshot=order.pk)
         self.assertIsNone(entry.from_status)
         self.assertEqual(entry.to_status, Order.Status.PENDING)
         self.assertEqual(entry.actor_id, self.actor.pk)
