@@ -66,10 +66,12 @@ class DjangoWarehouseRepository:
         ).first()
         return warehouse_to_domain(row) if row is not None else None
 
-    def get_active_defaults_for_business(self, business_id: int) -> list[Warehouse]:
+    def get_active_defaults_for_business(self, business_id: int, *, lock: bool = False) -> list[Warehouse]:
         rows = LegacyWarehouse.objects.filter(
             business_id=business_id, is_active=True, is_default=True
         ).order_by("pk")
+        if lock and connection.in_atomic_block:
+            rows = rows.select_for_update(of=("self",))
         return [warehouse_to_domain(row) for row in rows]
 
 
