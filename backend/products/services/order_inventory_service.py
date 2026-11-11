@@ -13,12 +13,10 @@ from rest_framework.exceptions import ValidationError
 from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import InvalidApplicationInput, OperationConflict, ResourceNotFound
 from inventory.application.use_cases.manage_reservations import ManageReservations
-from inventory.domain.entities.reservation import ReservationLine
 from inventory.domain.exceptions import InventoryDomainError
 from inventory.domain.value_objects.quantity import Quantity
 from inventory.domain.value_objects.unit import Unit
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
-from inventory.infrastructure.django.models import InventoryReservation
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.models import Ingredient, Recipe, Warehouse
 from products.models import (
@@ -79,46 +77,10 @@ class OrderInventoryService:
             if OrderItemRecipeSnapshot.objects.filter(order_id=order.pk).count() != len(items):
                 raise ValidationError("This order has an incomplete legacy recipe snapshot and needs review.")
 
-            # Snapshots are not proof that stock is still reserved. A retry must
-            # verify the active hold against immutable requirements minus any
-            # consumption already recorded for this order.
-            active_reservations = list(
-                InventoryReservation.objects.select_for_update()
-                .filter(
-                    business_id=order.business_id,
-                    warehouse__business_id=order.business_id,
-                    source_type="order",
-                    source_id=order.pk,
-                    status=InventoryReservation.Status.ACTIVE,
-                )
-                .prefetch_related("lines")
-                .order_by("pk")
-            )
-            if len(active_reservations) != 1:
-                raise ValidationError(
-                    "Recipe snapshots exist but the order does not have exactly one active inventory reservation; "
-                    "inventory reconciliation is required."
-                )
-
-            reservation_lines = []
-            try:
-                for line in active_reservations[0].lines.all().order_by("ingredient_id"):
-                    reservation_lines.append(ReservationLine(
-                        ingredient_id=line.ingredient_id,
-                        quantity=Quantity(line.quantity, Unit(line.unit)),
-                    ))
-            except (InventoryDomainError, TypeError, ValueError) as error:
-                raise ValidationError(
-                    "The active order reservation contains invalid data and requires inventory reconciliation."
-                ) from error
-
-            if not DjangoReservationRepository.order_reservation_matches(
-                order.business_id, order.pk, reservation_lines
-            ):
-                raise ValidationError(
-                    "The active order reservation does not match its remaining immutable requirements; "
-                    "inventory reconciliation is required."
-                )
+            # Inventory owns reservation lookup, lock ordering and reconciliation.
+            _inventory_call(lambda: _reservation_use_case().validate_order_reservation_for_confirmation(
+                _context(order, actor_id), order.pk
+            ))
             return
 
         if order.inventory_tracking_enabled is False:
