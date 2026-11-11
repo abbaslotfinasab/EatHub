@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Box, Button, CircularProgress, Container, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -7,7 +7,7 @@ import { WarehouseRepositoryImpl } from '../../../data/repositories/WarehouseRep
 import { createOrderGoodsReceipt, getReceivingOrder, listOrderGoodsReceipts, listPurchaseSuppliers } from '../../../data/di/purchaseReceiving.ts';
 import type { CreateGoodsReceiptInput } from '../../../domain/entities/inventory/facture/PurchaseReceiving.ts';
 import { useAuthStore } from '../../store/auth.store.ts';
-import { clearGoodsReceiptRequestIdentity, getOrCreateGoodsReceiptRequestIdentity } from '../../utils/goodsReceiptRequestIdentity.ts';
+import { clearGoodsReceiptRequestIdentity, getOrCreateGoodsReceiptRequestIdentity, listGoodsReceiptRequestIdentities } from '../../utils/goodsReceiptRequestIdentity.ts';
 
 const ingredientRepository = new IngredientRepositoryImpl();
 const warehouseRepository = new WarehouseRepositoryImpl();
@@ -45,6 +45,8 @@ const errorMessage = (error: unknown): string => {
     return 'ثبت دریافت انجام نشد. اتصال را بررسی کنید؛ برای تلاش مجدد، مقادیر را تغییر ندهید.';
 };
 
+type PendingReceiptRequest = { fingerprint: string; input: CreateGoodsReceiptInput };
+
 export const GoodsReceivingPage = () => {
     const { id = '' } = useParams();
     const navigate = useNavigate();
@@ -61,6 +63,7 @@ export const GoodsReceivingPage = () => {
     const [rejectedQuantities, setRejectedQuantities] = useState<Record<string, string>>({});
     const [success, setSuccess] = useState('');
     const [formError, setFormError] = useState('');
+    const [pendingRequest, setPendingRequest] = useState<PendingReceiptRequest | null>(null);
 
     const order = useQuery({
         queryKey: ['purchase-orders', userId, businessId, id],
@@ -95,6 +98,42 @@ export const GoodsReceivingPage = () => {
         enabled: Boolean(canViewInventory && userId !== null && businessId !== null),
     });
 
+    useEffect(() => {
+        if (!businessId || !id) {
+            setPendingRequest(null);
+            return;
+        }
+        try {
+            const identity = listGoodsReceiptRequestIdentities(window.sessionStorage).find((candidate) => {
+                const payload = JSON.parse(candidate.fingerprint) as { businessId?: string; purchaseOrderId?: string };
+                return String(payload.businessId) === String(businessId) && String(payload.purchaseOrderId) === id;
+            });
+            if (!identity) {
+                setPendingRequest(null);
+                return;
+            }
+            const payload = JSON.parse(identity.fingerprint) as {
+                purchaseOrderId: string;
+                warehouseId: string;
+                notes: string;
+                items: CreateGoodsReceiptInput['items'];
+            };
+            setPendingRequest({
+                fingerprint: identity.fingerprint,
+                input: {
+                    idempotencyKey: identity.key,
+                    purchaseOrderId: String(payload.purchaseOrderId),
+                    receivedDate: identity.receivedDate,
+                    notes: payload.notes,
+                    warehouseId: String(payload.warehouseId),
+                    items: payload.items,
+                },
+            });
+        } catch {
+            setPendingRequest(null);
+        }
+    }, [businessId, id]);
+
     const selectedWarehouseId = (warehouses.data?.some((warehouse) => warehouse.id === warehouseId) ? warehouseId : '')
         || warehouses.data?.find((warehouse) => warehouse.isDefault)?.id
         || warehouses.data?.[0]?.id
@@ -122,6 +161,7 @@ export const GoodsReceivingPage = () => {
             try { clearGoodsReceiptRequestIdentity(request.fingerprint, window.sessionStorage); } catch { /* server success remains authoritative */ }
             setQuantities({});
             setRejectedQuantities({});
+            setPendingRequest(null);
             setSuccess(`دریافت شماره ${receipt.id} ثبت شد و موجودی از طریق گردش انبار به‌روزرسانی شد.`);
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['purchase-orders', userId, businessId] }),
@@ -130,12 +170,23 @@ export const GoodsReceivingPage = () => {
                 queryClient.invalidateQueries({ queryKey: ['inventory-movement-history', userId, businessId] }),
             ]);
         },
+        onError: (error, request) => {
+            const status = (error as { response?: { status?: number } })?.response?.status ?? 0;
+            if (status >= 400 && status < 500) {
+                try { clearGoodsReceiptRequestIdentity(request.fingerprint, window.sessionStorage); } catch { /* keep the original error visible */ }
+                setPendingRequest(null);
+            }
+        },
     });
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
         setSuccess('');
         setFormError('');
+        if (pendingRequest) {
+            setFormError('یک درخواست قبلی هنوز تعیین تکلیف نشده است. ابتدا همان درخواست را از بخش هشدار بالای فرم دوباره ارسال کنید.');
+            return;
+        }
         if (!order.data || !eligible || !canReceive || !dataReady || !selectedWarehouseId) return;
         const items: CreateGoodsReceiptInput['items'] = [];
         const quantityErrors: string[] = [];
@@ -190,7 +241,7 @@ export const GoodsReceivingPage = () => {
             setFormError(error instanceof Error ? error.message : 'ساخت شناسه درخواست ناموفق بود.');
             return;
         }
-        receive.mutate({
+        const request = {
             fingerprint,
             input: {
             idempotencyKey: requestIdentity.key,
@@ -200,7 +251,9 @@ export const GoodsReceivingPage = () => {
             warehouseId: selectedWarehouseId,
             items,
             },
-        });
+        };
+        setPendingRequest(request);
+        receive.mutate(request);
     };
 
     const loading = order.isLoading || receipts.isLoading || suppliers.isLoading || (canViewInventory && (ingredients.isLoading || warehouses.isLoading));
@@ -240,6 +293,9 @@ export const GoodsReceivingPage = () => {
                             <Typography><strong>وضعیت:</strong> {order.data.status === 'partial' ? 'دریافت جزئی' : order.data.status === 'sent' ? 'ارسال‌شده' : order.data.status}</Typography>
                         </Stack>
                     </Paper>
+                    {pendingRequest && <Alert severity="warning" action={<Button color="inherit" size="small" disabled={receive.isPending} onClick={() => receive.mutate(pendingRequest)}>تلاش مجدد درخواست قبلی</Button>}>
+                        یک درخواست دریافت قبلی هنوز تعیین تکلیف نشده است. برای جلوگیری از ثبت تکراری، همان درخواست با همان شناسه امن دوباره ارسال می‌شود.
+                    </Alert>}
                     {!eligible && <Alert severity="info">ثبت دریافت فقط برای سفارش‌های ارسال‌شده یا دارای دریافت جزئی ممکن است.</Alert>}
                     {eligible && !order.data.items.length && <Alert severity="warning">این سفارش ردیف قابل دریافتی ندارد.</Alert>}
                     {receipts.data?.length ? <Paper sx={{ p: 2 }}>
