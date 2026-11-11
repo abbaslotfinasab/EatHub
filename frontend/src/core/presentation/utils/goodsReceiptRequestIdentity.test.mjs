@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clearGoodsReceiptRequestIdentity, getOrCreateGoodsReceiptRequestIdentity } from "./goodsReceiptRequestIdentity.ts";
+import { clearGoodsReceiptRequestIdentity, getOrCreateGoodsReceiptRequestIdentity, listGoodsReceiptRequestIdentities } from "./goodsReceiptRequestIdentity.ts";
 class MemoryStorage {
     values = new Map();
     getItem(key) { return this.values.get(key) ?? null; }
@@ -38,4 +38,10 @@ test("replaces malformed persisted state", () => {
     const storage = new MemoryStorage();
     storage.setItem("eathub:goods-receipt-request-identities:v1", "{broken");
     assert.equal(getOrCreateGoodsReceiptRequestIdentity("payload", storage, () => "fresh-key").key, "fresh-key");
+});
+
+test("lists pending identities so a page can recover an uncertain request", () => {
+    const storage = new MemoryStorage();
+    const identity = getOrCreateGoodsReceiptRequestIdentity("payload-a", storage, () => "pending-key");
+    assert.deepEqual(listGoodsReceiptRequestIdentities(storage), [identity]);
 });
