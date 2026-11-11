@@ -72,13 +72,6 @@ class FakePurchaseOrderRepository:
         self.orders[purchase_order.id] = purchase_order
         return purchase_order
 
-    def exists_by_requisition(self, business_id: int, requisition_id: int) -> bool:
-        return any(
-            order.business_id == business_id
-            and order.requisition_id == requisition_id
-            for order in self.orders.values()
-        )
-
     def save_for_requisition(
         self,
         purchase_order: PurchaseOrder,
@@ -89,6 +82,7 @@ class FakePurchaseOrderRepository:
             if (
                 order.business_id != purchase_order.business_id
                 or order.requisition_id != requisition.id
+                or order.id == purchase_order.id
                 or order.status.value == "cancelled"
             ):
                 continue
