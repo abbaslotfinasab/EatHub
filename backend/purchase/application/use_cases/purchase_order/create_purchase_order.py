@@ -111,7 +111,10 @@ class CreatePurchaseOrderUseCase:
         return validated_requisition_id
 
     @staticmethod
-    def _validate_requisition_items(requisition_items, purchase_order_items) -> None:
+    def _validate_requisition_items(
+        requisition_items: list[PurchaseRequisitionItem],
+        purchase_order_items: list[PurchaseOrderItem],
+    ) -> None:
         requested: dict[int, Decimal] = {}
         ordered: dict[int, Decimal] = {}
 
