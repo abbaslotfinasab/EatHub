@@ -8,6 +8,7 @@ from inventory.application.context import InventoryExecutionContext
 from inventory.application.dto.reservation import ReservationDTO, StockAvailabilityDTO
 from inventory.application.exceptions import InvalidApplicationInput, OperationConflict, ResourceNotFound
 from inventory.application.ports.reservations import ReservationRepository
+from inventory.application.ports.order_reservation_source import OrderReservationSource
 from inventory.application.ports.unit_of_work import InventoryUnitOfWork
 from inventory.domain.entities.reservation import (
     MANUAL_RESERVATION_SOURCE,
@@ -27,9 +28,20 @@ _ORDER_KEY_NAMESPACE = UUID("90144542-95ef-4eef-a498-0e73f429725d")
 class ManageReservations:
     MAX_PAGE_SIZE = 100
 
-    def __init__(self, reservations: ReservationRepository, unit_of_work: InventoryUnitOfWork) -> None:
+    def __init__(
+        self,
+        reservations: ReservationRepository,
+        unit_of_work: InventoryUnitOfWork,
+        order_source: OrderReservationSource | None = None,
+    ) -> None:
         self._reservations = reservations
         self._unit_of_work = unit_of_work
+        self._order_source = order_source
+
+    def _require_order_source(self) -> OrderReservationSource:
+        if self._order_source is None:
+            raise InvalidApplicationInput("Order reservation operations require an order-source adapter.")
+        return self._order_source
 
     def create(self, context: InventoryExecutionContext, *, warehouse_id: int, source_type: str,
                source_id: int | None, reason: str, idempotency_key: UUID,
@@ -86,7 +98,7 @@ class ManageReservations:
             raise InvalidApplicationInput("Manual reservations cannot reference external source lines.")
 
         with self._unit_of_work.atomic():
-            if order_source and not self._reservations.order_source_is_active(
+            if order_source and not self._require_order_source().is_active(
                 context.business_id, source_id
             ):
                 raise ResourceNotFound("Active order was not found in this Business.")
@@ -99,7 +111,7 @@ class ManageReservations:
                 _request, fingerprint = self._build_request(
                     context, warehouse_id, source_type, source_id, reason, idempotency_key, lines, ingredients
                 )
-                if order_source and not self._reservations.order_reservation_matches(
+                if order_source and not self._require_order_source().reservation_matches(
                     context.business_id, source_id, _request.lines
                 ):
                     raise OperationConflict("Order reservation quantities must match its immutable requirements.")
@@ -121,7 +133,7 @@ class ManageReservations:
             request, fingerprint = self._build_request(
                 context, warehouse_id, source_type, source_id, reason, idempotency_key, lines, ingredients
             )
-            if order_source and not self._reservations.order_reservation_matches(
+            if order_source and not self._require_order_source().reservation_matches(
                 context.business_id, source_id, request.lines
             ):
                 raise OperationConflict("Order reservation quantities must match its immutable requirements.")
@@ -184,7 +196,7 @@ class ManageReservations:
         if isinstance(order_id, bool) or not isinstance(order_id, int) or order_id <= 0:
             raise InvalidApplicationInput("Order ID must be a positive integer.")
         with self._unit_of_work.atomic():
-            if not self._reservations.order_source_is_active(context.business_id, order_id):
+            if not self._require_order_source().is_active(context.business_id, order_id):
                 raise ResourceNotFound("Active order was not found in this Business.")
             reservation = self._reservations.lock_active_order_reservation_for_consumption(
                 context.business_id, order_id
@@ -218,7 +230,7 @@ class ManageReservations:
                 )
                 for line in reservation.lines
             ]
-            if not self._reservations.order_reservation_matches(
+            if not self._require_order_source().reservation_matches(
                 context.business_id, order_id, lines
             ):
                 raise OperationConflict(
