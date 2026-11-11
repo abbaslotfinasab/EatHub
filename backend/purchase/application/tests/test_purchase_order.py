@@ -222,7 +222,10 @@ class PurchaseOrderApplicationTests(TestCase):
             )
 
     def test_rejects_quantity_below_approved_requisition(self) -> None:
-        with self.assertRaisesRegex(ValueError, "must match the approved requisition quantity"):
+        with self.assertRaisesRegex(
+            ValueError,
+            "must match the approved requisition quantity",
+        ):
             self.create_use_case.execute(
                 self.create_command(
                     requisition_id=1,
