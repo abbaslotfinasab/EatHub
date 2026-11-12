@@ -101,3 +101,15 @@ export interface PostPurchaseInvoiceResponseDTO {
         status: string;
     };
 }
+
+
+export interface PurchaseInvoiceEventDTO {
+    id: number;
+    event_type: 'created' | 'updated' | 'approved' | 'match_persisted' | 'posted' | 'cancelled';
+    actor_id: number | null;
+    actor_name: string | null;
+    previous_status: string | null;
+    resulting_status: string | null;
+    metadata: Record<string, unknown>;
+    occurred_at: string;
+}
