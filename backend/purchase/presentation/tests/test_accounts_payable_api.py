@@ -66,6 +66,58 @@ class AccountsPayableAPITests(APITestCase):
         self.assertEqual(detail.status_code, status.HTTP_200_OK)
         self.assertEqual(other_detail.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_list_returns_bulk_payment_balances_and_supports_filters(self):
+        payable = self.create_payable(self.business, self.supplier, "AP-SUMMARY")
+        payable.due_date = date(2026, 11, 18)
+        payable.status = AccountsPayable.Status.PARTIALLY_PAID
+        payable.save(update_fields=["due_date", "status", "updated_at"])
+        other_due = self.create_payable(self.business, self.supplier, "AP-LATER")
+        other_due.due_date = date(2026, 12, 18)
+        other_due.save(update_fields=["due_date", "updated_at"])
+
+        payment = SupplierPayment.objects.create(
+            business=self.business,
+            supplier=self.supplier,
+            amount=Decimal("4.00"),
+            payment_date=date(2026, 11, 10),
+            method="cash",
+        )
+        PaymentAllocation.objects.create(
+            business=self.business,
+            accounts_payable=payable,
+            payment=payment,
+            invoice=payable.source_invoice,
+            amount=Decimal("4.00"),
+            allocated_at=payable.created_at,
+        )
+
+        response = self.client.get(self.endpoint, {
+            "status": "partially_paid",
+            "supplier_id": self.supplier.id,
+            "due_date_from": "2026-11-01",
+            "due_date_to": "2026-11-30",
+        })
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["id"] for row in response.data], [payable.id])
+        row = response.data[0]
+        self.assertEqual(row["supplier_name"], self.supplier.name)
+        self.assertEqual(row["invoice_number"], "AP-SUMMARY")
+        self.assertEqual(row["amount"], "10.00")
+        self.assertEqual(row["allocated_amount"], "4.00")
+        self.assertEqual(row["outstanding_amount"], "6.00")
+        self.assertEqual(row["status"], "partially_paid")
+        self.assertEqual(row["due_date"], "2026-11-18")
+
+    def test_list_rejects_invalid_status_and_due_date_range(self):
+        invalid_status = self.client.get(self.endpoint, {"status": "unknown"})
+        invalid_range = self.client.get(self.endpoint, {
+            "due_date_from": "2026-12-01",
+            "due_date_to": "2026-11-01",
+        })
+        self.assertEqual(invalid_status.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(invalid_range.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_accounts_payable_cannot_be_created_outside_invoice_posting(self):
         response = self.client.post(self.endpoint, {}, format="json")
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
