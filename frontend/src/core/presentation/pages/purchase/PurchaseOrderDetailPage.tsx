@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Box, Button, CircularProgress, Container, Divider, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { getReceivingOrder, listPurchaseSuppliers, sendPurchaseOrder, cancelPurchaseOrder } from '../../../data/di/purchaseReceiving.ts';
 import { IngredientRepositoryImpl } from '../../../data/repositories/IngredientRepositoryImpl.ts';
 import { useAuthStore } from '../../store/auth.store.ts';
@@ -86,7 +86,7 @@ export const PurchaseOrderDetailPage = () => {
                             <Typography><strong>وضعیت:</strong> {statusLabels[order.data.status] ?? order.data.status}</Typography>
                             <Typography><strong>تاریخ سفارش:</strong> {order.data.orderDate}</Typography>
                             <Typography><strong>تحویل مورد انتظار:</strong> {order.data.expectedDate ?? 'تعیین نشده'}</Typography>
-                            {order.data.requisitionId && <Typography><strong>درخواست مرتبط:</strong> #{order.data.requisitionId}</Typography>}
+                            {order.data.requisitionId && <Typography><strong>درخواست مرتبط:</strong> <Link to={`/purchase/requisitions/${order.data.requisitionId}`}>مشاهده درخواست #{order.data.requisitionId}</Link></Typography>}
                         </Stack>
                         <Divider sx={{ my: 2 }} />
                         <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>
