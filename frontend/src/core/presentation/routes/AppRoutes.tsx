@@ -35,6 +35,7 @@ import {PurchaseRequisitionDetailPage} from "../pages/purchase/PurchaseRequisiti
 import {CreatePurchaseRequisitionPage} from "../pages/purchase/CreatePurchaseRequisitionPage.tsx";
 import {PurchaseSuppliersPage} from "../pages/purchase/PurchaseSuppliersPage.tsx";
 import {PurchaseInvoicesPage} from "../pages/purchase/PurchaseInvoicesPage.tsx";
+import {AccountsPayablePage} from "../pages/purchase/AccountsPayablePage.tsx";
 import {ProfilePage} from "../pages/ProfilePage.tsx";
 import {ProductsPage} from "../pages/catalog/ProductsPage.tsx";
 
@@ -79,6 +80,7 @@ export const AppRoutes = () => (
                         <Route path="/purchase/requisitions/:id" element={<PurchaseRequisitionDetailPage/>}/>
                         <Route path="/purchase/suppliers" element={<PurchaseSuppliersPage/>}/>
                         <Route path="/purchase/invoices" element={<PurchaseInvoicesPage/>}/>
+                        <Route path="/purchase/accounts-payable" element={<AccountsPayablePage/>}/>
                         <Route path="/purchase/orders" element={<PurchaseOrdersPage/>}/>
                         <Route path="/purchase/orders/create" element={<CreatePurchaseOrderPage/>}/>
                         <Route path="/purchase/orders/:id/edit" element={<CreatePurchaseOrderPage/>}/>
