@@ -86,7 +86,7 @@ export const SupplierPaymentsPage = () => {
     const suppliers = useQuery({
         queryKey: ['purchase-suppliers', userId, businessId, 'supplier-payment-page'],
         queryFn: () => listPurchaseSuppliersManagement.execute(),
-        enabled: Boolean((canView || canCreate) && userId !== null && businessId !== null),
+        enabled: Boolean(canView && userId !== null && businessId !== null),
     });
 
     useEffect(() => {
@@ -184,7 +184,7 @@ export const SupplierPaymentsPage = () => {
         setDateFrom('');
         setDateTo('');
     };
-    const loading = payments.isLoading || suppliers.isLoading;
+    const loading = (canView && payments.isLoading) || (canView && suppliers.isLoading);
     const pageError = payments.error ?? suppliers.error;
 
     return (
@@ -197,6 +197,7 @@ export const SupplierPaymentsPage = () => {
 
                 {!canView && <Alert severity="warning">برای مشاهده تاریخچه پرداخت‌ها، مجوز purchase.view لازم است.</Alert>}
                 {!canCreate && <Alert severity="info">برای ثبت پرداخت جدید، مجوز purchase.payment.create لازم است.</Alert>}
+                {canCreate && !canView && <Alert severity="warning">برای انتخاب تأمین‌کننده و مشاهده تاریخچه، مجوز purchase.view نیز لازم است. تا زمان دریافت این مجوز، فرم ثبت پرداخت در دسترس نیست.</Alert>}
                 {success && <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>}
                 {pageError && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => { void Promise.all([payments.refetch(), suppliers.refetch()]); }}>تلاش مجدد</Button>}>
                     دریافت اطلاعات پرداخت ناموفق بود. {errorMessage(pageError)}
@@ -207,7 +208,7 @@ export const SupplierPaymentsPage = () => {
                     <Typography variant="h5" sx={{ fontWeight: 700 }}>{money(String(totalAmount))}</Typography>
                 </CardContent></Card>}
 
-                {canCreate && <Paper component="form" onSubmit={submit} sx={{ p: { xs: 1.5, sm: 2.5 } }}>
+                {canCreate && canView && <Paper component="form" onSubmit={submit} sx={{ p: { xs: 1.5, sm: 2.5 } }}>
                     <Stack spacing={2}>
                         <Typography variant="h6">ثبت پرداخت جدید</Typography>
                         {pending && <Alert severity="warning" action={<Button color="inherit" size="small" disabled={paymentMutation.isPending} onClick={() => paymentMutation.mutate(pending)}>تلاش مجدد همان پرداخت</Button>}>
@@ -226,7 +227,7 @@ export const SupplierPaymentsPage = () => {
                         </Stack>
                         <Alert severity="info">این مرحله فقط پرداخت را ثبت می‌کند؛ تخصیص آن به فاکتور و محاسبه تسویه در P5.3 انجام می‌شود.</Alert>
                         <Stack direction="row" spacing={1}>
-                            <Button type="submit" variant="contained" disabled={!canCreate || paymentMutation.isPending || suppliers.isLoading || (Boolean(pending) && !pending)}>
+                            <Button type="submit" variant="contained" disabled={!canCreate || !canView || paymentMutation.isPending || suppliers.isLoading || suppliers.isError}>
                                 {paymentMutation.isPending ? <CircularProgress size={20} color="inherit" /> : pending ? 'ارسال مجدد همان پرداخت' : 'ثبت پرداخت'}
                             </Button>
                         </Stack>
@@ -253,7 +254,7 @@ export const SupplierPaymentsPage = () => {
                     {!!payments.data?.length && <Paper sx={{ overflowX: 'auto' }}>
                         <Table aria-label="تاریخچه پرداخت تأمین‌کنندگان">
                             <TableHead><TableRow>
-                                <TableCell>شناسه</TableCell><TableCell>تأمین‌کننده</TableCell><TableCell>تاریخ</TableCell><TableCell>مبلغ</TableCell><TableCell>روش پرداخت</TableCell><TableCell>وضعیت</TableCell>
+                                <TableCell>شناسه</TableCell><TableCell>تأمین‌کننده</TableCell><TableCell>تاریخ</TableCell><TableCell>مبلغ</TableCell><TableCell>روش پرداخت</TableCell>
                             </TableRow></TableHead>
                             <TableBody>{payments.data.map((payment) => <TableRow key={payment.id} hover>
                                 <TableCell>#{payment.id}</TableCell>
@@ -261,7 +262,6 @@ export const SupplierPaymentsPage = () => {
                                 <TableCell>{dateLabel(payment.paymentDate)}</TableCell>
                                 <TableCell>{money(payment.amount)}</TableCell>
                                 <TableCell>{methodLabels[payment.method]}</TableCell>
-                                <TableCell>ثبت‌شده</TableCell>
                             </TableRow>)}</TableBody>
                         </Table>
                     </Paper>}
