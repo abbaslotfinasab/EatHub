@@ -61,6 +61,12 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 requiredAnyPermission: ["purchase.view", "purchase.requisition.view_own", "purchase.requisition.create"],
             },
             {
+                title: "تأمین‌کنندگان",
+                path: "/purchase/suppliers",
+                icon: PeopleRoundedIcon,
+                requiredAnyPermission: ["purchase.view", "purchase.supplier.manage"],
+            },
+            {
                 title: "سفارش‌های خرید",
                 path: "/purchase/orders",
                 icon: ReceiptLongRoundedIcon,
