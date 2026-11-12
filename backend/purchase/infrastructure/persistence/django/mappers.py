@@ -45,7 +45,12 @@ from purchase.models import (
 
 class AccountsPayableMapper:
     @staticmethod
-    def to_domain(model: DjangoAccountsPayable) -> AccountsPayable:
+    def to_domain(
+        model: DjangoAccountsPayable,
+        *,
+        include_summary: bool = False,
+    ) -> AccountsPayable:
+        allocated_amount = getattr(model, "_allocated_amount", Decimal("0.00"))
         return AccountsPayable(
             id=model.id,
             business_id=model.business_id,
@@ -61,6 +66,10 @@ class AccountsPayableMapper:
             cancellation_reason=model.cancellation_reason,
             created_at=model.created_at,
             updated_at=model.updated_at,
+            supplier_name=model.supplier.name if include_summary else None,
+            invoice_number=model.source_invoice.invoice_number if include_summary else None,
+            allocated_amount=allocated_amount if include_summary else Decimal("0.00"),
+            outstanding_amount=(model.amount - allocated_amount) if include_summary else None,
         )
 
     @staticmethod
