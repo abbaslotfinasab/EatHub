@@ -50,9 +50,9 @@ class GetRequisitionOrderSummaryUseCase:
             RequisitionOrderSummaryItemDTO(
                 ingredient_id=ingredient_id,
                 requested_quantity=requested_quantity,
-                ordered_quantity=ordered[ingredient_id],
+                ordered_quantity=ordered.get(ingredient_id, Decimal("0")),
                 remaining_quantity=max(
-                    requested_quantity - ordered[ingredient_id],
+                    requested_quantity - ordered.get(ingredient_id, Decimal("0")),
                     Decimal("0"),
                 ),
             )
