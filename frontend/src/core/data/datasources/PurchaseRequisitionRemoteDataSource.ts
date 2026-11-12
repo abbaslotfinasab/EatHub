@@ -1,5 +1,6 @@
 import { apiClient } from '../http/http-client.ts';
 import type {
+    CreateRequisitionPayloadDTO,
     RequisitionDecisionDTO,
     RequisitionOrderSummaryDTO,
     RequisitionReadDTO,
@@ -16,6 +17,26 @@ export class PurchaseRequisitionRemoteDataSource {
 
     async get(id: string): Promise<RequisitionReadDTO> {
         const { data } = await apiClient.get<RequisitionReadDTO>(`/purchase/requisitions/${id}/`);
+        return data;
+    }
+
+    async create(input: CreateRequisitionPayloadDTO): Promise<RequisitionReadDTO> {
+        const { data } = await apiClient.post<RequisitionReadDTO>('/purchase/requisitions/', input);
+        return data;
+    }
+
+    async submit(id: string): Promise<RequisitionReadDTO> {
+        const { data } = await apiClient.post<RequisitionReadDTO>(`/purchase/requisitions/${id}/submit/`);
+        return data;
+    }
+
+    async approve(id: string): Promise<RequisitionReadDTO> {
+        const { data } = await apiClient.post<RequisitionReadDTO>(`/purchase/requisitions/${id}/approve/`);
+        return data;
+    }
+
+    async reject(id: string, reason: string): Promise<RequisitionReadDTO> {
+        const { data } = await apiClient.post<RequisitionReadDTO>(`/purchase/requisitions/${id}/reject/`, { reason });
         return data;
     }
 
