@@ -1,7 +1,5 @@
-import type { PurchaseInvoiceMatchStatusDTO, PurchaseInvoiceStatusDTO } from '../../../data/dtos/purchase/PurchaseInvoiceDTO.ts';
-
-export type PurchaseInvoiceStatus = PurchaseInvoiceStatusDTO;
-export type PurchaseInvoiceMatchStatus = PurchaseInvoiceMatchStatusDTO;
+export type PurchaseInvoiceStatus = 'draft' | 'approved' | 'posted' | 'cancelled';
+export type PurchaseInvoiceMatchStatus = 'not_matched' | 'pending_receipt' | 'matched' | 'exception';
 
 export interface PurchaseInvoiceItem {
     id: string;
