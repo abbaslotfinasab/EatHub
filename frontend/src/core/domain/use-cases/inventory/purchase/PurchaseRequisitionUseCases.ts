@@ -2,7 +2,7 @@ import type { PurchaseRequisitionRepository } from '../../../repositories/invent
 import type { RequisitionInput, RequisitionStatus } from '../../../entities/inventory/PurchaseRequisition.ts';
 
 const validateId = (id: string) => {
-    if (!/^\\d+$/.test(id) || Number(id) <= 0) {
+    if (!/^\d+$/.test(id) || Number(id) <= 0) {
         throw new Error('شناسه درخواست خرید معتبر نیست.');
     }
 };
@@ -10,10 +10,10 @@ const validateId = (id: string) => {
 const validateInput = (input: RequisitionInput) => {
     if (!input.items.length) throw new Error('حداقل یک قلم برای درخواست خرید لازم است.');
     input.items.forEach((item, index) => {
-        if (!/^\\d+$/.test(item.ingredientId) || Number(item.ingredientId) <= 0) {
+        if (!/^\d+$/.test(item.ingredientId) || Number(item.ingredientId) <= 0) {
             throw new Error(`ماده اولیه قلم ${index + 1} را انتخاب کنید.`);
         }
-        if (!/^\\d+(?:\\.\\d{1,3})?$/.test(item.quantity) || Number(item.quantity) <= 0) {
+        if (!/^\d+(?:\.\d{1,3})?$/.test(item.quantity) || Number(item.quantity) <= 0) {
             throw new Error(`مقدار قلم ${index + 1} باید مثبت و حداکثر سه رقم اعشار داشته باشد.`);
         }
     });
