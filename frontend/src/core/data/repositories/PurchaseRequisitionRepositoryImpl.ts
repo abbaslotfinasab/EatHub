@@ -2,10 +2,12 @@ import type { PurchaseRequisitionRepository } from '../../domain/repositories/in
 import type {
     PurchaseRequisition,
     RequisitionDecision,
+    RequisitionInput,
     RequisitionOrderSummary,
     RequisitionStatus,
 } from '../../domain/entities/inventory/PurchaseRequisition.ts';
 import type {
+    CreateRequisitionPayloadDTO,
     RequisitionDecisionDTO,
     RequisitionOrderSummaryDTO,
     RequisitionReadDTO,
@@ -50,6 +52,15 @@ const mapDecision = (dto: RequisitionDecisionDTO): RequisitionDecision => ({
     rejectionReason: dto.rejection_reason,
 });
 
+const toCreateDTO = (input: RequisitionInput): CreateRequisitionPayloadDTO => ({
+    reason: input.reason,
+    items: input.items.map((item) => ({
+        ingredient_id: Number(item.ingredientId),
+        quantity: item.quantity,
+        note: item.note,
+    })),
+});
+
 export class PurchaseRequisitionRepositoryImpl implements PurchaseRequisitionRepository {
     constructor(private readonly remote = new PurchaseRequisitionRemoteDataSource()) {}
 
@@ -59,6 +70,22 @@ export class PurchaseRequisitionRepositoryImpl implements PurchaseRequisitionRep
 
     async get(id: string): Promise<PurchaseRequisition> {
         return mapRequisition(await this.remote.get(id));
+    }
+
+    async create(input: RequisitionInput): Promise<PurchaseRequisition> {
+        return mapRequisition(await this.remote.create(toCreateDTO(input)));
+    }
+
+    async submit(id: string): Promise<PurchaseRequisition> {
+        return mapRequisition(await this.remote.submit(id));
+    }
+
+    async approve(id: string): Promise<PurchaseRequisition> {
+        return mapRequisition(await this.remote.approve(id));
+    }
+
+    async reject(id: string, reason: string): Promise<PurchaseRequisition> {
+        return mapRequisition(await this.remote.reject(id, reason));
     }
 
     async getOrderSummary(id: string): Promise<RequisitionOrderSummary> {
