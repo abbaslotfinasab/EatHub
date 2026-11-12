@@ -23,6 +23,11 @@ class AccountsPayable:
     cancellation_reason: str = ""
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    # Read-model fields populated only by the Accounts Payable list query.
+    supplier_name: str | None = None
+    invoice_number: str | None = None
+    allocated_amount: Decimal = Decimal("0.00")
+    outstanding_amount: Decimal | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.amount, Decimal):

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import date
 
 from purchase.domain.entities.accounts_payable import AccountsPayable
 from purchase.domain.enums.accounts_payable_status import AccountsPayableStatus
@@ -25,7 +26,15 @@ class AccountsPayableRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list(self, business_id: int) -> list[AccountsPayable]:
+    def list(
+        self,
+        business_id: int,
+        *,
+        status: AccountsPayableStatus | None = None,
+        supplier_id: int | None = None,
+        due_date_from: date | None = None,
+        due_date_to: date | None = None,
+    ) -> list[AccountsPayable]:
         raise NotImplementedError
 
     @abstractmethod

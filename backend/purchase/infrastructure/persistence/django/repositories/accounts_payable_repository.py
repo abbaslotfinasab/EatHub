@@ -1,4 +1,9 @@
+from decimal import Decimal
+from datetime import date
+
 from django.db import IntegrityError, transaction
+from django.db.models import DecimalField, Sum, Value
+from django.db.models.functions import Coalesce
 
 from purchase.domain.entities.accounts_payable import AccountsPayable
 from purchase.domain.enums.accounts_payable_status import AccountsPayableStatus
@@ -69,12 +74,35 @@ class DjangoAccountsPayableRepository(AccountsPayableRepository):
         ).first()
         return None if model is None else AccountsPayableMapper.to_domain(model)
 
-    def list(self, business_id: int) -> list[AccountsPayable]:
+    def list(
+        self,
+        business_id: int,
+        *,
+        status: AccountsPayableStatus | None = None,
+        supplier_id: int | None = None,
+        due_date_from: date | None = None,
+        due_date_to: date | None = None,
+    ) -> list[AccountsPayable]:
+        queryset = DjangoAccountsPayable.objects.filter(
+            business_id=business_id,
+        ).select_related("supplier", "source_invoice").annotate(
+            _allocated_amount=Coalesce(
+                Sum("payment_allocations__amount"),
+                Value(Decimal("0.00")),
+                output_field=DecimalField(max_digits=14, decimal_places=2),
+            ),
+        )
+        if status is not None:
+            queryset = queryset.filter(status=status.value)
+        if supplier_id is not None:
+            queryset = queryset.filter(supplier_id=supplier_id)
+        if due_date_from is not None:
+            queryset = queryset.filter(due_date__gte=due_date_from)
+        if due_date_to is not None:
+            queryset = queryset.filter(due_date__lte=due_date_to)
         return [
-            AccountsPayableMapper.to_domain(model)
-            for model in DjangoAccountsPayable.objects.filter(
-                business_id=business_id,
-            ).order_by("id")
+            AccountsPayableMapper.to_domain(model, include_summary=True)
+            for model in queryset.order_by("due_date", "id")
         ]
 
     def exists_for_source_invoice(self, source_invoice_id: int, business_id: int) -> bool:

@@ -8,6 +8,7 @@ import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import PeopleRoundedIcon from "@mui/icons-material/PeopleRounded";
 import AlarmRoundedIcon from "@mui/icons-material/AlarmRounded";
 import CategoryRoundedIcon from "@mui/icons-material/CategoryRounded";
+import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
 
 import type { SidebarMenuItem } from "../../../domain/entities/account/SidebarMenuItem.ts";
 
@@ -81,6 +82,12 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 title: "فاکتورهای خرید",
                 path: "/purchase/invoices",
                 icon: ReceiptLongRoundedIcon,
+                requiredPermission: "purchase.view",
+            },
+            {
+                title: "حساب‌های پرداختنی",
+                path: "/purchase/accounts-payable",
+                icon: AccountBalanceWalletRoundedIcon,
                 requiredPermission: "purchase.view",
             },
         ],
