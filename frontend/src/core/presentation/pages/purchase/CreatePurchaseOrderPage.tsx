@@ -110,6 +110,16 @@ export const CreatePurchaseOrderPage = () => {
                     unitPrice: line.unitPrice.trim(), purchaseUnit: line.purchaseUnit as PurchaseUnit,
                 };
             });
+            if (requisitionId) {
+                const selected = requisitions.data?.find(({ requisition }) => requisition.id === requisitionId);
+                if (!selected) throw new Error('درخواست خرید انتخاب‌شده دیگر در دسترس نیست؛ فهرست را تازه‌سازی کنید.');
+                for (const item of items) {
+                    const balance = selected.summary.items.find((summaryItem) => summaryItem.ingredientId === item.ingredientId);
+                    if (!balance || Number(item.quantity) > Number(balance.remainingQuantity)) {
+                        throw new Error('مقدار سفارش از مانده قابل سفارش درخواست بیشتر است.');
+                    }
+                }
+            }
             if (!supplierId) throw new Error('انتخاب تأمین‌کننده الزامی است.');
             if (!/^\\d+(?:\\.\\d{1,2})?$/.test(discount) || !/^\\d+(?:\\.\\d{1,2})?$/.test(tax)) {
                 throw new Error('مقادیر تخفیف و مالیات باید عدد معتبر با حداکثر دو رقم اعشار باشند.');
