@@ -49,7 +49,7 @@ export const SidebarMenu = () => {
 
                     {sidebarSections.map((section) => {
                         const visibleItems = section.items.filter(
-                            (item) => !item.requiredPermission || permissions.includes(item.requiredPermission),
+                            (item) => (!item.requiredPermission || permissions.includes(item.requiredPermission)) && (!item.requiredAnyPermission || item.requiredAnyPermission.some((permission) => permissions.includes(permission))),
                         );
                         if (visibleItems.length === 0) return null;
 
