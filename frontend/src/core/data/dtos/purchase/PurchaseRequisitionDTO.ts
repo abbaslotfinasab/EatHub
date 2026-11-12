@@ -17,6 +17,11 @@ export interface RequisitionReadDTO {
     updated_at: string;
 }
 
+export interface CreateRequisitionPayloadDTO {
+    reason: string;
+    items: Array<{ ingredient_id: number; quantity: string; note: string }>;
+}
+
 export interface RequisitionOrderSummaryItemDTO {
     ingredient_id: number;
     requested_quantity: string;

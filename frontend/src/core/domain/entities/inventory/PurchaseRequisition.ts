@@ -6,6 +6,11 @@ export interface RequisitionItem {
     note: string;
 }
 
+export interface RequisitionInput {
+    reason: string;
+    items: RequisitionItem[];
+}
+
 export interface PurchaseRequisition {
     id: string;
     businessId: string;

@@ -32,6 +32,7 @@ import {CreatePurchaseOrderPage} from "../pages/purchase/CreatePurchaseOrderPage
 import {PurchaseOrderDetailPage} from "../pages/purchase/PurchaseOrderDetailPage.tsx";
 import {PurchaseRequisitionsPage} from "../pages/purchase/PurchaseRequisitionsPage.tsx";
 import {PurchaseRequisitionDetailPage} from "../pages/purchase/PurchaseRequisitionDetailPage.tsx";
+import {CreatePurchaseRequisitionPage} from "../pages/purchase/CreatePurchaseRequisitionPage.tsx";
 import {ProfilePage} from "../pages/ProfilePage.tsx";
 import {ProductsPage} from "../pages/catalog/ProductsPage.tsx";
 
@@ -72,6 +73,7 @@ export const AppRoutes = () => (
                         <Route path="/inventory/operations" element={<Navigate to="/inventory?view=operations" replace/>}/>
                         <Route path="/recipes" element={<RecipeListPage/>}/>
                         <Route path="/purchase/requisitions" element={<PurchaseRequisitionsPage/>}/>
+                        <Route path="/purchase/requisitions/create" element={<CreatePurchaseRequisitionPage/>}/>
                         <Route path="/purchase/requisitions/:id" element={<PurchaseRequisitionDetailPage/>}/>
                         <Route path="/purchase/orders" element={<PurchaseOrdersPage/>}/>
                         <Route path="/purchase/orders/create" element={<CreatePurchaseOrderPage/>}/>
