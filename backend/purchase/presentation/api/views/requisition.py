@@ -19,6 +19,9 @@ from purchase.application.use_cases.requisition.create_requisition import (
 from purchase.application.use_cases.requisition.get_requisition import (
     GetRequisitionUseCase,
 )
+from purchase.application.use_cases.requisition.get_requisition_order_summary import (
+    GetRequisitionOrderSummaryUseCase,
+)
 from purchase.application.use_cases.requisition.get_requisition_decision_history import (
     GetRequisitionDecisionHistoryUseCase,
 )
@@ -35,11 +38,15 @@ from purchase.domain.enums.requisition_status import RequisitionStatus
 from purchase.infrastructure.persistence.django.repositories.requisition_repository import (
     DjangoRequisitionRepository,
 )
+from purchase.infrastructure.persistence.django.repositories.purchase_order_repository import (
+    DjangoPurchaseOrderRepository,
+)
 from purchase.presentation.api.serializers.requisition import (
     CreateRequisitionSerializer,
     RejectRequisitionSerializer,
     RequisitionDecisionSerializer,
     RequisitionSerializer,
+    RequisitionOrderSummarySerializer,
 )
 from purchase.presentation.api.permissions import (
     has_purchase_permission,
@@ -233,3 +240,18 @@ class RequisitionDecisionHistoryAPIView(TenantAPIView):
             business_id=request.business.id,
         )
         return Response(RequisitionDecisionSerializer(decisions, many=True).data)
+
+
+class RequisitionOrderSummaryAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        requisition = _get_readable_requisition(request, pk)
+        summary = GetRequisitionOrderSummaryUseCase(
+            _requisition_repository(),
+            DjangoPurchaseOrderRepository(),
+        ).execute(
+            requisition_id=requisition.id,
+            business_id=request.business.id,
+        )
+        return Response(RequisitionOrderSummarySerializer(summary).data)
