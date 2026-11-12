@@ -28,6 +28,7 @@ from purchase.presentation.api.views.purchase_invoice import (
     PurchaseInvoiceApproveAPIView,
     PurchaseInvoiceCancelAPIView,
     PurchaseInvoiceDetailAPIView,
+    PurchaseInvoiceEventListAPIView,
     PurchaseInvoiceListCreateAPIView,
     PurchaseInvoiceMatchAPIView,
     PurchaseInvoicePostAPIView,
@@ -78,6 +79,11 @@ urlpatterns = [
         "purchase-invoices/",
         PurchaseInvoiceListCreateAPIView.as_view(),
         name="purchase-invoice-list-create",
+    ),
+    path(
+        "purchase-invoices/<int:pk>/events/",
+        PurchaseInvoiceEventListAPIView.as_view(),
+        name="purchase-invoice-events",
     ),
     path(
         "purchase-invoices/<int:pk>/",
