@@ -55,6 +55,12 @@ export const sidebarSections: SidebarSectionConfig[] = [
         title: "خرید",
         items: [
             {
+                title: "درخواست‌های خرید",
+                path: "/purchase/requisitions",
+                icon: ReceiptLongRoundedIcon,
+                requiredAnyPermission: ["purchase.view", "purchase.requisition.view_own"],
+            },
+            {
                 title: "سفارش‌های خرید",
                 path: "/purchase/orders",
                 icon: ReceiptLongRoundedIcon,
