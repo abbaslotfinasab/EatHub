@@ -1,3 +1,4 @@
+from decimal import Decimal
 from purchase.domain.entities.supplier import Supplier
 from purchase.domain.entities.requisition import (
     PurchaseRequisitionDecision as PurchaseRequisitionDecisionEntity,
