@@ -8,6 +8,7 @@ import {
 import {
     approvePurchaseInvoice, cancelPurchaseInvoice, createPurchaseInvoice, getPurchaseInvoice,
     listPurchaseInvoices, matchPurchaseInvoice, postPurchaseInvoice, updatePurchaseInvoice,
+    listPurchaseInvoiceEvents,
 } from '../../../data/di/purchaseInvoice.ts';
 import { listReceivingOrders } from '../../../data/di/purchaseReceiving.ts';
 import { listPurchaseSuppliersManagement } from '../../../data/di/purchaseSupplier.ts';
@@ -91,6 +92,12 @@ export const PurchaseInvoicesPage = () => {
         queryFn: () => getPurchaseInvoice.execute(selectedId),
         enabled: Boolean(selectedId && canView && userId && businessId),
     });
+    const auditEvents = useQuery({
+        queryKey: ['purchase-invoice-events', userId, businessId, selectedId],
+        queryFn: () => listPurchaseInvoiceEvents.execute(selectedId),
+        enabled: Boolean(selectedId && canView && detail.data && userId && businessId),
+        retry: false,
+    });
     const matchPreview = useQuery({
         queryKey: ['purchase-invoice-match', userId, businessId, selectedId],
         queryFn: () => matchPurchaseInvoice.execute(selectedId, false),
@@ -104,6 +111,7 @@ export const PurchaseInvoicesPage = () => {
             ...(id ? [
                 queryClient.invalidateQueries({ queryKey: ['purchase-invoice', userId, businessId, id] }),
                 queryClient.invalidateQueries({ queryKey: ['purchase-invoice-match', userId, businessId, id] }),
+                queryClient.invalidateQueries({ queryKey: ['purchase-invoice-events', userId, businessId, id] }),
             ] : []),
             queryClient.invalidateQueries({ queryKey: ['accounts-payables', userId, businessId] }),
         ]);
@@ -326,8 +334,47 @@ export const PurchaseInvoicesPage = () => {
                             <Typography variant="body2">آخرین تطبیق: {detail.data.matchedAt ?? '—'} · {matchLabel[detail.data.matchingStatus]}</Typography>
                             <Typography variant="body2">ثبت مالی: {detail.data.postedAt ?? '—'} · کاربر #{detail.data.postedById ?? '—'}</Typography>
                             {detail.data.cancelledAt && <Typography variant="body2">لغو: {detail.data.cancelledAt} · کاربر #{detail.data.cancelledById ?? '—'} · {detail.data.cancellationReason}</Typography>}
-                            <Typography variant="caption" color="text.secondary">این نما از metadata فعلی سند ساخته شده و تاریخچه append-only رویدادها یا نسخه‌های قبلی تطبیق را نشان نمی‌دهد.</Typography>
+                            <Typography variant="caption" color="text.secondary">تاریخچه تغییرات و تطبیق‌های ثبت‌شده در بخش «تاریخچه رویدادها» نمایش داده می‌شود.</Typography>
                         </Paper>
+
+                        <Paper variant="outlined" sx={{ p: 2 }}>
+                            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1 }}>
+                                <Typography sx={{ fontWeight: 700 }}>تاریخچه رویدادها</Typography>
+                                <Button size="small" onClick={() => { void auditEvents.refetch(); }} disabled={auditEvents.isFetching}>بروزرسانی</Button>
+                            </Stack>
+                            {auditEvents.isLoading && <CircularProgress size={20} />}
+                            {auditEvents.isError && <Alert severity="error" action={<Button color="inherit" onClick={() => { void auditEvents.refetch(); }}>تلاش مجدد</Button>}>دریافت تاریخچه ناموفق بود: {errorMessage(auditEvents.error)}</Alert>}
+                            {!auditEvents.isLoading && !auditEvents.isError && !auditEvents.data?.length && <Typography variant="body2" color="text.secondary">رویدادی برای این فاکتور ثبت نشده است.</Typography>}
+                            {(auditEvents.data ?? []).map((event) => {
+                                const eventTitle: Record<string, string> = {
+                                    created: 'ایجاد پیش‌نویس',
+                                    updated: 'ویرایش فاکتور',
+                                    approved: 'تأیید فاکتور',
+                                    match_persisted: 'ثبت نتیجه تطبیق',
+                                    posted: 'ثبت مالی و ایجاد بدهی',
+                                    cancelled: 'لغو فاکتور',
+                                };
+                                return <Box key={event.id} sx={{ py: 1, borderBottom: 1, borderColor: 'divider', '&:last-child': { borderBottom: 0 } }}>
+                                    <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ justifyContent: 'space-between', gap: 0.5 }}>
+                                        <Typography sx={{ fontWeight: 600 }}>{eventTitle[event.eventType] ?? event.eventType}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{new Date(event.occurredAt).toLocaleString('fa-IR')}</Typography>
+                                    </Stack>
+                                    <Typography variant="body2" color="text.secondary">
+                                        کاربر: {event.actorName ?? (event.actorId ? '#' + event.actorId : 'نامشخص')}
+                                        {event.previousStatus || event.resultingStatus ? ' · ' + (event.previousStatus ?? '—') + ' ← ' + (event.resultingStatus ?? '—') : ''}
+                                    </Typography>
+                                    {event.eventType === 'match_persisted' && typeof event.metadata.previous_matching_status === 'string' && (
+                                        <Typography variant="caption" color="text.secondary">
+                                            وضعیت تطبیق قبلی: {event.metadata.previous_matching_status}
+                                        </Typography>
+                                    )}
+                                    {event.eventType === 'cancelled' && typeof event.metadata.reason === 'string' && (
+                                        <Typography variant="body2">دلیل لغو: {event.metadata.reason}</Typography>
+                                    )}
+                                </Box>;
+                            })}
+                        </Paper>
+
                         {['approved', 'posted'].includes(detail.data.status) && <Paper variant="outlined" sx={{ p: 2 }}>
                             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1 }}>
                                 <Typography sx={{ fontWeight: 700 }}>نتیجه تطبیق سه‌طرفه</Typography>
