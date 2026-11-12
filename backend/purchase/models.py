@@ -537,6 +537,60 @@ class PurchaseInvoice(BaseModel):
         ]
 
 
+class PurchaseInvoiceEvent(models.Model):
+    """Immutable, tenant-scoped audit event for a purchase invoice."""
+
+    class EventType(models.TextChoices):
+        CREATED = "created", "Created"
+        UPDATED = "updated", "Updated"
+        APPROVED = "approved", "Approved"
+        MATCH_PERSISTED = "match_persisted", "Match persisted"
+        POSTED = "posted", "Posted"
+        CANCELLED = "cancelled", "Cancelled"
+
+    business = models.ForeignKey(
+        Business,
+        on_delete=models.PROTECT,
+        related_name="purchase_invoice_events",
+    )
+    purchase_invoice = models.ForeignKey(
+        PurchaseInvoice,
+        on_delete=models.PROTECT,
+        related_name="events",
+    )
+    actor = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="purchase_invoice_events",
+    )
+    event_type = models.CharField(max_length=30, choices=EventType.choices)
+    previous_status = models.CharField(max_length=20, null=True, blank=True)
+    resulting_status = models.CharField(max_length=20, null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    occurred_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["occurred_at", "id"]
+        indexes = [
+            models.Index(
+                fields=["business", "purchase_invoice", "occurred_at"],
+                name="pur_inv_evt_biz_inv_ts_idx",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValueError("Purchase invoice audit events are immutable.")
+        if self.purchase_invoice_id and self.business_id != self.purchase_invoice.business_id:
+            raise ValueError("Purchase invoice event business must match the invoice business.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Purchase invoice audit events cannot be deleted.")
+
+
 class AccountsPayable(BaseModel):
 
     class Status(models.TextChoices):
