@@ -2,7 +2,7 @@ import type { PurchaseRequisitionRepository } from '../../../repositories/invent
 import type { RequisitionStatus } from '../../../entities/inventory/PurchaseRequisition.ts';
 
 const validateId = (id: string) => {
-    if (!/^\\d+$/.test(id) || Number(id) <= 0) {
+    if (!/^\d+$/.test(id) || Number(id) <= 0) {
         throw new Error('شناسه درخواست خرید معتبر نیست.');
     }
 };
