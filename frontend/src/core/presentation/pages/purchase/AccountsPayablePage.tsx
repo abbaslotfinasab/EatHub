@@ -115,7 +115,7 @@ export const AccountsPayablePage = () => {
                             {(suppliers.data ?? []).map((supplier) => <MenuItem key={supplier.id} value={supplier.id}>{supplier.name}</MenuItem>)}
                         </TextField>
                     </Stack>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
                         <TextField type="date" label="سررسید از" value={dueDateFrom} onChange={(event) => setDueDateFrom(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
                         <TextField type="date" label="سررسید تا" value={dueDateTo} onChange={(event) => setDueDateTo(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
                         <Button onClick={resetFilters}>پاک‌کردن فیلترها</Button>
