@@ -1,5 +1,6 @@
 import type {
     PurchaseInvoiceInput,
+    PurchaseInvoiceEvent,
 } from '../../../entities/inventory/PurchaseInvoice.ts';
 import type {
     PurchaseInvoiceFilters,
@@ -81,6 +82,15 @@ export class PostPurchaseInvoice {
     execute(id: string, dueDate?: string) {
         if (!validId(id)) throw new Error('شناسه فاکتور معتبر نیست.');
         return this.repository.post(id, dueDate);
+    }
+}
+
+
+export class ListPurchaseInvoiceEvents {
+    constructor(private readonly repository: PurchaseInvoiceRepository) {}
+    execute(id: string): Promise<PurchaseInvoiceEvent[]> {
+        if (!validId(id)) throw new Error('شناسه فاکتور معتبر نیست.');
+        return this.repository.events(id);
     }
 }
 

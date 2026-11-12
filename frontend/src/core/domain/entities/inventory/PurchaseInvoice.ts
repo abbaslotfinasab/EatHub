@@ -90,3 +90,23 @@ export interface PurchaseInvoiceMatchResponse {
     current: PurchaseInvoiceMatch;
     lastPersisted: { status: PurchaseInvoiceMatchStatus; matchedAt: string | null };
 }
+
+
+export type PurchaseInvoiceEventType =
+    | 'created'
+    | 'updated'
+    | 'approved'
+    | 'match_persisted'
+    | 'posted'
+    | 'cancelled';
+
+export interface PurchaseInvoiceEvent {
+    id: string;
+    eventType: PurchaseInvoiceEventType;
+    actorId: string | null;
+    actorName: string | null;
+    previousStatus: string | null;
+    resultingStatus: string | null;
+    metadata: Record<string, unknown>;
+    occurredAt: string;
+}

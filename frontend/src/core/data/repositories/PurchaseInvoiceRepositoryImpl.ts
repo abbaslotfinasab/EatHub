@@ -2,6 +2,7 @@ import type {
     PurchaseInvoice,
     PurchaseInvoiceInput,
     PurchaseInvoiceMatchResponse,
+    PurchaseInvoiceEvent,
 } from '../../domain/entities/inventory/PurchaseInvoice.ts';
 import type {
     PurchaseInvoiceRepository,
@@ -12,6 +13,7 @@ import type {
     PurchaseInvoiceDTO,
     PurchaseInvoiceMatchResponseDTO,
     PurchaseInvoiceWriteDTO,
+    PurchaseInvoiceEventDTO,
 } from '../dtos/purchase/PurchaseInvoiceDTO.ts';
 import { PurchaseInvoiceRemoteDataSource } from '../datasources/PurchaseInvoiceRemoteDataSource.ts';
 
@@ -100,6 +102,18 @@ const mapMatch = (dto: PurchaseInvoiceMatchResponseDTO): PurchaseInvoiceMatchRes
     },
 });
 
+
+const mapEvent = (dto: PurchaseInvoiceEventDTO): PurchaseInvoiceEvent => ({
+    id: String(dto.id),
+    eventType: dto.event_type,
+    actorId: dto.actor_id === null ? null : String(dto.actor_id),
+    actorName: dto.actor_name,
+    previousStatus: dto.previous_status,
+    resultingStatus: dto.resulting_status,
+    metadata: dto.metadata ?? {},
+    occurredAt: dto.occurred_at,
+});
+
 export class PurchaseInvoiceRepositoryImpl implements PurchaseInvoiceRepository {
     constructor(private readonly remote = new PurchaseInvoiceRemoteDataSource()) {}
 
@@ -134,5 +148,9 @@ export class PurchaseInvoiceRepositoryImpl implements PurchaseInvoiceRepository 
 
     async cancel(id: string, reason: string): Promise<PurchaseInvoice> {
         return mapInvoice(await this.remote.cancel(id, reason));
+    }
+
+    async events(id: string): Promise<PurchaseInvoiceEvent[]> {
+        return (await this.remote.events(id)).map(mapEvent);
     }
 }

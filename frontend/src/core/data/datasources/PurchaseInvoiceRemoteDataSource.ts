@@ -4,6 +4,7 @@ import type {
     PurchaseInvoiceDTO,
     PurchaseInvoiceMatchResponseDTO,
     PurchaseInvoiceWriteDTO,
+    PurchaseInvoiceEventDTO,
 } from '../dtos/purchase/PurchaseInvoiceDTO.ts';
 
 export class PurchaseInvoiceRemoteDataSource {
@@ -52,6 +53,12 @@ export class PurchaseInvoiceRemoteDataSource {
             `/purchase/purchase-invoices/${id}/post/`,
             dueDate ? { due_date: dueDate } : {},
         );
+        return data;
+    }
+
+
+    async events(id: string): Promise<PurchaseInvoiceEventDTO[]> {
+        const { data } = await apiClient.get<PurchaseInvoiceEventDTO[]>(`/purchase/purchase-invoices/${id}/events/`);
         return data;
     }
 

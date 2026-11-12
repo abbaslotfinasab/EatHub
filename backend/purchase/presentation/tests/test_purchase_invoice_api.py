@@ -15,6 +15,7 @@ from purchase.models import (
     GoodsReceipt,
     GoodsReceiptItem,
     PurchaseInvoice as DjangoPurchaseInvoice,
+    PurchaseInvoiceEvent,
     PurchaseInvoiceItem,
     AccountsPayable,
     PurchaseOrder,
@@ -697,3 +698,117 @@ class PurchaseInvoiceAPITests(APITestCase):
             format="json",
         )
         self.assertEqual(rejected.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+    def test_invoice_audit_timeline_records_create_and_update_snapshots(self):
+        created = self.client.post(self.endpoint, self.payload(), format="json")
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        events_url = f"{self.endpoint}{created.data['id']}/events/"
+
+        first = self.client.get(events_url)
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(first.data), 1)
+        self.assertEqual(first.data[0]["event_type"], "created")
+        self.assertEqual(first.data[0]["actor_id"], self.user.id)
+        self.assertEqual(first.data[0]["metadata"]["after"]["invoice_number"], "API-1")
+
+        update_payload = self.payload()
+        update_payload["invoice_number"] = "API-1-UPDATED"
+        updated = self.client.put(
+            f"{self.endpoint}{created.data['id']}/",
+            update_payload,
+            format="json",
+        )
+        self.assertEqual(updated.status_code, status.HTTP_200_OK)
+
+        timeline = self.client.get(events_url)
+        self.assertEqual(len(timeline.data), 2)
+        self.assertEqual(timeline.data[1]["event_type"], "updated")
+        self.assertEqual(timeline.data[1]["metadata"]["before"]["invoice_number"], "API-1")
+        self.assertEqual(timeline.data[1]["metadata"]["after"]["invoice_number"], "API-1-UPDATED")
+
+    def test_match_preview_is_not_audit_event_but_persisted_match_is(self):
+        invoice = self.approved_invoice(number="MATCH-AUDIT")
+        self.receive(quantity="2.000", rejected="0.000")
+        events_url = f"{self.endpoint}{invoice.id}/events/"
+
+        preview = self.client.get(f"{self.endpoint}{invoice.id}/match/")
+        self.assertEqual(preview.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            PurchaseInvoiceEvent.objects.filter(
+                purchase_invoice_id=invoice.id,
+                event_type=PurchaseInvoiceEvent.EventType.MATCH_PERSISTED,
+            ).count(),
+            0,
+        )
+
+        persisted = self.client.post(f"{self.endpoint}{invoice.id}/match/", {}, format="json")
+        self.assertEqual(persisted.status_code, status.HTTP_200_OK)
+        event = PurchaseInvoiceEvent.objects.get(
+            purchase_invoice_id=invoice.id,
+            event_type=PurchaseInvoiceEvent.EventType.MATCH_PERSISTED,
+        )
+        self.assertEqual(event.actor_id, self.user.id)
+        self.assertEqual(event.metadata["result"]["current"]["status"], "matched")
+
+    def test_invoice_audit_timeline_is_tenant_scoped(self):
+        other_order = PurchaseOrder.objects.create(
+            business=self.other_business,
+            supplier=self.other_supplier,
+            order_date=date(2026, 9, 10),
+            status=PurchaseOrder.Status.SENT,
+        )
+        other_item = PurchaseOrderItem.objects.create(
+            purchase_order=other_order,
+            ingredient=self.other_ingredient,
+            quantity=Decimal("10.000"),
+            unit_price=Decimal("10.00"),
+        )
+        other_invoice = DjangoPurchaseInvoice.objects.create(
+            business=self.other_business,
+            supplier=self.other_supplier,
+            purchase_order=other_order,
+            invoice_number="OTHER-AUDIT",
+            invoice_date=date(2026, 9, 10),
+            total_price=Decimal("20.00"),
+        )
+        PurchaseInvoiceItem.objects.create(
+            purchase_invoice=other_invoice,
+            ingredient=self.other_ingredient,
+            purchase_order_item=other_item,
+            quantity=Decimal("2.000"),
+            unit_price=Decimal("10.00"),
+            total_price=Decimal("20.00"),
+        )
+
+        response = self.client.get(f"{self.endpoint}{other_invoice.id}/events/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(PurchaseInvoiceEvent.objects.filter(purchase_invoice=other_invoice).count(), 0)
+
+    def test_invoice_creation_rolls_back_when_audit_event_cannot_be_written(self):
+        with patch(
+            "purchase.presentation.api.views.purchase_invoice._record_invoice_event",
+            side_effect=RuntimeError("audit storage unavailable"),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(self.endpoint, self.payload(), format="json")
+
+        self.assertEqual(
+            DjangoPurchaseInvoice.objects.filter(
+                business=self.business,
+                invoice_number="API-1",
+            ).count(),
+            0,
+        )
+
+    def test_invoice_audit_events_reject_mutation_and_deletion(self):
+        created = self.client.post(self.endpoint, self.payload(), format="json")
+        event = PurchaseInvoiceEvent.objects.get(purchase_invoice_id=created.data["id"])
+        with self.assertRaisesRegex(ValueError, "immutable"):
+            event.save()
+        with self.assertRaisesRegex(ValueError, "cannot be deleted"):
+            event.delete()
+        with self.assertRaisesRegex(TypeError, "immutable"):
+            PurchaseInvoiceEvent.objects.filter(id=event.id).update(event_type="updated")
+        with self.assertRaisesRegex(TypeError, "cannot be deleted"):
+            PurchaseInvoiceEvent.objects.filter(id=event.id).delete()

@@ -2,6 +2,7 @@ import type {
     PurchaseInvoice,
     PurchaseInvoiceInput,
     PurchaseInvoiceMatchResponse,
+    PurchaseInvoiceEvent,
 } from '../../entities/inventory/PurchaseInvoice.ts';
 
 export interface PurchaseInvoiceFilters {
@@ -20,4 +21,5 @@ export interface PurchaseInvoiceRepository {
     match(id: string, persist: boolean): Promise<PurchaseInvoiceMatchResponse>;
     post(id: string, dueDate?: string): Promise<PurchaseInvoice>;
     cancel(id: string, reason: string): Promise<PurchaseInvoice>;
+    events(id: string): Promise<PurchaseInvoiceEvent[]>;
 }

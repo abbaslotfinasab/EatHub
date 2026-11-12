@@ -5,6 +5,7 @@ import {
     CreatePurchaseInvoice,
     GetPurchaseInvoice,
     ListPurchaseInvoices,
+    ListPurchaseInvoiceEvents,
     MatchPurchaseInvoice,
     PostPurchaseInvoice,
     UpdatePurchaseInvoice,
@@ -20,3 +21,4 @@ export const approvePurchaseInvoice = new ApprovePurchaseInvoice(repository);
 export const matchPurchaseInvoice = new MatchPurchaseInvoice(repository);
 export const postPurchaseInvoice = new PostPurchaseInvoice(repository);
 export const cancelPurchaseInvoice = new CancelPurchaseInvoice(repository);
+export const listPurchaseInvoiceEvents = new ListPurchaseInvoiceEvents(repository);
