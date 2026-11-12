@@ -219,7 +219,7 @@ export const PurchaseInvoicesPage = () => {
                         {(orders.data ?? []).map((order) => <MenuItem key={order.id} value={order.id}>#{order.id} — {supplierName(order.supplierId)}</MenuItem>)}
                     </TextField>
                     <TextField type="date" label="از تاریخ" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
-                    <TextField type="date" label="تا تاریخ" value={dateTo} onChange={(event) => setDateTo(event.target.value)} InputLabelProps={{ shrink: true }} />
+                    <TextField type="date" label="تا تاریخ" value={dateTo} onChange={(event) => setDateTo(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
                     <TextField select label="وضعیت" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} sx={{ minWidth: 150 }}>
                         <MenuItem value="all">همه وضعیت‌ها</MenuItem>
                         <MenuItem value="draft">پیش‌نویس</MenuItem><MenuItem value="approved">تأییدشده</MenuItem>
@@ -260,7 +260,7 @@ export const PurchaseInvoicesPage = () => {
                             <TextField label="تأمین‌کننده" value={form.supplierId ? supplierName(form.supplierId) : 'ابتدا سفارش را انتخاب کنید'} disabled />
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                                 <TextField required fullWidth label="شماره فاکتور" value={form.invoiceNumber} onChange={(event) => setForm((current) => ({ ...current, invoiceNumber: event.target.value }))} disabled={saving} />
-                                <TextField required fullWidth type="date" label="تاریخ فاکتور" value={form.invoiceDate} onChange={(event) => setForm((current) => ({ ...current, invoiceDate: event.target.value }))} InputLabelProps={{ shrink: true }} disabled={saving} />
+                                <TextField required fullWidth type="date" label="تاریخ فاکتور" value={form.invoiceDate} onChange={(event) => setForm((current) => ({ ...current, invoiceDate: event.target.value }))} slotProps={{ inputLabel: { shrink: true } }} disabled={saving} />
                             </Stack>
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
                                 <TextField fullWidth type="number" label="تخفیف کل (%)" value={form.discountPercent} onChange={(event) => setForm((current) => ({ ...current, discountPercent: event.target.value }))} slotProps={{ htmlInput: { min: 0, max: 100, step: '0.01' } }} disabled={saving} />
@@ -363,7 +363,7 @@ export const PurchaseInvoicesPage = () => {
                     {detail.data?.status === 'draft' && canUpdate && <Button onClick={() => openEdit(detail.data!)}>ویرایش</Button>}
                     {detail.data?.status === 'draft' && canApprove && <Button variant="contained" onClick={() => actionMutation.mutate({ action: 'approve', id: selectedId })} disabled={actionMutation.isPending}>تأیید فاکتور</Button>}
                     {detail.data?.status === 'approved' && canMatch && <Button variant="outlined" onClick={() => actionMutation.mutate({ action: 'match', id: selectedId })} disabled={actionMutation.isPending}>ثبت نتیجه تطبیق</Button>}
-                    {detail.data?.status === 'approved' && canPost && <TextField size="small" type="date" label="سررسید بدهی" value={dueDate} onChange={(event) => setDueDate(event.target.value)} InputLabelProps={{ shrink: true }} />}
+                    {detail.data?.status === 'approved' && canPost && <TextField size="small" type="date" label="سررسید بدهی" value={dueDate} onChange={(event) => setDueDate(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />}
                     {detail.data?.status === 'approved' && canPost && <Button variant="contained" color="success" onClick={() => actionMutation.mutate({ action: 'post', id: selectedId, due: dueDate || undefined })} disabled={actionMutation.isPending || !canPostNow}>ثبت مالی و ایجاد بدهی</Button>}
                     {['draft', 'approved'].includes(detail.data?.status ?? '') && canCancel && <Button color="error" onClick={() => setCancelOpen(true)} disabled={actionMutation.isPending}>لغو فاکتور</Button>}
                     <Button onClick={() => setSelectedId('')}>بستن</Button>
