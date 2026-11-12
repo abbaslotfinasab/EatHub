@@ -808,3 +808,7 @@ class PurchaseInvoiceAPITests(APITestCase):
             event.save()
         with self.assertRaisesRegex(ValueError, "cannot be deleted"):
             event.delete()
+        with self.assertRaisesRegex(TypeError, "immutable"):
+            PurchaseInvoiceEvent.objects.filter(id=event.id).update(event_type="updated")
+        with self.assertRaisesRegex(TypeError, "cannot be deleted"):
+            PurchaseInvoiceEvent.objects.filter(id=event.id).delete()
