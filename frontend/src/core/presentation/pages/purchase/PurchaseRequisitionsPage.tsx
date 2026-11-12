@@ -28,6 +28,7 @@ export const PurchaseRequisitionsPage = () => {
     const permissions = useAuthStore((state) => state.me?.active_business?.permissions ?? []);
     const canView = permissions.includes('purchase.view');
     const canViewOwn = permissions.includes('purchase.requisition.view_own');
+    const canCreate = permissions.includes('purchase.requisition.create');
     const [status, setStatus] = useState<'all' | RequisitionStatus>('all');
 
     const requisitions = useQuery({
@@ -39,10 +40,13 @@ export const PurchaseRequisitionsPage = () => {
     return (
         <Container maxWidth="xl" dir="rtl" sx={{ py: 3 }}>
             <Stack spacing={2.5}>
-                <Box>
-                    <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>درخواست‌های خرید</Typography>
-                    <Typography color="text.secondary">مشاهده وضعیت درخواست‌ها و مقدار سفارش‌شده و مانده هر ماده اولیه</Typography>
-                </Box>
+                <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 1 }}>
+                    <Box>
+                        <Typography component="h1" variant="h4" sx={{ fontWeight: 700 }}>درخواست‌های خرید</Typography>
+                        <Typography color="text.secondary">مشاهده وضعیت درخواست‌ها و مقدار سفارش‌شده و مانده هر ماده اولیه</Typography>
+                    </Box>
+                    {canCreate && <Button variant="contained" onClick={() => navigate('/purchase/requisitions/create')}>ایجاد درخواست خرید</Button>}
+                </Stack>
                 {!canView && !canViewOwn && <Alert severity="error">برای مشاهده درخواست‌های خرید مجوز لازم را ندارید.</Alert>}
                 {requisitions.isLoading && <Box role="status" sx={{ display: 'flex', justifyContent: 'center', py: 5 }}><CircularProgress /></Box>}
                 {requisitions.isError && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => { void requisitions.refetch(); }}>تلاش مجدد</Button>}>{errorMessage(requisitions.error)}</Alert>}
