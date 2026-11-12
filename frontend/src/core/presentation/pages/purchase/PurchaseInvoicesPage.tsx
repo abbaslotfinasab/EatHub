@@ -218,7 +218,7 @@ export const PurchaseInvoicesPage = () => {
                         <MenuItem value="">همه سفارش‌ها</MenuItem>
                         {(orders.data ?? []).map((order) => <MenuItem key={order.id} value={order.id}>#{order.id} — {supplierName(order.supplierId)}</MenuItem>)}
                     </TextField>
-                    <TextField type="date" label="از تاریخ" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} InputLabelProps={{ shrink: true }} />
+                    <TextField type="date" label="از تاریخ" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
                     <TextField type="date" label="تا تاریخ" value={dateTo} onChange={(event) => setDateTo(event.target.value)} InputLabelProps={{ shrink: true }} />
                     <TextField select label="وضعیت" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} sx={{ minWidth: 150 }}>
                         <MenuItem value="all">همه وضعیت‌ها</MenuItem>
@@ -263,21 +263,21 @@ export const PurchaseInvoicesPage = () => {
                                 <TextField required fullWidth type="date" label="تاریخ فاکتور" value={form.invoiceDate} onChange={(event) => setForm((current) => ({ ...current, invoiceDate: event.target.value }))} InputLabelProps={{ shrink: true }} disabled={saving} />
                             </Stack>
                             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                                <TextField fullWidth type="number" label="تخفیف کل (%)" value={form.discountPercent} onChange={(event) => setForm((current) => ({ ...current, discountPercent: event.target.value }))} inputProps={{ min: 0, max: 100, step: '0.01' }} disabled={saving} />
-                                <TextField fullWidth type="number" label="مالیات کل (%)" value={form.taxPercent} onChange={(event) => setForm((current) => ({ ...current, taxPercent: event.target.value }))} inputProps={{ min: 0, step: '0.01' }} disabled={saving} />
+                                <TextField fullWidth type="number" label="تخفیف کل (%)" value={form.discountPercent} onChange={(event) => setForm((current) => ({ ...current, discountPercent: event.target.value }))} slotProps={{ htmlInput: { min: 0, max: 100, step: '0.01' } }} disabled={saving} />
+                                <TextField fullWidth type="number" label="مالیات کل (%)" value={form.taxPercent} onChange={(event) => setForm((current) => ({ ...current, taxPercent: event.target.value }))} slotProps={{ htmlInput: { min: 0, step: '0.01' } }} disabled={saving} />
                             </Stack>
-                            <Typography fontWeight={700}>اقلام فاکتور</Typography>
+                            <Typography sx={{ fontWeight: 700 }}>اقلام فاکتور</Typography>
                             {!form.items.length && <Alert severity="info">برای شروع، یک سفارش خرید معتبر انتخاب کنید.</Alert>}
                             {form.items.map((item, index) => {
                                 const poItem = selectedOrder?.items.find((line) => line.id === item.purchaseOrderItemId);
                                 return <Paper key={item.purchaseOrderItemId} variant="outlined" sx={{ p: 2 }}>
                                     <Stack spacing={1}>
-                                        <Typography fontWeight={600}>قلم سفارش #{item.purchaseOrderItemId} — ماده اولیه #{item.ingredientId}{poItem ? ` (سفارش: ${quantity(poItem.orderedQuantity)} ${poItem.purchaseUnit ?? ''})` : ''}</Typography>
+                                        <Typography sx={{ fontWeight: 600 }}>قلم سفارش #{item.purchaseOrderItemId} — ماده اولیه #{item.ingredientId}{poItem ? ` (سفارش: ${quantity(poItem.orderedQuantity)} ${poItem.purchaseUnit ?? ''})` : ''}</Typography>
                                         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                                            <TextField fullWidth type="number" label="مقدار فاکتور" value={item.quantity} onChange={(event) => updateLine(index, 'quantity', event.target.value)} inputProps={{ min: 0.001, step: 0.001 }} disabled={saving} />
-                                            <TextField fullWidth type="number" label="قیمت واحد" value={item.unitPrice} onChange={(event) => updateLine(index, 'unitPrice', event.target.value)} inputProps={{ min: 0, step: 0.01 }} disabled={saving} />
-                                            <TextField fullWidth type="number" label="تخفیف قلم (%)" value={item.discountPercent} onChange={(event) => updateLine(index, 'discountPercent', event.target.value)} inputProps={{ min: 0, max: 100, step: 0.01 }} disabled={saving} />
-                                            <TextField fullWidth type="number" label="مالیات قلم (%)" value={item.taxPercent} onChange={(event) => updateLine(index, 'taxPercent', event.target.value)} inputProps={{ min: 0, step: 0.01 }} disabled={saving} />
+                                            <TextField fullWidth type="number" label="مقدار فاکتور" value={item.quantity} onChange={(event) => updateLine(index, 'quantity', event.target.value)} slotProps={{ htmlInput: { min: 0.001, step: 0.001 } }} disabled={saving} />
+                                            <TextField fullWidth type="number" label="قیمت واحد" value={item.unitPrice} onChange={(event) => updateLine(index, 'unitPrice', event.target.value)} slotProps={{ htmlInput: { min: 0, step: 0.01 } }} disabled={saving} />
+                                            <TextField fullWidth type="number" label="تخفیف قلم (%)" value={item.discountPercent} onChange={(event) => updateLine(index, 'discountPercent', event.target.value)} slotProps={{ htmlInput: { min: 0, max: 100, step: 0.01 } }} disabled={saving} />
+                                            <TextField fullWidth type="number" label="مالیات قلم (%)" value={item.taxPercent} onChange={(event) => updateLine(index, 'taxPercent', event.target.value)} slotProps={{ htmlInput: { min: 0, step: 0.01 } }} disabled={saving} />
                                         </Stack>
                                         <TextField fullWidth label="شرح قلم (اختیاری)" value={item.description} onChange={(event) => updateLine(index, 'description', event.target.value)} disabled={saving} />
                                     </Stack>
@@ -312,15 +312,15 @@ export const PurchaseInvoicesPage = () => {
                             </Box>
                         </Stack>
                         <Paper variant="outlined" sx={{ p: 2 }}>
-                            <Typography fontWeight={700} sx={{ mb: 1 }}>اقلام</Typography>
+                            <Typography sx={{ fontWeight: 700, mb: 1 }}>اقلام</Typography>
                             {detail.data.items.map((item) => <Stack key={item.id} direction="row" sx={{ justifyContent: 'space-between', gap: 2, py: 0.5 }}>
                                 <Typography>قلم سفارش #{item.purchaseOrderItemId} · مقدار {quantity(item.quantity)} · قیمت واحد {money(item.unitPrice)}</Typography>
                                 <Typography>{money(item.totalPrice)}</Typography>
                             </Stack>)}
-                            <Typography textAlign="left" fontWeight={700} sx={{ mt: 1 }}>جمع کل: {money(detail.data.totalPrice)}</Typography>
+                            <Typography sx={{ textAlign: "left", fontWeight: 700, mt: 1 }}>جمع کل: {money(detail.data.totalPrice)}</Typography>
                         </Paper>
                         <Paper variant="outlined" sx={{ p: 2 }}>
-                            <Typography fontWeight={700}>گردش وضعیت موجود</Typography>
+                            <Typography sx={{ fontWeight: 700 }}>گردش وضعیت موجود</Typography>
                             <Typography variant="body2">ایجاد: {detail.data.createdAt ?? '—'}</Typography>
                             <Typography variant="body2">تأیید: {detail.data.approvedAt ?? '—'} · کاربر #{detail.data.approvedById ?? '—'}</Typography>
                             <Typography variant="body2">آخرین تطبیق: {detail.data.matchedAt ?? '—'} · {matchLabel[detail.data.matchingStatus]}</Typography>
@@ -330,7 +330,7 @@ export const PurchaseInvoicesPage = () => {
                         </Paper>
                         {['approved', 'posted'].includes(detail.data.status) && <Paper variant="outlined" sx={{ p: 2 }}>
                             <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1, mb: 1 }}>
-                                <Typography fontWeight={700}>نتیجه تطبیق سه‌طرفه</Typography>
+                                <Typography sx={{ fontWeight: 700 }}>نتیجه تطبیق سه‌طرفه</Typography>
                                 <Button size="small" onClick={() => { void matchPreview.refetch(); }} disabled={matchPreview.isFetching}>محاسبه مجدد</Button>
                             </Stack>
                             {matchPreview.isLoading && <CircularProgress size={20} />}
