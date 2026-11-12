@@ -78,10 +78,10 @@ export const sidebarSections: SidebarSectionConfig[] = [
         title: "مالی",
         items: [
             {
-                title: "فاکتور ها",
-                path: "/facture",
-                icon: PointOfSaleRoundedIcon,
-                comingSoonMessage: "بخش مدیریت فاکتورها در حال طراحی و توسعه است. پس از تکمیل فرایندهای ثبت، مشاهده و پیگیری فاکتورها، این قابلیت در دسترس شما قرار خواهد گرفت. از همراهی شما سپاسگزاریم.",
+                title: "فاکتورهای خرید",
+                path: "/purchase/invoices",
+                icon: ReceiptLongRoundedIcon,
+                requiredPermission: "purchase.view",
             },
         ],
     },
