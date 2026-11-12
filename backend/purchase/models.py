@@ -537,8 +537,23 @@ class PurchaseInvoice(BaseModel):
         ]
 
 
+
+class PurchaseInvoiceEventQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise TypeError("Purchase invoice audit events are immutable.")
+
+    def delete(self):
+        raise TypeError("Purchase invoice audit events cannot be deleted.")
+
+
+class PurchaseInvoiceEventManager(models.Manager.from_queryset(PurchaseInvoiceEventQuerySet)):
+    pass
+
+
 class PurchaseInvoiceEvent(models.Model):
     """Immutable, tenant-scoped audit event for a purchase invoice."""
+
+    objects = PurchaseInvoiceEventManager()
 
     class EventType(models.TextChoices):
         CREATED = "created", "Created"
