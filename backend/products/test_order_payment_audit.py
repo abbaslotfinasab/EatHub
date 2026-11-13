@@ -292,6 +292,17 @@ class OrderPaymentEventApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_payment_event_endpoint_rejects_nonfinancial_role_with_permission(self):
+        # A granted permission must not bypass the financial-role allowlist.
+        self.role.code = "WAITER"
+        self.role.save(update_fields=["code"])
+
+        response = self.client.get(
+            f"/api/products/orders/{self.order.pk}/payment-events/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class OrderPaymentEventDatabaseImmutabilityTests(TransactionTestCase):
     def setUp(self):
