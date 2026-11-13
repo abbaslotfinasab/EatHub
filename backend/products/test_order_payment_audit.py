@@ -37,6 +37,7 @@ class OrderPaymentEventServiceTests(TestCase):
             order_type=Order.OrderType.TAKEAWAY,
             payment_method=Order.PaymentMethod.CASH,
             payment_status=Order.PaymentStatus.PENDING,
+            subtotal=Decimal("25.50"),
             total_amount=Decimal("25.50"),
         )
 
