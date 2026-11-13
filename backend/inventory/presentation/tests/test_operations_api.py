@@ -1,10 +1,14 @@
 from decimal import Decimal
+from uuid import uuid4
 
 from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
 from core.enums import PermissionCode
-from inventory.infrastructure.django.models import InventoryOperation, InventoryV1Stock, InventoryV1StockMovement
+from inventory.infrastructure.django.models import (
+    InventoryOperation, InventoryReservation, InventoryReservationLine,
+    InventoryV1Stock, InventoryV1StockMovement,
+)
 from inventory.models import Ingredient, Warehouse
 
 
@@ -106,6 +110,46 @@ class InventoryOperationsAPITests(APITestCase):
         self.assertEqual(InventoryV1Stock.objects.get(pk=self.stock.pk).quantity, Decimal("10"))
         self.assertEqual(InventoryV1Stock.objects.get(pk=second_stock.pk).quantity, Decimal("1"))
         self.assertFalse(InventoryV1StockMovement.objects.filter(movement_type="issue").exists())
+    def test_transfer_cannot_dispatch_stock_reserved_for_orders(self):
+        reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            source_type="order",
+            source_id=991,
+            reason="Reserved for an active order",
+            idempotency_key=uuid4(),
+            payload_fingerprint="a" * 64,
+            created_by_id=self.owner.pk,
+        )
+        InventoryReservationLine.objects.create(
+            reservation=reservation,
+            ingredient=self.item,
+            quantity=Decimal("8"),
+            unit="kg",
+        )
+        transfer = self._create("/api/inventory/transfers/", {
+            "warehouse_id": self.warehouse.pk,
+            "destination_warehouse_id": self.destination.pk,
+            "reference": "MOVE-RESERVED",
+            "lines": [{"ingredient_id": self.item.pk, "quantity": "3", "unit": "kg"}],
+        })
+
+        response = self.client.post(
+            f"/api/inventory/transfers/{transfer['id']}/dispatch/", {}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertEqual(
+            InventoryV1Stock.objects.get(pk=self.stock.pk).quantity, Decimal("10")
+        )
+        self.assertFalse(
+            InventoryV1StockMovement.objects.filter(
+                movement_type="transfer_dispatch"
+            ).exists()
+        )
+        transfer.refresh_from_db()
+        self.assertEqual(transfer.status, InventoryOperation.Status.DRAFT)
+
     def test_transfer_has_explicit_in_transit_then_receives_once(self):
         transfer = self._create("/api/inventory/transfers/", {
             "warehouse_id": self.warehouse.pk, "destination_warehouse_id": self.destination.pk,
