@@ -54,7 +54,7 @@ export function buildOrderStatusUpdatePayload(
 }
 
 export function getAllowedOrderStatusTransitions(
-    currentStatus: OrderStatusValue,
+    currentStatus: OrderStatusValue | null | undefined,
     inventoryTrackingEnabled: boolean,
 ): OrderStatusValue[] {
     const transitions: Record<OrderStatusValue, OrderStatusValue[]> = {
@@ -72,5 +72,5 @@ export function getAllowedOrderStatusTransitions(
         cancelled: ["cancelled"],
         failed: ["failed"],
     };
-    return transitions[currentStatus];
+    return transitions[currentStatus ?? "pending"];
 }
