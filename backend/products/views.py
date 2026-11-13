@@ -25,6 +25,7 @@ from products.models import (
     Customer,
     Order,
     OrderStatusHistory,
+    OrderPaymentEvent,
     OrderRefund,
     OrderItemIngredientRequirement,
     OrderInventoryConsumptionLine,
@@ -680,6 +681,54 @@ class OrderStatusHistoryAPIView(ExplicitTenantAPIView):
                 for entry in history
             ],
         })
+
+
+class OrderPaymentEventListAPIView(ExplicitTenantAPIView):
+    """Return immutable, tenant-scoped financial events for an order."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id):
+        _require_financial_access(
+            request, "You do not have permission to view order payment history."
+        )
+        order = get_object_or_404(
+            Order.objects.filter(business=request.business), pk=order_id,
+        )
+        events = (
+            OrderPaymentEvent.objects
+            .filter(business=request.business, order_id_snapshot=order.pk)
+            .select_related("actor")
+            .order_by("created_at", "pk")
+        )
+        response = Response({
+            "order_id": order.pk,
+            "events": [
+                {
+                    "id": event.pk,
+                    "event_type": event.event_type,
+                    "from_payment_status": event.from_payment_status,
+                    "to_payment_status": event.to_payment_status,
+                    "from_payment_method": event.from_payment_method,
+                    "to_payment_method": event.to_payment_method,
+                    "from_total_amount": (
+                        str(event.from_total_amount) if event.from_total_amount is not None else None
+                    ),
+                    "to_total_amount": (
+                        str(event.to_total_amount) if event.to_total_amount is not None else None
+                    ),
+                    "metadata": event.metadata,
+                    "actor": (
+                        {"id": event.actor_id, "name": event.actor.name}
+                        if event.actor_id else None
+                    ),
+                    "created_at": event.created_at,
+                }
+                for event in events
+            ],
+        })
+        response["Cache-Control"] = "no-store"
+        return response
+
 
 
 class OrderActualConsumptionAPIView(ExplicitTenantAPIView):
