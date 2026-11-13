@@ -31,26 +31,12 @@ def install_append_only_guard(apps, schema_editor):
         EXECUTE FUNCTION inventory_v1_reject_stock_movement_mutation()
         """
     )
-    schema_editor.execute(
-        """
-        CREATE TRIGGER inventory_v1_stock_movement_no_truncate
-        BEFORE TRUNCATE ON inventory_v1_stock_movement
-        FOR EACH STATEMENT
-        EXECUTE FUNCTION inventory_v1_reject_stock_movement_mutation()
-        """
-    )
 
 
 def remove_append_only_guard(apps, schema_editor):
     if schema_editor.connection.vendor != "postgresql":
         return
 
-    schema_editor.execute(
-        """
-        DROP TRIGGER IF EXISTS inventory_v1_stock_movement_no_truncate
-        ON inventory_v1_stock_movement
-        """
-    )
     schema_editor.execute(
         """
         DROP TRIGGER IF EXISTS inventory_v1_stock_movement_immutable
