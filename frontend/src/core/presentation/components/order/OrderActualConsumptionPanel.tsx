@@ -66,8 +66,16 @@ export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props)
     const [quantities, setQuantities] = useState<Record<number, string>>({});
     const [validationError, setValidationError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [identityReady, setIdentityReady] = useState(false);
     useEffect(() => {
-        if (businessId === null) return;
+        setIdentityReady(false);
+        setPendingRequest(null);
+        setQuantities({});
+        setStorageError(null);
+        if (businessId === null) {
+            setIdentityReady(true);
+            return;
+        }
         try {
             const restored = readPendingOrderConsumption(
                 String(businessId),
@@ -85,6 +93,8 @@ export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props)
             setStorageError(null);
         } catch {
             setStorageError("بازیابی درخواست قبلی امن نبود؛ برای جلوگیری از ثبت مصرف تکراری، درخواست جدید ارسال نمی‌شود.");
+        } finally {
+            setIdentityReady(true);
         }
     }, [businessId, orderId]);
 
@@ -92,6 +102,7 @@ export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props)
     const submit = async () => {
         setValidationError(null);
         setSuccess(false);
+        if (!identityReady) return;
         const missing = requirements.some((line) => !(quantities[line.requirementId] ?? "").trim());
         if (missing) {
             setValidationError("برای هر ماده، مقدار مصرف واقعی این ثبت را وارد کنید؛ در صورت عدم مصرف، صفر بنویسید.");
@@ -197,7 +208,7 @@ export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props)
                         slotProps={{htmlInput: {min: 0, step: "any", inputMode: "decimal"}}}
                         required
                         fullWidth
-                        disabled={recordMutation.isPending || Boolean(pendingRequest) || Boolean(storageError)}
+                        disabled={!identityReady || recordMutation.isPending || Boolean(pendingRequest) || Boolean(storageError)}
                     />
                 </Stack>
             ))}
@@ -214,7 +225,7 @@ export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props)
                     type="button"
                     variant="outlined"
                     loading={recordMutation.isPending}
-                    disabled={recordMutation.isPending || requirementsQuery.isLoading || requirementsQuery.isFetching || requirementsQuery.isError || Boolean(storageError)}
+                    disabled={!identityReady || recordMutation.isPending || requirementsQuery.isLoading || requirementsQuery.isFetching || requirementsQuery.isError || Boolean(storageError)}
                     onClick={submit}
                 >
                     {pendingRequest ? "ارسال مجدد همان مصرف" : "ثبت مصرف واقعی"}
