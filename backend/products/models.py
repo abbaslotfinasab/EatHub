@@ -190,6 +190,41 @@ class OrderStatusHistory(models.Model):
         raise ValidationError("Order status history entries are retained for audit.")
 
 
+class OrderPaymentEvent(models.Model):
+    """Append-only audit snapshot for financially relevant order mutations."""
+    class EventType(models.TextChoices):
+        PAYMENT_UPDATED = "payment_updated", "Payment updated"
+        PAYMENT_SETTLED = "payment_settled", "Payment settled"
+        PAYMENT_REFUNDED = "payment_refunded", "Payment refunded"
+        ORDER_TOTAL_CHANGED = "order_total_changed", "Order total changed"
+
+    business = models.ForeignKey("accounts.Business", on_delete=models.PROTECT, related_name="order_payment_events")
+    order_id_snapshot = models.PositiveBigIntegerField()
+    event_type = models.CharField(max_length=32, choices=EventType.choices)
+    from_payment_status = models.CharField(max_length=20, null=True, blank=True)
+    to_payment_status = models.CharField(max_length=20, null=True, blank=True)
+    from_payment_method = models.CharField(max_length=30, null=True, blank=True)
+    to_payment_method = models.CharField(max_length=30, null=True, blank=True)
+    from_total_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    to_total_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="order_payment_events")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "order_payment_event"
+        ordering = ("created_at", "pk")
+        indexes = [models.Index(fields=("business", "order_id_snapshot", "created_at"), name="order_payment_evt_scope_ix")]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Order payment events are immutable.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Order payment events are retained for audit.")
+
+
 class OrderItem(BaseModel):
     order = models.ForeignKey(
         Order,
