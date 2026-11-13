@@ -1,5 +1,7 @@
 from datetime import date
+from decimal import Decimal
 
+from django.db.models import Sum
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -24,6 +26,7 @@ from purchase.domain.enums.payment_method import PaymentMethod
 from purchase.infrastructure.persistence.django.repositories.supplier_payment_repository import (
     DjangoSupplierPaymentRepository,
 )
+from purchase.models import PaymentAllocation
 from purchase.infrastructure.persistence.django.repositories.supplier_repository import (
     DjangoSupplierRepository,
 )
@@ -98,7 +101,31 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
             )
         except ValueError as error:
             _handle_payment_error(error)
-        return Response(SupplierPaymentSerializer(payments, many=True).data)
+
+        payment_ids = [payment.id for payment in payments if payment.id is not None]
+        allocated_by_payment = {}
+        if payment_ids:
+            allocations = (
+                PaymentAllocation.objects.filter(
+                    business_id=request.business.id,
+                    payment_id__in=payment_ids,
+                )
+                .values("payment_id")
+                .annotate(total=Sum("amount"))
+            )
+            allocated_by_payment = {
+                row["payment_id"]: row["total"] or Decimal("0.00")
+                for row in allocations
+            }
+
+        data = SupplierPaymentSerializer(payments, many=True).data
+        for payment, item in zip(payments, data):
+            allocated = allocated_by_payment.get(payment.id, Decimal("0.00"))
+            item["allocated_amount"] = str(allocated.quantize(Decimal("0.01")))
+            item["remaining_amount"] = str(
+                (payment.amount - allocated).quantize(Decimal("0.01"))
+            )
+        return Response(data)
 
     def post(self, request):
         require_purchase_permission(request, PermissionCode.PURCHASE_PAYMENT_CREATE)
