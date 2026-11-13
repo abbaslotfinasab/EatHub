@@ -1,4 +1,4 @@
-import {useRef, useState} from "react";
+import {useEffect, useState} from "react";
 import {isAxiosError} from "axios";
 import {Alert, CircularProgress, Divider, Stack, TextField, Typography} from "@mui/material";
 import {LoadingButton} from "@mui/lab";
@@ -6,6 +6,14 @@ import type {UseQueryResult} from "@tanstack/react-query";
 
 import {useRecordOrderConsumption} from "../../hooks/order/useRecordOrderConsumption.ts";
 import type {OrderConsumptionRequirements} from "../../../domain/entities/product/order/OrderInventoryConsumption.ts";
+import {useAuthStore} from "../../store/auth.store.ts";
+import {
+    clearPendingOrderConsumption,
+    createPendingOrderConsumptionRequest,
+    readPendingOrderConsumption,
+    savePendingOrderConsumption,
+    type PendingOrderConsumptionRequest,
+} from "../../utils/orderConsumptionRequestIdentity.ts";
 
 interface Props {
     orderId: string;
@@ -52,15 +60,49 @@ function validQuantity(value: string): boolean {
 
 export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props) {
     const recordMutation = useRecordOrderConsumption();
+    const businessId = useAuthStore((state) => state.me?.active_business?.id ?? null);
+    const [pendingRequest, setPendingRequest] = useState<PendingOrderConsumptionRequest | null>(null);
+    const [storageError, setStorageError] = useState<string | null>(null);
     const [quantities, setQuantities] = useState<Record<number, string>>({});
     const [validationError, setValidationError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
-    const attempt = useRef<{intent: string; key: string} | null>(null);
+    const [identityReady, setIdentityReady] = useState(false);
+    useEffect(() => {
+        setIdentityReady(false);
+        setPendingRequest(null);
+        setQuantities({});
+        setStorageError(null);
+        if (businessId === null) {
+            setIdentityReady(true);
+            return;
+        }
+        try {
+            const restored = readPendingOrderConsumption(
+                String(businessId),
+                orderId,
+                window.sessionStorage,
+            );
+            if (restored) {
+                setPendingRequest(restored);
+                setQuantities(Object.fromEntries(
+                    restored.lines.map((line) => [line.requirementId, line.quantity]),
+                ));
+            } else {
+                setPendingRequest(null);
+            }
+            setStorageError(null);
+        } catch {
+            setStorageError("بازیابی درخواست قبلی امن نبود؛ برای جلوگیری از ثبت مصرف تکراری، درخواست جدید ارسال نمی‌شود.");
+        } finally {
+            setIdentityReady(true);
+        }
+    }, [businessId, orderId]);
 
     const requirements = requirementsQuery.data?.requirements ?? [];
     const submit = async () => {
         setValidationError(null);
         setSuccess(false);
+        if (!identityReady) return;
         const missing = requirements.some((line) => !(quantities[line.requirementId] ?? "").trim());
         if (missing) {
             setValidationError("برای هر ماده، مقدار مصرف واقعی این ثبت را وارد کنید؛ در صورت عدم مصرف، صفر بنویسید.");
@@ -71,22 +113,53 @@ export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props)
             return;
         }
 
-        const lines = requirements.map((line) => ({
-            requirementId: line.requirementId,
-            quantity: quantities[line.requirementId].trim(),
-            unit: line.unit,
-        }));
-        const intent = JSON.stringify([orderId, lines]);
-        const idempotencyKey = attempt.current?.intent === intent
-            ? attempt.current.key
-            : crypto.randomUUID();
-        attempt.current = {intent, key: idempotencyKey};
+        if (businessId === null) {
+            setStorageError("کسب‌وکار فعال مشخص نیست؛ درخواست مصرف ارسال نشد.");
+            return;
+        }
+
+        if (storageError) {
+            setValidationError(storageError);
+            return;
+        }
+
+        let request = pendingRequest;
+        if (!request) {
+            const lines = requirements.map((line) => ({
+                requirementId: line.requirementId,
+                quantity: quantities[line.requirementId].trim(),
+                unit: line.unit,
+            }));
+            try {
+                request = createPendingOrderConsumptionRequest(
+                    String(businessId),
+                    orderId,
+                    lines,
+                    crypto.randomUUID(),
+                );
+                savePendingOrderConsumption(request, window.sessionStorage);
+                setPendingRequest(request);
+            } catch {
+                setStorageError("ذخیره شناسه امن درخواست ناموفق بود؛ برای جلوگیری از ثبت مصرف تکراری، درخواست ارسال نشد.");
+                return;
+            }
+        }
 
         try {
-            await recordMutation.mutateAsync({orderId, idempotencyKey, lines});
-            attempt.current = null;
-            setQuantities({});
-            setSuccess(true);
+            await recordMutation.mutateAsync({
+                orderId,
+                idempotencyKey: request.key,
+                lines: request.lines,
+            });
+            try {
+                clearPendingOrderConsumption(String(businessId), orderId, window.sessionStorage);
+                setPendingRequest(null);
+                setStorageError(null);
+                setQuantities({});
+                setSuccess(true);
+            } catch {
+                setValidationError("مصرف ثبت شد، اما پاک‌سازی شناسه محلی انجام نشد؛ در صورت نیاز فقط همان درخواست را دوباره ارسال کنید.");
+            }
         } catch (error) {
             setValidationError(errorMessage(error));
         }
@@ -135,11 +208,15 @@ export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props)
                         slotProps={{htmlInput: {min: 0, step: "any", inputMode: "decimal"}}}
                         required
                         fullWidth
-                        disabled={recordMutation.isPending}
+                        disabled={!identityReady || recordMutation.isPending || Boolean(pendingRequest) || Boolean(storageError)}
                     />
                 </Stack>
             ))}
 
+            {storageError && <Alert severity="error">{storageError}</Alert>}
+            {pendingRequest && <Alert severity="warning">
+                یک درخواست مصرف قبلی هنوز تعیین تکلیف نشده است. فقط همان payload با همان شناسه امن قابل ارسال مجدد است.
+            </Alert>}
             {validationError && <Alert severity="error">{validationError}</Alert>}
             {success && <Alert severity="success">مصرف واقعی ثبت شد و گردش موجودی به‌روزرسانی شد.</Alert>}
 
@@ -148,10 +225,10 @@ export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props)
                     type="button"
                     variant="outlined"
                     loading={recordMutation.isPending}
-                    disabled={recordMutation.isPending || requirementsQuery.isLoading || requirementsQuery.isFetching || requirementsQuery.isError}
+                    disabled={!identityReady || recordMutation.isPending || requirementsQuery.isLoading || requirementsQuery.isFetching || requirementsQuery.isError || Boolean(storageError)}
                     onClick={submit}
                 >
-                    ثبت مصرف واقعی
+                    {pendingRequest ? "ارسال مجدد همان مصرف" : "ثبت مصرف واقعی"}
                 </LoadingButton>
             )}
         </Stack>
