@@ -1,6 +1,64 @@
 from django.db import migrations
 
 
+VALIDATE_EXISTING_SQL = """
+DO $
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM inventory_v1_stock s
+        JOIN inventory_warehouse w ON w.id = s.warehouse_id
+        JOIN inventory_ingredient i ON i.id = s.ingredient_id
+        WHERE s.business_id IS DISTINCT FROM w.business_id
+           OR s.business_id IS DISTINCT FROM i.business_id
+    ) THEN
+        RAISE EXCEPTION 'Existing inventory_v1_stock rows violate tenant integrity';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM inventory_v1_stock_movement m
+        JOIN inventory_v1_stock s ON s.id = m.stock_id
+        WHERE m.business_id IS DISTINCT FROM s.business_id
+    ) THEN
+        RAISE EXCEPTION 'Existing inventory_v1_stock_movement rows violate tenant integrity';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM inventory_operation o
+        JOIN inventory_warehouse w ON w.id = o.warehouse_id
+        WHERE o.business_id IS DISTINCT FROM w.business_id
+    ) OR EXISTS (
+        SELECT 1 FROM inventory_operation o
+        JOIN inventory_warehouse w ON w.id = o.destination_warehouse_id
+        WHERE o.business_id IS DISTINCT FROM w.business_id
+    ) THEN
+        RAISE EXCEPTION 'Existing inventory_operation rows violate tenant integrity';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM inventory_operation_line l
+        JOIN inventory_operation o ON o.id = l.operation_id
+        JOIN inventory_ingredient i ON i.id = l.ingredient_id
+        WHERE o.business_id IS DISTINCT FROM i.business_id
+    ) THEN
+        RAISE EXCEPTION 'Existing inventory_operation_line rows violate tenant integrity';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM inventory_reservation r
+        JOIN inventory_warehouse w ON w.id = r.warehouse_id
+        WHERE r.business_id IS DISTINCT FROM w.business_id
+    ) THEN
+        RAISE EXCEPTION 'Existing inventory_reservation rows violate tenant integrity';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM inventory_reservation_line l
+        JOIN inventory_reservation r ON r.id = l.reservation_id
+        JOIN inventory_ingredient i ON i.id = l.ingredient_id
+        WHERE r.business_id IS DISTINCT FROM i.business_id
+    ) THEN
+        RAISE EXCEPTION 'Existing inventory_reservation_line rows violate tenant integrity';
+    END IF;
+END;
+$
+"""
+
+
 CREATE_FUNCTION_SQL = """
 CREATE OR REPLACE FUNCTION inventory_v1_enforce_tenant_integrity()
 RETURNS trigger
@@ -78,6 +136,7 @@ def install_tenant_integrity_guards(apps, schema_editor):
     if schema_editor.connection.vendor != "postgresql":
         return
 
+    schema_editor.execute(VALIDATE_EXISTING_SQL)
     schema_editor.execute(CREATE_FUNCTION_SQL)
     for table in (
         "inventory_v1_stock",
