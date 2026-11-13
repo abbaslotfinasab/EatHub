@@ -147,8 +147,8 @@ class InventoryOperationsAPITests(APITestCase):
                 movement_type="transfer_dispatch"
             ).exists()
         )
-        transfer.refresh_from_db()
-        self.assertEqual(transfer.status, InventoryOperation.Status.DRAFT)
+        transfer_record = InventoryOperation.objects.get(pk=transfer["id"])
+        self.assertEqual(transfer_record.status, InventoryOperation.Status.DRAFT)
 
     def test_transfer_has_explicit_in_transit_then_receives_once(self):
         transfer = self._create("/api/inventory/transfers/", {
