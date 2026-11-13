@@ -12,6 +12,8 @@ const mapPayment = (dto: SupplierPaymentDTO): SupplierPayment => ({
     businessId: String(dto.business_id),
     supplierId: String(dto.supplier_id),
     amount: dto.amount,
+    allocatedAmount: dto.allocated_amount,
+    remainingAmount: dto.remaining_amount,
     paymentDate: dto.payment_date,
     method: dto.method,
     createdAt: dto.created_at,
