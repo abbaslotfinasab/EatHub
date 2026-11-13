@@ -295,24 +295,30 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
                     business_id=self.other_business.pk
                 )
 
+        operation_warehouse = Warehouse.objects.create(
+            business=self.business, name="Operation warehouse"
+        )
         InventoryOperation.objects.create(
             business=self.business,
             operation_type=InventoryOperation.Type.ISSUE,
             status=InventoryOperation.Status.DRAFT,
-            warehouse=self.warehouse,
+            warehouse=operation_warehouse,
             created_by_id=1,
         )
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Warehouse.objects.filter(pk=self.warehouse.pk).update(
+                Warehouse.objects.filter(pk=operation_warehouse.pk).update(
                     business_id=self.other_business.pk
                 )
 
         from uuid import uuid4
 
+        reservation_warehouse = Warehouse.objects.create(
+            business=self.business, name="Reservation warehouse"
+        )
         InventoryReservation.objects.create(
             business=self.business,
-            warehouse=self.warehouse,
+            warehouse=reservation_warehouse,
             source_type="manual",
             source_id=None,
             reason="Tenant integrity test",
@@ -323,7 +329,7 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
         )
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Warehouse.objects.filter(pk=self.warehouse.pk).update(
+                Warehouse.objects.filter(pk=reservation_warehouse.pk).update(
                     business_id=self.other_business.pk
                 )
 
