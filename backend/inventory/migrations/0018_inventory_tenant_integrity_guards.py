@@ -2,7 +2,7 @@ from django.db import migrations
 
 
 VALIDATE_EXISTING_SQL = """
-DO $
+DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM inventory_v1_stock s
@@ -55,7 +55,7 @@ BEGIN
         RAISE EXCEPTION 'Existing inventory_reservation_line rows violate tenant integrity';
     END IF;
 END;
-$
+$$
 """
 
 
