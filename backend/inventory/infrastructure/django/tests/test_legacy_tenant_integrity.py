@@ -215,3 +215,171 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
                     business=self.other_business,
                     warehouse=self.other_warehouse,
                 )
+
+
+    def test_v1_stock_movement_rejects_foreign_business(self):
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.raw,
+            unit="kg",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                InventoryV1StockMovement.objects.create(
+                    business=self.other_business,
+                    stock=stock,
+                    movement_type="receipt",
+                    direction="in",
+                    quantity=Decimal("1"),
+                    unit="kg",
+                    unit_cost=Decimal("1"),
+                    balance_after=Decimal("1"),
+                    average_cost_before=Decimal("0"),
+                    source_type="foreign-tenant-test",
+                    source_document_id=101,
+                    source_line_id=101,
+                    operation_kind="receive",
+                )
+
+    def test_v1_operation_line_rejects_foreign_ingredient(self):
+        operation = InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.ISSUE,
+            status=InventoryOperation.Status.DRAFT,
+            warehouse=self.warehouse,
+            created_by_id=1,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                InventoryOperationLine.objects.create(
+                    operation=operation,
+                    ingredient=self.other_raw,
+                    quantity=Decimal("1"),
+                    unit="kg",
+                )
+
+    def test_v1_reservation_line_rejects_foreign_ingredient(self):
+        from uuid import uuid4
+
+        reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            source_type="manual",
+            source_id=None,
+            reason="Tenant integrity test",
+            status=InventoryReservation.Status.ACTIVE,
+            idempotency_key=uuid4(),
+            payload_fingerprint="b" * 64,
+            created_by_id=1,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                InventoryReservationLine.objects.create(
+                    reservation=reservation,
+                    ingredient=self.other_raw,
+                    quantity=Decimal("1"),
+                    unit="kg",
+                )
+
+    def test_warehouse_business_change_cannot_invalidate_v1_records(self):
+        InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.raw,
+            unit="kg",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Warehouse.objects.filter(pk=self.warehouse.pk).update(
+                    business_id=self.other_business.pk
+                )
+
+        operation = InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.ISSUE,
+            status=InventoryOperation.Status.DRAFT,
+            warehouse=self.warehouse,
+            created_by_id=1,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Warehouse.objects.filter(pk=self.warehouse.pk).update(
+                    business_id=self.other_business.pk
+                )
+
+        from uuid import uuid4
+
+        reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            source_type="manual",
+            source_id=None,
+            reason="Tenant integrity test",
+            status=InventoryReservation.Status.ACTIVE,
+            idempotency_key=uuid4(),
+            payload_fingerprint="c" * 64,
+            created_by_id=1,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Warehouse.objects.filter(pk=self.warehouse.pk).update(
+                    business_id=self.other_business.pk
+                )
+
+    def test_ingredient_business_change_cannot_invalidate_v1_records(self):
+        InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.raw,
+            unit="kg",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Ingredient.objects.filter(pk=self.raw.pk).update(
+                    business_id=self.other_business.pk
+                )
+
+        operation = InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.ISSUE,
+            status=InventoryOperation.Status.DRAFT,
+            warehouse=self.warehouse,
+            created_by_id=1,
+        )
+        InventoryOperationLine.objects.create(
+            operation=operation,
+            ingredient=self.raw,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Ingredient.objects.filter(pk=self.raw.pk).update(
+                    business_id=self.other_business.pk
+                )
+
+        from uuid import uuid4
+
+        reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            source_type="manual",
+            source_id=None,
+            reason="Tenant integrity test",
+            status=InventoryReservation.Status.ACTIVE,
+            idempotency_key=uuid4(),
+            payload_fingerprint="d" * 64,
+            created_by_id=1,
+        )
+        InventoryReservationLine.objects.create(
+            reservation=reservation,
+            ingredient=self.raw,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Ingredient.objects.filter(pk=self.raw.pk).update(
+                    business_id=self.other_business.pk
+                )
