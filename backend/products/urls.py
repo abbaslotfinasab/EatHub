@@ -101,6 +101,11 @@ urlpatterns = [
         name="order-status-update",
     ),
     path(
+        "orders/<int:order_id>/payment-events/",
+        OrderPaymentEventListAPIView.as_view(),
+        name="order-payment-events",
+    ),
+    path(
         "orders/<int:order_id>/history/",
         OrderStatusHistoryAPIView.as_view(),
         name="order-status-history",

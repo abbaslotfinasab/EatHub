@@ -100,6 +100,33 @@ class PurchaseRequisition:
 
         self.items.clear()
 
+    def validate_order_quantities(
+        self,
+        already_ordered: dict[int, Decimal],
+        new_order_quantities: dict[int, Decimal],
+    ) -> None:
+        requested: dict[int, Decimal] = {}
+        for item in self.items:
+            requested[item.ingredient_id] = (
+                requested.get(item.ingredient_id, Decimal("0")) + item.quantity
+            )
+
+        for ingredient_id, quantity in new_order_quantities.items():
+            if ingredient_id not in requested:
+                raise ValueError(
+                    "Purchase order items must match approved requisition ingredients."
+                )
+
+            remaining = requested[ingredient_id] - already_ordered.get(
+                ingredient_id,
+                Decimal("0"),
+            )
+            if quantity > remaining:
+                raise ValueError(
+                    "Purchase order quantity exceeds the remaining approved "
+                    f"requisition quantity for ingredient {ingredient_id}."
+                )
+
     # ------------------------------------------------------------------
     # Status transitions
     # ------------------------------------------------------------------

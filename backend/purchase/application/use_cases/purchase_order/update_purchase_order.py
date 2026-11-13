@@ -52,6 +52,10 @@ class UpdatePurchaseOrderUseCase:
             purchase_order.set_discount(discount)
             purchase_order.set_tax(tax)
 
+            if purchase_order.requisition_id is not None:
+                return self._purchase_order_repository.save_for_requisition(
+                    purchase_order,
+                )
             return self._purchase_order_repository.save(purchase_order)
 
     @staticmethod

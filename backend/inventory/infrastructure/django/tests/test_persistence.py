@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 from types import SimpleNamespace
+from uuid import uuid4
+from unittest import skipUnless
 from unittest.mock import patch
 
-from django.db import IntegrityError, connection, transaction
+from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.test import TestCase
 
 from accounts.models import Business
@@ -29,6 +31,10 @@ from inventory.infrastructure.django.mappers import (
 from inventory.infrastructure.django.models import (
     InventoryV1Stock,
     InventoryV1StockMovement,
+    InventoryOperation,
+    InventoryOperationLine,
+    InventoryReservation,
+    InventoryReservationLine,
 )
 from inventory.infrastructure.django.repositories import (
     DjangoIngredientRepository,
@@ -195,12 +201,28 @@ class InventoryPersistenceTests(TestCase):
             )
         )
 
-        inconsistent = InventoryV1Stock.objects.create(
-            business=self.business,
-            warehouse=self.warehouse_row,
-            ingredient=self.foreign_ingredient_row,
-            unit=Unit.KG.value,
-        )
+        if connection.vendor == "postgresql":
+            with self.assertRaises(IntegrityError):
+                with transaction.atomic():
+                    InventoryV1Stock.objects.create(
+                        business=self.business,
+                        warehouse=self.warehouse_row,
+                        ingredient=self.foreign_ingredient_row,
+                        unit=Unit.KG.value,
+                    )
+            inconsistent = InventoryV1Stock(
+                business=self.business,
+                warehouse=self.warehouse_row,
+                ingredient=self.foreign_ingredient_row,
+                unit=Unit.KG.value,
+            )
+        else:
+            inconsistent = InventoryV1Stock.objects.create(
+                business=self.business,
+                warehouse=self.warehouse_row,
+                ingredient=self.foreign_ingredient_row,
+                unit=Unit.KG.value,
+            )
         with self.assertRaises(TenantMismatch):
             stock_to_domain(inconsistent)
         self.assertIsNotNone(foreign_stock.pk)
@@ -556,3 +578,123 @@ class InventoryPersistenceTests(TestCase):
         self.assertEqual(page.count, 1)
         self.assertEqual([item.id for item in page.results], [own_stock.pk])
         self.assertNotIn(foreign_stock.pk, [item.id for item in page.results])
+
+
+    @skipUnless(
+        connection.vendor == "postgresql",
+        "append-only trigger enforcement is PostgreSQL-specific",
+    )
+    def test_database_rejects_update_and_delete_of_stock_movements(self):
+        _, movement = self._receive_movement(line_id=901)
+        self.movements.save(movement)
+        movement_id = InventoryV1StockMovement.objects.get(
+            business_id=self.business_id,
+            source_type="receipt",
+            source_document_id=200,
+            source_line_id=901,
+            operation_kind="receive_stock",
+        ).pk
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE inventory_v1_stock_movement SET reason = %s WHERE id = %s",
+                        ["tampered", movement_id],
+                    )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "DELETE FROM inventory_v1_stock_movement WHERE id = %s",
+                        [movement_id],
+                    )
+
+        persisted = InventoryV1StockMovement.objects.get(pk=movement_id)
+        self.assertIsNone(persisted.reason)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
+
+    @skipUnless(connection.vendor == "postgresql", "tenant integrity triggers are PostgreSQL-specific")
+    def test_database_rejects_cross_business_v1_references(self) -> None:
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse_row,
+            ingredient=self.ingredient_row,
+            unit=Unit.KG.value,
+        )
+        operation = InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.ISSUE,
+            warehouse=self.warehouse_row,
+            created_by_id=1,
+        )
+        reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.warehouse_row,
+            source_type="test",
+            reason="tenant integrity test",
+            idempotency_key=uuid4(),
+            payload_fingerprint="0" * 64,
+            created_by_id=1,
+        )
+
+        invalid_writes = (
+            lambda: InventoryV1Stock.objects.create(
+                business=self.business,
+                warehouse=self.warehouse_row,
+                ingredient=self.foreign_ingredient_row,
+                unit=Unit.KG.value,
+            ),
+            lambda: InventoryV1StockMovement.objects.create(
+                business=self.other_business,
+                stock=stock,
+                movement_type="receipt",
+                direction="in",
+                quantity=1,
+                unit=Unit.KG.value,
+                unit_cost=0,
+                balance_after=1,
+                average_cost_before=0,
+                source_type="receipt",
+                source_document_id=1,
+                source_line_id=1,
+                operation_kind="receive",
+            ),
+            lambda: InventoryOperation.objects.create(
+                business=self.business,
+                operation_type=InventoryOperation.Type.ISSUE,
+                warehouse=self.foreign_warehouse_row,
+                created_by_id=1,
+            ),
+            lambda: InventoryOperationLine.objects.create(
+                operation=operation,
+                ingredient=self.foreign_ingredient_row,
+                quantity=1,
+                unit=Unit.KG.value,
+            ),
+            lambda: InventoryReservation.objects.create(
+                business=self.business,
+                warehouse=self.foreign_warehouse_row,
+                source_type="test",
+                reason="tenant integrity test",
+                idempotency_key=uuid4(),
+                payload_fingerprint="1" * 64,
+                created_by_id=1,
+            ),
+            lambda: InventoryReservationLine.objects.create(
+                reservation=reservation,
+                ingredient=self.foreign_ingredient_row,
+                quantity=1,
+                unit=Unit.KG.value,
+            ),
+        )
+        for write in invalid_writes:
+            with self.subTest(write=write), self.assertRaises(IntegrityError):
+                with transaction.atomic():
+                    write()
+
+        self.assertEqual(InventoryV1Stock.objects.count(), 1)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 0)
+        self.assertEqual(InventoryOperationLine.objects.count(), 0)
+        self.assertEqual(InventoryReservationLine.objects.count(), 0)

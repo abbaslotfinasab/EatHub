@@ -20,7 +20,7 @@ from inventory.infrastructure.django.models import (
     InventoryV1Stock,
     InventoryV1StockMovement,
 )
-from inventory.infrastructure.django.operations_service import post_issue
+from inventory.infrastructure.django.operations_service import dispatch_transfer, post_issue
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
@@ -63,6 +63,9 @@ class ReservationVersusIssuePostgreSQLTests(TransactionTestCase):
             unit="kg",
             quantity="10",
             average_cost="4",
+        )
+        self.destination = Warehouse.objects.create(
+            business=self.business, name="Destination"
         )
         self.issue = InventoryOperation.objects.create(
             business=self.business,
@@ -187,6 +190,104 @@ class ReservationVersusIssuePostgreSQLTests(TransactionTestCase):
         self.assertEqual(
             InventoryV1StockMovement.objects.filter(
                 stock=self.stock, movement_type="issue"
+            ).count(),
+            0,
+        )
+
+    def test_transfer_waiting_for_reservation_cannot_dispatch_reserved_stock(self):
+        transfer = InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.TRANSFER,
+            status=InventoryOperation.Status.DRAFT,
+            warehouse=self.warehouse,
+            destination_warehouse=self.destination,
+            reference="TRANSFER-RESERVATION-RACE",
+            created_by_id=1,
+        )
+        InventoryOperationLine.objects.create(
+            operation=transfer,
+            ingredient=self.ingredient,
+            quantity="7",
+            unit="kg",
+        )
+        reservation_locked = Event()
+        release_reservation = Event()
+        transfer_attempting = Event()
+        repository = _HoldingReservationRepository(
+            DjangoReservationRepository(), reservation_locked, release_reservation
+        )
+        manager = ManageReservations(repository, DjangoInventoryUnitOfWork())
+        context = InventoryExecutionContext(self.business.pk, actor_id=1)
+        reservation_operation = lambda: manager.create(
+            context,
+            warehouse_id=self.warehouse.pk,
+            source_type=MANUAL_RESERVATION_SOURCE,
+            source_id=None,
+            reason="Reserved before transfer dispatch",
+            idempotency_key=uuid4(),
+            lines=[{
+                "ingredient_id": self.ingredient.pk,
+                "quantity": "7",
+                "unit": "kg",
+            }],
+        )
+
+        def transfer_operation():
+            transfer_attempting.set()
+            return dispatch_transfer(
+                business_id=self.business.pk,
+                actor_id=1,
+                operation_id=transfer.pk,
+            )
+
+        prefix = f"res_transfer_{uuid4().hex[:8]}"
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            reservation_future = pool.submit(
+                self._worker, f"{prefix}_reservation", reservation_operation
+            )
+            if not reservation_locked.wait(10):
+                release_reservation.set()
+                self.fail("reservation did not acquire the stock-row lock")
+
+            transfer_future = pool.submit(
+                self._worker, f"{prefix}_transfer", transfer_operation
+            )
+            try:
+                if not transfer_attempting.wait(10):
+                    self.fail("transfer worker did not start")
+                self._wait_until_blocked(f"{prefix}_transfer")
+            finally:
+                release_reservation.set()
+
+            reservation_result = reservation_future.result(timeout=20)
+            transfer_result = transfer_future.result(timeout=20)
+
+        self.assertNotEqual(reservation_result[1], transfer_result[1])
+        self.assertIsNone(reservation_result[2], reservation_result[2])
+        self.assertIsNotNone(reservation_result[0])
+        self.assertIsInstance(transfer_result[2], OperationConflict)
+
+        self.stock.refresh_from_db()
+        transfer.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 10)
+        self.assertEqual(transfer.status, InventoryOperation.Status.DRAFT)
+        self.assertEqual(
+            InventoryReservation.objects.filter(
+                business=self.business,
+                status=InventoryReservation.Status.ACTIVE,
+            ).count(),
+            1,
+        )
+        reserved = InventoryReservationLine.objects.filter(
+            reservation__business=self.business,
+            reservation__warehouse=self.warehouse,
+            reservation__status=InventoryReservation.Status.ACTIVE,
+            ingredient=self.ingredient,
+        ).aggregate(total=Sum("quantity"))["total"]
+        self.assertEqual(reserved, 7)
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                stock=self.stock, movement_type="transfer_dispatch"
             ).count(),
             0,
         )

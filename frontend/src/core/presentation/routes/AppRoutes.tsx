@@ -30,6 +30,13 @@ import {PurchaseOrdersPage} from "../pages/purchase/PurchaseOrdersPage.tsx";
 import {GoodsReceivingPage} from "../pages/purchase/GoodsReceivingPage.tsx";
 import {CreatePurchaseOrderPage} from "../pages/purchase/CreatePurchaseOrderPage.tsx";
 import {PurchaseOrderDetailPage} from "../pages/purchase/PurchaseOrderDetailPage.tsx";
+import {PurchaseRequisitionsPage} from "../pages/purchase/PurchaseRequisitionsPage.tsx";
+import {PurchaseRequisitionDetailPage} from "../pages/purchase/PurchaseRequisitionDetailPage.tsx";
+import {CreatePurchaseRequisitionPage} from "../pages/purchase/CreatePurchaseRequisitionPage.tsx";
+import {PurchaseSuppliersPage} from "../pages/purchase/PurchaseSuppliersPage.tsx";
+import {PurchaseInvoicesPage} from "../pages/purchase/PurchaseInvoicesPage.tsx";
+import {AccountsPayablePage} from "../pages/purchase/AccountsPayablePage.tsx";
+import {SupplierPaymentsPage} from "../pages/purchase/SupplierPaymentsPage.tsx";
 import {ProfilePage} from "../pages/ProfilePage.tsx";
 import {ProductsPage} from "../pages/catalog/ProductsPage.tsx";
 
@@ -69,6 +76,13 @@ export const AppRoutes = () => (
                         <Route path="/warehouses" element={<Navigate to="/settings/inventory" replace/>}/>
                         <Route path="/inventory/operations" element={<Navigate to="/inventory?view=operations" replace/>}/>
                         <Route path="/recipes" element={<RecipeListPage/>}/>
+                        <Route path="/purchase/requisitions" element={<PurchaseRequisitionsPage/>}/>
+                        <Route path="/purchase/requisitions/create" element={<CreatePurchaseRequisitionPage/>}/>
+                        <Route path="/purchase/requisitions/:id" element={<PurchaseRequisitionDetailPage/>}/>
+                        <Route path="/purchase/suppliers" element={<PurchaseSuppliersPage/>}/>
+                        <Route path="/purchase/invoices" element={<PurchaseInvoicesPage/>}/>
+                        <Route path="/purchase/accounts-payable" element={<AccountsPayablePage/>}/>
+                        <Route path="/purchase/supplier-payments" element={<SupplierPaymentsPage/>}/>
                         <Route path="/purchase/orders" element={<PurchaseOrdersPage/>}/>
                         <Route path="/purchase/orders/create" element={<CreatePurchaseOrderPage/>}/>
                         <Route path="/purchase/orders/:id/edit" element={<CreatePurchaseOrderPage/>}/>

@@ -10,4 +10,16 @@ class ListAccountsPayablesUseCase:
     def execute(self, query: ListAccountsPayablesQuery) -> list[AccountsPayable]:
         if not isinstance(query.business_id, int) or query.business_id <= 0:
             raise ValueError("Business ID must be a positive integer.")
-        return self._repository.list(query.business_id)
+        if query.supplier_id is not None and (
+            not isinstance(query.supplier_id, int) or query.supplier_id <= 0
+        ):
+            raise ValueError("Supplier ID must be a positive integer.")
+        if query.due_date_from and query.due_date_to and query.due_date_from > query.due_date_to:
+            raise ValueError("Due date range is invalid.")
+        return self._repository.list(
+            query.business_id,
+            status=query.status,
+            supplier_id=query.supplier_id,
+            due_date_from=query.due_date_from,
+            due_date_to=query.due_date_to,
+        )

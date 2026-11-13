@@ -2,6 +2,8 @@ export const orderQueryKeys = {
     all: ["orders"] as const,
     business: (userId: number | null, businessId: number | null) =>
         ["orders", userId, businessId] as const,
+    listPrefix: (userId: number | null, businessId: number | null) =>
+        ["orders", userId, businessId, "list"] as const,
     list: (userId: number | null, businessId: number | null, filters: unknown) =>
         ["orders", userId, businessId, "list", filters] as const,
     detail: (userId: number | null, businessId: number | null, orderId?: string) =>

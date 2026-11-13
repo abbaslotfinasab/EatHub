@@ -3,6 +3,7 @@ import test from "node:test";
 import {
     buildOrderStatusUpdatePayload,
     getOrderStatusControlState,
+    getAllowedOrderStatusTransitions,
     hasPermission,
 } from "./orderStatusUpdatePayload.ts";
 
@@ -86,4 +87,32 @@ test("combined changes omit status when order permission is absent", () => {
         ),
         {paymentStatus: "paid", paymentMethod: "cash"},
     );
+});
+
+test("status transition options match the backend state machine", () => {
+    assert.deepEqual(getAllowedOrderStatusTransitions("pending", true), [
+        "pending", "confirmed", "cancelled", "failed",
+    ]);
+    assert.deepEqual(getAllowedOrderStatusTransitions("confirmed", true), [
+        "confirmed", "preparing", "cancelled", "failed",
+    ]);
+    assert.deepEqual(getAllowedOrderStatusTransitions("preparing", true), [
+        "preparing", "ready", "cancelled", "failed",
+    ]);
+    assert.deepEqual(getAllowedOrderStatusTransitions("ready", true), [
+        "ready", "completed", "cancelled", "failed",
+    ]);
+});
+
+test("orders-only preparation may complete directly, inventory-tracked preparation may not", () => {
+    assert.deepEqual(getAllowedOrderStatusTransitions("preparing", false), [
+        "preparing", "ready", "completed", "cancelled", "failed",
+    ]);
+    assert.equal(getAllowedOrderStatusTransitions("preparing", true).includes("completed"), false);
+});
+
+test("terminal statuses cannot transition back to active states", () => {
+    for (const terminal of ["completed", "cancelled", "failed"]) {
+        assert.deepEqual(getAllowedOrderStatusTransitions(terminal, true), [terminal]);
+    }
 });

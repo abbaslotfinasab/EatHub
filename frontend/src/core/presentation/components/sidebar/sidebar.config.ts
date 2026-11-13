@@ -8,6 +8,7 @@ import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import PeopleRoundedIcon from "@mui/icons-material/PeopleRounded";
 import AlarmRoundedIcon from "@mui/icons-material/AlarmRounded";
 import CategoryRoundedIcon from "@mui/icons-material/CategoryRounded";
+import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
 
 import type { SidebarMenuItem } from "../../../domain/entities/account/SidebarMenuItem.ts";
 
@@ -55,6 +56,18 @@ export const sidebarSections: SidebarSectionConfig[] = [
         title: "خرید",
         items: [
             {
+                title: "درخواست‌های خرید",
+                path: "/purchase/requisitions",
+                icon: ReceiptLongRoundedIcon,
+                requiredAnyPermission: ["purchase.view", "purchase.requisition.view_own", "purchase.requisition.create"],
+            },
+            {
+                title: "تأمین‌کنندگان",
+                path: "/purchase/suppliers",
+                icon: PeopleRoundedIcon,
+                requiredAnyPermission: ["purchase.view", "purchase.supplier.manage"],
+            },
+            {
                 title: "سفارش‌های خرید",
                 path: "/purchase/orders",
                 icon: ReceiptLongRoundedIcon,
@@ -66,10 +79,22 @@ export const sidebarSections: SidebarSectionConfig[] = [
         title: "مالی",
         items: [
             {
-                title: "فاکتور ها",
-                path: "/facture",
-                icon: PointOfSaleRoundedIcon,
-                comingSoonMessage: "بخش مدیریت فاکتورها در حال طراحی و توسعه است. پس از تکمیل فرایندهای ثبت، مشاهده و پیگیری فاکتورها، این قابلیت در دسترس شما قرار خواهد گرفت. از همراهی شما سپاسگزاریم.",
+                title: "فاکتورهای خرید",
+                path: "/purchase/invoices",
+                icon: ReceiptLongRoundedIcon,
+                requiredPermission: "purchase.view",
+            },
+            {
+                title: "حساب‌های پرداختنی",
+                path: "/purchase/accounts-payable",
+                icon: AccountBalanceWalletRoundedIcon,
+                requiredPermission: "purchase.view",
+            },
+            {
+                title: "پرداخت‌های تأمین‌کنندگان",
+                path: "/purchase/supplier-payments",
+                icon: ReceiptLongRoundedIcon,
+                requiredAnyPermission: ["purchase.view", "purchase.payment.create"],
             },
         ],
     },

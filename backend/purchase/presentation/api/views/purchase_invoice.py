@@ -1,4 +1,8 @@
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal
+from enum import Enum
+
+from django.db import transaction
 
 from django.utils import timezone
 from rest_framework import serializers, status
@@ -40,6 +44,8 @@ from purchase.presentation.api.serializers.purchase_invoice_posting import (
     PostPurchaseInvoiceResponseSerializer,
 )
 from purchase.presentation.api.permissions import require_purchase_permission
+from purchase.models import PurchaseInvoiceEvent
+from purchase.presentation.api.serializers.purchase_invoice_event import PurchaseInvoiceEventSerializer
 
 
 def _repository() -> DjangoPurchaseInvoiceRepository:
@@ -98,6 +104,75 @@ def _handle(error: ValueError) -> None:
     raise ValidationError({"detail": detail})
 
 
+def _json_safe(value):
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if hasattr(value, "items") and not isinstance(value, (str, bytes)):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    return value
+
+
+def _invoice_snapshot(invoice):
+    return _json_safe({
+        "invoice_number": invoice.invoice_number,
+        "invoice_date": invoice.invoice_date,
+        "supplier_id": invoice.supplier_id,
+        "purchase_order_id": invoice.purchase_order_id,
+        "status": invoice.status,
+        "subtotal": invoice.subtotal,
+        "total_price": invoice.total_price,
+        "items": [
+            {
+                "id": item.id,
+                "ingredient_id": item.ingredient_id,
+                "purchase_order_item_id": item.purchase_order_item_id,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "discount_percent": item.discount_percent,
+                "tax_percent": item.tax_percent,
+                "total_price": item.total_price,
+            }
+            for item in invoice.items
+        ],
+    })
+
+
+def _record_invoice_event(
+    invoice, actor, event_type, *, previous_status=None, metadata=None,
+):
+    return PurchaseInvoiceEvent.objects.create(
+        business_id=invoice.business_id,
+        purchase_invoice_id=invoice.id,
+        actor=actor,
+        event_type=event_type,
+        previous_status=getattr(previous_status, "value", previous_status),
+        resulting_status=getattr(invoice.status, "value", invoice.status),
+        metadata=_json_safe(metadata or {}),
+    )
+
+
+class PurchaseInvoiceEventListAPIView(TenantAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
+        if not _repository().get_by_id_for_business(pk, request.business.id):
+            raise NotFound({"detail": "Purchase invoice does not exist in this business."})
+        events = PurchaseInvoiceEvent.objects.filter(
+            business_id=request.business.id,
+            purchase_invoice_id=pk,
+        ).select_related("actor").order_by("occurred_at", "id")
+        return Response(PurchaseInvoiceEventSerializer(events, many=True).data)
+
+
 class PurchaseInvoiceListCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
@@ -123,18 +198,23 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         try:
-            result = CreatePurchaseInvoiceUseCase(_repository()).execute(
-                CreatePurchaseInvoiceDTO(
-                    business_id=request.business.id,
-                    supplier_id=data["supplier_id"],
-                    purchase_order_id=data["purchase_order_id"],
-                    invoice_number=data["invoice_number"],
-                    invoice_date=data["invoice_date"],
-                    discount_percent=data["discount_percent"],
-                    tax_percent=data["tax_percent"],
-                    items=[CreatePurchaseInvoiceItemDTO(**item) for item in data["items"]],
+            with transaction.atomic():
+                result = CreatePurchaseInvoiceUseCase(_repository()).execute(
+                    CreatePurchaseInvoiceDTO(
+                        business_id=request.business.id,
+                        supplier_id=data["supplier_id"],
+                        purchase_order_id=data["purchase_order_id"],
+                        invoice_number=data["invoice_number"],
+                        invoice_date=data["invoice_date"],
+                        discount_percent=data["discount_percent"],
+                        tax_percent=data["tax_percent"],
+                        items=[CreatePurchaseInvoiceItemDTO(**item) for item in data["items"]],
+                    )
                 )
-            )
+                _record_invoice_event(
+                    result, request.user, PurchaseInvoiceEvent.EventType.CREATED,
+                    metadata={"after": _invoice_snapshot(result)},
+                )
         except ValueError as error:
             _handle(error)
         return Response(PurchaseInvoiceSerializer(result).data, status=status.HTTP_201_CREATED)
@@ -157,22 +237,33 @@ class PurchaseInvoiceDetailAPIView(TenantAPIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         try:
-            result = UpdatePurchaseInvoiceUseCase(_repository()).execute(
-                UpdatePurchaseInvoiceDTO(
-                    business_id=request.business.id,
-                    purchase_invoice_id=pk,
-                    supplier_id=data["supplier_id"],
-                    purchase_order_id=data["purchase_order_id"],
-                    invoice_number=data["invoice_number"],
-                    invoice_date=data["invoice_date"],
-                    discount_percent=data["discount_percent"],
-                    tax_percent=data["tax_percent"],
-                    items=[
-                        CreatePurchaseInvoiceItemDTO(**item)
-                        for item in data["items"]
-                    ],
+            with transaction.atomic():
+                repository = _repository()
+                before = repository.get_by_id_for_business(pk, request.business.id)
+                result = UpdatePurchaseInvoiceUseCase(repository).execute(
+                    UpdatePurchaseInvoiceDTO(
+                        business_id=request.business.id,
+                        purchase_invoice_id=pk,
+                        supplier_id=data["supplier_id"],
+                        purchase_order_id=data["purchase_order_id"],
+                        invoice_number=data["invoice_number"],
+                        invoice_date=data["invoice_date"],
+                        discount_percent=data["discount_percent"],
+                        tax_percent=data["tax_percent"],
+                        items=[
+                            CreatePurchaseInvoiceItemDTO(**item)
+                            for item in data["items"]
+                        ],
+                    )
                 )
-            )
+                _record_invoice_event(
+                    result, request.user, PurchaseInvoiceEvent.EventType.UPDATED,
+                    previous_status=before.status if before else None,
+                    metadata={
+                        "before": _invoice_snapshot(before) if before else None,
+                        "after": _invoice_snapshot(result),
+                    },
+                )
         except ValueError as error:
             _handle(error)
         return Response(PurchaseInvoiceSerializer(result).data)
@@ -184,17 +275,25 @@ class PurchaseInvoiceApproveAPIView(TenantAPIView):
     def post(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_APPROVE)
         try:
-            result = ApprovePurchaseInvoiceUseCase(
-                _repository(),
-                _transaction_manager(),
-            ).execute(
-                ApprovePurchaseInvoiceDTO(
-                    business_id=request.business.id,
-                    purchase_invoice_id=pk,
-                    approved_by_id=request.user.id,
-                    approved_at=timezone.now(),
+            with transaction.atomic():
+                repository = _repository()
+                before = repository.get_by_id_for_business(pk, request.business.id)
+                result = ApprovePurchaseInvoiceUseCase(
+                    repository,
+                    _transaction_manager(),
+                ).execute(
+                    ApprovePurchaseInvoiceDTO(
+                        business_id=request.business.id,
+                        purchase_invoice_id=pk,
+                        approved_by_id=request.user.id,
+                        approved_at=timezone.now(),
+                    )
                 )
-            )
+                _record_invoice_event(
+                    result, request.user, PurchaseInvoiceEvent.EventType.APPROVED,
+                    previous_status=before.status if before else None,
+                    metadata={"approved_at": result.approved_at},
+                )
         except ValueError as error:
             _handle(error)
         return Response(PurchaseInvoiceSerializer(result).data)
@@ -216,9 +315,21 @@ class PurchaseInvoiceMatchAPIView(TenantAPIView):
     def post(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_MATCH)
         try:
-            result = _matching_use_case().execute(
-                request.business.id, pk, persist=True,
-            )
+            with transaction.atomic():
+                repository = _repository()
+                before = repository.get_by_id_for_business(pk, request.business.id)
+                result = _matching_use_case().execute(
+                    request.business.id, pk, persist=True,
+                )
+                invoice = repository.get_by_id_for_business(pk, request.business.id)
+                _record_invoice_event(
+                    invoice, request.user, PurchaseInvoiceEvent.EventType.MATCH_PERSISTED,
+                    previous_status=invoice.status if invoice else None,
+                    metadata={
+                        "previous_matching_status": getattr(before.matching_status, "value", before.matching_status) if before else None,
+                        "result": PurchaseInvoiceMatchResponseSerializer(result).data,
+                    },
+                )
         except ValueError as error:
             _handle(error)
         return Response(PurchaseInvoiceMatchResponseSerializer(result).data)
@@ -232,15 +343,26 @@ class PurchaseInvoicePostAPIView(TenantAPIView):
         serializer = PostPurchaseInvoiceRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            result = _posting_use_case().execute(
-                PostPurchaseInvoiceDTO(
-                    business_id=request.business.id,
-                    purchase_invoice_id=pk,
-                    posted_by_id=request.user.id,
-                    posted_at=timezone.now(),
-                    due_date=serializer.validated_data["due_date"],
+            with transaction.atomic():
+                before = _repository().get_by_id_for_business(pk, request.business.id)
+                result = _posting_use_case().execute(
+                    PostPurchaseInvoiceDTO(
+                        business_id=request.business.id,
+                        purchase_invoice_id=pk,
+                        posted_by_id=request.user.id,
+                        posted_at=timezone.now(),
+                        due_date=serializer.validated_data["due_date"],
+                    )
                 )
-            )
+                _record_invoice_event(
+                    result.invoice, request.user, PurchaseInvoiceEvent.EventType.POSTED,
+                    previous_status=before.status if before else None,
+                    metadata={
+                        "accounts_payable_id": result.accounts_payable.id,
+                        "amount": result.accounts_payable.amount,
+                        "due_date": result.accounts_payable.due_date,
+                    },
+                )
         except ValueError as error:
             _handle(error)
         return Response(
@@ -270,15 +392,22 @@ class PurchaseInvoiceCancelAPIView(TenantAPIView):
         serializer = CancelPurchaseInvoiceRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            invoice = CancelPurchaseInvoice(
-                _repository(), DjangoAccountsPayableRepository(), _transaction_manager(),
-            ).execute(CancelPurchaseInvoiceDTO(
-                business_id=request.business.id,
-                purchase_invoice_id=pk,
-                cancelled_by_id=request.user.id,
-                cancelled_at=timezone.now(),
-                reason=serializer.validated_data["reason"],
-            ))
+            with transaction.atomic():
+                before = _repository().get_by_id_for_business(pk, request.business.id)
+                invoice = CancelPurchaseInvoice(
+                    _repository(), DjangoAccountsPayableRepository(), _transaction_manager(),
+                ).execute(CancelPurchaseInvoiceDTO(
+                    business_id=request.business.id,
+                    purchase_invoice_id=pk,
+                    cancelled_by_id=request.user.id,
+                    cancelled_at=timezone.now(),
+                    reason=serializer.validated_data["reason"],
+                ))
+                _record_invoice_event(
+                    invoice, request.user, PurchaseInvoiceEvent.EventType.CANCELLED,
+                    previous_status=before.status if before else None,
+                    metadata={"reason": invoice.cancellation_reason},
+                )
         except ValueError as error:
             _handle(error)
         return Response(PurchaseInvoiceSerializer(invoice).data)

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import date
+from decimal import Decimal
 
 from purchase.domain.entities.purchase_order import PurchaseOrder
 from purchase.domain.enums.purchase_order_status import (
@@ -50,6 +51,15 @@ class PurchaseOrderRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_ordered_quantities_by_requisition(
+        self,
+        business_id: int,
+        requisition_id: int,
+    ) -> dict[int, Decimal]:
+        """Return non-cancelled ordered quantities grouped by ingredient."""
+        raise NotImplementedError
+
+    @abstractmethod
     def save(
         self,
         purchase_order: PurchaseOrder,
@@ -61,13 +71,9 @@ class PurchaseOrderRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def exists_by_requisition(
+    def save_for_requisition(
         self,
-        business_id: int,
-        requisition_id: int,
-    ) -> bool:
-        """
-        Check whether a purchase order has already
-        been created from a specific requisition.
-        """
+        purchase_order: PurchaseOrder,
+    ) -> PurchaseOrder:
+        """Atomically validate remaining quantities and persist a requisition PO."""
         raise NotImplementedError

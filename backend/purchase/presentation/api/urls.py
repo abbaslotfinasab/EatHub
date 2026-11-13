@@ -8,6 +8,7 @@ from purchase.presentation.api.views.requisition import (
     RequisitionApproveAPIView,
     RequisitionDecisionHistoryAPIView,
     RequisitionDetailAPIView,
+    RequisitionOrderSummaryAPIView,
     RequisitionListCreateAPIView,
     RequisitionRejectAPIView,
     RequisitionSubmitAPIView,
@@ -27,6 +28,7 @@ from purchase.presentation.api.views.purchase_invoice import (
     PurchaseInvoiceApproveAPIView,
     PurchaseInvoiceCancelAPIView,
     PurchaseInvoiceDetailAPIView,
+    PurchaseInvoiceEventListAPIView,
     PurchaseInvoiceListCreateAPIView,
     PurchaseInvoiceMatchAPIView,
     PurchaseInvoicePostAPIView,
@@ -77,6 +79,11 @@ urlpatterns = [
         "purchase-invoices/",
         PurchaseInvoiceListCreateAPIView.as_view(),
         name="purchase-invoice-list-create",
+    ),
+    path(
+        "purchase-invoices/<int:pk>/events/",
+        PurchaseInvoiceEventListAPIView.as_view(),
+        name="purchase-invoice-events",
     ),
     path(
         "purchase-invoices/<int:pk>/",
@@ -147,6 +154,11 @@ urlpatterns = [
         "requisitions/<int:pk>/",
         RequisitionDetailAPIView.as_view(),
         name="requisition-detail",
+    ),
+    path(
+        "requisitions/<int:pk>/order-summary/",
+        RequisitionOrderSummaryAPIView.as_view(),
+        name="requisition-order-summary",
     ),
     path(
         "requisitions/<int:pk>/decisions/",

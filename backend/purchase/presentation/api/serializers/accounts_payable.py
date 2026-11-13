@@ -16,3 +16,10 @@ class AccountsPayableSerializer(serializers.Serializer):
     cancellation_reason = serializers.CharField()
     created_at = serializers.DateTimeField(allow_null=True)
     updated_at = serializers.DateTimeField(allow_null=True)
+
+
+class AccountsPayableListSerializer(AccountsPayableSerializer):
+    supplier_name = serializers.CharField(allow_null=True)
+    invoice_number = serializers.CharField(allow_null=True)
+    allocated_amount = serializers.DecimalField(max_digits=14, decimal_places=2)
+    outstanding_amount = serializers.DecimalField(max_digits=14, decimal_places=2)
