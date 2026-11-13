@@ -128,11 +128,25 @@ class InventoryPostgreSQLConcurrencyTests(TransactionTestCase):
         # absent from the current model registry. PostgreSQL TRUNCATE flush
         # fails on that table's FK to Business, so remove only this test's rows
         # in dependency order instead of flushing unrelated database tables.
+        # The ledger's production trigger must remain immutable; temporarily
+        # disable this user trigger only for this isolated test-fixture cleanup.
         business_ids = list(self._business_ids)
         if business_ids:
-            InventoryV1StockMovement.objects.filter(
-                business_id__in=business_ids
-            ).delete()
+            with connections["default"].cursor() as cursor:
+                cursor.execute(
+                    "ALTER TABLE inventory_v1_stock_movement "
+                    "DISABLE TRIGGER inventory_v1_stock_movement_immutable"
+                )
+            try:
+                InventoryV1StockMovement.objects.filter(
+                    business_id__in=business_ids
+                ).delete()
+            finally:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        "ALTER TABLE inventory_v1_stock_movement "
+                        "ENABLE TRIGGER inventory_v1_stock_movement_immutable"
+                    )
             InventoryV1Stock.objects.filter(business_id__in=business_ids).delete()
             LegacyIngredient.objects.filter(business_id__in=business_ids).delete()
             LegacyWarehouse.objects.filter(business_id__in=business_ids).delete()
