@@ -60,6 +60,9 @@ function validQuantity(value: string): boolean {
 
 export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props) {
     const recordMutation = useRecordOrderConsumption();
+    const businessId = useAuthStore((state) => state.me?.active_business?.id ?? null);
+    const [pendingRequest, setPendingRequest] = useState<PendingOrderConsumptionRequest | null>(null);
+    const [storageError, setStorageError] = useState<string | null>(null);
     const [quantities, setQuantities] = useState<Record<number, string>>({});
     const [validationError, setValidationError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -214,7 +217,7 @@ export function OrderActualConsumptionPanel({orderId, requirementsQuery}: Props)
                     disabled={recordMutation.isPending || requirementsQuery.isLoading || requirementsQuery.isFetching || requirementsQuery.isError || Boolean(storageError)}
                     onClick={submit}
                 >
-                    ثبت مصرف واقعی
+                    {pendingRequest ? "ارسال مجدد همان مصرف" : "ثبت مصرف واقعی"}
                 </LoadingButton>
             )}
         </Stack>
