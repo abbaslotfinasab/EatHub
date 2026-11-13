@@ -108,7 +108,11 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
             created_by_id=actor_id,
         )
         for item in sorted(lines, key=lambda entry: entry["ingredient_id"]):
-            ingredient = Ingredient.objects.select_for_update().filter(
+            # Do not lock the ingredient before _stock() locks the stock row.
+            # Stock tenant-integrity triggers take FOR SHARE locks on the ingredient
+            # while stock is updated; taking the locks in the opposite order here
+            # can deadlock against concurrent issue/stocktake operations.
+            ingredient = Ingredient.objects.filter(
                 pk=item["ingredient_id"], business_id=business_id, is_active=True
             ).first()
             if ingredient is None:
