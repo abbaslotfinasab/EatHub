@@ -34,7 +34,17 @@ const emptyForm: CreateSupplierPaymentInput = {
     paymentDate: '',
     method: 'bank_transfer',
 };
-const money = (value: string) => Number(value || 0).toLocaleString('fa-IR', { maximumFractionDigits: 2 });
+const toMinor = (value: string): bigint => {
+    const match = /^(0|[1-9]\\d*)(?:\\.(\\d{1,2}))?$/.exec(value.trim());
+    if (!match) return 0n;
+    return BigInt(match[1]) * 100n + BigInt((match[2] ?? "").padEnd(2, "0"));
+};
+const money = (value: string) => {
+    const minor = toMinor(value);
+    const whole = (minor / 100n).toLocaleString('fa-IR');
+    const fraction = minor % 100n;
+    return fraction ? whole + "٫" + fraction.toString().padStart(2, "0") : whole;
+};
 const dateLabel = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString('fa-IR');
 const errorMessage = (error: unknown) => {
     const response = (error as { response?: { status?: number; data?: unknown } })?.response;
@@ -174,7 +184,7 @@ export const SupplierPaymentsPage = () => {
         [suppliers.data],
     );
     const totalAmount = useMemo(
-        () => (payments.data ?? []).reduce((sum, payment) => sum + Number(payment.amount), 0),
+        () => (payments.data ?? []).reduce((sum, payment) => sum + toMinor(payment.amount), 0n),
         [payments.data],
     );
 
@@ -205,7 +215,7 @@ export const SupplierPaymentsPage = () => {
 
                 {canView && <Card><CardContent>
                     <Typography color="text.secondary" variant="body2">جمع پرداخت‌های فهرست‌شده</Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 700 }}>{money(String(totalAmount))}</Typography>
+                    <Typography variant="h5" sx={{ fontWeight: 700 }}>{money((totalAmount / 100n).toString() + "." + (totalAmount % 100n).toString().padStart(2, "0"))}</Typography>
                 </CardContent></Card>}
 
                 {canCreate && canView && <Paper component="form" onSubmit={submit} sx={{ p: { xs: 1.5, sm: 2.5 } }}>
