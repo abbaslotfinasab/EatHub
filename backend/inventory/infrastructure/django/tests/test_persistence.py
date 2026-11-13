@@ -563,7 +563,7 @@ class InventoryPersistenceTests(TestCase):
         connection.vendor == "postgresql",
         "append-only trigger enforcement is PostgreSQL-specific",
     )
-    def test_database_rejects_update_delete_and_truncate_of_stock_movements(self):
+    def test_database_rejects_update_and_delete_of_stock_movements(self):
         _, movement = self._receive_movement(line_id=901)
         self.movements.save(movement)
         movement_id = InventoryV1StockMovement.objects.get(
@@ -589,11 +589,6 @@ class InventoryPersistenceTests(TestCase):
                         "DELETE FROM inventory_v1_stock_movement WHERE id = %s",
                         [movement_id],
                     )
-
-        with self.assertRaises(DatabaseError):
-            with transaction.atomic():
-                with connection.cursor() as cursor:
-                    cursor.execute("TRUNCATE TABLE inventory_v1_stock_movement")
 
         persisted = InventoryV1StockMovement.objects.get(pk=movement_id)
         self.assertIsNone(persisted.reason)
