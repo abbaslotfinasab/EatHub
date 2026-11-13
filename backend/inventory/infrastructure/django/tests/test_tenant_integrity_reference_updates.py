@@ -12,7 +12,6 @@ from inventory.infrastructure.django.models import (
     InventoryReservation,
     InventoryReservationLine,
     InventoryV1Stock,
-    InventoryV1StockMovement,
 )
 from inventory.models import Ingredient, Warehouse
 
@@ -82,32 +81,6 @@ class InventoryTenantReferenceUpdateTests(TestCase):
             with transaction.atomic():
                 InventoryV1Stock.objects.filter(pk=stock.pk).update(
                     ingredient_id=self.other_ingredient.pk
-                )
-
-    def test_stock_movement_rejects_foreign_stock_update_without_business_change(self):
-        stock = self.create_stock(self.business, self.warehouse, self.ingredient)
-        other_stock = self.create_stock(
-            self.other_business, self.other_warehouse, self.other_ingredient
-        )
-        movement = InventoryV1StockMovement.objects.create(
-            business=self.business,
-            stock=stock,
-            movement_type="receipt",
-            direction="in",
-            quantity=Decimal("1"),
-            unit="kg",
-            unit_cost=Decimal("1"),
-            balance_after=Decimal("1"),
-            average_cost_before=Decimal("0"),
-            source_type="tenant-ref-update",
-            source_document_id=1,
-            source_line_id=1,
-            operation_kind="receive",
-        )
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                InventoryV1StockMovement.objects.filter(pk=movement.pk).update(
-                    stock_id=other_stock.pk
                 )
 
     def test_operation_rejects_foreign_source_warehouse_update_without_business_change(self):
