@@ -24,10 +24,7 @@ export const useUpdateOrder = () => {
         },
         onMutate: () => ({userId, businessId}),
         onSuccess: async (_data, variables, scope) => {
-            await invalidateOrderQueries(queryClient, scope, variables.id, {
-                list: true,
-                detail: true,
-            });
+            await invalidateOrderQueries(queryClient, scope, variables.id, "update");
         },
     });
 };

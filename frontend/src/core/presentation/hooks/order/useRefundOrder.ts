@@ -14,12 +14,7 @@ export const useRefundOrder = () => {
         mutationFn: (input: RefundOrderInput) => refundOrderUseCase.execute(input),
         onMutate: () => ({userId, businessId}),
         onSuccess: async (_data, input, scope) => {
-            await invalidateOrderQueries(queryClient, scope, input.orderId, {
-                list: true,
-                detail: true,
-                statusHistory: true,
-                refund: true,
-            });
+            await invalidateOrderQueries(queryClient, scope, input.orderId, "refund");
         },
     });
 };

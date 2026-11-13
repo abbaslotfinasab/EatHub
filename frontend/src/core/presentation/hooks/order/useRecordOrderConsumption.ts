@@ -14,10 +14,7 @@ export const useRecordOrderConsumption = () => {
         mutationFn: (input: RecordOrderConsumptionInput) => useCase.execute(input),
         onMutate: () => ({userId, businessId}),
         onSuccess: async (_data, input, scope) => {
-            await invalidateOrderQueries(queryClient, scope, input.orderId, {
-                detail: true,
-                consumption: true,
-            });
+            await invalidateOrderQueries(queryClient, scope, input.orderId, "consumption");
         },
     });
 };

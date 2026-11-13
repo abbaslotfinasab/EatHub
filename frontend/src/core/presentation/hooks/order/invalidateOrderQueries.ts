@@ -1,13 +1,21 @@
 import type {QueryClient} from "@tanstack/react-query";
 
-import {orderQueryKeys} from "./orderQueryKeys";
+import {orderQueryKeys} from "./orderQueryKeys.ts";
 
 export interface OrderQueryScope {
     userId: number | null;
     businessId: number | null;
 }
 
-export interface OrderQueryInvalidationTargets {
+export type OrderMutationKind =
+    | "create"
+    | "update"
+    | "delete"
+    | "status"
+    | "refund"
+    | "consumption";
+
+interface OrderQueryInvalidationTargets {
     list?: boolean;
     detail?: boolean;
     statusHistory?: boolean;
@@ -15,14 +23,24 @@ export interface OrderQueryInvalidationTargets {
     refund?: boolean;
 }
 
+const invalidationTargets: Record<OrderMutationKind, OrderQueryInvalidationTargets> = {
+    create: {list: true},
+    update: {list: true, detail: true},
+    delete: {list: true, detail: true, statusHistory: true, consumption: true, refund: true},
+    status: {list: true, detail: true, statusHistory: true, consumption: true, refund: true},
+    refund: {list: true, detail: true, statusHistory: true, refund: true},
+    consumption: {detail: true, consumption: true},
+};
+
 export const invalidateOrderQueries = async (
     queryClient: QueryClient,
     scope: OrderQueryScope,
     orderId: string | undefined,
-    targets: OrderQueryInvalidationTargets,
+    mutation: OrderMutationKind,
 ) => {
     if (scope.businessId === null) return;
 
+    const targets = invalidationTargets[mutation];
     const invalidations: Promise<void>[] = [];
 
     if (targets.list) {
