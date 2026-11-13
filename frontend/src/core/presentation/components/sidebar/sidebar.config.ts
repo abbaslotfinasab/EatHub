@@ -90,6 +90,12 @@ export const sidebarSections: SidebarSectionConfig[] = [
                 icon: AccountBalanceWalletRoundedIcon,
                 requiredPermission: "purchase.view",
             },
+            {
+                title: "پرداخت‌های تأمین‌کنندگان",
+                path: "/purchase/supplier-payments",
+                icon: ReceiptLongRoundedIcon,
+                requiredAnyPermission: ["purchase.view", "purchase.payment.create"],
+            },
         ],
     },
     {
