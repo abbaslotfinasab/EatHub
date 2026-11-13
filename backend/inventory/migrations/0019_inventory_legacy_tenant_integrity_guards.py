@@ -51,6 +51,7 @@ AS $$
 DECLARE
     related_business_id bigint;
     second_business_id bigint;
+    related_preparation_level text;
 BEGIN
     IF TG_TABLE_NAME = 'inventory_stock' THEN
         SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id;
@@ -61,17 +62,17 @@ BEGIN
         END IF;
 
     ELSIF TG_TABLE_NAME = 'inventory_compoundmaterialcomponent' THEN
-        SELECT business_id, preparation_level INTO related_business_id, second_business_id
+        SELECT business_id, preparation_level INTO related_business_id, related_preparation_level
         FROM inventory_ingredient WHERE id = NEW.compound_id;
-        IF related_business_id IS NULL OR second_business_id IS DISTINCT FROM 'semi_prepared' THEN
+        IF related_business_id IS NULL OR related_preparation_level IS DISTINCT FROM 'semi_prepared' THEN
             RAISE EXCEPTION 'Compound component parent must be a semi-prepared ingredient'
                 USING ERRCODE = '23514';
         END IF;
-        SELECT business_id, preparation_level INTO related_business_id, second_business_id
+        SELECT business_id, preparation_level INTO second_business_id, related_preparation_level
         FROM inventory_ingredient WHERE id = NEW.ingredient_id;
         IF related_business_id IS DISTINCT FROM (
             SELECT business_id FROM inventory_ingredient WHERE id = NEW.compound_id
-        ) OR second_business_id IS DISTINCT FROM 'raw' OR NEW.compound_id = NEW.ingredient_id THEN
+        ) OR related_preparation_level IS DISTINCT FROM 'raw' OR NEW.compound_id = NEW.ingredient_id THEN
             RAISE EXCEPTION 'Compound components must be raw ingredients owned by the compound business'
                 USING ERRCODE = '23514';
         END IF;
@@ -172,7 +173,10 @@ BEGIN
         END IF;
 
     ELSIF TG_TABLE_NAME = 'inventory_v1_stock' AND TG_OP = 'UPDATE' THEN
-        IF EXISTS (
+        SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id;
+        SELECT business_id INTO second_business_id FROM inventory_ingredient WHERE id = NEW.ingredient_id;
+        IF related_business_id IS DISTINCT FROM NEW.business_id
+           OR second_business_id IS DISTINCT FROM NEW.business_id OR EXISTS (
             SELECT 1 FROM inventory_v1_stock_movement m
             WHERE m.stock_id = NEW.id AND m.business_id IS DISTINCT FROM NEW.business_id
         ) THEN
