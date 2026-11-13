@@ -5,6 +5,8 @@ export interface SupplierPayment {
     businessId: string;
     supplierId: string;
     amount: string;
+    allocatedAmount: string;
+    remainingAmount: string;
     paymentDate: string;
     method: SupplierPaymentMethod;
     createdAt: string | null;

@@ -5,6 +5,8 @@ export interface SupplierPaymentDTO {
     business_id: number;
     supplier_id: number;
     amount: string;
+    allocated_amount: string;
+    remaining_amount: string;
     payment_date: string;
     method: SupplierPaymentMethodDTO;
     created_at: string | null;
