@@ -16,7 +16,7 @@ export interface SupplierPaymentIdentityStorage {
 const storageKey = (businessId: string) => `eathub.purchase.supplier-payment.pending.v1.${businessId}`;
 
 const canonicalAmount = (value: string): string => {
-    const match = /^(0|[1-9]\\d*)(?:\\.(\\d{1,2}))?$/.exec(value.trim());
+    const match = /^(0|[1-9]\d*)(?:\.(\d{1,2}))?$/.exec(value.trim());
     return match ? match[1] + "." + (match[2] ?? "").padEnd(2, "0") : value.trim();
 };
 
