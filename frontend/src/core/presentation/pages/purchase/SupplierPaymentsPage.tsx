@@ -213,7 +213,7 @@ export const SupplierPaymentsPage = () => {
         setAllocationError('');
         try {
             const restored = businessId ? readPendingAllocation(String(businessId)) : null;
-            if (restored?.paymentId === paymentId) setPendingAllocation(restored);
+            if (restored) setPendingAllocation(restored);
             else setPendingAllocation(null);
         } catch { setAllocationError('بازیابی درخواست تخصیص ناموفق بود.'); }
     };
