@@ -270,3 +270,52 @@ class InventoryOperationsAPITests(APITestCase):
         }, format="json")
         self.assertEqual(response.status_code, 400)
         self.assertEqual(InventoryOperation.objects.count(), 0)
+
+    def test_stocktake_creation_rejects_foreign_warehouse_and_ingredient(self):
+        foreign_item = Ingredient.objects.create(
+            business=self.other_business, name="Foreign rice", unit="kg"
+        )
+        foreign_warehouse = self.client.post("/api/inventory/stocktakes/", {
+            "warehouse_id": self.foreign_warehouse.pk,
+            "lines": [{"ingredient_id": self.item.pk, "quantity": "0", "unit": "kg"}],
+        }, format="json")
+        self.assertEqual(foreign_warehouse.status_code, 404, foreign_warehouse.data)
+
+        foreign_ingredient = self.client.post("/api/inventory/stocktakes/", {
+            "warehouse_id": self.warehouse.pk,
+            "lines": [{"ingredient_id": foreign_item.pk, "quantity": "0", "unit": "kg"}],
+        }, format="json")
+        self.assertEqual(foreign_ingredient.status_code, 404, foreign_ingredient.data)
+        self.assertFalse(InventoryOperation.objects.filter(
+            operation_type=InventoryOperation.Type.STOCKTAKE
+        ).exists())
+
+    def test_stocktake_detail_count_and_approval_are_tenant_scoped(self):
+        stocktake = self._create("/api/inventory/stocktakes/", {
+            "warehouse_id": self.warehouse.pk,
+            "lines": [{"ingredient_id": self.item.pk, "quantity": "0", "unit": "kg"}],
+        })
+        line_id = stocktake["lines"][0]["id"]
+
+        self.client.force_authenticate(self.other_owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+
+        detail = self.client.get(f"/api/inventory/stocktakes/{stocktake['id']}/")
+        self.assertEqual(detail.status_code, 404)
+
+        count_attempt = self.client.patch(f"/api/inventory/stocktakes/{stocktake['id']}/", {
+            "lines": [{"id": line_id, "counted_quantity": "3"}],
+        }, format="json")
+        self.assertEqual(count_attempt.status_code, 404)
+
+        approval_attempt = self.client.post(
+            f"/api/inventory/stocktakes/{stocktake['id']}/approve/", {}, format="json"
+        )
+        self.assertEqual(approval_attempt.status_code, 404)
+        self.assertEqual(self.client.get("/api/inventory/stocktakes/").data["count"], 0)
+
+        self.client.force_authenticate(self.owner)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+        persisted = InventoryOperation.objects.get(pk=stocktake["id"])
+        self.assertEqual(persisted.status, InventoryOperation.Status.DRAFT)
+        self.assertIsNone(persisted.lines.get(pk=line_id).counted_quantity)
