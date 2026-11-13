@@ -1,12 +1,10 @@
 from decimal import Decimal
 from unittest import skipUnless
-from uuid import uuid4
 
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 
 from accounts.models import Business
-from inventory.infrastructure.django.models import InventoryV1Stock
 from inventory.models import (
     CompoundMaterialComponent,
     Ingredient,
