@@ -1,6 +1,6 @@
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
-from products.models import CustomerTransaction, OrderRefund
+from products.models import CustomerTransaction, OrderRefund, OrderPaymentEvent
 
 from products.models import CustomerAccount, OrderItem, Order, MenuItem, OrderStatusHistory
 from django.db import IntegrityError, transaction
@@ -15,6 +15,20 @@ from core.services.ActivityLogService import ActivityLogService
 
 
 class OrderService:
+
+    @staticmethod
+    def _record_payment_event(*, business, order, user, event_type, before_status,
+                              after_status, before_method, after_method, before_total,
+                              after_total, metadata=None):
+        if before_status == after_status and before_method == after_method and before_total == after_total:
+            return None
+        return OrderPaymentEvent.objects.create(
+            business=business, order_id_snapshot=order.pk, event_type=event_type,
+            from_payment_status=before_status, to_payment_status=after_status,
+            from_payment_method=before_method, to_payment_method=after_method,
+            from_total_amount=before_total, to_total_amount=after_total,
+            metadata=metadata or {}, actor=user,
+        )
 
     @staticmethod
     def create_order(*, business, validated_data, user=None, idempotency_key=None):
@@ -181,6 +195,9 @@ class OrderService:
             id=order_id,
             business=business,
         )
+        previous_payment_status = order.payment_status
+        previous_payment_method = order.payment_method
+        previous_total_amount = order.total_amount
 
         has_order_transactions = CustomerTransaction.objects.filter(order=order).exists()
         wallet_settled = (
@@ -248,6 +265,15 @@ class OrderService:
                     target_amount=OrderService._wallet_target(order),
                     previous_payment_status=order.payment_status,
                 )
+            OrderService._record_payment_event(
+                business=business, order=order, user=user,
+                event_type=(OrderPaymentEvent.EventType.ORDER_TOTAL_CHANGED
+                            if previous_total_amount != order.total_amount
+                            else OrderPaymentEvent.EventType.PAYMENT_UPDATED),
+                before_status=previous_payment_status, after_status=order.payment_status,
+                before_method=previous_payment_method, after_method=order.payment_method,
+                before_total=previous_total_amount, after_total=order.total_amount,
+            )
             ActivityLogService.record(
                 business=business,
                 user=user,
@@ -318,6 +344,15 @@ class OrderService:
                 target_amount=OrderService._wallet_target(order),
                 previous_payment_status=order.payment_status,
             )
+        OrderService._record_payment_event(
+            business=business, order=order, user=user,
+            event_type=(OrderPaymentEvent.EventType.ORDER_TOTAL_CHANGED
+                        if previous_total_amount != order.total_amount
+                        else OrderPaymentEvent.EventType.PAYMENT_UPDATED),
+            before_status=previous_payment_status, after_status=order.payment_status,
+            before_method=previous_payment_method, after_method=order.payment_method,
+            before_total=previous_total_amount, after_total=order.total_amount,
+        )
         ActivityLogService.record(
             business=business,
             user=user,
@@ -537,6 +572,15 @@ class OrderService:
                 actor=user,
             )
 
+        OrderService._record_payment_event(
+            business=business, order=order, user=user,
+            event_type=OrderPaymentEvent.EventType.PAYMENT_UPDATED,
+            before_status=previous_payment_status, after_status=order.payment_status,
+            before_method=previous_payment_method, after_method=order.payment_method,
+            before_total=order.total_amount, after_total=order.total_amount,
+            metadata={"order_status_before": previous_status, "order_status_after": order.status},
+        )
+
         if (
             order.status != previous_status
             or order.payment_status != previous_payment_status
@@ -577,7 +621,7 @@ class OrderService:
 
     @staticmethod
     @transaction.atomic
-    def pay_order(*, order, business):
+    def pay_order(*, order, business, user=None):
         """Explicitly settle an order to its current total, idempotently."""
         order = Order.objects.select_for_update().get(pk=order.pk, business=business)
         if order.payment_method != Order.PaymentMethod.CUSTOMER_ACCOUNT:
@@ -596,6 +640,13 @@ class OrderService:
         previous_payment_status = order.payment_status
         order.payment_status = Order.PaymentStatus.PAID
         order.save(update_fields=["payment_status"])
+        OrderService._record_payment_event(
+            business=business, order=order, user=user,
+            event_type=OrderPaymentEvent.EventType.PAYMENT_SETTLED,
+            before_status=previous_payment_status, after_status=order.payment_status,
+            before_method=order.payment_method, after_method=order.payment_method,
+            before_total=order.total_amount, after_total=order.total_amount,
+        )
         OrderService._reconcile_order_settlement(
             order=order,
             business=business,
@@ -737,9 +788,21 @@ class OrderService:
         )
 
         previous_order_status = order.status
+        previous_payment_status = order.payment_status
+        previous_payment_method = order.payment_method
+        previous_total_amount = order.total_amount
         order.status = Order.Status.CANCELLED
         order.payment_status = Order.PaymentStatus.REFUNDED
         order.save(update_fields=["status", "payment_status"])
+        OrderService._record_payment_event(
+            business=business, order=order, user=user,
+            event_type=OrderPaymentEvent.EventType.PAYMENT_REFUNDED,
+            before_status=previous_payment_status, after_status=order.payment_status,
+            before_method=previous_payment_method, after_method=order.payment_method,
+            before_total=previous_total_amount, after_total=order.total_amount,
+            metadata={"refund_id": refund.pk, "refund_amount": str(refund_amount),
+                      "reason": refund.reason, "reference": refund.reference},
+        )
         if previous_order_status != Order.Status.CANCELLED:
             OrderStatusHistory.objects.create(
                 business=business,
