@@ -35,7 +35,7 @@ const emptyForm: CreateSupplierPaymentInput = {
     method: 'bank_transfer',
 };
 const toMinor = (value: string): bigint => {
-    const match = /^(0|[1-9]\\d*)(?:\\.(\\d{1,2}))?$/.exec(value.trim());
+    const match = /^(0|[1-9]\d*)(?:\.(\d{1,2}))?$/.exec(value.trim());
     if (!match) return 0n;
     return BigInt(match[1]) * 100n + BigInt((match[2] ?? "").padEnd(2, "0"));
 };
