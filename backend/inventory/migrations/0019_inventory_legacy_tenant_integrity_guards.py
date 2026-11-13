@@ -70,9 +70,9 @@ BEGIN
         END IF;
         SELECT business_id, preparation_level INTO second_business_id, related_preparation_level
         FROM inventory_ingredient WHERE id = NEW.ingredient_id;
-        IF related_business_id IS DISTINCT FROM (
-            SELECT business_id FROM inventory_ingredient WHERE id = NEW.compound_id
-        ) OR related_preparation_level IS DISTINCT FROM 'raw' OR NEW.compound_id = NEW.ingredient_id THEN
+        IF second_business_id IS DISTINCT FROM related_business_id
+           OR related_preparation_level IS DISTINCT FROM 'raw'
+           OR NEW.compound_id = NEW.ingredient_id THEN
             RAISE EXCEPTION 'Compound components must be raw ingredients owned by the compound business'
                 USING ERRCODE = '23514';
         END IF;
