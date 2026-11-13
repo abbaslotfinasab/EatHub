@@ -295,7 +295,7 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
                     business_id=self.other_business.pk
                 )
 
-        operation = InventoryOperation.objects.create(
+        InventoryOperation.objects.create(
             business=self.business,
             operation_type=InventoryOperation.Type.ISSUE,
             status=InventoryOperation.Status.DRAFT,
@@ -310,7 +310,7 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
 
         from uuid import uuid4
 
-        reservation = InventoryReservation.objects.create(
+        InventoryReservation.objects.create(
             business=self.business,
             warehouse=self.warehouse,
             source_type="manual",
