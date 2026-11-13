@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest import skipUnless
 from unittest.mock import patch
 
-from django.db import IntegrityError, connection, transaction
+from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.test import TestCase
 
 from accounts.models import Business
@@ -556,3 +557,44 @@ class InventoryPersistenceTests(TestCase):
         self.assertEqual(page.count, 1)
         self.assertEqual([item.id for item in page.results], [own_stock.pk])
         self.assertNotIn(foreign_stock.pk, [item.id for item in page.results])
+
+
+    @skipUnless(
+        connection.vendor == "postgresql",
+        "append-only trigger enforcement is PostgreSQL-specific",
+    )
+    def test_database_rejects_update_delete_and_truncate_of_stock_movements(self):
+        _, movement = self._receive_movement(line_id=901)
+        self.movements.save(movement)
+        movement_id = InventoryV1StockMovement.objects.get(
+            business_id=self.business_id,
+            source_type="receipt",
+            source_document_id=200,
+            source_line_id=901,
+            operation_kind="receive_stock",
+        ).pk
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE inventory_v1_stock_movement SET reason = %s WHERE id = %s",
+                        ["tampered", movement_id],
+                    )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "DELETE FROM inventory_v1_stock_movement WHERE id = %s",
+                        [movement_id],
+                    )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    cursor.execute("TRUNCATE TABLE inventory_v1_stock_movement")
+
+        persisted = InventoryV1StockMovement.objects.get(pk=movement_id)
+        self.assertIsNone(persisted.reason)
+        self.assertEqual(InventoryV1StockMovement.objects.count(), 1)
