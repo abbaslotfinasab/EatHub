@@ -404,7 +404,7 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
             )
             function_definition = cursor.fetchone()[0]
 
-        self.assertRegex(
+        self.assertIn(
+            "FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id FOR SHARE",
             function_definition,
-            r"FROM inventory_warehouse WHERE id = NEW\\.destination_warehouse_id FOR SHARE",
         )
