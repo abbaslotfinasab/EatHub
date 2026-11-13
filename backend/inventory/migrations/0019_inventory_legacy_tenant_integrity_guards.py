@@ -54,8 +54,8 @@ DECLARE
     related_preparation_level text;
 BEGIN
     IF TG_TABLE_NAME = 'inventory_stock' THEN
-        SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id;
-        SELECT business_id INTO second_business_id FROM inventory_ingredient WHERE id = NEW.ingredient_id;
+        SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id FOR SHARE;
+        SELECT business_id INTO second_business_id FROM inventory_ingredient WHERE id = NEW.ingredient_id FOR SHARE;
         IF related_business_id IS DISTINCT FROM second_business_id THEN
             RAISE EXCEPTION 'Legacy stock warehouse and ingredient must belong to the same business'
                 USING ERRCODE = '23514';
@@ -63,13 +63,13 @@ BEGIN
 
     ELSIF TG_TABLE_NAME = 'inventory_compoundmaterialcomponent' THEN
         SELECT business_id, preparation_level INTO related_business_id, related_preparation_level
-        FROM inventory_ingredient WHERE id = NEW.compound_id;
+        FROM inventory_ingredient WHERE id = NEW.compound_id FOR SHARE;
         IF related_business_id IS NULL OR related_preparation_level IS DISTINCT FROM 'semi_prepared' THEN
             RAISE EXCEPTION 'Compound component parent must be a semi-prepared ingredient'
                 USING ERRCODE = '23514';
         END IF;
         SELECT business_id, preparation_level INTO second_business_id, related_preparation_level
-        FROM inventory_ingredient WHERE id = NEW.ingredient_id;
+        FROM inventory_ingredient WHERE id = NEW.ingredient_id FOR SHARE;
         IF second_business_id IS DISTINCT FROM related_business_id
            OR related_preparation_level IS DISTINCT FROM 'raw'
            OR NEW.compound_id = NEW.ingredient_id THEN
@@ -78,8 +78,8 @@ BEGIN
         END IF;
 
     ELSIF TG_TABLE_NAME IN ('inventory_recipeinput', 'inventory_recipeoutput') THEN
-        SELECT business_id INTO related_business_id FROM inventory_recipe WHERE id = NEW.recipe_id;
-        SELECT business_id INTO second_business_id FROM inventory_ingredient WHERE id = NEW.ingredient_id;
+        SELECT business_id INTO related_business_id FROM inventory_recipe WHERE id = NEW.recipe_id FOR SHARE;
+        SELECT business_id INTO second_business_id FROM inventory_ingredient WHERE id = NEW.ingredient_id FOR SHARE;
         IF related_business_id IS DISTINCT FROM second_business_id THEN
             RAISE EXCEPTION 'Recipe and ingredient must belong to the same business'
                 USING ERRCODE = '23514';
@@ -173,8 +173,8 @@ BEGIN
         END IF;
 
     ELSIF TG_TABLE_NAME = 'inventory_v1_stock' AND TG_OP = 'UPDATE' THEN
-        SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id;
-        SELECT business_id INTO second_business_id FROM inventory_ingredient WHERE id = NEW.ingredient_id;
+        SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id FOR SHARE;
+        SELECT business_id INTO second_business_id FROM inventory_ingredient WHERE id = NEW.ingredient_id FOR SHARE;
         IF related_business_id IS DISTINCT FROM NEW.business_id
            OR second_business_id IS DISTINCT FROM NEW.business_id OR EXISTS (
             SELECT 1 FROM inventory_v1_stock_movement m
@@ -185,7 +185,7 @@ BEGIN
         END IF;
 
     ELSIF TG_TABLE_NAME = 'inventory_operation' AND TG_OP = 'UPDATE' THEN
-        SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id;
+        SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id FOR SHARE;
         IF related_business_id IS DISTINCT FROM NEW.business_id THEN
             RAISE EXCEPTION 'Operation business must match its source warehouse'
                 USING ERRCODE = '23514';
@@ -207,7 +207,7 @@ BEGIN
         END IF;
 
     ELSIF TG_TABLE_NAME = 'inventory_reservation' AND TG_OP = 'UPDATE' THEN
-        SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id;
+        SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.warehouse_id FOR SHARE;
         IF related_business_id IS DISTINCT FROM NEW.business_id OR EXISTS (
             SELECT 1 FROM inventory_reservation_line l
             JOIN inventory_ingredient i ON i.id = l.ingredient_id
