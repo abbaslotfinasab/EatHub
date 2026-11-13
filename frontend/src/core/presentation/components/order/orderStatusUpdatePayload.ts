@@ -1,3 +1,5 @@
+export type OrderStatusValue = "pending" | "confirmed" | "preparing" | "ready" | "completed" | "cancelled" | "failed";
+
 export interface OrderStatusChanges {
     status?: "pending" | "confirmed" | "preparing" | "ready" | "completed" | "cancelled" | "failed";
     paymentStatus?: "pending" | "unpaid" | "paid" | "failed" | "refunded";
@@ -49,4 +51,26 @@ export function buildOrderStatusUpdatePayload(
             ? {paymentMethod: values.paymentMethod}
             : {}),
     };
+}
+
+export function getAllowedOrderStatusTransitions(
+    currentStatus: OrderStatusValue,
+    inventoryTrackingEnabled: boolean,
+): OrderStatusValue[] {
+    const transitions: Record<OrderStatusValue, OrderStatusValue[]> = {
+        pending: ["pending", "confirmed", "cancelled", "failed"],
+        confirmed: ["confirmed", "preparing", "cancelled", "failed"],
+        preparing: [
+            "preparing",
+            "ready",
+            ...(inventoryTrackingEnabled ? [] : ["completed" as const]),
+            "cancelled",
+            "failed",
+        ],
+        ready: ["ready", "completed", "cancelled", "failed"],
+        completed: ["completed"],
+        cancelled: ["cancelled"],
+        failed: ["failed"],
+    };
+    return transitions[currentStatus];
 }
