@@ -41,6 +41,7 @@ import {
 import {
     buildOrderStatusUpdatePayload,
     getOrderStatusControlState,
+    getAllowedOrderStatusTransitions,
 } from "./orderStatusUpdatePayload";
 
 interface Props {
@@ -145,6 +146,19 @@ export function OrderStatusDialog({
     const orderTracksInventory = order
         ? (order.inventoryTrackingEnabled ?? inventoryEnabled)
         : inventoryEnabled;
+    const allowedStatusTransitions = getAllowedOrderStatusTransitions(
+        order?.status,
+        orderTracksInventory,
+    );
+    const statusLabels: Record<OrderStatusType, string> = {
+        pending: "در انتظار",
+        confirmed: "تایید شده",
+        preparing: "در حال آماده سازی",
+        ready: "آماده تحویل",
+        completed: "تکمیل شده",
+        cancelled: "لغو شده",
+        failed: "ناموفق",
+    };
     const consumptionReady = !orderTracksInventory || Boolean(
         order
         && businessId !== null
@@ -278,32 +292,19 @@ export function OrderStatusDialog({
                                             )}
                                         >
 
-                                            <MenuItem value="pending">
-                                                در انتظار
-                                            </MenuItem>
-
-                                            <MenuItem value="confirmed" disabled={!canFulfillInventory}>
-                                                تایید شده
-                                            </MenuItem>
-
-                                            <MenuItem value="preparing">
-                                                در حال آماده سازی
-                                            </MenuItem>
-
-                                            <MenuItem
-                                                value="ready"
-                                                disabled={order.status !== "preparing" || (orderTracksInventory && (!canFulfillInventory || !consumptionReady))}
-                                            >
-                                                آماده تحویل
-                                            </MenuItem>
-
-                                            <MenuItem value="completed">
-                                                تکمیل شده
-                                            </MenuItem>
-
-                                            <MenuItem value="cancelled" disabled={!canCancelOrders || !canFulfillInventory}>
-                                                لغو شده
-                                            </MenuItem>
+                                            {allowedStatusTransitions.map((nextStatus) => (
+                                                <MenuItem
+                                                    key={nextStatus}
+                                                    value={nextStatus}
+                                                    disabled={
+                                                        (["confirmed", "ready", "failed"].includes(nextStatus) && !canFulfillInventory)
+                                                        || (nextStatus === "cancelled" && (!canCancelOrders || !canFulfillInventory))
+                                                        || (nextStatus === "ready" && orderTracksInventory && !consumptionReady)
+                                                    }
+                                                >
+                                                    {statusLabels[nextStatus]}
+                                                </MenuItem>
+                                            ))}
 
                                         </TextField>
 
