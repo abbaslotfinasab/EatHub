@@ -346,6 +346,9 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
                     business_id=self.other_business.pk
                 )
 
+        operation_ingredient = Ingredient.objects.create(
+            business=self.business, name="Operation ingredient", unit="kg"
+        )
         operation = InventoryOperation.objects.create(
             business=self.business,
             operation_type=InventoryOperation.Type.ISSUE,
@@ -355,18 +358,21 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
         )
         InventoryOperationLine.objects.create(
             operation=operation,
-            ingredient=self.raw,
+            ingredient=operation_ingredient,
             quantity=Decimal("1"),
             unit="kg",
         )
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Ingredient.objects.filter(pk=self.raw.pk).update(
+                Ingredient.objects.filter(pk=operation_ingredient.pk).update(
                     business_id=self.other_business.pk
                 )
 
         from uuid import uuid4
 
+        reservation_ingredient = Ingredient.objects.create(
+            business=self.business, name="Reservation ingredient", unit="kg"
+        )
         reservation = InventoryReservation.objects.create(
             business=self.business,
             warehouse=self.warehouse,
@@ -380,12 +386,12 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
         )
         InventoryReservationLine.objects.create(
             reservation=reservation,
-            ingredient=self.raw,
+            ingredient=reservation_ingredient,
             quantity=Decimal("1"),
             unit="kg",
         )
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Ingredient.objects.filter(pk=self.raw.pk).update(
+                Ingredient.objects.filter(pk=reservation_ingredient.pk).update(
                     business_id=self.other_business.pk
                 )
