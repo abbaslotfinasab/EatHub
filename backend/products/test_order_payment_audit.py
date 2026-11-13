@@ -9,7 +9,7 @@ from products.models import (
     Customer, CustomerAccount, Order, OrderPaymentEvent,
 )
 from products.services.order_service import OrderService
-from users.models import User
+from accounts.models import User
 
 
 class OrderPaymentEventServiceTests(TestCase):
