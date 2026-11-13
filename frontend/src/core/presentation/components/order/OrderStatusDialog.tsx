@@ -147,7 +147,7 @@ export function OrderStatusDialog({
         ? (order.inventoryTrackingEnabled ?? inventoryEnabled)
         : inventoryEnabled;
     const allowedStatusTransitions = getAllowedOrderStatusTransitions(
-        order.status,
+        order?.status,
         orderTracksInventory,
     );
     const statusLabels: Record<OrderStatusType, string> = {
