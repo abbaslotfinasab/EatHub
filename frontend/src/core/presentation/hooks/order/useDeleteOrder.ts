@@ -13,13 +13,7 @@ export const useDeleteOrder = () => {
         mutationFn: async (id: string) => deleteOrderUseCase.execute(id),
         onMutate: () => ({userId, businessId}),
         onSuccess: async (_data, id, scope) => {
-            await invalidateOrderQueries(queryClient, scope, id, {
-                list: true,
-                detail: true,
-                statusHistory: true,
-                consumption: true,
-                refund: true,
-            });
+            await invalidateOrderQueries(queryClient, scope, id, "delete");
         },
         onError: (error) => {
             console.error("DELETE ORDER FAILED:", error);

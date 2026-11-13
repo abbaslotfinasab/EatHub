@@ -19,7 +19,7 @@ export const useCreateOrder = () => {
             ),
         onMutate: () => ({userId, businessId}),
         onSuccess: async (_data, _variables, scope) => {
-            await invalidateOrderQueries(queryClient, scope, undefined, {list: true});
+            await invalidateOrderQueries(queryClient, scope, undefined, "create");
         },
         onError: (error) => {
             console.error("CREATE ORDER FAILED:", error);

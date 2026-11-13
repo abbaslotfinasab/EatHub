@@ -16,13 +16,7 @@ export const useUpdateOrderStatus = () => {
         mutationFn: (input: UpdateOrderStatusInput) => updateOrderStatusUseCase.execute(input),
         onMutate: () => ({userId, businessId}),
         onSuccess: async (_data, input, scope) => {
-            await invalidateOrderQueries(queryClient, scope, input.orderId, {
-                list: true,
-                detail: true,
-                statusHistory: true,
-                consumption: true,
-                refund: true,
-            });
+            await invalidateOrderQueries(queryClient, scope, input.orderId, "status");
         },
         onError: (error) => {
             console.error("UPDATE ORDER STATUS FAILED:", error);
