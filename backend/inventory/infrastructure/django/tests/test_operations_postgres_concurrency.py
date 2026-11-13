@@ -1,6 +1,8 @@
 from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
+from threading import Barrier, Event, local
+from time import monotonic
+from unittest.mock import patch
 
 from django.db import close_old_connections, connection, connections
 from django.test import TransactionTestCase, skipUnlessDBFeature
@@ -327,3 +329,152 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
 
         self.stock.refresh_from_db()
         self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))
+
+
+    def test_multiline_issues_lock_stock_positions_in_stable_ingredient_order(self):
+        second_ingredient = Ingredient.objects.create(
+            business=self.business, name="Sugar", unit="kg"
+        )
+        second_stock = InventoryV1Stock.objects.create(
+            business=self.business, warehouse=self.warehouse,
+            ingredient=second_ingredient, unit="kg", quantity="10",
+            average_cost="3",
+        )
+
+        first_operation = InventoryOperation.objects.create(
+            business=self.business, operation_type=InventoryOperation.Type.ISSUE,
+            status=InventoryOperation.Status.DRAFT, warehouse=self.warehouse,
+            reason="First multi-line issue", created_by_id=51,
+        )
+        second_operation = InventoryOperation.objects.create(
+            business=self.business, operation_type=InventoryOperation.Type.ISSUE,
+            status=InventoryOperation.Status.DRAFT, warehouse=self.warehouse,
+            reason="Second multi-line issue", created_by_id=52,
+        )
+        # Persist the lines in opposite orders. The posting path must still
+        # acquire the shared Stock projection rows by ascending ingredient ID.
+        InventoryOperationLine.objects.create(
+            operation=first_operation, ingredient=self.ingredient,
+            quantity="1", unit="kg",
+        )
+        InventoryOperationLine.objects.create(
+            operation=first_operation, ingredient=second_ingredient,
+            quantity="1", unit="kg",
+        )
+        InventoryOperationLine.objects.create(
+            operation=second_operation, ingredient=second_ingredient,
+            quantity="1", unit="kg",
+        )
+        InventoryOperationLine.objects.create(
+            operation=second_operation, ingredient=self.ingredient,
+            quantity="1", unit="kg",
+        )
+
+        labels = {
+            "first": f"inv_lock_order_first_{self.business.pk}",
+            "second": f"inv_lock_order_second_{self.business.pk}",
+        }
+        attempted = {role: Event() for role in labels}
+        first_stock_locked = {role: Event() for role in labels}
+        release_first_lock = Event()
+        worker_state = local()
+        from inventory.infrastructure.django import operations_service
+
+        original_stock = operations_service._stock
+
+        def controlled_stock(*args, **kwargs):
+            role = worker_state.role
+            is_first = worker_state.calls == 0
+            worker_state.calls += 1
+            if is_first:
+                attempted[role].set()
+            result = original_stock(*args, **kwargs)
+            if is_first:
+                first_stock_locked[role].set()
+                if not release_first_lock.wait(10):
+                    raise TimeoutError("test coordinator did not release first stock lock")
+            return result
+
+        def post(operation_id, role):
+            close_old_connections()
+            worker_state.role = role
+            worker_state.calls = 0
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute("SET application_name = %s", [labels[role]])
+                result = post_issue(
+                    business_id=self.business.pk,
+                    actor_id=53,
+                    operation_id=operation_id,
+                )
+                return result, None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        second_acquired_a_different_first_lock = False
+        second_was_blocked_by_postgres = False
+        with patch(
+            "inventory.infrastructure.django.operations_service._stock",
+            side_effect=controlled_stock,
+        ):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                first_future = pool.submit(post, first_operation.pk, "first")
+                try:
+                    self.assertTrue(
+                        first_stock_locked["first"].wait(10),
+                        "first issue did not lock its first Stock row",
+                    )
+                    second_future = pool.submit(post, second_operation.pk, "second")
+                    self.assertTrue(
+                        attempted["second"].wait(10),
+                        "second issue did not reach its first Stock lookup",
+                    )
+                    second_acquired_a_different_first_lock = (
+                        first_stock_locked["second"].wait(0.5)
+                    )
+                    if not second_acquired_a_different_first_lock:
+                        deadline = monotonic() + 10
+                        while monotonic() < deadline:
+                            with connections["default"].cursor() as cursor:
+                                cursor.execute(
+                                    """SELECT wait_event_type, cardinality(pg_blocking_pids(pid))
+                                       FROM pg_stat_activity WHERE application_name = %s""",
+                                    [labels["second"]],
+                                )
+                                wait = cursor.fetchone()
+                            if wait and wait[0] == "Lock" and wait[1] > 0:
+                                second_was_blocked_by_postgres = True
+                                break
+                            Event().wait(0.01)
+                finally:
+                    release_first_lock.set()
+                first_result = first_future.result(timeout=30)
+                second_result = second_future.result(timeout=30)
+
+        self.assertFalse(
+            second_acquired_a_different_first_lock,
+            "opposite input line order acquired different first Stock rows",
+        )
+        self.assertTrue(
+            second_was_blocked_by_postgres,
+            "second issue did not wait on the first issue's Stock row lock",
+        )
+        self.assertIsNone(first_result[1], repr(first_result[1]))
+        self.assertIsNone(second_result[1], repr(second_result[1]))
+        self.assertEqual(first_result[0].status, InventoryOperation.Status.POSTED)
+        self.assertEqual(second_result[0].status, InventoryOperation.Status.POSTED)
+
+        self.stock.refresh_from_db()
+        second_stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("8.000000000000"))
+        self.assertEqual(second_stock.quantity, Decimal("8.000000000000"))
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="inventory_issue",
+                source_document_id__in=(first_operation.pk, second_operation.pk),
+                movement_type="issue",
+            ).count(),
+            4,
+        )
