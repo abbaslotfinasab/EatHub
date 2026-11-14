@@ -395,3 +395,16 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
                 Ingredient.objects.filter(pk=reservation_ingredient.pk).update(
                     business_id=self.other_business.pk
                 )
+
+
+    def test_operation_destination_warehouse_is_share_locked_during_parent_update(self):
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT pg_get_functiondef('inventory_enforce_legacy_tenant_integrity()'::regprocedure)"
+            )
+            function_definition = cursor.fetchone()[0]
+
+        self.assertIn(
+            "FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id FOR SHARE",
+            function_definition,
+        )
