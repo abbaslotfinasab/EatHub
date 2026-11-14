@@ -2,6 +2,7 @@ from decimal import Decimal
 from unittest import skipUnless
 
 from django.db import IntegrityError, connection, transaction
+from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 
 from accounts.models import Business
@@ -20,6 +21,7 @@ from inventory.models import (
     RecipeInput,
     RecipeOutput,
     Stock,
+    StockTransaction,
     Warehouse,
 )
 
@@ -408,3 +410,139 @@ class InventoryLegacyTenantIntegrityTests(TestCase):
             "FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id FOR SHARE",
             function_definition,
         )
+
+    def test_legacy_referenced_records_are_protected_from_delete(self):
+        stock = Stock.objects.create(
+            warehouse=self.warehouse, ingredient=self.raw
+        )
+        StockTransaction.objects.create(
+            stock=stock,
+            quantity=Decimal("-1"),
+            unit_cost=Decimal("1"),
+            type=StockTransaction.Type.WASTE,
+            balance_after=Decimal("-1"),
+        )
+        with self.assertRaises(ProtectedError):
+            self.warehouse.delete()
+        with self.assertRaises(ProtectedError):
+            self.raw.delete()
+        with self.assertRaises(ProtectedError):
+            stock.delete()
+
+        component = CompoundMaterialComponent.objects.create(
+            compound=self.compound,
+            ingredient=self.raw,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+        with self.assertRaises(ProtectedError):
+            self.compound.delete()
+        with self.assertRaises(ProtectedError):
+            self.raw.delete()
+        component.delete()
+
+        RecipeInput.objects.create(
+            recipe=self.recipe,
+            ingredient=self.raw,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+        RecipeOutput.objects.create(
+            recipe=self.recipe,
+            ingredient=self.compound,
+            quantity=Decimal("1"),
+            unit="kg",
+            is_primary=True,
+        )
+        with self.assertRaises(ProtectedError):
+            self.raw.delete()
+        with self.assertRaises(ProtectedError):
+            self.compound.delete()
+
+    def test_v1_referenced_records_are_protected_from_delete(self):
+        from uuid import uuid4
+
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.raw,
+            unit="kg",
+        )
+        InventoryV1StockMovement.objects.create(
+            business=self.business,
+            stock=stock,
+            movement_type="receipt",
+            direction="in",
+            quantity=Decimal("1"),
+            unit="kg",
+            unit_cost=Decimal("1"),
+            balance_after=Decimal("1"),
+            average_cost_before=Decimal("0"),
+            source_type="delete-protection-test",
+            source_document_id=1,
+            source_line_id=1,
+            operation_kind="receive",
+        )
+        with self.assertRaises(ProtectedError):
+            self.warehouse.delete()
+        with self.assertRaises(ProtectedError):
+            self.raw.delete()
+        with self.assertRaises(ProtectedError):
+            stock.delete()
+
+        operation_warehouse = Warehouse.objects.create(
+            business=self.business, name="Delete protection operation warehouse"
+        )
+        operation_ingredient = Ingredient.objects.create(
+            business=self.business, name="Delete protection operation ingredient", unit="kg"
+        )
+        operation = InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.ISSUE,
+            status=InventoryOperation.Status.DRAFT,
+            warehouse=operation_warehouse,
+            created_by_id=1,
+        )
+        InventoryOperationLine.objects.create(
+            operation=operation,
+            ingredient=operation_ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+        with self.assertRaises(ProtectedError):
+            operation.delete()
+        with self.assertRaises(ProtectedError):
+            operation_warehouse.delete()
+        with self.assertRaises(ProtectedError):
+            operation_ingredient.delete()
+
+        reservation_warehouse = Warehouse.objects.create(
+            business=self.business, name="Delete protection reservation warehouse"
+        )
+        reservation_ingredient = Ingredient.objects.create(
+            business=self.business, name="Delete protection reservation ingredient", unit="kg"
+        )
+        reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=reservation_warehouse,
+            source_type="manual",
+            source_id=None,
+            reason="Delete protection test",
+            status=InventoryReservation.Status.ACTIVE,
+            idempotency_key=uuid4(),
+            payload_fingerprint="e" * 64,
+            created_by_id=1,
+        )
+        InventoryReservationLine.objects.create(
+            reservation=reservation,
+            ingredient=reservation_ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+        with self.assertRaises(ProtectedError):
+            reservation.delete()
+        with self.assertRaises(ProtectedError):
+            reservation_warehouse.delete()
+        with self.assertRaises(ProtectedError):
+            reservation_ingredient.delete()
+
