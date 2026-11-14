@@ -37,7 +37,7 @@ class InventoryTenantMigrationInstallTests(SimpleTestCase):
         calls = schema_editor.execute.call_args_list
         self.assertEqual(calls[0].args[0], migration.VALIDATE_EXISTING_SQL)
         self.assertEqual(calls[1].args[0], migration.CREATE_FUNCTION_SQL)
-        self.assertEqual(len(calls), 2 + len(migration.CHILD_TABLES) if hasattr(migration, "CHILD_TABLES") else 8)
+        self.assertEqual(len(calls), 8)
 
     def test_0018_preflight_failure_stops_before_installing_guards(self):
         migration = import_module(
@@ -62,7 +62,10 @@ class InventoryTenantMigrationInstallTests(SimpleTestCase):
         calls = schema_editor.execute.call_args_list
         self.assertEqual(calls[0].args[0], migration.PREFLIGHT_SQL)
         self.assertEqual(calls[1].args[0], migration.GUARD_FUNCTION_SQL)
-        self.assertEqual(len(calls), 2 + len(migration.CHILD_TABLES) + len(migration.PARENT_TABLES))
+        self.assertEqual(
+            len(calls),
+            2 + len(migration.CHILD_TABLES) + len(migration.PARENT_TABLES),
+        )
 
     def test_0019_preflight_failure_stops_before_installing_guards(self):
         migration = import_module(
