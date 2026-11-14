@@ -315,7 +315,7 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
                 },
             ),
         ]
-        recipe = Recipe.objects.create(business=business_a, name="Migration Tenant Recipe")
+        recipe = Recipe.objects.create(business_id=business_a.pk, name="Migration Tenant Recipe")
         invalid_rows.extend(
             [
                 (
