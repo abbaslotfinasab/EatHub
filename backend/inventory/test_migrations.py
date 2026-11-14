@@ -345,7 +345,7 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
                 try:
                     with self.assertRaisesRegex(
                         DatabaseError,
-                        "Existing (legacy Stock|Compound material components|Recipe input/output)",
+                        "(Legacy Stock contains cross-business|Compound material components contain invalid tenant|Recipe input/output contains cross-business)",
                     ):
                         MigrationExecutor(connection).migrate([self.inventory_0019])
 
