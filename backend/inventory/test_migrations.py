@@ -367,3 +367,118 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
                     )
                 finally:
                     invalid_row.delete()
+
+
+@skipUnless(connection.vendor == "postgresql", "Migration reverse requires PostgreSQL")
+class InventoryTenantMigrationExecutorReverseTests(TransactionTestCase):
+    """Exercise the real PostgreSQL reverse path for inventory guards 0018-0020."""
+
+    inventory_0017 = ("inventory", "0017_inventory_stock_movement_append_only")
+    inventory_0018 = ("inventory", "0018_inventory_tenant_integrity_guards")
+    inventory_0019 = ("inventory", "0019_inventory_legacy_tenant_integrity_guards")
+    inventory_0020 = ("inventory", "0020_inventory_v1_tenant_locking")
+
+    def setUp(self):
+        super().setUp()
+        executor = MigrationExecutor(connection)
+        self.latest_targets = executor.loader.graph.leaf_nodes()
+        executor.migrate([self.inventory_0017])
+
+    def tearDown(self):
+        try:
+            MigrationExecutor(connection).migrate(self.latest_targets)
+        finally:
+            super().tearDown()
+
+    def _assert_triggers_exist(self, trigger_names, expected=True):
+        with connection.cursor() as cursor:
+            for trigger_name in trigger_names:
+                cursor.execute(
+                    "SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE NOT tgisinternal AND tgname = %s)",
+                    [trigger_name],
+                )
+                self.assertIs(cursor.fetchone()[0], expected, trigger_name)
+
+    def _function_definition(self, signature):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_get_functiondef(%s::regprocedure)", [signature])
+            row = cursor.fetchone()
+        self.assertIsNotNone(row, signature)
+        return row[0]
+
+    def _assert_function_missing(self, signature):
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT to_regprocedure(%s)", [signature])
+            self.assertIsNone(cursor.fetchone()[0], signature)
+
+    def test_real_reverse_restores_functions_then_removes_guard_ddl(self):
+        v1_trigger_names = [
+            "inventory_v1_stock_tenant_integrity",
+            "inventory_v1_stock_movement_tenant_integrity",
+            "inventory_operation_tenant_integrity",
+            "inventory_operation_line_tenant_integrity",
+            "inventory_reservation_tenant_integrity",
+            "inventory_reservation_line_tenant_integrity",
+        ]
+
+        MigrationExecutor(connection).migrate([self.inventory_0018])
+        self._assert_triggers_exist(v1_trigger_names)
+        self.assertIn(
+            "inventory_v1_enforce_tenant_integrity",
+            self._function_definition("inventory_v1_enforce_tenant_integrity()"),
+        )
+
+        MigrationExecutor(connection).migrate([self.inventory_0019])
+        legacy_migration = import_module(
+            "inventory.migrations.0019_inventory_legacy_tenant_integrity_guards"
+        )
+        legacy_trigger_names = [
+            *(f"{table}_legacy_tenant_integrity" for table in legacy_migration.CHILD_TABLES),
+            *(f"{table}_parent_tenant_integrity" for table in legacy_migration.PARENT_TABLES),
+        ]
+        self._assert_triggers_exist([*v1_trigger_names, *legacy_trigger_names])
+        self._function_definition("inventory_enforce_legacy_tenant_integrity()")
+
+        MigrationExecutor(connection).migrate([self.inventory_0020])
+        locked_v1 = self._function_definition("inventory_v1_enforce_tenant_integrity()")
+        locked_legacy = self._function_definition("inventory_enforce_legacy_tenant_integrity()")
+        self.assertIn("FOR SHARE", locked_v1)
+        self.assertIn("FOR SHARE", locked_legacy)
+
+        # Reversing 0020 must restore the exact pre-0020 lock behavior while
+        # retaining both migrations' installed trigger sets.
+        MigrationExecutor(connection).migrate([self.inventory_0019])
+        restored_v1 = self._function_definition("inventory_v1_enforce_tenant_integrity()")
+        restored_legacy = self._function_definition("inventory_enforce_legacy_tenant_integrity()")
+        self.assertIn(
+            "FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id",
+            restored_v1,
+        )
+        self.assertNotIn(
+            "FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id FOR SHARE",
+            restored_v1,
+        )
+        self.assertIn(
+            "FROM inventory_warehouse WHERE id = NEW.warehouse_id FOR SHARE",
+            restored_legacy,
+        )
+        self.assertIn(
+            "FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id",
+            restored_legacy,
+        )
+        self.assertNotIn(
+            "FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id FOR SHARE",
+            restored_legacy,
+        )
+        self._assert_triggers_exist([*v1_trigger_names, *legacy_trigger_names])
+
+        # Reversing 0019 removes only legacy guards; 0018 guards remain active.
+        MigrationExecutor(connection).migrate([self.inventory_0018])
+        self._assert_function_missing("inventory_enforce_legacy_tenant_integrity()")
+        self._assert_triggers_exist(legacy_trigger_names, expected=False)
+        self._assert_triggers_exist(v1_trigger_names)
+
+        # Reversing 0018 then removes the remaining V1 guard function/triggers.
+        MigrationExecutor(connection).migrate([self.inventory_0017])
+        self._assert_function_missing("inventory_v1_enforce_tenant_integrity()")
+        self._assert_triggers_exist(v1_trigger_names, expected=False)
