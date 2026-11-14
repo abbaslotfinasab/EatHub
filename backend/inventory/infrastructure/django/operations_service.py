@@ -59,9 +59,18 @@ def _stock(business_id, warehouse, ingredient, *, create=False):
             business_id=business_id, warehouse=warehouse, ingredient=ingredient,
             defaults={"unit": ingredient.unit},
         )
-    # Tenant-scope joins are validation predicates, not part of the stock
-    # serialization boundary. Lock only the projection row so callers that
-    # already hold Ingredient/Warehouse locks cannot form a reverse lock cycle.
+    # The stock tenant-integrity trigger takes FOR SHARE on Warehouse and
+    # Ingredient during projection writes. Acquire those parent locks first,
+    # matching the global Warehouse -> Ingredient -> Stock lock order.
+    locked_warehouse = Warehouse.objects.select_for_update(of=("self",)).filter(
+        pk=warehouse.pk, business_id=business_id
+    ).first()
+    locked_ingredient = Ingredient.objects.select_for_update(of=("self",)).filter(
+        pk=ingredient.pk, business_id=business_id
+    ).first()
+    if locked_warehouse is None or locked_ingredient is None:
+        raise ResourceNotFound("Stock references were not found in this business.")
+    warehouse, ingredient = locked_warehouse, locked_ingredient
     row = InventoryV1Stock.objects.select_for_update(of=("self",)).filter(
         business_id=business_id, warehouse=warehouse, ingredient=ingredient,
         warehouse__business_id=business_id, ingredient__business_id=business_id,
@@ -108,10 +117,9 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
             created_by_id=actor_id,
         )
         for item in sorted(lines, key=lambda entry: entry["ingredient_id"]):
-            # Do not lock the ingredient before _stock() locks the stock row.
-            # Stock tenant-integrity triggers take FOR SHARE locks on the ingredient
-            # while stock is updated; taking the locks in the opposite order here
-            # can deadlock against concurrent issue/stocktake operations.
+            # _stock() acquires Warehouse then Ingredient before locking Stock.
+            # Lines are processed by ascending ingredient PK to keep multi-item
+            # operations on the same global lock order.
             ingredient = Ingredient.objects.filter(
                 pk=item["ingredient_id"], business_id=business_id, is_active=True
             ).first()
