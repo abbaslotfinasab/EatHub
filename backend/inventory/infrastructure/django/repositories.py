@@ -88,24 +88,24 @@ class DjangoStockRepository:
     def _lock_business_references(
         business_id: int, warehouse_id: int, ingredient_id: int
     ) -> None:
-        # Stock tenant triggers take FOR SHARE on these parents while the
-        # projection row is written. Acquire the same parents first, in the
-        # trigger's order, so every stock mutation follows parent -> stock.
-        if not connection.in_atomic_block:
+        # The database tenant trigger takes FOR SHARE on Warehouse then
+        # Ingredient. Take the same compatible shared locks before Stock so
+        # parent updates cannot race the write without serializing independent
+        # stock operations that reference the same Ingredient.
+        if not connection.in_atomic_block or connection.vendor != "postgresql":
             return
-        warehouse = (
-            LegacyWarehouse.objects.select_for_update(of=("self",))
-            .filter(pk=warehouse_id, business_id=business_id)
-            .first()
-        )
-        ingredient = (
-            LegacyIngredient.objects.select_for_update(of=("self",))
-            .filter(pk=ingredient_id, business_id=business_id)
-            .first()
-        )
-        if warehouse is None or ingredient is None:
-            raise ResourceNotFound(
-                "Stock Warehouse and Ingredient must exist in the requested Business."
+        warehouse_table = connection.ops.quote_name(LegacyWarehouse._meta.db_table)
+        ingredient_table = connection.ops.quote_name(LegacyIngredient._meta.db_table)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT id FROM {warehouse_table} "
+                "WHERE id = %s AND business_id = %s FOR SHARE",
+                [warehouse_id, business_id],
+            )
+            cursor.execute(
+                f"SELECT id FROM {ingredient_table} "
+                "WHERE id = %s AND business_id = %s FOR SHARE",
+                [ingredient_id, business_id],
             )
 
     @staticmethod
