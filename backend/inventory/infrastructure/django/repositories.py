@@ -87,13 +87,13 @@ class DjangoStockRepository:
     @staticmethod
     def _lock_business_references(
         business_id: int, warehouse_id: int, ingredient_id: int
-    ) -> None:
+    ) -> bool:
         # The database tenant trigger takes FOR SHARE on Warehouse then
         # Ingredient. Take the same compatible shared locks before Stock so
         # parent updates cannot race the write without serializing independent
         # stock operations that reference the same Ingredient.
         if not connection.in_atomic_block or connection.vendor != "postgresql":
-            return
+            return True
         warehouse_table = connection.ops.quote_name(LegacyWarehouse._meta.db_table)
         ingredient_table = connection.ops.quote_name(LegacyIngredient._meta.db_table)
         with connection.cursor() as cursor:
@@ -102,11 +102,14 @@ class DjangoStockRepository:
                 "WHERE id = %s AND business_id = %s FOR SHARE",
                 [warehouse_id, business_id],
             )
+            warehouse_found = cursor.fetchone() is not None
             cursor.execute(
                 f"SELECT id FROM {ingredient_table} "
                 "WHERE id = %s AND business_id = %s FOR SHARE",
                 [ingredient_id, business_id],
             )
+            ingredient_found = cursor.fetchone() is not None
+        return warehouse_found and ingredient_found
 
     @staticmethod
     def _require_business_references(
