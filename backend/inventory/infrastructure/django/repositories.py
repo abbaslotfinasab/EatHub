@@ -85,6 +85,30 @@ class DjangoWarehouseRepository:
 
 class DjangoStockRepository:
     @staticmethod
+    def _lock_business_references(
+        business_id: int, warehouse_id: int, ingredient_id: int
+    ) -> None:
+        # Stock tenant triggers take FOR SHARE on these parents while the
+        # projection row is written. Acquire the same parents first, in the
+        # trigger's order, so every stock mutation follows parent -> stock.
+        if not connection.in_atomic_block:
+            return
+        warehouse = (
+            LegacyWarehouse.objects.select_for_update(of=("self",))
+            .filter(pk=warehouse_id, business_id=business_id)
+            .first()
+        )
+        ingredient = (
+            LegacyIngredient.objects.select_for_update(of=("self",))
+            .filter(pk=ingredient_id, business_id=business_id)
+            .first()
+        )
+        if warehouse is None or ingredient is None:
+            raise ResourceNotFound(
+                "Stock Warehouse and Ingredient must exist in the requested Business."
+            )
+
+    @staticmethod
     def _require_business_references(
         business_id: int, warehouse_id: int, ingredient_id: int
     ) -> None:
@@ -105,6 +129,7 @@ class DjangoStockRepository:
         warehouse_id: int,
         ingredient_id: int,
     ) -> Stock | None:
+        self._lock_business_references(business_id, warehouse_id, ingredient_id)
         row = _stock_rows(lock=True).filter(
             business_id=business_id,
             warehouse_id=warehouse_id,
@@ -130,6 +155,7 @@ class DjangoStockRepository:
         self._require_business_references(
             business_id, warehouse.id, ingredient.id
         )
+        self._lock_business_references(business_id, warehouse.id, ingredient.id)
         # The unique constraint on (business, warehouse, ingredient) resolves
         # simultaneous first-stock creation. Django's get_or_create handles
         # the insert race in a savepoint; the subsequent query locks and
@@ -150,6 +176,9 @@ class DjangoStockRepository:
     def save(self, stock: Stock) -> None:
         key = stock.key
         self._require_business_references(
+            key.business_id, key.warehouse_id, key.ingredient_id
+        )
+        self._lock_business_references(
             key.business_id, key.warehouse_id, key.ingredient_id
         )
         row = _stock_rows(lock=True).filter(
