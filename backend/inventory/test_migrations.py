@@ -1,7 +1,11 @@
+from decimal import Decimal
 from importlib import import_module
+from unittest import skipUnless
 from unittest.mock import Mock
 
-from django.test import SimpleTestCase
+from django.db import DatabaseError, connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import SimpleTestCase, TransactionTestCase
 
 
 class InventoryMasterDataMigrationGraphTests(SimpleTestCase):
@@ -171,14 +175,6 @@ class InventoryTenantMigrationReverseTests(SimpleTestCase):
         )
 
 
-from decimal import Decimal
-from unittest import skipUnless
-
-from django.db import DatabaseError, connection
-from django.db.migrations.executor import MigrationExecutor
-from django.test import TransactionTestCase
-
-
 @skipUnless(connection.vendor == "postgresql", "Migration preflight requires PostgreSQL")
 class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
     """Exercise the real PostgreSQL preflight SQL against historical database states."""
@@ -247,22 +243,25 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
             unit="kg",
         )
 
-        with self.assertRaisesRegex(
-            DatabaseError, "Existing inventory_v1_stock rows violate tenant integrity"
-        ):
-            MigrationExecutor(connection).migrate([self.inventory_0018])
+        try:
+            with self.assertRaisesRegex(
+                DatabaseError, "Existing inventory_v1_stock rows violate tenant integrity"
+            ):
+                MigrationExecutor(connection).migrate([self.inventory_0018])
 
-        self._assert_function_missing("inventory_v1_enforce_tenant_integrity()")
-        self._assert_triggers_missing(
-            [
-                "inventory_v1_stock_tenant_integrity",
-                "inventory_v1_stock_movement_tenant_integrity",
-                "inventory_operation_tenant_integrity",
-                "inventory_operation_line_tenant_integrity",
-                "inventory_reservation_tenant_integrity",
-                "inventory_reservation_line_tenant_integrity",
-            ]
-        )
+            self._assert_function_missing("inventory_v1_enforce_tenant_integrity()")
+            self._assert_triggers_missing(
+                [
+                    "inventory_v1_stock_tenant_integrity",
+                    "inventory_v1_stock_movement_tenant_integrity",
+                    "inventory_operation_tenant_integrity",
+                    "inventory_operation_line_tenant_integrity",
+                    "inventory_reservation_tenant_integrity",
+                    "inventory_reservation_line_tenant_integrity",
+                ]
+            )
+        finally:
+            V1Stock.objects.filter(pk__isnull=False).delete()
 
     def test_0019_real_preflight_rejects_legacy_corruption_before_any_ddl(self):
         self._create_tenants_and_inventory_refs()
@@ -338,20 +337,28 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
         for model, values in invalid_rows:
             with self.subTest(model=model.__name__):
                 invalid_row = model.objects.create(**values)
-                with self.assertRaisesRegex(
-                    DatabaseError,
-                    "Existing (legacy Stock|Compound material components|Recipe input/output)",
-                ):
-                    MigrationExecutor(connection).migrate([self.inventory_0019])
+                try:
+                    with self.assertRaisesRegex(
+                        DatabaseError,
+                        "Existing (legacy Stock|Compound material components|Recipe input/output)",
+                    ):
+                        MigrationExecutor(connection).migrate([self.inventory_0019])
 
-                legacy_migration = import_module(
-                    "inventory.migrations.0019_inventory_legacy_tenant_integrity_guards"
-                )
-                self._assert_function_missing("inventory_enforce_legacy_tenant_integrity()")
-                self._assert_triggers_missing(
-                    [
-                        *(f"{table}_legacy_tenant_integrity" for table in legacy_migration.CHILD_TABLES),
-                        *(f"{table}_parent_tenant_integrity" for table in legacy_migration.PARENT_TABLES),
-                    ]
-                )
-                invalid_row.delete()
+                    legacy_migration = import_module(
+                        "inventory.migrations.0019_inventory_legacy_tenant_integrity_guards"
+                    )
+                    self._assert_function_missing("inventory_enforce_legacy_tenant_integrity()")
+                    self._assert_triggers_missing(
+                        [
+                            *(
+                                f"{table}_legacy_tenant_integrity"
+                                for table in legacy_migration.CHILD_TABLES
+                            ),
+                            *(
+                                f"{table}_parent_tenant_integrity"
+                                for table in legacy_migration.PARENT_TABLES
+                            ),
+                        ]
+                    )
+                finally:
+                    invalid_row.delete()
