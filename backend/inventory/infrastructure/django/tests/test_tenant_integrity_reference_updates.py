@@ -13,7 +13,15 @@ from inventory.infrastructure.django.models import (
     InventoryReservationLine,
     InventoryV1Stock,
 )
-from inventory.models import Ingredient, Warehouse
+from inventory.models import (
+    CompoundMaterialComponent,
+    Ingredient,
+    Recipe,
+    RecipeInput,
+    RecipeOutput,
+    Stock,
+    Warehouse,
+)
 
 
 @skipUnless(connection.vendor == "postgresql", "Tenant integrity triggers are PostgreSQL-only")
@@ -170,3 +178,104 @@ class InventoryTenantReferenceUpdateTests(TestCase):
                 InventoryReservationLine.objects.filter(pk=line.pk).update(
                     reservation_id=other_reservation.pk
                 )
+
+
+
+@skipUnless(connection.vendor == "postgresql", "Tenant integrity triggers are PostgreSQL-only")
+class InventoryLegacyTenantReferenceUpdateTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.business = Business.objects.create(name="Legacy Tenant A", slug="legacy-tenant-a-ref-update")
+        cls.other_business = Business.objects.create(name="Legacy Tenant B", slug="legacy-tenant-b-ref-update")
+        cls.warehouse = Warehouse.objects.create(business=cls.business, name="Legacy A warehouse")
+        cls.other_warehouse = Warehouse.objects.create(
+            business=cls.other_business, name="Legacy B warehouse"
+        )
+        cls.raw = Ingredient.objects.create(
+            business=cls.business, name="Legacy A raw", unit="kg", preparation_level="raw"
+        )
+        cls.other_raw = Ingredient.objects.create(
+            business=cls.other_business, name="Legacy B raw", unit="kg", preparation_level="raw"
+        )
+        cls.compound = Ingredient.objects.create(
+            business=cls.business, name="Legacy A compound", unit="kg",
+            preparation_level="semi_prepared",
+        )
+        cls.other_compound = Ingredient.objects.create(
+            business=cls.other_business, name="Legacy B compound", unit="kg",
+            preparation_level="semi_prepared",
+        )
+        cls.recipe = Recipe.objects.create(business=cls.business, name="Legacy A recipe")
+        cls.other_recipe = Recipe.objects.create(
+            business=cls.other_business, name="Legacy B recipe"
+        )
+
+    def test_stock_rejects_foreign_warehouse_update(self):
+        stock = Stock.objects.create(warehouse=self.warehouse, ingredient=self.raw)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Stock.objects.filter(pk=stock.pk).update(warehouse_id=self.other_warehouse.pk)
+
+    def test_stock_rejects_foreign_ingredient_update(self):
+        stock = Stock.objects.create(warehouse=self.warehouse, ingredient=self.raw)
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Stock.objects.filter(pk=stock.pk).update(ingredient_id=self.other_raw.pk)
+
+    def test_compound_component_rejects_foreign_compound_update(self):
+        component = CompoundMaterialComponent.objects.create(
+            compound=self.compound, ingredient=self.raw,
+            quantity=Decimal("1"), unit="kg",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                CompoundMaterialComponent.objects.filter(pk=component.pk).update(
+                    compound_id=self.other_compound.pk
+                )
+
+    def test_compound_component_rejects_foreign_ingredient_update(self):
+        component = CompoundMaterialComponent.objects.create(
+            compound=self.compound, ingredient=self.raw,
+            quantity=Decimal("1"), unit="kg",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                CompoundMaterialComponent.objects.filter(pk=component.pk).update(
+                    ingredient_id=self.other_raw.pk
+                )
+
+    def test_recipe_input_rejects_foreign_recipe_update(self):
+        line = RecipeInput.objects.create(
+            recipe=self.recipe, ingredient=self.raw,
+            quantity=Decimal("1"), unit="kg",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                RecipeInput.objects.filter(pk=line.pk).update(recipe_id=self.other_recipe.pk)
+
+    def test_recipe_input_rejects_foreign_ingredient_update(self):
+        line = RecipeInput.objects.create(
+            recipe=self.recipe, ingredient=self.raw,
+            quantity=Decimal("1"), unit="kg",
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                RecipeInput.objects.filter(pk=line.pk).update(ingredient_id=self.other_raw.pk)
+
+    def test_recipe_output_rejects_foreign_recipe_update(self):
+        line = RecipeOutput.objects.create(
+            recipe=self.recipe, ingredient=self.compound,
+            quantity=Decimal("1"), unit="kg", is_primary=True,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                RecipeOutput.objects.filter(pk=line.pk).update(recipe_id=self.other_recipe.pk)
+
+    def test_recipe_output_rejects_foreign_ingredient_update(self):
+        line = RecipeOutput.objects.create(
+            recipe=self.recipe, ingredient=self.compound,
+            quantity=Decimal("1"), unit="kg", is_primary=True,
+        )
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                RecipeOutput.objects.filter(pk=line.pk).update(ingredient_id=self.other_compound.pk)
