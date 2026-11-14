@@ -236,7 +236,7 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
             self._create_tenants_and_inventory_refs()
         )
         V1Stock = self.apps.get_model("inventory", "InventoryV1Stock")
-        V1Stock.objects.create(
+        invalid_stock = V1Stock.objects.create(
             business=business_a,
             warehouse=warehouse_b,
             ingredient=ingredient_a,
@@ -261,7 +261,7 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
                 ]
             )
         finally:
-            V1Stock.objects.filter(pk__isnull=False).delete()
+            V1Stock.objects.filter(pk=invalid_stock.pk).delete()
 
     def test_0019_real_preflight_rejects_legacy_corruption_before_any_ddl(self):
         self._create_tenants_and_inventory_refs()
