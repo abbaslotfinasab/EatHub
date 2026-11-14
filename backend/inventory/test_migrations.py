@@ -211,13 +211,13 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
 
         business_a = Business.objects.create(name="Migration Tenant A", slug="migration-tenant-a")
         business_b = Business.objects.create(name="Migration Tenant B", slug="migration-tenant-b")
-        warehouse_a = Warehouse.objects.create(business=business_a, name="Migration Warehouse A")
-        warehouse_b = Warehouse.objects.create(business=business_b, name="Migration Warehouse B")
+        warehouse_a = Warehouse.objects.create(business_id=business_a.pk, name="Migration Warehouse A")
+        warehouse_b = Warehouse.objects.create(business_id=business_b.pk, name="Migration Warehouse B")
         ingredient_a = Ingredient.objects.create(
-            business=business_a, name="Migration Ingredient A", unit="kg"
+            business_id=business_a.pk, name="Migration Ingredient A", unit="kg"
         )
         ingredient_b = Ingredient.objects.create(
-            business=business_b, name="Migration Ingredient B", unit="kg"
+            business_id=business_b.pk, name="Migration Ingredient B", unit="kg"
         )
         return business_a, business_b, warehouse_a, warehouse_b, ingredient_a, ingredient_b
 
@@ -241,7 +241,7 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
         )
         V1Stock = self.apps.get_model("inventory", "InventoryV1Stock")
         invalid_stock = V1Stock.objects.create(
-            business=business_a,
+            business_id=business_a.pk,
             warehouse=warehouse_b,
             ingredient=ingredient_a,
             unit="kg",
@@ -305,7 +305,7 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
                 {
                     "compound": ingredient_a,
                     "ingredient": Ingredient.objects.create(
-                        business=business_a,
+                        business_id=business_a.pk,
                         name="Migration Invalid Compound Component",
                         unit="kg",
                         preparation_level="raw",
