@@ -314,9 +314,9 @@ class ReservationVersusIssuePostgreSQLTests(TransactionTestCase):
             def __getattr__(self, name):
                 return getattr(self.delegate, name)
 
-            def lock_stock_positions(self, *args, **kwargs):
+            def lock_scope(self, *args, **kwargs):
                 reservation_waiting_for_stock.set()
-                return self.delegate.lock_stock_positions(*args, **kwargs)
+                return self.delegate.lock_scope(*args, **kwargs)
 
         manager = ManageReservations(
             NotifyingReservationRepository(DjangoReservationRepository()),
