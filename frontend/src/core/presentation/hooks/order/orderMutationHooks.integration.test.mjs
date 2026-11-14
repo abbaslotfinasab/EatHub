@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {register} from "node:module";
+
+register("./order-hook-test-loader.mjs", import.meta.url);
 
 Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
@@ -18,8 +21,6 @@ const {useAuthStore} = await import("../../store/auth.store.ts");
 const {useUpdateOrderStatus} = await import("./useUpdateOrderStatus.ts");
 const {useRecordOrderConsumption} = await import("./useRecordOrderConsumption.ts");
 const {orderQueryKeys} = await import("./orderQueryKeys.ts");
-
-const originalOrderContainerDescriptor = Object.getOwnPropertyDescriptor(container, "orderContainer");
 
 function setBusiness(userId, businessId) {
     useAuthStore.setState({
@@ -41,13 +42,10 @@ function renderMutationHook(hook, execute) {
         return invalidateQueries(filters);
     };
 
-    Object.defineProperty(container, "orderContainer", {
-        configurable: true,
-        value: {
-            updateOrderStatusUseCase: {execute},
-            recordOrderConsumptionUseCase: {execute},
-        },
-    });
+    container.orderContainer = {
+        updateOrderStatusUseCase: {execute},
+        recordOrderConsumptionUseCase: {execute},
+    };
 
     let mutation;
     function Probe() {
@@ -64,14 +62,6 @@ function renderMutationHook(hook, execute) {
     );
 
     return {mutation, queryClient, invalidations};
-}
-
-function restoreContainer() {
-    if (originalOrderContainerDescriptor) {
-        Object.defineProperty(container, "orderContainer", originalOrderContainerDescriptor);
-    } else {
-        delete container.orderContainer;
-    }
 }
 
 test("status hook retains the original tenant scope when business changes during mutation", async () => {
@@ -100,7 +90,6 @@ test("status hook retains the original tenant scope when business changes during
         assert.ok(!invalidations.some(({queryKey}) => queryKey[2] === 99));
     } finally {
         queryClient.clear();
-        restoreContainer();
         setBusiness(null, null);
     }
 });
@@ -120,7 +109,6 @@ test("consumption hook invalidates only the scoped order detail and consumption 
         ]);
     } finally {
         queryClient.clear();
-        restoreContainer();
         setBusiness(null, null);
     }
 });
@@ -137,7 +125,6 @@ test("status hook performs no invalidation without a business scope", async () =
         assert.deepEqual(invalidations, []);
     } finally {
         queryClient.clear();
-        restoreContainer();
         setBusiness(null, null);
     }
 });
@@ -160,7 +147,6 @@ test("failed consumption mutation does not invalidate order queries", async () =
         assert.deepEqual(invalidations, []);
     } finally {
         queryClient.clear();
-        restoreContainer();
         setBusiness(null, null);
     }
 });
