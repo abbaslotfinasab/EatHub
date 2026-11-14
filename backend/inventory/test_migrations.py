@@ -201,7 +201,11 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
             super().tearDown()
 
     def _create_tenants_and_inventory_refs(self):
-        Business = self.apps.get_model("accounts", "Business")
+        # accounts migrations remain at the latest schema while inventory is
+        # rewound; use the current Business model so newly-added NOT NULL
+        # columns (for example inventory_enabled) are populated by defaults.
+        from accounts.models import Business
+
         Warehouse = self.apps.get_model("inventory", "Warehouse")
         Ingredient = self.apps.get_model("inventory", "Ingredient")
 
@@ -270,7 +274,8 @@ class InventoryTenantMigrationExecutorPreflightTests(TransactionTestCase):
             [self.inventory_0018]
         ).apps
 
-        Business = self.apps.get_model("accounts", "Business")
+        from accounts.models import Business
+
         Warehouse = self.apps.get_model("inventory", "Warehouse")
         Ingredient = self.apps.get_model("inventory", "Ingredient")
         Stock = self.apps.get_model("inventory", "Stock")
