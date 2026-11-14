@@ -158,6 +158,14 @@ class InventoryTenantMigrationReverseTests(SimpleTestCase):
             v1_function_sql,
         )
         self.assertIn(
+            "FROM inventory_warehouse WHERE id = NEW.warehouse_id FOR SHARE",
+            legacy_function_sql,
+        )
+        self.assertIn(
+            "FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id",
+            legacy_function_sql,
+        )
+        self.assertNotIn(
             "FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id FOR SHARE",
             legacy_function_sql,
         )
