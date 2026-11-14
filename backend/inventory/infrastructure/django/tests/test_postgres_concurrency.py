@@ -457,6 +457,12 @@ class InventoryPostgreSQLConcurrencyTests(TransactionTestCase):
         other_warehouse = LegacyWarehouse.objects.create(
             business=self.business, name="Secondary", code="SECONDARY"
         )
+        other_ingredient = LegacyIngredient.objects.create(
+            business=self.business,
+            name="Salt",
+            unit=Unit.KG.value,
+            preparation_level="raw",
+        )
         inserted = Event()
         release_first = Event()
         second_before_insert = Event()
@@ -478,7 +484,7 @@ class InventoryPostgreSQLConcurrencyTests(TransactionTestCase):
         )
         command_b = ReceiveStockCommand(
             warehouse_id=other_warehouse.pk,
-            ingredient_id=self.ingredient.pk,
+            ingredient_id=other_ingredient.pk,
             quantity_amount=Decimal("4"),
             quantity_unit=Unit.KG.value,
             unit_cost_amount=Decimal("3"),

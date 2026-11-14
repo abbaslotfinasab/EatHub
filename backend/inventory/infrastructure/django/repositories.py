@@ -85,6 +85,33 @@ class DjangoWarehouseRepository:
 
 class DjangoStockRepository:
     @staticmethod
+    def _lock_business_references(
+        business_id: int, warehouse_id: int, ingredient_id: int
+    ) -> bool:
+        # The database tenant trigger takes FOR SHARE on Warehouse then
+        # Ingredient. Take the same compatible shared locks before Stock so
+        # parent updates cannot race the write without serializing independent
+        # stock operations that reference the same Ingredient.
+        if not connection.in_atomic_block or connection.vendor != "postgresql":
+            return True
+        warehouse_table = connection.ops.quote_name(LegacyWarehouse._meta.db_table)
+        ingredient_table = connection.ops.quote_name(LegacyIngredient._meta.db_table)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT id FROM {warehouse_table} "
+                "WHERE id = %s AND business_id = %s FOR SHARE",
+                [warehouse_id, business_id],
+            )
+            warehouse_found = cursor.fetchone() is not None
+            cursor.execute(
+                f"SELECT id FROM {ingredient_table} "
+                "WHERE id = %s AND business_id = %s FOR SHARE",
+                [ingredient_id, business_id],
+            )
+            ingredient_found = cursor.fetchone() is not None
+        return warehouse_found and ingredient_found
+
+    @staticmethod
     def _require_business_references(
         business_id: int, warehouse_id: int, ingredient_id: int
     ) -> None:
@@ -105,6 +132,8 @@ class DjangoStockRepository:
         warehouse_id: int,
         ingredient_id: int,
     ) -> Stock | None:
+        if not self._lock_business_references(business_id, warehouse_id, ingredient_id):
+            return None
         row = _stock_rows(lock=True).filter(
             business_id=business_id,
             warehouse_id=warehouse_id,
@@ -130,6 +159,10 @@ class DjangoStockRepository:
         self._require_business_references(
             business_id, warehouse.id, ingredient.id
         )
+        if not self._lock_business_references(business_id, warehouse.id, ingredient.id):
+            raise ResourceNotFound(
+                "Stock Warehouse and Ingredient must exist in the requested Business."
+            )
         # The unique constraint on (business, warehouse, ingredient) resolves
         # simultaneous first-stock creation. Django's get_or_create handles
         # the insert race in a savepoint; the subsequent query locks and
@@ -152,6 +185,12 @@ class DjangoStockRepository:
         self._require_business_references(
             key.business_id, key.warehouse_id, key.ingredient_id
         )
+        if not self._lock_business_references(
+            key.business_id, key.warehouse_id, key.ingredient_id
+        ):
+            raise ResourceNotFound(
+                "Stock Warehouse and Ingredient must exist in the requested Business."
+            )
         row = _stock_rows(lock=True).filter(
             business_id=key.business_id,
             warehouse_id=key.warehouse_id,
