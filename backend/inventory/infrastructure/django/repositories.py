@@ -129,7 +129,8 @@ class DjangoStockRepository:
         warehouse_id: int,
         ingredient_id: int,
     ) -> Stock | None:
-        self._lock_business_references(business_id, warehouse_id, ingredient_id)
+        if not self._lock_business_references(business_id, warehouse_id, ingredient_id):
+            return None
         row = _stock_rows(lock=True).filter(
             business_id=business_id,
             warehouse_id=warehouse_id,
@@ -155,7 +156,10 @@ class DjangoStockRepository:
         self._require_business_references(
             business_id, warehouse.id, ingredient.id
         )
-        self._lock_business_references(business_id, warehouse.id, ingredient.id)
+        if not self._lock_business_references(business_id, warehouse.id, ingredient.id):
+            raise ResourceNotFound(
+                "Stock Warehouse and Ingredient must exist in the requested Business."
+            )
         # The unique constraint on (business, warehouse, ingredient) resolves
         # simultaneous first-stock creation. Django's get_or_create handles
         # the insert race in a savepoint; the subsequent query locks and
@@ -178,9 +182,12 @@ class DjangoStockRepository:
         self._require_business_references(
             key.business_id, key.warehouse_id, key.ingredient_id
         )
-        self._lock_business_references(
+        if not self._lock_business_references(
             key.business_id, key.warehouse_id, key.ingredient_id
-        )
+        ):
+            raise ResourceNotFound(
+                "Stock Warehouse and Ingredient must exist in the requested Business."
+            )
         row = _stock_rows(lock=True).filter(
             business_id=key.business_id,
             warehouse_id=key.warehouse_id,
