@@ -290,7 +290,7 @@ def restore_unlocked_tenant_guards(apps, schema_editor):
                     RAISE EXCEPTION 'inventory operation warehouse must belong to its business' USING ERRCODE = '23514';
                 END IF;
                 IF NEW.destination_warehouse_id IS NOT NULL THEN
-                    SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id FOR SHARE;
+                    SELECT business_id INTO related_business_id FROM inventory_warehouse WHERE id = NEW.destination_warehouse_id;
                     IF related_business_id IS DISTINCT FROM NEW.business_id THEN
                         RAISE EXCEPTION 'inventory operation destination must belong to its business' USING ERRCODE = '23514';
                     END IF;
