@@ -9,7 +9,7 @@ from accounts.models import Business
 from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import OperationConflict
 from inventory.application.use_cases.manage_reservations import ManageReservations
-from inventory.infrastructure.django.models import InventoryReservation, InventoryV1Stock
+from inventory.infrastructure.django.models import InventoryReservation, InventoryReservationLine, InventoryV1Stock
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
