@@ -65,7 +65,7 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertEqual(InventoryReservation.objects.filter(status="active").count(), 1)
 
 
-    def test_multiline_reservations_with_reversed_input_order_use_stable_stock_lock_order(self):
+    def test_multiline_reservations_with_reversed_input_order_serialize_without_deadlock(self):
         from threading import Event, local
         from time import monotonic
 
@@ -83,6 +83,9 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
             average_cost="3",
         )
 
+        # Reservation scope locks the shared Warehouse and Ingredients before
+        # locking Stock projections. The first worker pauses after the full
+        # scope is locked; the reversed-input worker must wait and then proceed.
         first_locked = Event()
         release_first = Event()
         worker_state = local()
