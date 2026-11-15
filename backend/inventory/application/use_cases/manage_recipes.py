@@ -67,9 +67,7 @@ class ManageRecipes:
         self._positive_id(business_id, "Business ID")
         recipe = Recipe(None, business_id, name, RecipeType(recipe_type))
         with self._unit_of_work.atomic():
-            self._lock_ingredients_for_update(
-                business_id, [*inputs, *outputs],
-            )
+            self._lock_ingredients_for_update(business_id, [*inputs, *outputs])
             input_lines = [self._make_line(recipe, row, "input") for row in inputs]
             output_lines = [self._make_line(recipe, row, "output") for row in outputs]
             return self._recipes.create(
@@ -198,11 +196,12 @@ class ManageRecipes:
         self, business_id: int, commands: list[RecipeLineCommand],
     ) -> None:
         """Acquire all referenced Ingredient row locks in deterministic PK order."""
-        ingredient_ids = sorted({
+        ingredient_ids = set()
+        for command in commands:
             self._positive_id(command.ingredient_id, "Ingredient ID")
-            for command in commands
-        })
-        for ingredient_id in ingredient_ids:
+            ingredient_ids.add(command.ingredient_id)
+
+        for ingredient_id in sorted(ingredient_ids):
             ingredient = self._recipes.get_ingredient_for_update(
                 business_id, ingredient_id,
             )
