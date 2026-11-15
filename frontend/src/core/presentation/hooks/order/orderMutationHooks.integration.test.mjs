@@ -12,9 +12,10 @@ Object.defineProperty(globalThis, "localStorage", {
         removeItem: () => {},
     },
 });
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const React = await import("react");
-const {renderToString} = await import("react-dom/server");
+const {act, create} = await import("react-test-renderer");
 const {QueryClient, QueryClientProvider} = await import("@tanstack/react-query");
 const {container} = await import("../../../data/di/container.ts");
 const {useAuthStore} = await import("../../store/auth.store.ts");
@@ -31,7 +32,7 @@ function setBusiness(userId, businessId) {
     });
 }
 
-function renderMutationHook(hook, execute) {
+async function renderMutationHook(hook, execute) {
     const queryClient = new QueryClient({
         defaultOptions: {mutations: {retry: false}, queries: {retry: false}},
     });
@@ -53,15 +54,18 @@ function renderMutationHook(hook, execute) {
         return null;
     }
 
-    renderToString(
-        React.createElement(
-            QueryClientProvider,
-            {client: queryClient},
-            React.createElement(Probe),
-        ),
-    );
+    let root;
+    await act(async () => {
+        root = create(
+            React.createElement(
+                QueryClientProvider,
+                {client: queryClient},
+                React.createElement(Probe),
+            ),
+        );
+    });
 
-    return {mutation, queryClient, invalidations};
+    return {mutation, queryClient, invalidations, root};
 }
 
 test("status hook retains the original tenant scope when business changes during mutation", async () => {
@@ -70,14 +74,17 @@ test("status hook retains the original tenant scope when business changes during
     const execute = () => new Promise((resolve) => {
         resolveMutation = resolve;
     });
-    const {mutation, queryClient, invalidations} = renderMutationHook(useUpdateOrderStatus, execute);
+    const {mutation, queryClient, invalidations, root} = await renderMutationHook(useUpdateOrderStatus, execute);
 
     try {
-        const pending = mutation.mutateAsync({orderId: "order-9", status: "confirmed"});
-        await new Promise((resolve) => setImmediate(resolve));
-        setBusiness(17, 99);
-        resolveMutation({ok: true});
-        await pending;
+        let pending;
+        await act(async () => {
+            pending = mutation.mutateAsync({orderId: "order-9", status: "confirmed"});
+            await new Promise((resolve) => setImmediate(resolve));
+            setBusiness(17, 99);
+            resolveMutation({ok: true});
+            await pending;
+        });
 
         assert.deepEqual(invalidations, [
             {queryKey: orderQueryKeys.listPrefix(17, 42)},
@@ -89,6 +96,7 @@ test("status hook retains the original tenant scope when business changes during
         assert.ok(invalidations.every(({queryKey}) => queryKey[2] === 42));
         assert.ok(!invalidations.some(({queryKey}) => queryKey[2] === 99));
     } finally {
+        await act(async () => root.unmount());
         queryClient.clear();
         setBusiness(null, null);
     }
@@ -96,18 +104,21 @@ test("status hook retains the original tenant scope when business changes during
 
 test("consumption hook invalidates only the scoped order detail and consumption queries", async () => {
     setBusiness(17, 42);
-    const {mutation, queryClient, invalidations} = renderMutationHook(
+    const {mutation, queryClient, invalidations, root} = await renderMutationHook(
         useRecordOrderConsumption,
         async (input) => ({...input, accepted: true}),
     );
 
     try {
-        await mutation.mutateAsync({orderId: "order-9", idempotencyKey: "key-1", items: []});
+        await act(async () => {
+            await mutation.mutateAsync({orderId: "order-9", idempotencyKey: "key-1", items: []});
+        });
         assert.deepEqual(invalidations, [
             {queryKey: orderQueryKeys.detail(17, 42, "order-9"), exact: true},
             {queryKey: orderQueryKeys.consumption(17, 42, "order-9"), exact: true},
         ]);
     } finally {
+        await act(async () => root.unmount());
         queryClient.clear();
         setBusiness(null, null);
     }
@@ -115,15 +126,18 @@ test("consumption hook invalidates only the scoped order detail and consumption 
 
 test("status hook performs no invalidation without a business scope", async () => {
     setBusiness(17, null);
-    const {mutation, queryClient, invalidations} = renderMutationHook(
+    const {mutation, queryClient, invalidations, root} = await renderMutationHook(
         useUpdateOrderStatus,
         async (input) => input,
     );
 
     try {
-        await mutation.mutateAsync({orderId: "order-9", status: "confirmed"});
+        await act(async () => {
+            await mutation.mutateAsync({orderId: "order-9", status: "confirmed"});
+        });
         assert.deepEqual(invalidations, []);
     } finally {
+        await act(async () => root.unmount());
         queryClient.clear();
         setBusiness(null, null);
     }
@@ -131,7 +145,7 @@ test("status hook performs no invalidation without a business scope", async () =
 
 test("failed consumption mutation does not invalidate order queries", async () => {
     setBusiness(17, 42);
-    const {mutation, queryClient, invalidations} = renderMutationHook(
+    const {mutation, queryClient, invalidations, root} = await renderMutationHook(
         useRecordOrderConsumption,
         async () => {
             throw new Error("request failed");
@@ -139,13 +153,16 @@ test("failed consumption mutation does not invalidate order queries", async () =
     );
 
     try {
-        await assert.rejects(mutation.mutateAsync({
-            orderId: "order-9",
-            idempotencyKey: "key-2",
-            items: [],
-        }), /request failed/);
+        await act(async () => {
+            await assert.rejects(mutation.mutateAsync({
+                orderId: "order-9",
+                idempotencyKey: "key-2",
+                items: [],
+            }), /request failed/);
+        });
         assert.deepEqual(invalidations, []);
     } finally {
+        await act(async () => root.unmount());
         queryClient.clear();
         setBusiness(null, null);
     }
