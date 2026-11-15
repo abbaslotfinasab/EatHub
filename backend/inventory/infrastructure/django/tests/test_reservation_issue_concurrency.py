@@ -1,3 +1,4 @@
+from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
 from time import monotonic
@@ -21,7 +22,9 @@ from inventory.infrastructure.django.models import (
     InventoryV1Stock,
     InventoryV1StockMovement,
 )
-from inventory.infrastructure.django.operations_service import dispatch_transfer, post_issue
+from inventory.infrastructure.django.operations_service import (
+    approve_stocktake, create_operation, dispatch_transfer, post_issue, update_stocktake_counts,
+)
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.infrastructure.django.repositories import DjangoStockRepository
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
@@ -385,6 +388,179 @@ class ReservationVersusIssuePostgreSQLTests(TransactionTestCase):
         self.assertEqual(
             InventoryV1StockMovement.objects.filter(
                 stock=self.stock, movement_type="issue"
+            ).count(),
+            1,
+        )
+
+
+    def _stocktake_counted_at(self, quantity):
+        stocktake = create_operation(
+            business_id=self.business.pk,
+            actor_id=51,
+            operation_type=InventoryOperation.Type.STOCKTAKE,
+            warehouse_id=self.warehouse.pk,
+            lines=[{"ingredient_id": self.ingredient.pk, "quantity": "0", "unit": "kg"}],
+        )
+        line = InventoryOperationLine.objects.get(operation=stocktake)
+        update_stocktake_counts(
+            business_id=self.business.pk,
+            actor_id=51,
+            operation_id=stocktake.pk,
+            counts={line.pk: {"counted_quantity": Decimal(str(quantity))}},
+        )
+        return stocktake
+
+    def test_reservation_first_then_stocktake_cannot_reduce_below_new_hold(self):
+        stocktake = self._stocktake_counted_at(5)
+        reservation_locked = Event()
+        release_reservation = Event()
+        repository = _HoldingReservationRepository(
+            DjangoReservationRepository(), reservation_locked, release_reservation
+        )
+        manager = ManageReservations(repository, DjangoInventoryUnitOfWork())
+        context = InventoryExecutionContext(self.business.pk, actor_id=1)
+        prefix = f"reservation_stocktake_{uuid4().hex[:8]}"
+
+        def reserve():
+            return manager.create(
+                context,
+                warehouse_id=self.warehouse.pk,
+                source_type=MANUAL_RESERVATION_SOURCE,
+                source_id=None,
+                reason="Hold before stocktake approval",
+                idempotency_key=uuid4(),
+                lines=[{"ingredient_id": self.ingredient.pk, "quantity": "7", "unit": "kg"}],
+            )
+
+        def approve():
+            return approve_stocktake(
+                business_id=self.business.pk, actor_id=52, operation_id=stocktake.pk
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            reservation_future = pool.submit(
+                self._worker, f"{prefix}_reservation", reserve
+            )
+            if not reservation_locked.wait(10):
+                release_reservation.set()
+                self.fail("reservation did not acquire the stock-row lock")
+            approval_future = pool.submit(
+                self._worker, f"{prefix}_approval", approve
+            )
+            try:
+                self._wait_until_blocked(f"{prefix}_approval")
+            finally:
+                release_reservation.set()
+            reservation_result = reservation_future.result(timeout=20)
+            approval_result = approval_future.result(timeout=20)
+
+        self.assertIsNone(reservation_result[2], reservation_result[2])
+        self.assertIsNotNone(reservation_result[0])
+        self.assertIsInstance(approval_result[2], OperationConflict)
+        self.stock.refresh_from_db()
+        stocktake.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 10)
+        self.assertEqual(stocktake.status, InventoryOperation.Status.DRAFT)
+        self.assertEqual(
+            InventoryReservationLine.objects.filter(
+                reservation__business=self.business,
+                reservation__warehouse=self.warehouse,
+                reservation__status=InventoryReservation.Status.ACTIVE,
+                ingredient=self.ingredient,
+            ).aggregate(total=Sum("quantity"))["total"],
+            7,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="inventory_stocktake", source_document_id=stocktake.pk
+            ).count(),
+            0,
+        )
+
+    def test_stocktake_first_then_reservation_rechecks_reduced_physical_stock(self):
+        stocktake = self._stocktake_counted_at(5)
+        stocktake_locked = Event()
+        release_stocktake = Event()
+        reservation_waiting = Event()
+        original_save = DjangoStockRepository.save
+
+        def hold_stocktake_after_stock_lock(repository, stock):
+            stocktake_locked.set()
+            if not release_stocktake.wait(15):
+                raise TimeoutError("test coordinator did not release stocktake transaction")
+            return original_save(repository, stock)
+
+        class NotifyingReservationRepository:
+            def __init__(self, delegate):
+                self.delegate = delegate
+
+            def __getattr__(self, name):
+                return getattr(self.delegate, name)
+
+            def lock_scope(self, *args, **kwargs):
+                reservation_waiting.set()
+                return self.delegate.lock_scope(*args, **kwargs)
+
+        manager = ManageReservations(
+            NotifyingReservationRepository(DjangoReservationRepository()),
+            DjangoInventoryUnitOfWork(),
+        )
+        context = InventoryExecutionContext(self.business.pk, actor_id=1)
+        prefix = f"stocktake_reservation_{uuid4().hex[:8]}"
+
+        def approve():
+            return approve_stocktake(
+                business_id=self.business.pk, actor_id=53, operation_id=stocktake.pk
+            )
+
+        def reserve():
+            return manager.create(
+                context,
+                warehouse_id=self.warehouse.pk,
+                source_type=MANUAL_RESERVATION_SOURCE,
+                source_id=None,
+                reason="Competing hold after stocktake",
+                idempotency_key=uuid4(),
+                lines=[{"ingredient_id": self.ingredient.pk, "quantity": "7", "unit": "kg"}],
+            )
+
+        with patch.object(DjangoStockRepository, "save", hold_stocktake_after_stock_lock):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                approval_future = pool.submit(
+                    self._worker, f"{prefix}_approval", approve
+                )
+                if not stocktake_locked.wait(10):
+                    release_stocktake.set()
+                    self.fail("stocktake did not acquire the stock-row lock")
+                reservation_future = pool.submit(
+                    self._worker, f"{prefix}_reservation", reserve
+                )
+                try:
+                    if not reservation_waiting.wait(10):
+                        self.fail("reservation did not reach its stock lock")
+                    self._wait_until_blocked(f"{prefix}_reservation")
+                finally:
+                    release_stocktake.set()
+                approval_result = approval_future.result(timeout=20)
+                reservation_result = reservation_future.result(timeout=20)
+
+        self.assertIsNone(approval_result[2], approval_result[2])
+        self.assertEqual(approval_result[0].status, InventoryOperation.Status.APPROVED)
+        self.assertIsInstance(reservation_result[2], OperationConflict)
+        self.stock.refresh_from_db()
+        stocktake.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 5)
+        self.assertEqual(stocktake.status, InventoryOperation.Status.APPROVED)
+        self.assertEqual(
+            InventoryReservation.objects.filter(
+                business=self.business, status=InventoryReservation.Status.ACTIVE
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="inventory_stocktake", source_document_id=stocktake.pk,
+                movement_type="adjustment",
             ).count(),
             1,
         )
