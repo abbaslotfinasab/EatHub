@@ -16,6 +16,8 @@ from inventory.infrastructure.django.operations_service import (
     approve_stocktake,
     create_opening_stock,
     create_operation,
+    dispatch_transfer,
+    receive_transfer,
     post_issue,
     update_stocktake_counts,
 )
@@ -477,4 +479,152 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
                 movement_type="issue",
             ).count(),
             4,
+        )
+
+
+    def test_concurrent_dispatch_and_receive_apply_transfer_once(self):
+        destination = Warehouse.objects.create(
+            business=self.business, name="Destination"
+        )
+        transfer = create_operation(
+            business_id=self.business.pk,
+            actor_id=61,
+            operation_type=InventoryOperation.Type.TRANSFER,
+            warehouse_id=self.warehouse.pk,
+            destination_warehouse_id=destination.pk,
+            lines=[{
+                "ingredient_id": self.ingredient.pk,
+                "quantity": "3",
+                "unit": "kg",
+            }],
+        )
+
+        def run_concurrently(operation):
+            barrier = Barrier(2)
+
+            def invoke():
+                close_old_connections()
+                try:
+                    barrier.wait(timeout=10)
+                    return operation(
+                        business_id=self.business.pk,
+                        actor_id=62,
+                        operation_id=transfer.pk,
+                    )
+                finally:
+                    connections.close_all()
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                futures = [pool.submit(invoke), pool.submit(invoke)]
+                return [future.result(timeout=30) for future in futures]
+
+        dispatched = run_concurrently(dispatch_transfer)
+        self.assertTrue(all(
+            result.status == InventoryOperation.Status.IN_TRANSIT
+            for result in dispatched
+        ))
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="inventory_transfer",
+                source_document_id=transfer.pk,
+                movement_type="transfer_dispatch",
+            ).count(),
+            1,
+        )
+
+        received = run_concurrently(receive_transfer)
+        self.assertTrue(all(
+            result.status == InventoryOperation.Status.RECEIVED
+            for result in received
+        ))
+        destination_stock = InventoryV1Stock.objects.get(
+            business=self.business,
+            warehouse=destination,
+            ingredient=self.ingredient,
+        )
+        self.assertEqual(destination_stock.quantity, Decimal("3.000000000000"))
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="inventory_transfer",
+                source_document_id=transfer.pk,
+                movement_type="transfer_receipt",
+            ).count(),
+            1,
+        )
+
+    def test_concurrent_distinct_transfers_cannot_overspend_source_stock(self):
+        destination = Warehouse.objects.create(
+            business=self.business, name="Destination"
+        )
+        second_destination = Warehouse.objects.create(
+            business=self.business, name="Second destination"
+        )
+
+        def create_transfer(destination_warehouse):
+            return create_operation(
+                business_id=self.business.pk,
+                actor_id=63,
+                operation_type=InventoryOperation.Type.TRANSFER,
+                warehouse_id=self.warehouse.pk,
+                destination_warehouse_id=destination_warehouse.pk,
+                lines=[{
+                    "ingredient_id": self.ingredient.pk,
+                    "quantity": "7",
+                    "unit": "kg",
+                }],
+            )
+
+        first = create_transfer(destination)
+        second = create_transfer(second_destination)
+        barrier = Barrier(2)
+
+        def dispatch(operation_id):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                try:
+                    return dispatch_transfer(
+                        business_id=self.business.pk,
+                        actor_id=64,
+                        operation_id=operation_id,
+                    ), None
+                except Exception as error:
+                    return None, error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [
+                future.result(timeout=30)
+                for future in (
+                    pool.submit(dispatch, first.pk),
+                    pool.submit(dispatch, second.pk),
+                )
+            ]
+
+        self.assertEqual(sum(result is not None for result, _ in results), 1)
+        self.assertEqual(sum(isinstance(error, NegativeStock) for _, error in results), 1)
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("3.000000000000"))
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="inventory_transfer",
+                movement_type="transfer_dispatch",
+                source_document_id__in=(first.pk, second.pk),
+            ).count(),
+            1,
+        )
+        statuses = {
+            operation.pk: operation.status
+            for operation in InventoryOperation.objects.filter(pk__in=(first.pk, second.pk))
+        }
+        self.assertEqual(
+            sum(status == InventoryOperation.Status.IN_TRANSIT for status in statuses.values()),
+            1,
+        )
+        self.assertEqual(
+            sum(status == InventoryOperation.Status.DRAFT for status in statuses.values()),
+            1,
         )
