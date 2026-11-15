@@ -54,23 +54,18 @@ def _document(business_id, operation_type, operation_id, *, lock=False):
 
 
 def _stock(business_id, warehouse, ingredient, *, create=False):
+    # Share the same parent-lock protocol as DjangoStockRepository and the
+    # tenant-integrity trigger. Shared parent locks preserve Warehouse ->
+    # Ingredient -> Stock ordering without serializing unrelated stock keys.
+    if not DjangoStockRepository._lock_business_references(
+        business_id, warehouse.pk, ingredient.pk
+    ):
+        raise ResourceNotFound("Stock references were not found in this business.")
     if create:
         InventoryV1Stock.objects.get_or_create(
             business_id=business_id, warehouse=warehouse, ingredient=ingredient,
             defaults={"unit": ingredient.unit},
         )
-    # The stock tenant-integrity trigger takes FOR SHARE on Warehouse and
-    # Ingredient during projection writes. Acquire those parent locks first,
-    # matching the global Warehouse -> Ingredient -> Stock lock order.
-    locked_warehouse = Warehouse.objects.select_for_update(of=("self",)).filter(
-        pk=warehouse.pk, business_id=business_id
-    ).first()
-    locked_ingredient = Ingredient.objects.select_for_update(of=("self",)).filter(
-        pk=ingredient.pk, business_id=business_id
-    ).first()
-    if locked_warehouse is None or locked_ingredient is None:
-        raise ResourceNotFound("Stock references were not found in this business.")
-    warehouse, ingredient = locked_warehouse, locked_ingredient
     row = InventoryV1Stock.objects.select_for_update(of=("self",)).filter(
         business_id=business_id, warehouse=warehouse, ingredient=ingredient,
         warehouse__business_id=business_id, ingredient__business_id=business_id,
