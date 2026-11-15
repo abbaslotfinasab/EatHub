@@ -143,6 +143,180 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertEqual(InventoryV1StockMovement.objects.filter(movement_type="opening_balance").count(), 1)
 
 
+    def _wait_for_lock_wait(self, application_name):
+        deadline = monotonic() + 15
+        while monotonic() < deadline:
+            with connections["default"].cursor() as cursor:
+                cursor.execute(
+                    """SELECT wait_event_type, cardinality(pg_blocking_pids(pid))
+                       FROM pg_stat_activity WHERE application_name = %s""",
+                    [application_name],
+                )
+                row = cursor.fetchone()
+            if row and row[0] == "Lock" and row[1] > 0:
+                return
+            Event().wait(0.01)
+        self.fail(f"PostgreSQL did not report a lock wait for {application_name}.")
+
+    def test_opening_stock_first_then_issue_uses_committed_opening_balance(self):
+        self.stock.quantity = "0"
+        self.stock.average_cost = "0"
+        self.stock.save(update_fields=("quantity", "average_cost"))
+        opening_locked = Event()
+        release_opening = Event()
+        worker_state = local()
+        from inventory.infrastructure.django import operations_service
+
+        original_stock = operations_service._stock
+
+        def hold_opening_after_stock_lock(*args, **kwargs):
+            result = original_stock(*args, **kwargs)
+            if worker_state.role == "opening":
+                opening_locked.set()
+                if not release_opening.wait(15):
+                    raise TimeoutError("test coordinator did not release opening transaction")
+            return result
+
+        def worker(label, role, operation):
+            close_old_connections()
+            worker_state.role = role
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute("SET application_name = %s", [label])
+                return operation(), None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        def open_stock():
+            return create_opening_stock(
+                business_id=self.business.pk,
+                actor_id=61,
+                warehouse_id=self.warehouse.pk,
+                reference="OPEN-BEFORE-ISSUE",
+                lines=[{
+                    "ingredient_id": self.ingredient.pk,
+                    "quantity": "5",
+                    "unit": "kg",
+                    "unit_cost": "4",
+                }],
+            )
+
+        def issue_stock():
+            return post_issue(
+                business_id=self.business.pk,
+                actor_id=62,
+                operation_id=self.operation.pk,
+            )
+
+        prefix = f"opening_first_issue_{self.business.pk}"
+        with patch.object(operations_service, "_stock", side_effect=hold_opening_after_stock_lock):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                opening_future = pool.submit(worker, f"{prefix}_opening", "opening", open_stock)
+                try:
+                    self.assertTrue(opening_locked.wait(10), "opening did not lock its Stock row")
+                    issue_future = pool.submit(worker, f"{prefix}_issue", "issue", issue_stock)
+                    self._wait_for_lock_wait(f"{prefix}_issue")
+                finally:
+                    release_opening.set()
+                opening_result = opening_future.result(timeout=20)
+                issue_result = issue_future.result(timeout=20)
+
+        self.assertIsNone(opening_result[1], repr(opening_result[1]))
+        self.assertEqual(opening_result[0].status, InventoryOperation.Status.POSTED)
+        self.assertIsNone(issue_result[1], repr(issue_result[1]))
+        self.assertEqual(issue_result[0].status, InventoryOperation.Status.POSTED)
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("2.000000000000"))
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                stock=self.stock, movement_type="opening_balance"
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                stock=self.stock, movement_type="issue"
+            ).count(),
+            1,
+        )
+
+    def test_issue_first_then_opening_stock_rejects_used_position_without_deadlock(self):
+        issue_locked = Event()
+        release_issue = Event()
+        original_save = DjangoStockRepository.save
+
+        def hold_issue_after_stock_lock(repository, stock):
+            issue_locked.set()
+            if not release_issue.wait(15):
+                raise TimeoutError("test coordinator did not release issue transaction")
+            return original_save(repository, stock)
+
+        def worker(label, operation):
+            close_old_connections()
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute("SET application_name = %s", [label])
+                return operation(), None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        def issue_stock():
+            return post_issue(
+                business_id=self.business.pk,
+                actor_id=63,
+                operation_id=self.operation.pk,
+            )
+
+        def open_stock():
+            return create_opening_stock(
+                business_id=self.business.pk,
+                actor_id=64,
+                warehouse_id=self.warehouse.pk,
+                reference="OPEN-AFTER-ISSUE",
+                lines=[{
+                    "ingredient_id": self.ingredient.pk,
+                    "quantity": "5",
+                    "unit": "kg",
+                    "unit_cost": "4",
+                }],
+            )
+
+        prefix = f"issue_first_opening_{self.business.pk}"
+        with patch.object(DjangoStockRepository, "save", hold_issue_after_stock_lock):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                issue_future = pool.submit(worker, f"{prefix}_issue", issue_stock)
+                try:
+                    self.assertTrue(issue_locked.wait(10), "issue did not lock its Stock row")
+                    opening_future = pool.submit(worker, f"{prefix}_opening", open_stock)
+                    self._wait_for_lock_wait(f"{prefix}_opening")
+                finally:
+                    release_issue.set()
+                issue_result = issue_future.result(timeout=20)
+                opening_result = opening_future.result(timeout=20)
+
+        self.assertIsNone(issue_result[1], repr(issue_result[1]))
+        self.assertEqual(issue_result[0].status, InventoryOperation.Status.POSTED)
+        self.assertIsInstance(opening_result[1], OperationConflict)
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                stock=self.stock, movement_type="issue"
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                stock=self.stock, movement_type="opening_balance"
+            ).count(),
+            0,
+        )
+
+
     def test_concurrent_stocktake_approval_and_issue_never_apply_a_stale_count(self):
         stocktake = create_operation(
             business_id=self.business.pk,
