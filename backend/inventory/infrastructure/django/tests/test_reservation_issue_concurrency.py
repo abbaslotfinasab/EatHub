@@ -403,7 +403,7 @@ class ReservationVersusIssuePostgreSQLTests(TransactionTestCase):
             business_id=self.business.pk,
             actor_id=51,
             operation_id=stocktake.pk,
-            lines=[{"line_id": line.pk, "counted_quantity": str(quantity)}],
+            counts={line.pk: {"counted_quantity": Decimal(str(quantity))}},
         )
         return stocktake
 
