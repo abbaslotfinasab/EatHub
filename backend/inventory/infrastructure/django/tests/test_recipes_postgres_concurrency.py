@@ -129,6 +129,7 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
         release_first = Event()
         worker_state = local()
         delegate = DjangoRecipeRepository()
+
         class CoordinatedRepository:
             def __getattr__(self, name):
                 return getattr(delegate, name)
@@ -203,7 +204,8 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertIsNone(first_result[1], repr(first_result[1]))
         self.assertIsNone(second_result[1], repr(second_result[1]))
         self.assertEqual(len(first_result[0].inputs), 2)
-        self.assertEqual(len(second_result[0].inputs), 2)
+        self.assertEqual(len(second_result[0].inputs), 1)
+        self.assertEqual(second_result[0].inputs[0].id, second_recipe.inputs[0].id)
 
     def _create_single_ingredient_recipe(self, ingredient_id, label):
         manager = ManageRecipes(DjangoRecipeRepository(), DjangoInventoryUnitOfWork())
