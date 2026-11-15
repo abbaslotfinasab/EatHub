@@ -120,7 +120,7 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertEqual(len(first_result[0].inputs), 2)
         self.assertEqual(len(second_result[0].inputs), 2)
 
-    def test_concurrent_cross_recipe_line_additions_lock_existing_and_new_ingredients_together(self):
+    def test_concurrent_cross_recipe_line_mutations_lock_existing_and_new_ingredients_together(self):
         ordered = sorted((self.flour.pk, self.sugar.pk))
         first_recipe = self._create_single_ingredient_recipe(ordered[0], "First")
         second_recipe = self._create_single_ingredient_recipe(ordered[1], "Second")
@@ -129,8 +129,6 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
         release_first = Event()
         worker_state = local()
         delegate = DjangoRecipeRepository()
-        self_outer = self
-
         class CoordinatedRepository:
             def __getattr__(self, name):
                 return getattr(delegate, name)
@@ -146,7 +144,7 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
         manager = ManageRecipes(CoordinatedRepository(), DjangoInventoryUnitOfWork())
         prefix = f"recipe_cross_add_{uuid4().hex[:8]}"
 
-        def add_line(role, label, recipe_id, ingredient_id):
+        def mutate_line(role, label, recipe_id, ingredient_id, line_id=None):
             close_old_connections()
             worker_state.role = role
             try:
@@ -157,7 +155,13 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
                     quantity=Decimal("1"),
                     unit="kg",
                 )
-                return manager.add_line(self.business.pk, recipe_id, "input", command), None
+                if line_id is None:
+                    result = manager.add_line(self.business.pk, recipe_id, "input", command)
+                else:
+                    result = manager.update_line(
+                        self.business.pk, recipe_id, "input", line_id, command,
+                    )
+                return result, None
             except Exception as error:
                 return None, error
             finally:
@@ -179,7 +183,7 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
 
         with ThreadPoolExecutor(max_workers=2) as pool:
             first_future = pool.submit(
-                add_line, "first", f"{prefix}_first", first_recipe.id, ordered[1]
+                mutate_line, "first", f"{prefix}_first", first_recipe.id, ordered[1]
             )
             try:
                 self.assertTrue(
@@ -187,7 +191,8 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
                     "first mutation did not acquire the lowest Ingredient lock",
                 )
                 second_future = pool.submit(
-                    add_line, "second", f"{prefix}_second", second_recipe.id, ordered[0]
+                    mutate_line, "second", f"{prefix}_second", second_recipe.id,
+                    ordered[0], second_recipe.inputs[0].id
                 )
                 wait_until_blocked(f"{prefix}_second")
             finally:
