@@ -15,6 +15,7 @@ class RecipeRepository(Protocol):
 
     def get_for_business(
         self, business_id: int, recipe_id: int, *, lock: bool = False,
+        lock_ingredients: bool = True,
     ) -> RecipeDTO | None: ...
 
     def create(
