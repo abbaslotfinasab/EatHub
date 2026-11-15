@@ -21,7 +21,9 @@ from inventory.infrastructure.django.models import (
     InventoryV1Stock,
     InventoryV1StockMovement,
 )
-from inventory.infrastructure.django.operations_service import (\n    approve_stocktake, create_operation, dispatch_transfer, post_issue, update_stocktake_counts,\n)
+from inventory.infrastructure.django.operations_service import (
+    approve_stocktake, create_operation, dispatch_transfer, post_issue, update_stocktake_counts,
+)
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.infrastructure.django.repositories import DjangoStockRepository
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
