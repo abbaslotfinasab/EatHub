@@ -9,7 +9,7 @@ from accounts.models import Business
 from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import OperationConflict
 from inventory.application.use_cases.manage_reservations import ManageReservations
-from inventory.infrastructure.django.models import InventoryReservation, InventoryV1Stock
+from inventory.infrastructure.django.models import InventoryReservation, InventoryReservationLine, InventoryV1Stock
 from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
@@ -63,6 +63,134 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.stock.refresh_from_db()
         self.assertEqual(str(self.stock.quantity), "10.000000000000")
         self.assertEqual(InventoryReservation.objects.filter(status="active").count(), 1)
+
+
+    def test_multiline_reservations_with_reversed_input_order_serialize_without_deadlock(self):
+        from threading import Event, local
+        from time import monotonic
+
+        from django.db.models import Sum
+
+        second_ingredient = Ingredient.objects.create(
+            business=self.business, name="Sugar", unit="kg"
+        )
+        second_stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=second_ingredient,
+            unit="kg",
+            quantity="10",
+            average_cost="3",
+        )
+
+        # Reservation scope locks the shared Warehouse and Ingredients before
+        # locking Stock projections. The first worker pauses after the full
+        # scope is locked; the reversed-input worker must wait and then proceed.
+        first_locked = Event()
+        release_first = Event()
+        worker_state = local()
+        delegate = DjangoReservationRepository()
+
+        class HoldingRepository:
+            def __getattr__(self, name):
+                return getattr(delegate, name)
+
+            def lock_stock_positions(self, *args, **kwargs):
+                result = delegate.lock_stock_positions(*args, **kwargs)
+                if worker_state.role == "first":
+                    first_locked.set()
+                    if not release_first.wait(15):
+                        raise TimeoutError("test coordinator did not release first reservation")
+                return result
+
+        manager = ManageReservations(HoldingRepository(), DjangoInventoryUnitOfWork())
+        prefix = f"reservation_lock_order_{uuid4().hex[:8]}"
+
+        def reserve(role, label, lines):
+            close_old_connections()
+            worker_state.role = role
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute("SET application_name = %s", [label])
+                return manager.create(
+                    InventoryExecutionContext(self.business.pk, actor_id=71),
+                    warehouse_id=self.warehouse.pk,
+                    source_type="manual",
+                    source_id=None,
+                    reason=f"Multi-line reservation {role}",
+                    idempotency_key=uuid4(),
+                    lines=lines,
+                ), None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        def wait_until_blocked(label):
+            deadline = monotonic() + 15
+            while monotonic() < deadline:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        """SELECT wait_event_type, cardinality(pg_blocking_pids(pid))
+                           FROM pg_stat_activity WHERE application_name = %s""",
+                        [label],
+                    )
+                    row = cursor.fetchone()
+                if row and row[0] == "Lock" and row[1] > 0:
+                    return
+            self.fail(f"PostgreSQL did not report a lock wait for {label}.")
+
+        first_lines = [
+            {"ingredient_id": self.ingredient.pk, "quantity": "1", "unit": "kg"},
+            {"ingredient_id": second_ingredient.pk, "quantity": "1", "unit": "kg"},
+        ]
+        reversed_lines = list(reversed(first_lines))
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first_future = pool.submit(
+                reserve, "first", f"{prefix}_first", first_lines
+            )
+            try:
+                self.assertTrue(
+                    first_locked.wait(10),
+                    "first reservation did not acquire its stock projection locks",
+                )
+                second_future = pool.submit(
+                    reserve, "second", f"{prefix}_second", reversed_lines
+                )
+                wait_until_blocked(f"{prefix}_second")
+            finally:
+                release_first.set()
+            first_result = first_future.result(timeout=20)
+            second_result = second_future.result(timeout=20)
+
+        self.assertIsNone(first_result[1], repr(first_result[1]))
+        self.assertIsNone(second_result[1], repr(second_result[1]))
+        self.assertEqual(len(first_result[0].lines), 2)
+        self.assertEqual(len(second_result[0].lines), 2)
+        self.assertEqual(
+            InventoryReservation.objects.filter(
+                business=self.business, status="active"
+            ).count(),
+            2,
+        )
+
+        totals = {
+            row["ingredient_id"]: row["total"]
+            for row in InventoryReservationLine.objects.filter(
+                reservation__business=self.business,
+                reservation__warehouse=self.warehouse,
+                reservation__status="active",
+            ).values("ingredient_id").annotate(total=Sum("quantity"))
+        }
+        self.assertEqual(totals, {
+            self.ingredient.pk: 2,
+            second_ingredient.pk: 2,
+        })
+        self.stock.refresh_from_db()
+        second_stock.refresh_from_db()
+        self.assertEqual(str(self.stock.quantity), "10.000000000000")
+        self.assertEqual(str(second_stock.quantity), "10.000000000000")
 
     def test_missing_stock_row_never_allows_concurrent_positive_reservations(self):
         self.stock.delete()
