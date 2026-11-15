@@ -1,7 +1,9 @@
 from decimal import Decimal
 
 from django.db import DatabaseError, connection, transaction
-from django.test import TransactionTestCase, skipUnless
+from unittest import skipUnless
+
+from django.test import TransactionTestCase
 
 from accounts.models import Business
 from inventory.infrastructure.django.models import (
@@ -64,17 +66,3 @@ class StockMovementTruncateGuardTests(TransactionTestCase):
             InventoryV1StockMovement.objects.filter(pk=self.movement.pk).exists()
         )
 
-    def _fixture_teardown(self):
-        # Django's TransactionTestCase flush uses TRUNCATE. Temporarily disable
-        # user triggers only while the isolated test database is being flushed.
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "ALTER TABLE inventory_v1_stock_movement DISABLE TRIGGER USER"
-            )
-        try:
-            super()._fixture_teardown()
-        finally:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "ALTER TABLE inventory_v1_stock_movement ENABLE TRIGGER USER"
-                )
