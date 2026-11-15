@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -143,4 +145,149 @@ class OrderStatusPermissionMatrixApiTests(APITestCase):
                 (Order.Status.CONFIRMED, Order.Status.PREPARING),
                 (Order.Status.PREPARING, Order.Status.COMPLETED),
             ],
+        )
+
+
+    def test_allowed_status_transition_matrix(self):
+        allowed = {
+            Order.Status.PENDING: {
+                Order.Status.PENDING,
+                Order.Status.CONFIRMED,
+                Order.Status.CANCELLED,
+                Order.Status.FAILED,
+            },
+            Order.Status.CONFIRMED: {
+                Order.Status.CONFIRMED,
+                Order.Status.PREPARING,
+                Order.Status.CANCELLED,
+                Order.Status.FAILED,
+            },
+            Order.Status.PREPARING: {
+                Order.Status.PREPARING,
+                Order.Status.READY,
+                Order.Status.COMPLETED,
+                Order.Status.CANCELLED,
+                Order.Status.FAILED,
+            },
+            Order.Status.READY: {
+                Order.Status.READY,
+                Order.Status.COMPLETED,
+                Order.Status.CANCELLED,
+                Order.Status.FAILED,
+            },
+            Order.Status.COMPLETED: {Order.Status.COMPLETED},
+            Order.Status.CANCELLED: {Order.Status.CANCELLED},
+            Order.Status.FAILED: {Order.Status.FAILED},
+        }
+        self._grant(PermissionCode.INVENTORY_ORDER_FULFILL)
+        cases = [
+            (source, target)
+            for source, targets in allowed.items()
+            for target in targets
+        ]
+
+        with (
+            patch("products.services.order_service.OrderInventoryService.confirm"),
+            patch("products.services.order_service.OrderInventoryService.ensure_consumption_complete"),
+            patch("products.services.order_service.OrderInventoryService.release_remaining"),
+        ):
+            for current_status, target_status in cases:
+                with self.subTest(current=current_status, target=target_status):
+                    order = self._create_order(current_status)
+                    response = self._patch_status(order, target_status)
+
+                    self.assertEqual(
+                        response.status_code,
+                        status.HTTP_200_OK,
+                        getattr(response, "data", response.content),
+                    )
+                    order.refresh_from_db()
+                    self.assertEqual(order.status, target_status)
+                    history = list(
+                        OrderStatusHistory.objects.filter(
+                            business=self.business,
+                            order_id_snapshot=order.pk,
+                        ).values_list("from_status", "to_status")
+                    )
+                    expected_history = (
+                        [(current_status, target_status)]
+                        if current_status != target_status
+                        else []
+                    )
+                    self.assertEqual(history, expected_history)
+
+    def test_disallowed_status_transition_matrix_is_rejected_without_mutation(self):
+        allowed = {
+            Order.Status.PENDING: {
+                Order.Status.PENDING,
+                Order.Status.CONFIRMED,
+                Order.Status.CANCELLED,
+                Order.Status.FAILED,
+            },
+            Order.Status.CONFIRMED: {
+                Order.Status.CONFIRMED,
+                Order.Status.PREPARING,
+                Order.Status.CANCELLED,
+                Order.Status.FAILED,
+            },
+            Order.Status.PREPARING: {
+                Order.Status.PREPARING,
+                Order.Status.READY,
+                Order.Status.COMPLETED,
+                Order.Status.CANCELLED,
+                Order.Status.FAILED,
+            },
+            Order.Status.READY: {
+                Order.Status.READY,
+                Order.Status.COMPLETED,
+                Order.Status.CANCELLED,
+                Order.Status.FAILED,
+            },
+            Order.Status.COMPLETED: {Order.Status.COMPLETED},
+            Order.Status.CANCELLED: {Order.Status.CANCELLED},
+            Order.Status.FAILED: {Order.Status.FAILED},
+        }
+        self._grant(PermissionCode.INVENTORY_ORDER_FULFILL)
+        cases = [
+            (source, target)
+            for source in Order.Status.values
+            for target in Order.Status.values
+            if target not in allowed[source]
+        ]
+
+        for current_status, target_status in cases:
+            with self.subTest(current=current_status, target=target_status):
+                order = self._create_order(current_status)
+                response = self._patch_status(order, target_status)
+
+                self.assertEqual(
+                    response.status_code,
+                    status.HTTP_400_BAD_REQUEST,
+                    getattr(response, "data", response.content),
+                )
+                order.refresh_from_db()
+                self.assertEqual(order.status, current_status)
+                self.assertFalse(
+                    OrderStatusHistory.objects.filter(
+                        business=self.business,
+                        order_id_snapshot=order.pk,
+                    ).exists()
+                )
+
+    def test_preparing_to_completed_is_rejected_when_inventory_tracking_is_enabled(self):
+        self._grant(PermissionCode.INVENTORY_ORDER_FULFILL)
+        order = self._create_order(Order.Status.PREPARING)
+        order.inventory_tracking_enabled = True
+        order.save(update_fields=["inventory_tracking_enabled"])
+
+        response = self._patch_status(order, Order.Status.COMPLETED)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.Status.PREPARING)
+        self.assertFalse(
+            OrderStatusHistory.objects.filter(
+                business=self.business,
+                order_id_snapshot=order.pk,
+            ).exists()
         )
