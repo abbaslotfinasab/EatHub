@@ -67,6 +67,7 @@ class ManageRecipes:
         self._positive_id(business_id, "Business ID")
         recipe = Recipe(None, business_id, name, RecipeType(recipe_type))
         with self._unit_of_work.atomic():
+            self._lock_ingredients_for_update(business_id, [*inputs, *outputs])
             input_lines = [self._make_line(recipe, row, "input") for row in inputs]
             output_lines = [self._make_line(recipe, row, "output") for row in outputs]
             return self._recipes.create(
@@ -94,6 +95,12 @@ class ManageRecipes:
                 aggregate = Recipe(
                     current.id, business_id, recipe.name, recipe.recipe_type,
                 )
+                changed_commands = [
+                    command
+                    for field in ("inputs", "outputs")
+                    for command in changes.get(field, ())
+                ]
+                self._lock_ingredients_for_update(business_id, changed_commands)
                 for kind, field in (("input", "inputs"), ("output", "outputs")):
                     if field not in changes:
                         continue
@@ -184,6 +191,28 @@ class ManageRecipes:
                 raise RecipeNotFound("Recipe does not exist in this business.")
             if not self._recipes.delete_line(business_id, recipe_id, kind, line_id):
                 raise RecipeNotFound("Recipe line does not exist in this business.")
+
+    def _lock_ingredients_for_update(
+        self, business_id: int, commands: list[RecipeLineCommand],
+    ) -> None:
+        """Acquire all referenced Ingredient row locks in deterministic PK order."""
+        ingredient_ids = set()
+        for command in commands:
+            self._positive_id(command.ingredient_id, "Ingredient ID")
+            ingredient_ids.add(command.ingredient_id)
+
+        for ingredient_id in sorted(ingredient_ids):
+            ingredient = self._recipes.get_ingredient_for_update(
+                business_id, ingredient_id,
+            )
+            if ingredient is None:
+                raise RecipeIngredientNotFound(
+                    "Ingredient does not exist in this business."
+                )
+            if not ingredient.is_active:
+                raise InactiveRecipeIngredient(
+                    "Inactive ingredients cannot be added to a recipe."
+                )
 
     def _make_line(self, recipe: Recipe, command: RecipeLineCommand, kind: str):
         self._positive_id(command.ingredient_id, "Ingredient ID")
