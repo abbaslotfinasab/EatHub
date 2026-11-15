@@ -403,6 +403,16 @@ def approve_stocktake(*, business_id, actor_id, operation_id):
             if row.quantity != line.system_quantity or latest_id != line.snapshot_movement_id:
                 raise OperationConflict("Stock changed after the count snapshot; cancel this draft and create a fresh stocktake before approval.")
             counted = Decimal(line.counted_quantity)
+            reserved = InventoryReservationLine.objects.filter(
+                reservation__business_id=business_id,
+                reservation__warehouse_id=document.warehouse_id,
+                reservation__status=InventoryReservation.Status.ACTIVE,
+                ingredient_id=line.ingredient_id,
+            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+            if counted < reserved:
+                raise OperationConflict(
+                    "Stocktake count cannot reduce physical stock below active reservations."
+                )
             snapshot = Decimal(line.system_quantity)
             delta = counted - snapshot
             if delta:
