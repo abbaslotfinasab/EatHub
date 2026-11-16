@@ -105,26 +105,19 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
                 raise OperationInputError("Choose a distinct active destination warehouse in this business.")
         elif destination_warehouse_id is not None:
             raise OperationInputError("Destination is only valid for transfers.")
-        document = InventoryOperation.objects.create(
-            business_id=business_id, operation_type=operation_type,
-            warehouse=warehouse, destination_warehouse=destination,
-            reference=reference.strip(), reason=reason.strip(), notes=notes.strip(),
-            created_by_id=actor_id,
-        )
+
+        is_stocktake = operation_type == InventoryOperation.Type.STOCKTAKE
+        prepared_lines = {}
+        # Lock all business references before inserting the document. This lets
+        # Warehouse deactivation serialize cleanly with operation creation and
+        # ensures every Ingredient is validated while its shared lock is held.
         for item in sorted(lines, key=lambda entry: entry["ingredient_id"]):
-            # _stock() acquires Warehouse then Ingredient before locking Stock.
-            # Lines are processed by ascending ingredient PK to keep multi-item
-            # operations on the same global lock order.
-            # Serialize operation creation with Ingredient deactivation using the
-            # same Warehouse -> Ingredient reference-lock order as stock mutations.
             additional_warehouse_ids = (destination.pk,) if destination is not None else ()
             if not DjangoStockRepository._lock_business_references(
                 business_id, warehouse.pk, item["ingredient_id"],
                 additional_warehouse_ids=additional_warehouse_ids,
             ):
                 raise ResourceNotFound("An active item or warehouse was not found in this business.")
-            # Initial lookups can become stale while waiting for the shared
-            # reference locks. Revalidate every active reference after locking.
             warehouse = Warehouse.objects.filter(
                 pk=warehouse.pk, business_id=business_id, is_active=True
             ).first()
@@ -147,9 +140,18 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
                 raise OperationInputError("Selected material type does not match the ingredient.")
             unit = Unit(item["unit"])
             quantity = Quantity(item["quantity"], unit).convert_to(Unit(ingredient.unit))
-            is_stocktake = operation_type == InventoryOperation.Type.STOCKTAKE
             if not is_stocktake and quantity.amount <= 0:
                 raise OperationInputError("Operation quantities must be positive.")
+            prepared_lines[ingredient.pk] = (ingredient, quantity)
+
+        document = InventoryOperation.objects.create(
+            business_id=business_id, operation_type=operation_type,
+            warehouse=warehouse, destination_warehouse=destination,
+            reference=reference.strip(), reason=reason.strip(), notes=notes.strip(),
+            created_by_id=actor_id,
+        )
+        for item in sorted(lines, key=lambda entry: entry["ingredient_id"]):
+            ingredient, quantity = prepared_lines[item["ingredient_id"]]
             snapshot = None
             snapshot_movement_id = None
             counted = None
@@ -157,7 +159,7 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
                 stock_row, _ = _stock(business_id, warehouse, ingredient, create=True)
                 snapshot = stock_row.quantity
                 counted_value = item.get("counted_quantity")
-                counted = (Quantity(counted_value, unit).convert_to(Unit(ingredient.unit)).amount
+                counted = (Quantity(counted_value, Unit(item["unit"])).convert_to(Unit(ingredient.unit)).amount
                            if counted_value is not None else None)
                 counted_cost = item.get("counted_unit_cost")
                 latest = InventoryV1StockMovement.objects.filter(stock=stock_row).order_by("-pk").values_list("pk", flat=True).first()
@@ -172,7 +174,6 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
                 snapshot_movement_id=snapshot_movement_id,
             )
         return document
-
 
 def create_opening_stock(*, business_id, actor_id, warehouse_id, reference="", reason="", notes="", lines):
     """Atomically initialize never-used V1 stock positions and append their ledger entries."""
