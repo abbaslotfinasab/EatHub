@@ -233,7 +233,7 @@ class InventoryMasterDataAPITests(APITestCase):
             created_by_id=self.owner.pk,
         )
         with self.assertRaises(MasterDataConflict):
-            DjangoMasterDataRepository.save_warehouse(
+            DjangoMasterDataRepository().save_warehouse(
                 self.business.pk, source.pk, {"is_active": False}
             )
 
@@ -246,14 +246,14 @@ class InventoryMasterDataAPITests(APITestCase):
             created_by_id=self.owner.pk,
         )
         with self.assertRaises(MasterDataConflict):
-            DjangoMasterDataRepository.save_warehouse(
+            DjangoMasterDataRepository().save_warehouse(
                 self.business.pk, destination.pk, {"is_active": False}
             )
 
         transfer.status = InventoryOperation.Status.IN_TRANSIT
         transfer.save(update_fields=("status",))
         with self.assertRaises(MasterDataConflict):
-            DjangoMasterDataRepository.save_warehouse(
+            DjangoMasterDataRepository().save_warehouse(
                 self.business.pk, destination.pk, {"is_active": False}
             )
 
@@ -265,7 +265,7 @@ class InventoryMasterDataAPITests(APITestCase):
             warehouse=source,
         ).update(status=InventoryOperation.Status.CANCELLED)
         self.assertIsNotNone(
-            DjangoMasterDataRepository.save_warehouse(
+            DjangoMasterDataRepository().save_warehouse(
                 self.business.pk, source.pk, {"is_active": False}
             )
         )
