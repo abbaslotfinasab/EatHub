@@ -86,23 +86,26 @@ class DjangoWarehouseRepository:
 class DjangoStockRepository:
     @staticmethod
     def _lock_business_references(
-        business_id: int, warehouse_id: int, ingredient_id: int
+        business_id: int, warehouse_id: int, ingredient_id: int,
+        additional_warehouse_ids: tuple[int, ...] | list[int] = (),
     ) -> bool:
         # The database tenant trigger takes FOR SHARE on Warehouse then
-        # Ingredient. Take the same compatible shared locks before Stock so
-        # parent updates cannot race the write without serializing independent
-        # stock operations that reference the same Ingredient.
+        # Ingredient. Lock every participating Warehouse in ascending PK order
+        # before Ingredient so transfers cannot invert the shared lock order.
         if not connection.in_atomic_block or connection.vendor != "postgresql":
             return True
         warehouse_table = connection.ops.quote_name(LegacyWarehouse._meta.db_table)
         ingredient_table = connection.ops.quote_name(LegacyIngredient._meta.db_table)
+        warehouse_ids = sorted({warehouse_id, *additional_warehouse_ids})
         with connection.cursor() as cursor:
-            cursor.execute(
-                f"SELECT id FROM {warehouse_table} "
-                "WHERE id = %s AND business_id = %s FOR SHARE",
-                [warehouse_id, business_id],
-            )
-            warehouse_found = cursor.fetchone() is not None
+            warehouse_found = True
+            for reference_warehouse_id in warehouse_ids:
+                cursor.execute(
+                    f"SELECT id FROM {warehouse_table} "
+                    "WHERE id = %s AND business_id = %s FOR SHARE",
+                    [reference_warehouse_id, business_id],
+                )
+                warehouse_found = cursor.fetchone() is not None and warehouse_found
             cursor.execute(
                 f"SELECT id FROM {ingredient_table} "
                 "WHERE id = %s AND business_id = %s FOR SHARE",
