@@ -564,3 +564,112 @@ class ReservationVersusIssuePostgreSQLTests(TransactionTestCase):
             ).count(),
             1,
         )
+
+
+    def test_atomic_reservation_replacement_does_not_invert_stock_and_warehouse_locks(self):
+        context = InventoryExecutionContext(self.business.pk, actor_id=1)
+        initial_manager = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+        )
+        original = initial_manager.create(
+            context,
+            warehouse_id=self.warehouse.pk,
+            source_type=MANUAL_RESERVATION_SOURCE,
+            source_id=None,
+            reason="Original order hold",
+            idempotency_key=uuid4(),
+            lines=[{"ingredient_id": self.ingredient.pk, "quantity": "7", "unit": "kg"}],
+        )
+
+        release_completed = Event()
+        continue_replacement = Event()
+
+        class PausingReleaseRepository:
+            def __init__(self, delegate):
+                self.delegate = delegate
+
+            def __getattr__(self, name):
+                return getattr(self.delegate, name)
+
+            def release(self, *args, **kwargs):
+                result = self.delegate.release(*args, **kwargs)
+                release_completed.set()
+                if not continue_replacement.wait(15):
+                    raise TimeoutError("test coordinator did not continue reservation replacement")
+                return result
+
+        manager = ManageReservations(
+            PausingReleaseRepository(DjangoReservationRepository()),
+            DjangoInventoryUnitOfWork(),
+        )
+        prefix = f"replace_issue_{uuid4().hex[:8]}"
+
+        def replace_reservation_atomically():
+            # Mirrors ApplyOrderConsumption: release and replacement are nested
+            # in one outer transaction, so all acquired locks survive the release.
+            with DjangoInventoryUnitOfWork().atomic():
+                manager.release(
+                    context, original.id, uuid4(), "Replace with remaining requirement"
+                )
+                return manager.create(
+                    context,
+                    warehouse_id=self.warehouse.pk,
+                    source_type=MANUAL_RESERVATION_SOURCE,
+                    source_id=None,
+                    reason="Remaining order requirement",
+                    idempotency_key=uuid4(),
+                    lines=[{"ingredient_id": self.ingredient.pk, "quantity": "2", "unit": "kg"}],
+                )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            replacement_future = pool.submit(
+                self._worker, f"{prefix}_replacement", replace_reservation_atomically
+            )
+            if not release_completed.wait(10):
+                continue_replacement.set()
+                self.fail("replacement did not complete its reservation release")
+
+            issue_future = pool.submit(
+                self._worker,
+                f"{prefix}_issue",
+                lambda: post_issue(
+                    business_id=self.business.pk,
+                    actor_id=1,
+                    operation_id=self.issue.pk,
+                ),
+            )
+            try:
+                # The issue must finish while replacement is paused after release.
+                # It sees the still-committed old hold and conservatively rejects;
+                # it must not wait on a Stock lock held by the replacement.
+                issue_result = issue_future.result(timeout=8)
+            finally:
+                continue_replacement.set()
+
+            replacement_result = replacement_future.result(timeout=20)
+
+        self.assertIsNone(replacement_result[2], repr(replacement_result[2]))
+        self.assertIsNotNone(replacement_result[0])
+        self.assertIsInstance(issue_result[2], OperationConflict)
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 10)
+        self.assertEqual(
+            InventoryReservation.objects.filter(
+                business=self.business, status=InventoryReservation.Status.ACTIVE
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            InventoryReservationLine.objects.filter(
+                reservation__business=self.business,
+                reservation__status=InventoryReservation.Status.ACTIVE,
+                ingredient=self.ingredient,
+            ).aggregate(total=Sum("quantity"))["total"],
+            2,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                stock=self.stock, movement_type="issue"
+            ).count(),
+            0,
+        )

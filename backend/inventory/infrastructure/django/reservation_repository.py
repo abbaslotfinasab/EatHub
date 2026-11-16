@@ -220,12 +220,11 @@ class DjangoReservationRepository:
                 )
             raise OperationConflict("This reservation has already been released.")
 
-        ingredient_ids = list(
-            header.lines.order_by("ingredient_id").values_list("ingredient_id", flat=True)
-        )
-        # Lock existing projection rows in the same order as reservation creation.
-        # A missing row is safe here because release only lowers reserved quantity.
-        list(self.lock_stock_positions(business_id, header.warehouse_id, ingredient_ids).items())
+        # Releasing a hold only decreases reserved quantity; it does not mutate
+        # physical Stock. Do not lock Stock here: callers may atomically replace
+        # a reservation, and the subsequent create path must acquire
+        # Warehouse -> Ingredient -> Stock. Holding Stock across this release
+        # would invert that order against stock operations (Warehouse -> Stock).
         try:
             with transaction.atomic():
                 header.status = InventoryReservation.Status.RELEASED
