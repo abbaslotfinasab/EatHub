@@ -74,11 +74,11 @@ class PrepareOrderConfirmationTests(TestCase):
         events = []
         first = SimpleNamespace(
             id=31, business_id=7, name="First", is_active=True,
-            inputs=(SimpleNamespace(ingredient_id=23),), outputs=(),
+            inputs=(SimpleNamespace(ingredient_id=23, ingredient_business_id=7, ingredient_is_active=True, ingredient_unit="kg"),), outputs=(),
         )
         second = SimpleNamespace(
             id=32, business_id=7, name="Second", is_active=True,
-            inputs=(SimpleNamespace(ingredient_id=11),), outputs=(),
+            inputs=(SimpleNamespace(ingredient_id=11, ingredient_business_id=7, ingredient_is_active=True, ingredient_unit="kg"),), outputs=(),
         )
         recipes = FakeRecipes({31: first, 32: second}, events=events)
         use_case = PrepareOrderConfirmation(
