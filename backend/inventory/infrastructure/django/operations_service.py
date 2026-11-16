@@ -115,6 +115,13 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
             # _stock() acquires Warehouse then Ingredient before locking Stock.
             # Lines are processed by ascending ingredient PK to keep multi-item
             # operations on the same global lock order.
+            # Serialize operation creation with Ingredient deactivation using the
+            # same Warehouse -> Ingredient reference-lock order as stock mutations.
+            if not DjangoStockRepository._lock_business_references(
+                business_id, warehouse.pk, item["ingredient_id"]
+            ):
+                raise ResourceNotFound("An active item was not found in this business.")
+            # The first lookup can become stale while waiting for the reference lock.
             ingredient = Ingredient.objects.filter(
                 pk=item["ingredient_id"], business_id=business_id, is_active=True
             ).first()

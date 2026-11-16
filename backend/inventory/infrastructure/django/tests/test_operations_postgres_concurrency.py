@@ -803,3 +803,73 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
             sum(status == InventoryOperation.Status.DRAFT for status in statuses.values()),
             1,
         )
+
+
+    def test_operation_creation_rechecks_item_after_deactivation_wins_reference_lock(self):
+        from inventory.infrastructure.django import operations_service
+        from inventory.infrastructure.django.master_data_repository import (
+            DjangoMasterDataRepository,
+        )
+        from inventory.application.exceptions import ResourceNotFound
+
+        race_ingredient = Ingredient.objects.create(
+            business=self.business, name="Race ingredient", unit="kg"
+        )
+        lookup_reached_lock = Event()
+        allow_lock = Event()
+        original_lock = DjangoStockRepository._lock_business_references
+
+        def pause_before_reference_lock(business_id, warehouse_id, ingredient_id):
+            lookup_reached_lock.set()
+            if not allow_lock.wait(10):
+                raise TimeoutError("test coordinator did not release operation creation")
+            return original_lock(business_id, warehouse_id, ingredient_id)
+
+        def create():
+            close_old_connections()
+            try:
+                return create_operation(
+                    business_id=self.business.pk,
+                    actor_id=71,
+                    operation_type=InventoryOperation.Type.ISSUE,
+                    warehouse_id=self.warehouse.pk,
+                    lines=[{"ingredient_id": race_ingredient.pk, "quantity": "1", "unit": "kg"}],
+                )
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        with patch.object(
+            operations_service.DjangoStockRepository,
+            "_lock_business_references",
+            side_effect=pause_before_reference_lock,
+        ):
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(create)
+                self.assertTrue(lookup_reached_lock.wait(10))
+                updated = DjangoMasterDataRepository().save_item(
+                    self.business.pk, race_ingredient.pk, {"is_active": False}
+                )
+                self.assertFalse(updated.is_active)
+                allow_lock.set()
+                result = future.result(timeout=20)
+
+        self.assertIsInstance(result, ResourceNotFound)
+        self.assertFalse(
+            InventoryOperation.objects.filter(
+                business=self.business, operation_type=InventoryOperation.Type.ISSUE,
+                lines__ingredient=race_ingredient,
+            ).exists()
+        )
+
+    def test_draft_operation_prevents_item_deactivation(self):
+        from inventory.infrastructure.django.master_data_repository import (
+            DjangoMasterDataRepository,
+        )
+        from inventory.application.exceptions import MasterDataConflict
+
+        with self.assertRaises(MasterDataConflict):
+            DjangoMasterDataRepository().save_item(
+                self.business.pk, self.ingredient.pk, {"is_active": False}
+            )
