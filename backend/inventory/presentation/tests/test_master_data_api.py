@@ -5,6 +5,8 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
 from core.enums import PermissionCode
+from inventory.application.exceptions import MasterDataConflict
+from inventory.infrastructure.django.models import InventoryOperation
 from inventory.infrastructure.django.master_data_repository import DjangoMasterDataRepository
 from inventory.models import Ingredient, IngredientAllergen, Warehouse
 
@@ -219,6 +221,42 @@ class InventoryMasterDataAPITests(APITestCase):
         disabled = self.client.patch(f"/api/inventory/warehouses/{second.data['id']}/", {"is_active": False}, format="json")
         self.assertEqual(disabled.status_code, 200)
         self.assertFalse(disabled.data["is_default"])
+
+    def test_warehouse_deactivation_rejects_pending_operation_references(self):
+        source = Warehouse.objects.create(business=self.business, name="Pending source")
+        destination = Warehouse.objects.create(business=self.business, name="Pending destination")
+        InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.ISSUE,
+            status=InventoryOperation.Status.DRAFT,
+            warehouse=source,
+            created_by_id=self.owner.pk,
+        )
+        with self.assertRaises(MasterDataConflict):
+            DjangoMasterDataRepository.save_warehouse(
+                self.business.pk, source.pk, {"is_active": False}
+            )
+
+        InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.TRANSFER,
+            status=InventoryOperation.Status.IN_TRANSIT,
+            warehouse=source,
+            destination_warehouse=destination,
+            created_by_id=self.owner.pk,
+        )
+        with self.assertRaises(MasterDataConflict):
+            DjangoMasterDataRepository.save_warehouse(
+                self.business.pk, destination.pk, {"is_active": False}
+            )
+
+        # The source of an already-dispatched transfer has no pending stock
+        # action; its historical warehouse may be deactivated independently.
+        self.assertIsNotNone(
+            DjangoMasterDataRepository.save_warehouse(
+                self.business.pk, source.pk, {"is_active": False}
+            )
+        )
 
     def test_warehouse_query_and_payload_validation(self):
         response = self.client.post("/api/inventory/warehouses/", {"name": "North", "code": "N"}, format="json")
