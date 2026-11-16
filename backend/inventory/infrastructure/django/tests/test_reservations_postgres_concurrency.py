@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
+from threading import Barrier, Event, local
+from time import monotonic
 from uuid import uuid4
 
 from django.db import close_old_connections, connection, connections
@@ -211,3 +212,147 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
             results = [future.result(timeout=20) for future in (pool.submit(run, 200), pool.submit(run, 201))]
         self.assertTrue(all(isinstance(result, OperationConflict) for result in results))
         self.assertEqual(InventoryReservation.objects.count(), 0)
+
+
+    def test_order_reservation_replacement_serializes_with_release_without_deadlock(self):
+        class OrderSource:
+            @staticmethod
+            def is_active(business_id, order_id):
+                return True
+
+            @staticmethod
+            def reservation_matches(business_id, order_id, lines):
+                return True
+
+        order_id = 991
+        existing = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            source_type="order",
+            source_id=order_id,
+            reason="Original order hold",
+            status=InventoryReservation.Status.ACTIVE,
+            idempotency_key=uuid4(),
+            payload_fingerprint="b" * 64,
+            created_by_id=71,
+        )
+        InventoryReservationLine.objects.create(
+            reservation=existing,
+            ingredient=self.ingredient,
+            quantity="4",
+            unit="kg",
+        )
+
+        release_header_locked = Event()
+        continue_release = Event()
+        create_source_lookup = Event()
+        create_stock_locked = Event()
+        worker_state = local()
+        delegate = DjangoReservationRepository()
+
+        class CoordinatedRepository:
+            def __getattr__(self, name):
+                return getattr(delegate, name)
+
+            def get_active_source_reservation(self, *args, **kwargs):
+                if worker_state.role == "create":
+                    create_source_lookup.set()
+                return delegate.get_active_source_reservation(*args, **kwargs)
+
+            def lock_stock_positions(self, *args, **kwargs):
+                if worker_state.role == "release":
+                    release_header_locked.set()
+                    if not continue_release.wait(15):
+                        raise TimeoutError("test coordinator did not resume release")
+                result = delegate.lock_stock_positions(*args, **kwargs)
+                if worker_state.role == "create":
+                    create_stock_locked.set()
+                return result
+
+        repository = CoordinatedRepository()
+        context = InventoryExecutionContext(self.business.pk, actor_id=72)
+        manager = ManageReservations(repository, DjangoInventoryUnitOfWork(), OrderSource())
+        prefix = f"order_res_replace_{uuid4().hex[:8]}"
+
+        def run(role, label, operation):
+            close_old_connections()
+            worker_state.role = role
+            db = connections["default"]
+            try:
+                db.ensure_connection()
+                with db.cursor() as cursor:
+                    cursor.execute("SET application_name = %s", [label])
+                return operation(), None
+            except Exception as error:
+                return None, error
+            finally:
+                db.close()
+
+        def wait_until_blocked(label):
+            deadline = monotonic() + 15
+            while monotonic() < deadline:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        """SELECT wait_event_type, cardinality(pg_blocking_pids(pid))
+                           FROM pg_stat_activity WHERE application_name = %s""",
+                        [label],
+                    )
+                    row = cursor.fetchone()
+                if row and row[0] == "Lock" and row[1] > 0:
+                    return
+            self.fail(f"PostgreSQL did not report a lock wait for {label}.")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            release_future = pool.submit(
+                run,
+                "release",
+                f"{prefix}_release",
+                lambda: manager.release(context, existing.pk, uuid4(), "Replace order hold"),
+            )
+            self.assertTrue(
+                release_header_locked.wait(10),
+                "release did not lock the reservation header",
+            )
+            create_future = pool.submit(
+                run,
+                "create",
+                f"{prefix}_create",
+                lambda: manager.create_for_order(
+                    context,
+                    warehouse_id=self.warehouse.pk,
+                    order_id=order_id,
+                    reason="Replacement order hold",
+                    idempotency_key=uuid4(),
+                    lines=[{
+                        "ingredient_id": self.ingredient.pk,
+                        "quantity": "3",
+                        "unit": "kg",
+                    }],
+                ),
+            )
+            try:
+                self.assertTrue(create_source_lookup.wait(10))
+                wait_until_blocked(f"{prefix}_create")
+                self.assertFalse(
+                    create_stock_locked.is_set(),
+                    "order reservation creation acquired Stock before the active header lock",
+                )
+            finally:
+                continue_release.set()
+            release_result = release_future.result(timeout=20)
+            create_result = create_future.result(timeout=20)
+
+        self.assertIsNone(release_result[1], repr(release_result[1]))
+        self.assertIsNone(create_result[1], repr(create_result[1]))
+        self.assertEqual(release_result[0].status.value, "released")
+        self.assertEqual(create_result[0].status.value, "active")
+        active = InventoryReservation.objects.filter(
+            business=self.business,
+            source_type="order",
+            source_id=order_id,
+            status=InventoryReservation.Status.ACTIVE,
+        )
+        self.assertEqual(active.count(), 1)
+        self.assertEqual(active.get().pk, create_result[0].id)
+        self.stock.refresh_from_db()
+        self.assertEqual(str(self.stock.quantity), "10.000000000000")
