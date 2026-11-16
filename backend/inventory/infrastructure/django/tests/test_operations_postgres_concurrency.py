@@ -812,6 +812,9 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         )
         from inventory.application.exceptions import ResourceNotFound
 
+        race_ingredient = Ingredient.objects.create(
+            business=self.business, name="Race ingredient", unit="kg"
+        )
         lookup_reached_lock = Event()
         allow_lock = Event()
         original_lock = DjangoStockRepository._lock_business_references
@@ -830,7 +833,7 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
                     actor_id=71,
                     operation_type=InventoryOperation.Type.ISSUE,
                     warehouse_id=self.warehouse.pk,
-                    lines=[{"ingredient_id": self.ingredient.pk, "quantity": "1", "unit": "kg"}],
+                    lines=[{"ingredient_id": race_ingredient.pk, "quantity": "1", "unit": "kg"}],
                 )
             except Exception as error:
                 return error
@@ -846,7 +849,7 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
                 future = pool.submit(create)
                 self.assertTrue(lookup_reached_lock.wait(10))
                 updated = DjangoMasterDataRepository().save_item(
-                    self.business.pk, self.ingredient.pk, {"is_active": False}
+                    self.business.pk, race_ingredient.pk, {"is_active": False}
                 )
                 self.assertFalse(updated.is_active)
                 allow_lock.set()
@@ -856,8 +859,8 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertFalse(
             InventoryOperation.objects.filter(
                 business=self.business, operation_type=InventoryOperation.Type.ISSUE,
-                lines__ingredient=self.ingredient,
-            ).exclude(pk=self.operation.pk).exists()
+                lines__ingredient=race_ingredient,
+            ).exists()
         )
 
     def test_draft_operation_prevents_item_deactivation(self):
