@@ -91,9 +91,6 @@ class DjangoReservationRepository:
             )
         header = headers[0]
 
-        ingredient_ids = list(
-            header.lines.order_by("ingredient_id").values_list("ingredient_id", flat=True)
-        )
         if not ingredient_ids or len(ingredient_ids) != len(set(ingredient_ids)):
             raise OperationConflict(
                 "The active order reservation has an invalid ingredient scope; inventory reconciliation is required."
