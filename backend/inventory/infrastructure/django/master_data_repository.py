@@ -303,6 +303,27 @@ class DjangoMasterDataRepository:
                         "is_active",
                         "This warehouse has active reservations and cannot be deactivated.",
                     )
+                if (
+                    warehouse is not None
+                    and values.get("is_active") is False
+                    and InventoryOperation.objects.filter(business_id=business_id).filter(
+                        Q(
+                            warehouse_id=warehouse.pk,
+                            status=InventoryOperation.Status.DRAFT,
+                        )
+                        | Q(
+                            destination_warehouse_id=warehouse.pk,
+                            status__in=(
+                                InventoryOperation.Status.DRAFT,
+                                InventoryOperation.Status.IN_TRANSIT,
+                            ),
+                        )
+                    ).exists()
+                ):
+                    raise MasterDataConflict(
+                        "is_active",
+                        "This warehouse is referenced by a draft or in-transit inventory operation.",
+                    )
 
                 if "name" in values:
                     duplicate_name = Warehouse.objects.filter(
