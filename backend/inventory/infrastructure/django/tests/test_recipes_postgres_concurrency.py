@@ -9,6 +9,7 @@ from django.test import TransactionTestCase, skipUnlessDBFeature
 
 from accounts.models import Business
 from inventory.application.use_cases.manage_recipes import ManageRecipes, RecipeLineCommand
+from inventory.infrastructure.django.compound_material_repository import DjangoCompoundMaterialRepository
 from inventory.infrastructure.django.recipe_repository import DjangoRecipeRepository
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient
@@ -225,3 +226,123 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
             ],
             outputs=[],
         )
+
+
+    def test_compound_component_update_uses_global_lock_order_with_recipe_mutation(self):
+        compound_repository = DjangoCompoundMaterialRepository()
+        compound = compound_repository.create(
+            self.business.pk,
+            {
+                "name": "Prepared flour mix",
+                "unit": "kg",
+                "components": [
+                    {"ingredient_id": self.flour.pk, "quantity": Decimal("1"), "unit": "kg"},
+                    {"ingredient_id": self.sugar.pk, "quantity": Decimal("1"), "unit": "kg"},
+                ],
+            },
+        )
+        recipe_manager = ManageRecipes(DjangoRecipeRepository(), DjangoInventoryUnitOfWork())
+        recipe = recipe_manager.create(
+            self.business.pk,
+            name="Compound and raw ingredient",
+            recipe_type="preparation",
+            code=None,
+            description=None,
+            is_active=True,
+            inputs=[
+                RecipeLineCommand(self.flour.pk, Decimal("1"), "kg"),
+                RecipeLineCommand(compound.id, Decimal("1"), "kg"),
+            ],
+            outputs=[],
+        )
+
+        first_locked = Event()
+        release_first = Event()
+        worker_state = local()
+        delegate = DjangoRecipeRepository()
+        flour_id = self.flour.pk
+
+        class CoordinatedRepository:
+            def __getattr__(self, name):
+                return getattr(delegate, name)
+
+            def get_ingredient_for_update(self, business_id, ingredient_id):
+                result = delegate.get_ingredient_for_update(business_id, ingredient_id)
+                if worker_state.role == "recipe" and ingredient_id == flour_id:
+                    first_locked.set()
+                    if not release_first.wait(15):
+                        raise TimeoutError("test coordinator did not release Recipe mutation")
+                return result
+
+        manager = ManageRecipes(CoordinatedRepository(), DjangoInventoryUnitOfWork())
+        prefix = f"recipe_compound_order_{uuid4().hex[:8]}"
+
+        def mutate_recipe():
+            close_old_connections()
+            worker_state.role = "recipe"
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute("SET application_name = %s", [f"{prefix}_recipe"])
+                return manager.add_line(
+                    self.business.pk,
+                    recipe.id,
+                    "input",
+                    RecipeLineCommand(self.sugar.pk, Decimal("1"), "kg"),
+                ), None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        def update_compound():
+            close_old_connections()
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute("SET application_name = %s", [f"{prefix}_compound"])
+                return compound_repository.update(
+                    self.business.pk,
+                    compound.id,
+                    {
+                        "components": [
+                            {"ingredient_id": self.flour.pk, "quantity": Decimal("1"), "unit": "kg"},
+                            {"ingredient_id": self.sugar.pk, "quantity": Decimal("1"), "unit": "kg"},
+                        ],
+                    },
+                ), None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        def wait_until_blocked(label):
+            deadline = monotonic() + 15
+            while monotonic() < deadline:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        """SELECT wait_event_type, cardinality(pg_blocking_pids(pid))
+                           FROM pg_stat_activity WHERE application_name = %s""",
+                        [label],
+                    )
+                    row = cursor.fetchone()
+                if row and row[0] == "Lock" and row[1] > 0:
+                    return
+            self.fail(f"PostgreSQL did not report a lock wait for {label}.")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            recipe_future = pool.submit(mutate_recipe)
+            try:
+                self.assertTrue(
+                    first_locked.wait(10),
+                    "Recipe mutation did not acquire its first Ingredient lock",
+                )
+                compound_future = pool.submit(update_compound)
+                wait_until_blocked(f"{prefix}_compound")
+            finally:
+                release_first.set()
+            recipe_result = recipe_future.result(timeout=20)
+            compound_result = compound_future.result(timeout=20)
+
+        self.assertIsNone(recipe_result[1], repr(recipe_result[1]))
+        self.assertIsNone(compound_result[1], repr(compound_result[1]))
+        self.assertEqual(len(recipe_result[0].inputs), 3)
+        self.assertEqual(len(compound_result[0].components), 2)
