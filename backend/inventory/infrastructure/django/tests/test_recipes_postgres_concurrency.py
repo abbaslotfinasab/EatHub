@@ -130,6 +130,7 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
         release_first = Event()
         worker_state = local()
         delegate = DjangoRecipeRepository()
+        flour_id = self.flour.pk
 
         class CoordinatedRepository:
             def __getattr__(self, name):
@@ -267,13 +268,12 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
 
             def get_ingredient_for_update(self, business_id, ingredient_id):
                 result = delegate.get_ingredient_for_update(business_id, ingredient_id)
-                if worker_state.role == "recipe" and ingredient_id == self_outer.flour.pk:
+                if worker_state.role == "recipe" and ingredient_id == flour_id:
                     first_locked.set()
                     if not release_first.wait(15):
                         raise TimeoutError("test coordinator did not release Recipe mutation")
                 return result
 
-        self_outer = self
         manager = ManageRecipes(CoordinatedRepository(), DjangoInventoryUnitOfWork())
         prefix = f"recipe_compound_order_{uuid4().hex[:8]}"
 
