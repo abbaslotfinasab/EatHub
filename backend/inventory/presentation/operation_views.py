@@ -41,6 +41,7 @@ class OperationLineInputSerializer(StrictSerializer):
     counted_unit_cost = serializers.DecimalField(max_digits=70, decimal_places=48, min_value=0, required=False)
 
 class OperationCreateSerializer(StrictSerializer):
+    idempotency_key = serializers.UUIDField(required=False)
     warehouse_id = serializers.IntegerField(min_value=1)
     destination_warehouse_id = serializers.IntegerField(min_value=1, required=False)
     reference = serializers.CharField(max_length=120, required=False, allow_blank=True, default="")
