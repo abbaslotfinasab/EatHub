@@ -5,6 +5,7 @@ from accounts.models import Business
 from inventory.application.dto.master_data import InventoryItemDTO, WarehouseDTO
 from inventory.application.exceptions import MasterDataConflict
 from inventory.infrastructure.django.models import (
+    InventoryOperation,
     InventoryOperationLine,
     InventoryReservation,
     InventoryReservationLine,
@@ -170,6 +171,16 @@ class DjangoMasterDataRepository:
                         raise MasterDataConflict(
                             "is_active",
                             "This ingredient has an active reservation and cannot be deactivated.",
+                        )
+
+                    if values.get("is_active") is False and InventoryOperationLine.objects.filter(
+                        ingredient_id=item.pk,
+                        operation__business_id=business_id,
+                        operation__status=InventoryOperation.Status.DRAFT,
+                    ).exists():
+                        raise MasterDataConflict(
+                            "is_active",
+                            "This ingredient is used by a draft inventory operation and cannot be deactivated.",
                         )
                     if values.get("unit") and values["unit"] != item.unit:
                         has_references = (
