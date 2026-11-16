@@ -23,8 +23,10 @@ from inventory.infrastructure.django.operations_service import (
     update_stocktake_counts,
 )
 from inventory.application.exceptions import OperationConflict
+from inventory.infrastructure.django.master_data_repository import DjangoMasterDataRepository
 from inventory.models import Ingredient, Warehouse
 from inventory.domain.exceptions import NegativeStock
+from inventory.infrastructure.django.operations_service import OperationInputError
 
 
 @skipUnlessDBFeature("has_select_for_update")
@@ -873,3 +875,66 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
             DjangoMasterDataRepository().save_item(
                 self.business.pk, self.ingredient.pk, {"is_active": False}
             )
+
+    def test_create_operation_revalidates_warehouse_after_deactivation_wins_reference_lock(self):
+        reference_lock_reached = Event()
+        release_reference_lock = Event()
+        worker_state = local()
+        original_lock = DjangoStockRepository._lock_business_references
+
+        def pause_before_reference_lock(*args, **kwargs):
+            if worker_state.role == "create":
+                reference_lock_reached.set()
+                if not release_reference_lock.wait(15):
+                    raise TimeoutError("test coordinator did not release operation creation")
+            return original_lock(*args, **kwargs)
+
+        def create_draft():
+            close_old_connections()
+            worker_state.role = "create"
+            try:
+                return create_operation(
+                    business_id=self.business.pk,
+                    actor_id=71,
+                    operation_type=InventoryOperation.Type.ISSUE,
+                    warehouse_id=self.warehouse.pk,
+                    reason="Race with warehouse deactivation",
+                    lines=[{
+                        "ingredient_id": self.ingredient.pk,
+                        "quantity": "1",
+                        "unit": "kg",
+                    }],
+                ), None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        with patch.object(
+            DjangoStockRepository,
+            "_lock_business_references",
+            side_effect=pause_before_reference_lock,
+        ):
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(create_draft)
+                try:
+                    self.assertTrue(
+                        reference_lock_reached.wait(10),
+                        "operation creation did not reach the reference lock",
+                    )
+                    DjangoMasterDataRepository.save_warehouse(
+                        self.business.pk, self.warehouse.pk, {"is_active": False}
+                    )
+                finally:
+                    release_reference_lock.set()
+                result, error = future.result(timeout=20)
+
+        self.assertIsNone(result)
+        self.assertIsInstance(error, OperationInputError)
+        self.assertFalse(
+            InventoryOperation.objects.filter(
+                business=self.business,
+                reason="Race with warehouse deactivation",
+            ).exists()
+        )
+
