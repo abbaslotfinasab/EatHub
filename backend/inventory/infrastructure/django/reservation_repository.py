@@ -91,6 +91,9 @@ class DjangoReservationRepository:
             )
         header = headers[0]
 
+        ingredient_ids = list(
+            header.lines.order_by("ingredient_id").values_list("ingredient_id", flat=True)
+        )
         if not ingredient_ids or len(ingredient_ids) != len(set(ingredient_ids)):
             raise OperationConflict(
                 "The active order reservation has an invalid ingredient scope; inventory reconciliation is required."
@@ -217,9 +220,6 @@ class DjangoReservationRepository:
                 )
             raise OperationConflict("This reservation has already been released.")
 
-        ingredient_ids = list(
-            header.lines.order_by("ingredient_id").values_list("ingredient_id", flat=True)
-        )
         # Releasing a hold only decreases reserved quantity; it does not mutate
         # physical Stock. Do not lock Stock here: callers may atomically replace
         # a reservation, and the subsequent create path must acquire
