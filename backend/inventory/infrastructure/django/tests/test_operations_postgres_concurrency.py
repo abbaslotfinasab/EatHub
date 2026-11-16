@@ -820,6 +820,7 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         lookup_reached_lock = Event()
         allow_lock = Event()
         original_lock = DjangoStockRepository._lock_business_references
+        race_warehouse = Warehouse.objects.create(business=self.business, name="Race warehouse")
 
         def pause_before_reference_lock(business_id, warehouse_id, ingredient_id):
             lookup_reached_lock.set()
@@ -897,7 +898,7 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
                     business_id=self.business.pk,
                     actor_id=71,
                     operation_type=InventoryOperation.Type.ISSUE,
-                    warehouse_id=self.warehouse.pk,
+                    warehouse_id=race_warehouse.pk,
                     reason="Race with warehouse deactivation",
                     lines=[{
                         "ingredient_id": self.ingredient.pk,
@@ -922,8 +923,8 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
                         reference_lock_reached.wait(10),
                         "operation creation did not reach the reference lock",
                     )
-                    DjangoMasterDataRepository.save_warehouse(
-                        self.business.pk, self.warehouse.pk, {"is_active": False}
+                    DjangoMasterDataRepository().save_warehouse(
+                        self.business.pk, race_warehouse.pk, {"is_active": False}
                     )
                 finally:
                     release_reference_lock.set()
