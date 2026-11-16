@@ -254,16 +254,20 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
             def __getattr__(self, name):
                 return getattr(delegate, name)
 
+            def get_for_business(self, *args, **kwargs):
+                result = delegate.get_for_business(*args, **kwargs)
+                if worker_state.role == "release" and kwargs.get("lock"):
+                    release_header_locked.set()
+                    if not continue_release.wait(15):
+                        raise TimeoutError("test coordinator did not resume release")
+                return result
+
             def get_active_source_reservation(self, *args, **kwargs):
                 if worker_state.role == "create":
                     create_source_lookup.set()
                 return delegate.get_active_source_reservation(*args, **kwargs)
 
             def lock_stock_positions(self, *args, **kwargs):
-                if worker_state.role == "release":
-                    release_header_locked.set()
-                    if not continue_release.wait(15):
-                        raise TimeoutError("test coordinator did not resume release")
                 result = delegate.lock_stock_positions(*args, **kwargs)
                 if worker_state.role == "create":
                     create_stock_locked.set()
