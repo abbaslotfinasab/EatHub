@@ -281,8 +281,10 @@ class InventoryOperation(models.Model):
                 name="inv_op_create_key_uq",
             ),
             models.CheckConstraint(
-                condition=Q(idempotency_key__isnull=True, payload_fingerprint__isnull=True)
-                | (Q(idempotency_key__isnull=False) & Q(payload_fingerprint__regex=r"^[0-9a-f]{64}$")),
+                condition=(
+                    Q(idempotency_key__isnull=True, payload_fingerprint__isnull=True)
+                    | Q(idempotency_key__isnull=False, payload_fingerprint__isnull=False)
+                ),
                 name="inv_op_idempotency_pair_ck",
             ),
             models.CheckConstraint(condition=Q(operation_type="transfer", destination_warehouse__isnull=False) | ~Q(operation_type="transfer"), name="inv_op_transfer_dest_ck"),
