@@ -118,6 +118,15 @@ class ManageReservations:
                 self._same_request(existing, fingerprint)
                 return existing
 
+            if order_source:
+                active_source = self._reservations.get_active_source_reservation(
+                    context.business_id, source_type, source_id, lock=True
+                )
+                if active_source is not None:
+                    raise OperationConflict(
+                        "An active reservation already exists for this order."
+                    )
+
             ingredient_ids = self._ingredient_ids(lines)
             warehouse, ingredients = self._reservations.lock_scope(
                 context.business_id, warehouse_id, ingredient_ids
@@ -125,6 +134,12 @@ class ManageReservations:
             if warehouse is None:
                 raise ResourceNotFound("Warehouse was not found in this Business.")
             warehouse.ensure_active()
+            if order_source and self._reservations.get_active_source_reservation(
+                context.business_id, source_type, source_id
+            ) is not None:
+                raise OperationConflict(
+                    "An active reservation already exists for this order."
+                )
             if any(ingredient_id not in ingredients for ingredient_id in ingredient_ids):
                 raise ResourceNotFound("An ingredient was not found in this Business.")
             if any(not ingredient.is_active for ingredient in ingredients.values()):
