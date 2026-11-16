@@ -117,11 +117,25 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
             # operations on the same global lock order.
             # Serialize operation creation with Ingredient deactivation using the
             # same Warehouse -> Ingredient reference-lock order as stock mutations.
+            additional_warehouse_ids = (destination.pk,) if destination is not None else ()
             if not DjangoStockRepository._lock_business_references(
-                business_id, warehouse.pk, item["ingredient_id"]
+                business_id, warehouse.pk, item["ingredient_id"],
+                additional_warehouse_ids=additional_warehouse_ids,
             ):
-                raise ResourceNotFound("An active item was not found in this business.")
-            # The first lookup can become stale while waiting for the reference lock.
+                raise ResourceNotFound("An active item or warehouse was not found in this business.")
+            # Initial lookups can become stale while waiting for the shared
+            # reference locks. Revalidate every active reference after locking.
+            warehouse = Warehouse.objects.filter(
+                pk=warehouse.pk, business_id=business_id, is_active=True
+            ).first()
+            if warehouse is None:
+                raise OperationInputError("Inactive warehouses cannot be used.")
+            if destination is not None:
+                destination = Warehouse.objects.filter(
+                    pk=destination.pk, business_id=business_id, is_active=True
+                ).first()
+                if destination is None:
+                    raise OperationInputError("Inactive destination warehouses cannot be used.")
             ingredient = Ingredient.objects.filter(
                 pk=item["ingredient_id"], business_id=business_id, is_active=True
             ).first()
