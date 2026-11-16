@@ -237,10 +237,10 @@ class InventoryMasterDataAPITests(APITestCase):
                 self.business.pk, source.pk, {"is_active": False}
             )
 
-        InventoryOperation.objects.create(
+        transfer = InventoryOperation.objects.create(
             business=self.business,
             operation_type=InventoryOperation.Type.TRANSFER,
-            status=InventoryOperation.Status.IN_TRANSIT,
+            status=InventoryOperation.Status.DRAFT,
             warehouse=source,
             destination_warehouse=destination,
             created_by_id=self.owner.pk,
@@ -250,8 +250,20 @@ class InventoryMasterDataAPITests(APITestCase):
                 self.business.pk, destination.pk, {"is_active": False}
             )
 
+        transfer.status = InventoryOperation.Status.IN_TRANSIT
+        transfer.save(update_fields=("status",))
+        with self.assertRaises(MasterDataConflict):
+            DjangoMasterDataRepository.save_warehouse(
+                self.business.pk, destination.pk, {"is_active": False}
+            )
+
         # The source of an already-dispatched transfer has no pending stock
-        # action; its historical warehouse may be deactivated independently.
+        # action; after its unrelated draft is cancelled, it may be deactivated.
+        InventoryOperation.objects.filter(
+            business=self.business,
+            operation_type=InventoryOperation.Type.ISSUE,
+            warehouse=source,
+        ).update(status=InventoryOperation.Status.CANCELLED)
         self.assertIsNotNone(
             DjangoMasterDataRepository.save_warehouse(
                 self.business.pk, source.pk, {"is_active": False}
