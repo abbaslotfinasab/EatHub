@@ -263,6 +263,8 @@ class InventoryOperation(models.Model):
     reference = models.CharField(max_length=120, blank=True)
     reason = models.TextField(blank=True)
     notes = models.TextField(blank=True)
+    idempotency_key = models.UUIDField(null=True, blank=True)
+    payload_fingerprint = models.CharField(max_length=64, null=True, blank=True)
     created_by_id = models.PositiveBigIntegerField()
     completed_by_id = models.PositiveBigIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -273,6 +275,16 @@ class InventoryOperation(models.Model):
         ordering = ("-created_at", "-id")
         indexes = [models.Index(fields=("business", "operation_type", "status", "id"), name="inv_operation_scope_ix")]
         constraints = [
+            models.UniqueConstraint(
+                fields=("business", "idempotency_key"),
+                condition=Q(idempotency_key__isnull=False),
+                name="inv_op_create_key_uq",
+            ),
+            models.CheckConstraint(
+                condition=Q(idempotency_key__isnull=True, payload_fingerprint__isnull=True)
+                | (Q(idempotency_key__isnull=False) & Q(payload_fingerprint__regex=r"^[0-9a-f]{64}$")),
+                name="inv_op_idempotency_pair_ck",
+            ),
             models.CheckConstraint(condition=Q(operation_type="transfer", destination_warehouse__isnull=False) | ~Q(operation_type="transfer"), name="inv_op_transfer_dest_ck"),
             models.CheckConstraint(condition=Q(operation_type="transfer") | Q(destination_warehouse__isnull=True), name="inv_op_no_dest_ck"),
             models.CheckConstraint(
