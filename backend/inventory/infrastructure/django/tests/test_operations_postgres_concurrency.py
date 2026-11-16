@@ -820,13 +820,15 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         lookup_reached_lock = Event()
         allow_lock = Event()
         original_lock = DjangoStockRepository._lock_business_references
-        race_warehouse = Warehouse.objects.create(business=self.business, name="Race warehouse")
 
-        def pause_before_reference_lock(business_id, warehouse_id, ingredient_id):
+        def pause_before_reference_lock(business_id, warehouse_id, ingredient_id, additional_warehouse_ids=()):
             lookup_reached_lock.set()
             if not allow_lock.wait(10):
                 raise TimeoutError("test coordinator did not release operation creation")
-            return original_lock(business_id, warehouse_id, ingredient_id)
+            return original_lock(
+                business_id, warehouse_id, ingredient_id,
+                additional_warehouse_ids=additional_warehouse_ids,
+            )
 
         def create():
             close_old_connections()
@@ -882,6 +884,7 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         release_reference_lock = Event()
         worker_state = local()
         original_lock = DjangoStockRepository._lock_business_references
+        race_warehouse = Warehouse.objects.create(business=self.business, name="Race warehouse")
 
         def pause_before_reference_lock(*args, **kwargs):
             if worker_state.role == "create":
