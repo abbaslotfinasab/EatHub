@@ -1,4 +1,5 @@
 from decimal import Decimal
+from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier, Event, local
 from time import monotonic
@@ -51,6 +52,48 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         InventoryOperationLine.objects.create(
             operation=self.operation, ingredient=self.ingredient,
             quantity="3", unit="kg",
+        )
+
+    def test_concurrent_operation_creation_with_same_idempotency_key_returns_one_document(self):
+        key = uuid4()
+        barrier = Barrier(2)
+
+        def create():
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                return create_operation(
+                    business_id=self.business.pk,
+                    actor_id=71,
+                    operation_type=InventoryOperation.Type.ISSUE,
+                    warehouse_id=self.warehouse.pk,
+                    reason="Concurrent retry",
+                    lines=[{
+                        "ingredient_id": self.ingredient.pk,
+                        "quantity": Decimal("2"),
+                        "unit": "kg",
+                    }],
+                    idempotency_key=key,
+                )
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [
+                future.result(timeout=25)
+                for future in (pool.submit(create), pool.submit(create))
+            ]
+
+        self.assertEqual(results[0].pk, results[1].pk)
+        self.assertEqual(
+            InventoryOperation.objects.filter(
+                business=self.business, idempotency_key=key
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            InventoryOperationLine.objects.filter(operation_id=results[0].pk).count(),
+            1,
         )
 
     def test_concurrent_issue_posting_changes_stock_and_ledger_once(self):
