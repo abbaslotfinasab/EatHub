@@ -261,6 +261,7 @@ class RecipePostgreSQLConcurrencyTests(TransactionTestCase):
         release_first = Event()
         worker_state = local()
         delegate = DjangoRecipeRepository()
+        flour_id = self.flour.pk
 
         class CoordinatedRepository:
             def __getattr__(self, name):
