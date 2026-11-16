@@ -4,7 +4,10 @@ The documents hold workflow/audit metadata only. Quantities and valuation are
 always changed through the existing V1 Stock aggregate and appended ledger.
 """
 from decimal import Decimal
+import hashlib
+import json
 
+from django.db import IntegrityError, transaction
 from django.db.models import Q, Subquery, Sum
 from django.utils import timezone
 
@@ -82,14 +85,71 @@ def _identity(document, line, operation_kind):
     )
 
 
+def _operation_payload_fingerprint(*, operation_type, warehouse_id, destination_warehouse_id,
+                                    reference, reason, notes, lines):
+    def canonical_decimal(value):
+        if value is None:
+            return None
+        return format(Decimal(value).normalize(), "f")
+
+    payload = {
+        "operation_type": operation_type,
+        "warehouse_id": warehouse_id,
+        "destination_warehouse_id": destination_warehouse_id,
+        "reference": reference.strip(),
+        "reason": reason.strip(),
+        "notes": notes.strip(),
+        "lines": [
+            {
+                "ingredient_id": item["ingredient_id"],
+                "material_type": item.get("material_type"),
+                "quantity": canonical_decimal(item["quantity"]),
+                "unit": item["unit"],
+                "counted_quantity": canonical_decimal(item.get("counted_quantity")),
+                "counted_unit_cost": canonical_decimal(item.get("counted_unit_cost")),
+            }
+            for item in sorted(lines, key=lambda entry: entry["ingredient_id"])
+        ],
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _existing_idempotent_operation(business_id, idempotency_key, fingerprint):
+    existing = InventoryOperation.objects.filter(
+        business_id=business_id, idempotency_key=idempotency_key
+    ).prefetch_related("lines__ingredient").first()
+    if existing is None:
+        return None
+    if existing.payload_fingerprint != fingerprint:
+        raise OperationConflict(
+            "This idempotency key has already been used with a different operation payload."
+        )
+    return existing
+
+
 def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
-                     destination_warehouse_id=None, reference="", reason="", notes="", lines):
+                     destination_warehouse_id=None, reference="", reason="", notes="", lines,
+                     idempotency_key=None):
     if operation_type not in InventoryOperation.Type.values:
         raise OperationInputError("Unsupported inventory operation type.")
     if not lines:
         raise OperationInputError("At least one item is required.")
     if len({line["ingredient_id"] for line in lines}) != len(lines):
         raise OperationInputError("Each item may appear only once per document.")
+    fingerprint = (
+        _operation_payload_fingerprint(
+            operation_type=operation_type, warehouse_id=warehouse_id,
+            destination_warehouse_id=destination_warehouse_id,
+            reference=reference, reason=reason, notes=notes, lines=lines,
+        )
+        if idempotency_key is not None else None
+    )
+    if idempotency_key is not None:
+        existing = _existing_idempotent_operation(business_id, idempotency_key, fingerprint)
+        if existing is not None:
+            return existing
+
     with _atomic():
         warehouse = Warehouse.objects.filter(pk=warehouse_id, business_id=business_id).first()
         if warehouse is None:
@@ -144,35 +204,48 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
                 raise OperationInputError("Operation quantities must be positive.")
             prepared_lines[ingredient.pk] = (ingredient, quantity)
 
-        document = InventoryOperation.objects.create(
-            business_id=business_id, operation_type=operation_type,
-            warehouse=warehouse, destination_warehouse=destination,
-            reference=reference.strip(), reason=reason.strip(), notes=notes.strip(),
-            created_by_id=actor_id,
-        )
-        for item in sorted(lines, key=lambda entry: entry["ingredient_id"]):
-            ingredient, quantity = prepared_lines[item["ingredient_id"]]
-            snapshot = None
-            snapshot_movement_id = None
-            counted = None
-            if is_stocktake:
-                stock_row, _ = _stock(business_id, warehouse, ingredient, create=True)
-                snapshot = stock_row.quantity
-                counted_value = item.get("counted_quantity")
-                counted = (Quantity(counted_value, Unit(item["unit"])).convert_to(Unit(ingredient.unit)).amount
-                           if counted_value is not None else None)
-                counted_cost = item.get("counted_unit_cost")
-                latest = InventoryV1StockMovement.objects.filter(stock=stock_row).order_by("-pk").values_list("pk", flat=True).first()
-                snapshot_movement_id = latest
-            InventoryOperationLine.objects.create(
-                operation=document, ingredient=ingredient, quantity=quantity.amount,
-                unit=ingredient.unit, system_quantity=snapshot,
-                counted_quantity=counted,
-                counted_unit_cost=UnitCost(counted_cost).amount if is_stocktake and counted_cost is not None else None,
-                counted_by_id=actor_id if counted is not None else None,
-                counted_at=timezone.now() if counted is not None else None,
-                snapshot_movement_id=snapshot_movement_id,
-            )
+        try:
+            # A nested savepoint lets a concurrent request win the unique key
+            # without leaving the outer transaction unusable.
+            with transaction.atomic():
+                document = InventoryOperation.objects.create(
+                    business_id=business_id, operation_type=operation_type,
+                    warehouse=warehouse, destination_warehouse=destination,
+                    reference=reference.strip(), reason=reason.strip(), notes=notes.strip(),
+                    idempotency_key=idempotency_key,
+                    payload_fingerprint=fingerprint,
+                    created_by_id=actor_id,
+                )
+                for item in sorted(lines, key=lambda entry: entry["ingredient_id"]):
+                    ingredient, quantity = prepared_lines[item["ingredient_id"]]
+                    snapshot = None
+                    snapshot_movement_id = None
+                    counted = None
+                    if is_stocktake:
+                        stock_row, _ = _stock(business_id, warehouse, ingredient, create=True)
+                        snapshot = stock_row.quantity
+                        counted_value = item.get("counted_quantity")
+                        counted = (Quantity(counted_value, Unit(item["unit"])).convert_to(Unit(ingredient.unit)).amount
+                                   if counted_value is not None else None)
+                        counted_cost = item.get("counted_unit_cost")
+                        latest = InventoryV1StockMovement.objects.filter(stock=stock_row).order_by("-pk").values_list("pk", flat=True).first()
+                        snapshot_movement_id = latest
+                    InventoryOperationLine.objects.create(
+                        operation=document, ingredient=ingredient, quantity=quantity.amount,
+                        unit=ingredient.unit, system_quantity=snapshot,
+                        counted_quantity=counted,
+                        counted_unit_cost=UnitCost(counted_cost).amount if is_stocktake and counted_cost is not None else None,
+                        counted_by_id=actor_id if counted is not None else None,
+                        counted_at=timezone.now() if counted is not None else None,
+                        snapshot_movement_id=snapshot_movement_id,
+                    )
+        except IntegrityError:
+            if idempotency_key is None:
+                raise
+            existing = _existing_idempotent_operation(business_id, idempotency_key, fingerprint)
+            if existing is None:
+                raise
+            return existing
         return document
 
 def create_opening_stock(*, business_id, actor_id, warehouse_id, reference="", reason="", notes="", lines):

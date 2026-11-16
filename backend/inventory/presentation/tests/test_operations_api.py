@@ -62,6 +62,38 @@ class InventoryOperationsAPITests(APITestCase):
         self.assertEqual(response.status_code, 201, response.data)
         return response.data
 
+    def test_operation_creation_replays_matching_idempotency_key_and_rejects_payload_reuse(self):
+        key = str(uuid4())
+        payload = {
+            "idempotency_key": key,
+            "warehouse_id": self.warehouse.pk,
+            "reason": "Kitchen use",
+            "reference": "RETRY-SAFE-ISSUE",
+            "lines": [{"ingredient_id": self.item.pk, "quantity": "3", "unit": "kg"}],
+        }
+
+        first = self.client.post("/api/inventory/issues/", payload, format="json")
+        self.assertEqual(first.status_code, 201, first.data)
+        replay = self.client.post("/api/inventory/issues/", payload, format="json")
+        self.assertEqual(replay.status_code, 201, replay.data)
+        self.assertEqual(replay.data["id"], first.data["id"])
+        self.assertEqual(
+            InventoryOperation.objects.filter(
+                business=self.business, idempotency_key=key
+            ).count(),
+            1,
+        )
+
+        changed_payload = {**payload, "reason": "Different intent"}
+        conflict = self.client.post("/api/inventory/issues/", changed_payload, format="json")
+        self.assertEqual(conflict.status_code, 409, conflict.data)
+        self.assertEqual(
+            InventoryOperation.objects.filter(
+                business=self.business, idempotency_key=key
+            ).count(),
+            1,
+        )
+
     def test_issue_posts_once_and_insufficient_stock_rolls_back(self):
         issue = self._create("/api/inventory/issues/", {
             "warehouse_id": self.warehouse.pk, "reason": "Kitchen use",
