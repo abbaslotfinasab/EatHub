@@ -50,6 +50,18 @@ class DjangoReservationRepository:
             ingredients,
         )
 
+    def get_active_source_reservation(self, business_id, source_type, source_id, *, lock=False):
+        """Find the sole active reservation for a source, optionally locking its header."""
+        rows = InventoryReservation.objects.filter(
+            business_id=business_id,
+            source_type=source_type,
+            source_id=source_id,
+            status=InventoryReservation.Status.ACTIVE,
+        ).order_by("pk")
+        if lock and connection.features.has_select_for_update:
+            rows = rows.select_for_update(of=("self",))
+        return rows.first()
+
     def lock_active_order_reservation_for_consumption(self, business_id, order_id):
         """Lock an order reservation and its stock scope in the shared lock order.
 
