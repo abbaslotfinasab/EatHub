@@ -206,10 +206,10 @@ class DjangoCompoundMaterialRepository:
                     # Recipe mutations lock every referenced Ingredient in ascending
                     # PK order. Acquire the Compound row and its incoming components
                     # with that same global order to avoid cross-aggregate deadlocks.
-                    lock_ids = {
-                        material_id,
-                        *(line["ingredient_id"] for line in values["components"]),
-                    }
+                    lock_ids = {material_id}
+                    lock_ids.update(
+                        line["ingredient_id"] for line in values["components"]
+                    )
                     list(
                         Ingredient.objects.select_for_update(of=("self",))
                         .filter(business_id=business_id, pk__in=lock_ids)
