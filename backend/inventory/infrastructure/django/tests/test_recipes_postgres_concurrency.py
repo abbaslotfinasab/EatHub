@@ -1,8 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from threading import Event, local
-from types import SimpleNamespace
 from time import monotonic
+from types import SimpleNamespace
 from uuid import uuid4
 
 from django.db import close_old_connections, connection, connections
