@@ -90,7 +90,13 @@ def _operation_payload_fingerprint(*, operation_type, warehouse_id, destination_
     def canonical_decimal(value):
         if value is None:
             return None
-        return format(Decimal(value).normalize(), "f")
+        # Decimal.normalize() applies the active context precision (28 by
+        # default), which can round values accepted by our 36-digit API fields.
+        # Canonicalize the exact fixed-point representation without arithmetic.
+        rendered = format(Decimal(value), "f")
+        if "." in rendered:
+            rendered = rendered.rstrip("0").rstrip(".")
+        return rendered if rendered not in ("-0", "") else "0"
 
     payload = {
         "operation_type": operation_type,

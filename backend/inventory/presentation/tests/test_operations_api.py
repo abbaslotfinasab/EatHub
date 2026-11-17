@@ -94,6 +94,33 @@ class InventoryOperationsAPITests(APITestCase):
             1,
         )
 
+    def test_idempotency_fingerprint_preserves_decimal_precision_beyond_context(self):
+        key = str(uuid4())
+        quantity = "123456789012345678901234.123456789012"
+        changed_quantity = "123456789012345678901234.123456789013"
+        payload = {
+            "idempotency_key": key,
+            "warehouse_id": self.warehouse.pk,
+            "reason": "Precision check",
+            "lines": [{"ingredient_id": self.item.pk, "quantity": quantity, "unit": "kg"}],
+        }
+
+        first = self.client.post("/api/inventory/issues/", payload, format="json")
+        self.assertEqual(first.status_code, 201, first.data)
+
+        replay = self.client.post("/api/inventory/issues/", {
+            **payload,
+            "lines": [{"ingredient_id": self.item.pk, "quantity": changed_quantity, "unit": "kg"}],
+        }, format="json")
+
+        self.assertEqual(replay.status_code, 409, replay.data)
+        self.assertEqual(
+            InventoryOperation.objects.filter(
+                business=self.business, idempotency_key=key
+            ).count(),
+            1,
+        )
+
     def test_issue_posts_once_and_insufficient_stock_rolls_back(self):
         issue = self._create("/api/inventory/issues/", {
             "warehouse_id": self.warehouse.pk, "reason": "Kitchen use",
