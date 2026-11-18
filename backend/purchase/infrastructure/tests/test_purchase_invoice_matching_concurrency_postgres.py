@@ -172,7 +172,10 @@ class PurchaseInvoiceMatchingConcurrencyTests(TransactionTestCase):
             first_result = first_future.result(timeout=30)
             second_result = second_future.result(timeout=30)
 
-        self.assertFalse(isinstance(first_result, Exception), str(first_result))
+        self.assertFalse(
+            isinstance(first_result, Exception),
+            f"first={first_result!r}; second={second_result!r}",
+        )
         self.assertIsInstance(second_result, ValueError)
         self.assertIn("current MATCHED", str(second_result))
         self.assertEqual(
