@@ -528,59 +528,34 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
         self.assertFalse(InventoryV1StockMovement.objects.filter(stock=stock).exists())
 
 
-    def test_stock_movement_reference_update_lock_serializes_stock_tenant_change(self):
-        source_stock = InventoryV1Stock.objects.create(
+    def test_operation_line_reference_update_lock_serializes_ingredient_tenant_change(self):
+        source_ingredient = Ingredient.objects.create(
             business=self.business,
-            warehouse=self.source_warehouse,
-            ingredient=self.ingredient,
+            name="Tenant lock operation line source",
             unit="kg",
         )
-        target_stock = InventoryV1Stock.objects.create(
-            business=self.business,
-            warehouse=self.destination_warehouse,
-            ingredient=self.ingredient,
-            unit="kg",
-        )
-        movement = InventoryV1StockMovement.objects.create(
-            business=self.business,
-            stock=source_stock,
-            movement_type="receipt",
-            direction="in",
+        line = InventoryOperationLine.objects.create(
+            operation=self.operation,
+            ingredient=source_ingredient,
             quantity=Decimal("1"),
             unit="kg",
-            unit_cost=Decimal("1"),
-            balance_after=Decimal("1"),
-            average_cost_before=Decimal("0"),
-            source_type="tenant-integrity-update-race",
-            source_document_id=1,
-            source_line_id=1,
-            operation_kind="receive",
         )
 
         def assert_persisted():
-            movement.refresh_from_db()
-            self.assertEqual(movement.stock_id, target_stock.pk)
-            self.assertEqual(movement.business_id, self.business.pk)
-            target_stock.refresh_from_db()
-            self.assertEqual(target_stock.business_id, self.business.pk)
+            line.refresh_from_db()
+            self.assertEqual(line.ingredient_id, self.ingredient.pk)
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
 
         self._assert_child_insert_serializes_parent_tenant_change(
-            insert_stock=lambda: InventoryV1StockMovement.objects.filter(
-                pk=movement.pk
-            ).update(stock_id=target_stock.pk),
-            change_tenant=lambda: InventoryV1Stock.objects.filter(
-                pk=target_stock.pk
-            ).update(
-                business_id=self.other_business.pk,
-                warehouse_id=self.other_warehouse.pk,
-                ingredient_id=Ingredient.objects.create(
-                    business=self.other_business,
-                    name="Tenant lock movement update ingredient",
-                    unit="kg",
-                ).pk,
-            ),
-            child_name="eathub-movement-reference-update",
-            parent_name="eathub-movement-stock-tenant-change",
+            insert_stock=lambda: InventoryOperationLine.objects.filter(
+                pk=line.pk
+            ).update(ingredient_id=self.ingredient.pk),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-operation-line-reference-update",
+            parent_name="eathub-operation-line-ingredient-tenant-change",
             assert_persisted=assert_persisted,
         )
 
