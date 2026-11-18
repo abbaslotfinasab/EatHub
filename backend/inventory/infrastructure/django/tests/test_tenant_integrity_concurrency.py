@@ -30,6 +30,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             operation_type=InventoryOperation.Type.TRANSFER,
             status=InventoryOperation.Status.DRAFT,
             warehouse=self.source_warehouse,
+            destination_warehouse=self.destination_warehouse,
             created_by_id=1,
         )
 
