@@ -13,10 +13,13 @@ from inventory.infrastructure.django.models import (
     InventoryOperation, InventoryOperationLine, InventoryV1Stock,
     InventoryV1StockMovement,
 )
-from inventory.domain.value_objects.stock_key import StockKey
-from inventory.application.commands import OperationIdentityInput, ReverseStockMovementCommand
+from inventory.application.commands import (
+    OperationIdentityInput,
+    ReverseStockMovementCommand,
+)
 from inventory.application.context import InventoryExecutionContext
 from inventory.application.use_cases.reverse_stock_movement import ReverseStockMovementUseCase
+from inventory.domain.value_objects.stock_key import StockKey
 from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.infrastructure.django.repositories import (
     DjangoIngredientRepository,
@@ -140,7 +143,8 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
                 )
                 barrier.wait(timeout=10)
                 return use_case.execute(
-                    command, InventoryExecutionContext(self.business.pk, actor_id=1)
+                    command,
+                    InventoryExecutionContext(self.business.pk, actor_id=1),
                 )
             except Exception as error:
                 return error
