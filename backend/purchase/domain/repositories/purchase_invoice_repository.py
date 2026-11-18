@@ -16,6 +16,11 @@ class PurchaseInvoiceRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def lock_for_approval(self, business_id: int, purchase_invoice_id: int) -> bool:
+        """Lock the tenant-scoped invoice row before reading approval data."""
+        raise NotImplementedError
+
+    @abstractmethod
     def lock_for_posting(self, business_id: int, purchase_invoice_id: int) -> bool:
         """Lock only the tenant-scoped invoice row for a posting command."""
         raise NotImplementedError
