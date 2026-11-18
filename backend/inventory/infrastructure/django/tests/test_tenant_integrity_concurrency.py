@@ -35,6 +35,9 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             self.skipTest("Tenant-integrity locking requires PostgreSQL.")
         self.business = Business.objects.create(name="Tenant lock source")
         self.other_business = Business.objects.create(name="Tenant lock target")
+        self.other_warehouse = Warehouse.objects.create(
+            business=self.other_business, name="Other tenant warehouse"
+        )
         self.source_warehouse = Warehouse.objects.create(
             business=self.business, name="Source warehouse"
         )
