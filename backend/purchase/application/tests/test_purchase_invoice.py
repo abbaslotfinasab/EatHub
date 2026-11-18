@@ -26,6 +26,11 @@ class FakePurchaseInvoiceRepository:
     def __init__(self, invoice):
         self.invoice = invoice
         self.save_calls = 0
+        self.lock_calls = 0
+
+    def lock_for_approval(self, business_id, invoice_id):
+        self.lock_calls += 1
+        return self.invoice.id == invoice_id and self.invoice.business_id == business_id
 
     def get_by_id_for_business(self, invoice_id, business_id):
         if self.invoice.id != invoice_id or self.invoice.business_id != business_id:
@@ -76,6 +81,7 @@ class PurchaseInvoiceApprovalUseCaseTests(SimpleTestCase):
 
         self.assertEqual(approved.status, PurchaseInvoiceStatus.APPROVED)
         self.assertEqual(repository.save_calls, 1)
+        self.assertEqual(repository.lock_calls, 1)
         self.assertEqual(approved.total_price, Decimal("10.00"))
 
     def test_cross_business_invoice_cannot_be_approved(self):
