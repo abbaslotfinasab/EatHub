@@ -313,6 +313,33 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
         )
 
 
+    def test_v1_stock_reference_lock_serializes_ingredient_tenant_change(self):
+        def assert_persisted():
+            self.assertTrue(
+                InventoryV1Stock.objects.filter(
+                    business=self.business,
+                    warehouse=self.source_warehouse,
+                    ingredient=self.ingredient,
+                ).exists()
+            )
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: InventoryV1Stock.objects.create(
+                business=self.business,
+                warehouse=self.source_warehouse,
+                ingredient=self.ingredient,
+                unit="kg",
+            ),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-v1-stock-ingredient-insert",
+            parent_name="eathub-v1-stock-ingredient-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
     def test_reservation_line_reference_lock_serializes_ingredient_tenant_change(self):
         reservation = InventoryReservation.objects.create(
             business=self.business,
