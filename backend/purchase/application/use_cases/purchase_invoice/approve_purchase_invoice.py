@@ -23,6 +23,11 @@ class ApprovePurchaseInvoiceUseCase:
         self._validate_positive_id(command.approved_by_id, "Approval actor ID")
 
         with self._transaction_manager.atomic():
+            if not self._repository.lock_for_approval(
+                command.business_id,
+                command.purchase_invoice_id,
+            ):
+                raise ValueError("Purchase invoice does not exist in this business.")
             invoice = self._repository.get_by_id_for_business(
                 command.purchase_invoice_id,
                 command.business_id,
