@@ -189,6 +189,12 @@ class FakeStockMovementRepository:
                 for movement in reversed(self.rows)
                 if movement.stock_key == stock_key
                 and movement.stock_key.business_id == business_id
+                and movement.movement_type is not MovementType.REVERSAL
+                and not any(
+                    candidate.movement_type is MovementType.REVERSAL
+                    and candidate.reverses == movement.source_identity
+                    for candidate in self.rows
+                )
             ),
             None,
         )
@@ -594,6 +600,44 @@ class InventoryApplicationTests(TestCase):
         conflicting = self.reverse_command(original, reason="Different reason")
         with self.assertRaises(OperationConflict):
             self.reverse.execute(conflicting, self.context)
+
+    def test_reversal_of_latest_then_previous_movement_restores_original_valuation(self) -> None:
+        self.seed_stock("0", "0")
+        self.receive.execute(self.receive_command(), self.context)
+        first = self.movements.rows[-1]
+        self.receive.execute(
+            self.receive_command(
+                quantity_amount=Decimal("1"),
+                unit_cost_amount=Decimal("9"),
+                source=self.operation(document_id=101),
+            ),
+            self.context,
+        )
+        second = self.movements.rows[-1]
+
+        after_second_reversal = self.reverse.execute(
+            self.reverse_command(
+                second,
+                source=self.operation("inventory_reversal", 301, 1, "reverse_movement"),
+            ),
+            self.context,
+        )
+        self.assertEqual(after_second_reversal.current_quantity, Quantity(Decimal("4"), Unit.KG))
+        self.assertEqual(after_second_reversal.current_average_cost, UnitCost("3"))
+
+        after_first_reversal = self.reverse.execute(
+            self.reverse_command(
+                first,
+                source=self.operation("inventory_reversal", 302, 1, "reverse_movement"),
+            ),
+            self.context,
+        )
+        self.assertEqual(after_first_reversal.current_quantity, Quantity.zero(Unit.KG))
+        self.assertEqual(after_first_reversal.current_average_cost, UnitCost.zero())
+        self.assertEqual(
+            [movement.reverses for movement in self.movements.rows if movement.movement_type is MovementType.REVERSAL],
+            [second.source_identity, first.source_identity],
+        )
 
     def test_older_and_already_reversed_movements_are_rejected_from_trusted_facts(self) -> None:
         self.receive.execute(self.receive_command(), self.context)
