@@ -21,6 +21,7 @@ from inventory.models import (
     Ingredient,
     Recipe,
     RecipeInput,
+    RecipeOutput,
     Stock,
     Warehouse,
 )
