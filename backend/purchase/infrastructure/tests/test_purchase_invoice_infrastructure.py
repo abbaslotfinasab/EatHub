@@ -289,7 +289,8 @@ class PurchaseInvoiceInfrastructureTests(TestCase):
         method_source = inspect.getsource(
             DjangoPurchaseInvoiceMatchingRepository.lock_invoice_for_matching,
         )
-        self.assertIn('select_for_update(of=("self",))', method_source)
+        self.assertIn('select_for_update(', method_source)
+        self.assertIn('of=("self",)', method_source)
         self.assertIn("business_id=business_id", method_source)
         self.assertNotIn("select_related", method_source)
         self.assertNotIn('"purchase_order"', method_source)
