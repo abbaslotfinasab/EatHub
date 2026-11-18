@@ -12,7 +12,7 @@ from django.test import TransactionTestCase
 
 from accounts.models import Business, User
 from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
-from inventory.infrastructure.django.models import InventoryV1StockMovement
+from inventory.infrastructure.django.models import InventoryV1Stock, InventoryV1StockMovement
 from inventory.infrastructure.django.repositories import (
     DjangoIngredientRepository,
     DjangoStockMovementRepository,
@@ -261,3 +261,123 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
                         "DELETE FROM inventory_v1_stock_movement WHERE id = %s",
                         [movement.pk],
                     )
+
+
+    def _unlinked_receipt_item(self):
+        receipt = GoodsReceipt.objects.create(
+            business=self.business,
+            purchase_order=self.order,
+            received_by=self.user,
+            received_date=datetime(2026, 10, 3, 12),
+        )
+        item = GoodsReceiptItem.objects.create(
+            receipt=receipt,
+            purchase_order_item=self.order_item,
+            received_quantity=Decimal("1"),
+            rejected_quantity=Decimal("0"),
+            purchase_unit="kg",
+        )
+        return receipt, item
+
+    def _movement(self, *, business, stock, receipt, item):
+        return InventoryV1StockMovement.objects.create(
+            business=business,
+            stock=stock,
+            movement_type="receipt",
+            direction="in",
+            quantity=Decimal("1"),
+            unit="kg",
+            unit_cost=Decimal("150"),
+            balance_after=Decimal("1"),
+            average_cost_before=Decimal("0"),
+            source_type="goods_receipt",
+            source_document_id=receipt.pk,
+            source_line_id=item.pk,
+            operation_kind="receive_stock",
+            actor_id=self.user.pk,
+        )
+
+    def test_database_rejects_link_with_mismatched_source_identity(self):
+        receipt, item = self._unlinked_receipt_item()
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=self.ingredient,
+            unit="kg",
+            quantity=Decimal("1"),
+            average_cost=Decimal("150"),
+        )
+        movement = self._movement(
+            business=self.business, stock=stock, receipt=receipt, item=item
+        )
+        _, wrong_item = self._unlinked_receipt_item()
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                GoodsReceiptInventoryMovementLink.objects.create(
+                    receipt_item=wrong_item,
+                    movement=movement,
+                )
+
+    def test_database_rejects_link_to_movement_for_another_ingredient(self):
+        receipt, item = self._unlinked_receipt_item()
+        other_ingredient = Ingredient.objects.create(
+            business=self.business,
+            name="Other ingredient",
+            unit=Ingredient.Unit.KG,
+        )
+        other_stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=other_ingredient,
+            unit="kg",
+            quantity=Decimal("1"),
+            average_cost=Decimal("150"),
+        )
+        movement = self._movement(
+            business=self.business, stock=other_stock, receipt=receipt, item=item
+        )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                GoodsReceiptInventoryMovementLink.objects.create(
+                    receipt_item=item,
+                    movement=movement,
+                )
+
+    def test_database_rejects_link_to_movement_from_another_business(self):
+        receipt, item = self._unlinked_receipt_item()
+        foreign_business = Business.objects.create(
+            name="Foreign receipt business",
+            slug="foreign-receipt-business",
+        )
+        foreign_warehouse = Warehouse.objects.create(
+            business=foreign_business,
+            name="Foreign warehouse",
+        )
+        foreign_ingredient = Ingredient.objects.create(
+            business=foreign_business,
+            name="Foreign ingredient",
+            unit=Ingredient.Unit.KG,
+        )
+        foreign_stock = InventoryV1Stock.objects.create(
+            business=foreign_business,
+            warehouse=foreign_warehouse,
+            ingredient=foreign_ingredient,
+            unit="kg",
+            quantity=Decimal("1"),
+            average_cost=Decimal("150"),
+        )
+        movement = self._movement(
+            business=foreign_business,
+            stock=foreign_stock,
+            receipt=receipt,
+            item=item,
+        )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                GoodsReceiptInventoryMovementLink.objects.create(
+                    receipt_item=item,
+                    movement=movement,
+                )
