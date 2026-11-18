@@ -4,7 +4,7 @@ from decimal import Decimal
 from threading import Event
 from unittest import skipUnless
 
-from django.db import connection, connections
+from django.db import connection, connections, transaction
 from django.test import TransactionTestCase
 
 from accounts.models import Business, User
@@ -104,7 +104,8 @@ class PurchaseInvoiceMatchingConcurrencyTests(TransactionTestCase):
                 self.user.id,
                 datetime(2026, 11, 4, 12, tzinfo=timezone.utc),
             )
-            approved = invoice_repository.save_approved(invoice)
+            with transaction.atomic():
+                approved = invoice_repository.save_approved(invoice)
             self.invoice_ids.append(approved.id)
 
     def test_two_invoices_cannot_consume_the_same_received_quantity_concurrently(self):
