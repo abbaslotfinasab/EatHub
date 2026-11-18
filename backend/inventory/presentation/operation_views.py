@@ -113,6 +113,14 @@ class StocktakeCountSerializer(StrictSerializer):
 
     lines = Line(many=True, allow_empty=False)
 
+    def validate(self, values):
+        line_ids = [entry["id"] for entry in values["lines"]]
+        if len(line_ids) != len(set(line_ids)):
+            raise serializers.ValidationError(
+                {"lines": "Each stocktake line may be counted only once per request."}
+            )
+        return values
+
 
 class OperationQuerySerializer(serializers.Serializer):
     page = serializers.IntegerField(min_value=1, required=False, default=1)

@@ -346,8 +346,10 @@ def update_stocktake_counts(*, business_id, actor_id, operation_id, counts):
             if line is None:
                 raise ResourceNotFound("Stocktake line was not found.")
             line.counted_quantity = Quantity(values["counted_quantity"], Unit(line.unit)).amount
-            cost = values.get("counted_unit_cost")
-            line.counted_unit_cost = UnitCost(cost).amount if cost is not None else None
+            # PATCH semantics: an omitted optional cost leaves the previously
+            # recorded cost intact; the serializer does not accept explicit null.
+            if "counted_unit_cost" in values:
+                line.counted_unit_cost = UnitCost(values["counted_unit_cost"]).amount
             line.counted_by_id = actor_id
             line.counted_at = timezone.now()
             line.save(update_fields=("counted_quantity", "counted_unit_cost", "counted_by_id", "counted_at"))

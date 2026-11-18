@@ -244,6 +244,49 @@ class InventoryOperationsAPITests(APITestCase):
         self.assertEqual(stale.status_code, 409, stale.data)
         self.assertFalse(InventoryV1StockMovement.objects.filter(source_type="inventory_stocktake").exists())
 
+    def test_stocktake_count_patch_preserves_existing_cost_when_cost_is_omitted(self):
+        zero_stock = InventoryV1Stock.objects.create(
+            business=self.business, warehouse=self.destination, ingredient=self.item,
+            unit="kg", quantity=Decimal("0"), average_cost=Decimal("0"),
+        )
+        stocktake = self._create("/api/inventory/stocktakes/", {
+            "warehouse_id": self.destination.pk,
+            "lines": [{"ingredient_id": self.item.pk, "quantity": "0", "unit": "kg"}],
+        })
+        line_id = stocktake["lines"][0]["id"]
+
+        first_count = self.client.patch(f"/api/inventory/stocktakes/{stocktake['id']}/", {
+            "lines": [{"id": line_id, "counted_quantity": "2", "counted_unit_cost": "5"}],
+        }, format="json")
+        self.assertEqual(first_count.status_code, 200, first_count.data)
+        corrected_count = self.client.patch(f"/api/inventory/stocktakes/{stocktake['id']}/", {
+            "lines": [{"id": line_id, "counted_quantity": "3"}],
+        }, format="json")
+        self.assertEqual(corrected_count.status_code, 200, corrected_count.data)
+        self.assertEqual(Decimal(corrected_count.data["lines"][0]["counted_unit_cost"]), Decimal("5"))
+
+        approved = self.client.post(f"/api/inventory/stocktakes/{stocktake['id']}/approve/", {}, format="json")
+        self.assertEqual(approved.status_code, 200, approved.data)
+        zero_stock.refresh_from_db()
+        self.assertEqual(zero_stock.quantity, Decimal("3"))
+        self.assertEqual(zero_stock.average_cost, Decimal("5"))
+
+    def test_stocktake_count_patch_rejects_duplicate_line_ids(self):
+        stocktake = self._create("/api/inventory/stocktakes/", {
+            "warehouse_id": self.warehouse.pk,
+            "lines": [{"ingredient_id": self.item.pk, "quantity": "0", "unit": "kg"}],
+        })
+        line_id = stocktake["lines"][0]["id"]
+        response = self.client.patch(f"/api/inventory/stocktakes/{stocktake['id']}/", {
+            "lines": [
+                {"id": line_id, "counted_quantity": "4"},
+                {"id": line_id, "counted_quantity": "6"},
+            ],
+        }, format="json")
+        self.assertEqual(response.status_code, 400, response.data)
+        persisted = InventoryOperation.objects.get(pk=stocktake["id"]).lines.get(pk=line_id)
+        self.assertIsNone(persisted.counted_quantity)
+
     def test_stocktake_requires_cost_when_count_adds_quantity_to_zero_cost_stock(self):
         zero_stock = InventoryV1Stock.objects.create(
             business=self.business, warehouse=self.destination, ingredient=self.item,
