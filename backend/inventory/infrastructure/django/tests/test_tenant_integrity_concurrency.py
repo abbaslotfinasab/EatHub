@@ -602,3 +602,34 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             parent_name="eathub-reservation-parent-tenant-change",
             assert_persisted=assert_persisted,
         )
+
+
+    def test_operation_line_reference_lock_serializes_operation_tenant_change(self):
+        def assert_persisted():
+            self.assertTrue(
+                InventoryOperationLine.objects.filter(
+                    operation=self.operation, ingredient=self.ingredient
+                ).exists()
+            )
+            self.operation.refresh_from_db()
+            self.assertEqual(self.operation.business_id, self.business.pk)
+            self.assertEqual(self.operation.warehouse_id, self.source_warehouse.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: InventoryOperationLine.objects.create(
+                operation=self.operation,
+                ingredient=self.ingredient,
+                quantity=Decimal("1"),
+                unit="kg",
+            ),
+            change_tenant=lambda: InventoryOperation.objects.filter(
+                pk=self.operation.pk
+            ).update(
+                business_id=self.other_business.pk,
+                warehouse_id=self.other_warehouse.pk,
+                destination_warehouse_id=None,
+            ),
+            child_name="eathub-operation-parent-line-insert",
+            parent_name="eathub-operation-parent-tenant-change",
+            assert_persisted=assert_persisted,
+        )
