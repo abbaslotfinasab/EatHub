@@ -112,7 +112,7 @@ RESTORE_FUNCTION_SQL = """
 CREATE OR REPLACE FUNCTION purchase_validate_goods_receipt_inventory_link()
 RETURNS trigger
 LANGUAGE plpgsql
-AS $
+AS $$
 DECLARE
     receipt_business_id bigint;
     receipt_id bigint;
@@ -197,7 +197,7 @@ BEGIN
 
     RETURN NEW;
 END;
-$
+$$
 """
 
 
