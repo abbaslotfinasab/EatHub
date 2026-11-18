@@ -14,9 +14,15 @@ from inventory.infrastructure.django.models import (
     InventoryV1StockMovement,
 )
 from inventory.domain.value_objects.stock_key import StockKey
+from inventory.application.commands import OperationIdentityInput, ReverseStockMovementCommand
+from inventory.application.context import InventoryExecutionContext
+from inventory.application.use_cases.reverse_stock_movement import ReverseStockMovementUseCase
+from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.infrastructure.django.repositories import (
+    DjangoIngredientRepository,
     DjangoStockMovementRepository,
     DjangoStockRepository,
+    DjangoWarehouseRepository,
 )
 from inventory.infrastructure.django.operations_service import (
     approve_stocktake,
@@ -92,6 +98,72 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertIsNotNone(latest)
         self.assertEqual(latest.source_document_id, first.source_document_id)
         self.assertEqual(latest.source_identity.source_document_id, first.source_document_id)
+
+    def test_concurrent_reversal_requests_append_only_one_reversal(self):
+        self.stock.quantity = Decimal("5")
+        self.stock.average_cost = Decimal("4.2")
+        self.stock.save(update_fields=("quantity", "average_cost"))
+        InventoryV1StockMovement.objects.create(
+            business=self.business, stock=self.stock, movement_type="receipt",
+            direction="in", quantity=Decimal("4"), unit="kg", unit_cost=Decimal("3"),
+            balance_after=Decimal("4"), average_cost_before=Decimal("0"),
+            source_type="test_receipt", source_document_id=101, source_line_id=1,
+            operation_kind="receive_stock", actor_id=1,
+        )
+        original = InventoryV1StockMovement.objects.create(
+            business=self.business, stock=self.stock, movement_type="receipt",
+            direction="in", quantity=Decimal("1"), unit="kg", unit_cost=Decimal("9"),
+            balance_after=Decimal("5"), average_cost_before=Decimal("3"),
+            source_type="test_receipt", source_document_id=102, source_line_id=1,
+            operation_kind="receive_stock", actor_id=1,
+        )
+        barrier = Barrier(2)
+
+        def reverse():
+            close_old_connections()
+            try:
+                use_case = ReverseStockMovementUseCase(
+                    DjangoWarehouseRepository(),
+                    DjangoIngredientRepository(),
+                    DjangoStockRepository(),
+                    DjangoStockMovementRepository(),
+                    DjangoInventoryUnitOfWork(),
+                )
+                command = ReverseStockMovementCommand(
+                    target=OperationIdentityInput(
+                        "test_receipt", original.source_document_id, 1, "receive_stock"
+                    ),
+                    source=OperationIdentityInput(
+                        "test_reversal", 201, 1, "reverse_movement"
+                    ),
+                    reason="Concurrent correction",
+                )
+                barrier.wait(timeout=10)
+                return use_case.execute(
+                    command, InventoryExecutionContext(self.business.pk, actor_id=1)
+                )
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [
+                future.result(timeout=25)
+                for future in (pool.submit(reverse), pool.submit(reverse))
+            ]
+
+        self.assertEqual(sum(not isinstance(result, Exception) for result in results), 1)
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                business=self.business, movement_type="reversal",
+                reverses_source_document_id=original.source_document_id,
+            ).count(),
+            1,
+        )
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("4.000000000000"))
+        self.assertEqual(self.stock.average_cost, Decimal("3"))
 
     def test_concurrent_operation_creation_with_same_idempotency_key_returns_one_document(self):
         key = uuid4()
