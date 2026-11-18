@@ -13,7 +13,8 @@ from inventory.infrastructure.django.models import (
     InventoryOperation, InventoryOperationLine, InventoryV1Stock,
     InventoryV1StockMovement,
 )
-from inventory.infrastructure.django.repositories import DjangoStockRepository
+from inventory.infrastructure.django.repositories import DjangoStockMovementRepository, DjangoStockRepository
+from inventory.domain.value_objects.stock_key import StockKey
 from inventory.infrastructure.django.operations_service import (
     approve_stocktake,
     create_opening_stock,
@@ -53,6 +54,41 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
             operation=self.operation, ingredient=self.ingredient,
             quantity="3", unit="kg",
         )
+
+    def test_latest_effective_movement_skips_reversal_and_reversed_source(self):
+        first = InventoryV1StockMovement.objects.create(
+            business=self.business, stock=self.stock, movement_type="receipt",
+            direction="in", quantity=Decimal("4"), unit="kg", unit_cost=Decimal("3"),
+            balance_after=Decimal("4"), average_cost_before=Decimal("0"),
+            source_type="test_receipt", source_document_id=101, source_line_id=1,
+            operation_kind="receive_stock", actor_id=1,
+        )
+        second = InventoryV1StockMovement.objects.create(
+            business=self.business, stock=self.stock, movement_type="receipt",
+            direction="in", quantity=Decimal("1"), unit="kg", unit_cost=Decimal("9"),
+            balance_after=Decimal("5"), average_cost_before=Decimal("3"),
+            source_type="test_receipt", source_document_id=102, source_line_id=1,
+            operation_kind="receive_stock", actor_id=1,
+        )
+        InventoryV1StockMovement.objects.create(
+            business=self.business, stock=self.stock, movement_type="reversal",
+            direction="out", quantity=Decimal("1"), unit="kg", unit_cost=Decimal("9"),
+            balance_after=Decimal("4"), average_cost_before=Decimal("4"),
+            source_type="test_reversal", source_document_id=201, source_line_id=1,
+            operation_kind="reverse_movement", reverses_source_type=second.source_type,
+            reverses_source_document_id=second.source_document_id,
+            reverses_source_line_id=second.source_line_id,
+            reverses_operation_kind=second.operation_kind, actor_id=1,
+        )
+
+        latest = DjangoStockMovementRepository().get_latest_effective_for_stock(
+            self.business.pk,
+            StockKey(self.business.pk, self.warehouse.pk, self.ingredient.pk),
+        )
+
+        self.assertIsNotNone(latest)
+        self.assertEqual(latest.source_document_id, first.source_document_id)
+        self.assertEqual(latest.source_identity.source_document_id, first.source_document_id)
 
     def test_concurrent_operation_creation_with_same_idempotency_key_returns_one_document(self):
         key = uuid4()
