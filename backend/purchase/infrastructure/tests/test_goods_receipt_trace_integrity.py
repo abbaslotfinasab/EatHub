@@ -263,12 +263,13 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
                     )
 
 
-    def _unlinked_receipt_item(self):
+    def _unlinked_receipt_item(self, *, warehouse_id=None):
         receipt = GoodsReceipt.objects.create(
             business=self.business,
             purchase_order=self.order,
             received_by=self.user,
             received_date=datetime(2026, 10, 3, 12),
+            warehouse_id=warehouse_id,
         )
         item = GoodsReceiptItem.objects.create(
             receipt=receipt,
@@ -373,6 +374,32 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
             stock=foreign_stock,
             receipt=receipt,
             item=item,
+        )
+
+        with self.assertRaises(DatabaseError):
+            with transaction.atomic():
+                GoodsReceiptInventoryMovementLink.objects.create(
+                    receipt_item=item,
+                    movement=movement,
+                )
+
+
+    def test_database_rejects_link_to_another_same_business_warehouse(self):
+        receipt, item = self._unlinked_receipt_item(warehouse_id=self.warehouse.id)
+        other_warehouse = Warehouse.objects.create(
+            business=self.business,
+            name="Other warehouse",
+        )
+        other_stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=other_warehouse,
+            ingredient=self.ingredient,
+            unit="kg",
+            quantity=Decimal("1"),
+            average_cost=Decimal("150"),
+        )
+        movement = self._movement(
+            business=self.business, stock=other_stock, receipt=receipt, item=item
         )
 
         with self.assertRaises(DatabaseError):

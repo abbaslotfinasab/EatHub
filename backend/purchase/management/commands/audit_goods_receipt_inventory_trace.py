@@ -141,6 +141,16 @@ class Command(BaseCommand):
             if expected_item is not None:
                 order = expected_item.purchase_order_item.purchase_order
                 if (
+                    expected_item.receipt.warehouse_id is not None
+                    and expected_item.receipt.warehouse_id != stock.warehouse_id
+                ):
+                    add_issue(
+                        "receipt_warehouse_mismatch",
+                        movement_id=movement.pk,
+                        receipt_item_id=expected_item.pk,
+                        detail="Movement stock warehouse differs from the warehouse explicitly selected on the goods receipt.",
+                    )
+                if (
                     expected_item.purchase_order_item.ingredient_id != stock.ingredient_id
                     or expected_item.receipt.purchase_order_id != order.pk
                     or order.business_id != movement.business_id
