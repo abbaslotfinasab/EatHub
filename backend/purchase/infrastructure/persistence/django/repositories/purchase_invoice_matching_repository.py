@@ -19,11 +19,39 @@ from purchase.models import (
 
 class DjangoPurchaseInvoiceMatchingRepository(PurchaseInvoiceMatchingRepository):
     def lock_invoice_for_matching(self, business_id: int, invoice_id: int) -> bool:
-        # Lock only the invoice row: joining nullable purchase_order here can
-        # produce an invalid PostgreSQL FOR UPDATE outer-join clause.
-        return DjangoPurchaseInvoice.objects.select_for_update(of=("self",)).filter(
+        # Lock only the invoice row first: joining nullable purchase_order here
+        # can produce an invalid PostgreSQL FOR UPDATE outer-join clause.
+        invoice = DjangoPurchaseInvoice.objects.select_for_update(
+            of=("self",),
+        ).filter(
             id=invoice_id, business_id=business_id,
-        ).exists()
+        ).values("id", "purchase_order_id").first()
+        if invoice is None:
+            return False
+
+        # Different invoices can consume the same received PO-line quantity.
+        # Lock their shared PO lines in a stable order before reading receipts
+        # and previously approved/posted invoices. This serializes matching
+        # across invoices and makes the next transaction observe the first
+        # invoice's committed posting under READ COMMITTED.
+        po_item_ids = list(
+            DjangoPurchaseInvoiceItem.objects.filter(
+                purchase_invoice_id=invoice_id,
+            ).order_by("purchase_order_item_id").values_list(
+                "purchase_order_item_id", flat=True,
+            ).distinct()
+        )
+        if po_item_ids:
+            list(
+                DjangoPurchaseOrderItem.objects.select_for_update(
+                    of=("self",),
+                ).filter(
+                    id__in=po_item_ids,
+                    purchase_order_id=invoice["purchase_order_id"],
+                    purchase_order__business_id=business_id,
+                ).order_by("id").values_list("id", flat=True)
+            )
+        return True
 
     def load_matching_context(
         self, business_id: int, invoice_id: int
