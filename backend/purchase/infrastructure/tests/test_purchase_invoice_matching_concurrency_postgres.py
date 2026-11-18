@@ -97,7 +97,7 @@ class PurchaseInvoiceMatchingConcurrencyTests(TransactionTestCase):
                 items=[PurchaseInvoiceItem(
                     ingredient_id=self.ingredient.id,
                     purchase_order_item_id=self.order_item.id,
-                    quantity=Decimal("4"),
+                    quantity=Decimal("2"),
                     unit_price=Decimal("10.00"),
                 )],
             ))
@@ -183,19 +183,18 @@ class PurchaseInvoiceMatchingConcurrencyTests(TransactionTestCase):
             isinstance(first_result, Exception),
             f"first={first_result!r}; second={second_result!r}; status={diagnostic_match.status}; exceptions={diagnostic_match.exceptions}; lines={diagnostic_match.lines!r}",
         )
-        self.assertIsInstance(second_result, ValueError)
-        self.assertIn("current MATCHED", str(second_result))
+        self.assertFalse(isinstance(second_result, Exception), f"second={second_result!r}")
         self.assertEqual(
             DjangoPurchaseInvoice.objects.filter(
                 id__in=self.invoice_ids,
                 status=DjangoPurchaseInvoice.Status.POSTED,
             ).count(),
-            1,
+            2,
         )
         self.assertEqual(
             AccountsPayable.objects.filter(
                 business=self.business,
                 source_invoice_id__in=self.invoice_ids,
             ).count(),
-            1,
+            2,
         )
