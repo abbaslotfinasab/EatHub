@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
 from threading import Event
 from time import monotonic
 
@@ -6,8 +7,8 @@ from django.db import IntegrityError, close_old_connections, connections, connec
 from django.test import TransactionTestCase, skipUnlessDBFeature
 
 from accounts.models import Business
-from inventory.infrastructure.django.models import InventoryOperation
-from inventory.models import Warehouse
+from inventory.infrastructure.django.models import InventoryOperation, InventoryOperationLine
+from inventory.models import Ingredient, Warehouse
 
 
 @skipUnlessDBFeature("has_select_for_update")
@@ -27,6 +28,9 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
         )
         self.new_destination_warehouse = Warehouse.objects.create(
             business=self.business, name="New destination warehouse"
+        )
+        self.ingredient = Ingredient.objects.create(
+            business=self.business, name="Tenant lock ingredient", unit="kg"
         )
         self.operation = InventoryOperation.objects.create(
             business=self.business,
@@ -115,4 +119,73 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
         self.operation.refresh_from_db()
         self.assertEqual(
             self.operation.destination_warehouse_id, self.new_destination_warehouse.pk
+        )
+
+    def test_operation_line_reference_lock_serializes_ingredient_tenant_change(self):
+        line_attached = Event()
+        release_operation = Event()
+
+        def attach_operation_line():
+            close_old_connections()
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        "SET application_name = %s", ["eathub-ingredient-reference"]
+                    )
+                with transaction.atomic():
+                    InventoryOperationLine.objects.create(
+                        operation_id=self.operation.pk,
+                        ingredient_id=self.ingredient.pk,
+                        quantity=Decimal("1"),
+                        unit="kg",
+                    )
+                    line_attached.set()
+                    if not release_operation.wait(15):
+                        raise TimeoutError("test coordinator did not release operation-line insert")
+                return None
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        def change_ingredient_tenant():
+            close_old_connections()
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        "SET application_name = %s", ["eathub-ingredient-tenant-change"]
+                    )
+                with transaction.atomic():
+                    Ingredient.objects.filter(pk=self.ingredient.pk).update(
+                        business_id=self.other_business.pk
+                    )
+                return None
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            attach_future = pool.submit(attach_operation_line)
+            self.assertTrue(line_attached.wait(10))
+            tenant_future = pool.submit(change_ingredient_tenant)
+            try:
+                self._wait_for_lock_wait("eathub-ingredient-tenant-change")
+            finally:
+                release_operation.set()
+            attach_error = attach_future.result(timeout=20)
+            tenant_error = tenant_future.result(timeout=20)
+
+        self.assertIsNone(attach_error, msg=f"operation-line insert failed: {attach_error!r}")
+        self.assertIsInstance(
+            tenant_error,
+            IntegrityError,
+            msg=f"ingredient tenant change unexpectedly succeeded: {tenant_error!r}",
+        )
+        self.ingredient.refresh_from_db()
+        self.assertEqual(self.ingredient.business_id, self.business.pk)
+        self.assertTrue(
+            InventoryOperationLine.objects.filter(
+                operation_id=self.operation.pk, ingredient_id=self.ingredient.pk
+            ).exists()
         )
