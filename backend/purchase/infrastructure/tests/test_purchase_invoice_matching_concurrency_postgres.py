@@ -17,6 +17,7 @@ from purchase.application.use_cases.purchase_invoice.post_purchase_invoice impor
     PostPurchaseInvoice,
 )
 from purchase.domain.entities.purchase_invoice import PurchaseInvoice, PurchaseInvoiceItem
+from purchase.domain.services.purchase_invoice_matcher import PurchaseInvoiceMatcher
 from purchase.infrastructure.persistence.django.repositories.accounts_payable_repository import (
     DjangoAccountsPayableRepository,
 )
@@ -114,6 +115,12 @@ class PurchaseInvoiceMatchingConcurrencyTests(TransactionTestCase):
         second_context_loaded = Event()
         release_first = Event()
         first_invoice_id, second_invoice_id = self.invoice_ids
+        diagnostic_context = DjangoPurchaseInvoiceMatchingRepository().load_matching_context(
+            self.business.id, first_invoice_id,
+        )
+        diagnostic_match = PurchaseInvoiceMatcher().match(
+            diagnostic_context.invoice, list(diagnostic_context.lines),
+        )
 
         class CoordinatedMatchingRepository(DjangoPurchaseInvoiceMatchingRepository):
             def lock_invoice_for_matching(inner_self, business_id, invoice_id):
@@ -174,7 +181,7 @@ class PurchaseInvoiceMatchingConcurrencyTests(TransactionTestCase):
 
         self.assertFalse(
             isinstance(first_result, Exception),
-            f"first={first_result!r}; second={second_result!r}",
+            f"first={first_result!r}; second={second_result!r}; status={diagnostic_match.status}; exceptions={diagnostic_match.exceptions}; lines={diagnostic_match.lines!r}",
         )
         self.assertIsInstance(second_result, ValueError)
         self.assertIn("current MATCHED", str(second_result))
