@@ -21,6 +21,7 @@ from inventory.models import (
     Ingredient,
     Recipe,
     RecipeInput,
+    RecipeOutput,
     Stock,
     Warehouse,
 )
@@ -498,3 +499,106 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
         self.assertEqual(stock.warehouse_id, self.other_warehouse.pk)
         self.assertEqual(stock.ingredient_id, other_ingredient.pk)
         self.assertFalse(InventoryV1StockMovement.objects.filter(stock=stock).exists())
+
+
+    def test_compound_parent_reference_lock_serializes_preparation_level_change(self):
+        compound = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock compound parent",
+            unit="kg",
+            preparation_level="semi_prepared",
+        )
+
+        def assert_persisted():
+            self.assertTrue(
+                CompoundMaterialComponent.objects.filter(
+                    compound=compound, ingredient=self.ingredient
+                ).exists()
+            )
+            compound.refresh_from_db()
+            self.assertEqual(compound.preparation_level, "semi_prepared")
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: CompoundMaterialComponent.objects.create(
+                compound=compound,
+                ingredient=self.ingredient,
+                quantity=Decimal("1"),
+                unit="kg",
+            ),
+            change_tenant=lambda: Ingredient.objects.filter(pk=compound.pk).update(
+                preparation_level="raw"
+            ),
+            child_name="eathub-compound-parent-insert",
+            parent_name="eathub-compound-parent-level-change",
+            assert_persisted=assert_persisted,
+        )
+
+    def test_recipe_output_reference_lock_serializes_recipe_tenant_change(self):
+        recipe = Recipe.objects.create(
+            business=self.business, name="Tenant lock output recipe"
+        )
+
+        def assert_persisted():
+            self.assertTrue(
+                RecipeOutput.objects.filter(
+                    recipe=recipe, ingredient=self.ingredient
+                ).exists()
+            )
+            recipe.refresh_from_db()
+            self.assertEqual(recipe.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: RecipeOutput.objects.create(
+                recipe=recipe,
+                ingredient=self.ingredient,
+                quantity=Decimal("1"),
+                unit="kg",
+            ),
+            change_tenant=lambda: Recipe.objects.filter(pk=recipe.pk).update(
+                business_id=self.other_business.pk
+            ),
+            child_name="eathub-recipe-output-insert",
+            parent_name="eathub-recipe-output-parent-change",
+            assert_persisted=assert_persisted,
+        )
+
+    def test_reservation_line_reference_lock_serializes_reservation_tenant_change(self):
+        reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.source_warehouse,
+            source_type="manual",
+            source_id=None,
+            reason="Tenant integrity parent race test",
+            status=InventoryReservation.Status.ACTIVE,
+            idempotency_key=uuid4(),
+            payload_fingerprint="a" * 64,
+            created_by_id=1,
+        )
+
+        def assert_persisted():
+            self.assertTrue(
+                InventoryReservationLine.objects.filter(
+                    reservation=reservation, ingredient=self.ingredient
+                ).exists()
+            )
+            reservation.refresh_from_db()
+            self.assertEqual(reservation.business_id, self.business.pk)
+            self.assertEqual(reservation.warehouse_id, self.source_warehouse.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: InventoryReservationLine.objects.create(
+                reservation=reservation,
+                ingredient=self.ingredient,
+                quantity=Decimal("1"),
+                unit="kg",
+            ),
+            change_tenant=lambda: InventoryReservation.objects.filter(
+                pk=reservation.pk
+            ).update(
+                business_id=self.other_business.pk,
+                warehouse_id=self.other_warehouse.pk,
+            ),
+            child_name="eathub-reservation-parent-line-insert",
+            parent_name="eathub-reservation-parent-tenant-change",
+            assert_persisted=assert_persisted,
+        )
