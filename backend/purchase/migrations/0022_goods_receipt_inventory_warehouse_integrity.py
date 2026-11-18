@@ -108,27 +108,17 @@ DROP FUNCTION IF EXISTS purchase_validate_goods_receipt_inventory_link()
 def install_goods_receipt_inventory_link_guard(apps, schema_editor):
     if schema_editor.connection.vendor != "postgresql":
         return
+    # The trigger created by migration 0021 already calls this function.
+    # Replacing the function updates its validation without recreating the trigger.
     schema_editor.execute(CREATE_FUNCTION_SQL)
-    schema_editor.execute(
-        """
-        CREATE TRIGGER purchase_goods_receipt_inventory_link_validate
-        BEFORE INSERT ON purchase_goods_receipt_inventory_movement
-        FOR EACH ROW
-        EXECUTE FUNCTION purchase_validate_goods_receipt_inventory_link()
-        """
-    )
 
 
 def remove_goods_receipt_inventory_link_guard(apps, schema_editor):
     if schema_editor.connection.vendor != "postgresql":
         return
-    schema_editor.execute(
-        """
-        DROP TRIGGER IF EXISTS purchase_goods_receipt_inventory_link_validate
-        ON purchase_goods_receipt_inventory_movement
-        """
-    )
-    schema_editor.execute(DROP_FUNCTION_SQL)
+    # Keep the function installed for migration 0021's trigger. Reversing
+    # migration 0021 later removes both trigger and function.
+    pass
 
 
 class Migration(migrations.Migration):
