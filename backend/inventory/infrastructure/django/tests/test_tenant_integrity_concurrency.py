@@ -414,42 +414,84 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             ingredient=self.ingredient,
             unit="kg",
         )
-
-        def assert_persisted():
-            self.assertTrue(
-                InventoryV1StockMovement.objects.filter(
-                    stock=stock, business=self.business
-                ).exists()
-            )
-            stock.refresh_from_db()
-            self.assertEqual(stock.business_id, self.business.pk)
-
-        self._assert_child_insert_serializes_parent_tenant_change(
-            insert_stock=lambda: InventoryV1StockMovement.objects.create(
-                business=self.business,
-                stock=stock,
-                movement_type="receipt",
-                direction="in",
-                quantity=Decimal("1"),
-                unit="kg",
-                unit_cost=Decimal("1"),
-                balance_after=Decimal("1"),
-                average_cost_before=Decimal("0"),
-                source_type="tenant-integrity-concurrency-test",
-                source_document_id=1,
-                source_line_id=1,
-                operation_kind="receive",
-            ),
-            change_tenant=lambda: InventoryV1Stock.objects.filter(pk=stock.pk).update(
-                business=self.other_business,
-                warehouse=self.other_warehouse,
-                ingredient=Ingredient.objects.create(
-                    business=self.other_business,
-                    name="Tenant lock foreign ingredient",
-                    unit="kg",
-                ),
-            ),
-            child_name="eathub-stock-movement-insert",
-            parent_name="eathub-stock-tenant-change",
-            assert_persisted=assert_persisted,
+        other_ingredient = Ingredient.objects.create(
+            business=self.other_business,
+            name="Tenant lock foreign ingredient",
+            unit="kg",
         )
+        stock_updated = Event()
+        release_stock_update = Event()
+
+        def update_stock_tenant():
+            close_old_connections()
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        "SET application_name = %s", ["eathub-stock-tenant-update"]
+                    )
+                with transaction.atomic():
+                    InventoryV1Stock.objects.filter(pk=stock.pk).update(
+                        business=self.other_business,
+                        warehouse=self.other_warehouse,
+                        ingredient=other_ingredient,
+                    )
+                    stock_updated.set()
+                    if not release_stock_update.wait(15):
+                        raise TimeoutError("test coordinator did not release stock update")
+                return None
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        def insert_movement():
+            close_old_connections()
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        "SET application_name = %s", ["eathub-stock-movement-insert"]
+                    )
+                with transaction.atomic():
+                    InventoryV1StockMovement.objects.create(
+                        business=self.business,
+                        stock=stock,
+                        movement_type="receipt",
+                        direction="in",
+                        quantity=Decimal("1"),
+                        unit="kg",
+                        unit_cost=Decimal("1"),
+                        balance_after=Decimal("1"),
+                        average_cost_before=Decimal("0"),
+                        source_type="tenant-integrity-concurrency-test",
+                        source_document_id=1,
+                        source_line_id=1,
+                        operation_kind="receive",
+                    )
+                return None
+            except Exception as error:
+                return error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            stock_future = pool.submit(update_stock_tenant)
+            self.assertTrue(stock_updated.wait(10))
+            movement_future = pool.submit(insert_movement)
+            try:
+                self._wait_for_lock_wait("eathub-stock-movement-insert")
+            finally:
+                release_stock_update.set()
+            stock_error = stock_future.result(timeout=20)
+            movement_error = movement_future.result(timeout=20)
+
+        self.assertIsNone(stock_error, msg=f"stock tenant update failed: {stock_error!r}")
+        self.assertIsInstance(
+            movement_error,
+            IntegrityError,
+            msg=f"movement insert unexpectedly succeeded: {movement_error!r}",
+        )
+        stock.refresh_from_db()
+        self.assertEqual(stock.business_id, self.other_business.pk)
+        self.assertEqual(stock.warehouse_id, self.other_warehouse.pk)
+        self.assertEqual(stock.ingredient_id, other_ingredient.pk)
+        self.assertFalse(InventoryV1StockMovement.objects.filter(stock=stock).exists())
