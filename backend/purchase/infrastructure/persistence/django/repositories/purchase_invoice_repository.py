@@ -30,6 +30,13 @@ class DjangoPurchaseInvoiceRepository(PurchaseInvoiceRepository):
         ).first()
         return None if model is None else PurchaseInvoiceMapper.to_domain(model)
 
+    def lock_for_approval(self, business_id: int, purchase_invoice_id: int) -> bool:
+        # Serialize approval with draft edits before loading the invoice/items.
+        return DjangoPurchaseInvoice.objects.select_for_update(of=("self",)).filter(
+            id=purchase_invoice_id,
+            business_id=business_id,
+        ).exists()
+
     def lock_for_posting(self, business_id: int, purchase_invoice_id: int) -> bool:
         # Lock only the invoice row. Load nullable relations after this query.
         return DjangoPurchaseInvoice.objects.select_for_update(of=("self",)).filter(
