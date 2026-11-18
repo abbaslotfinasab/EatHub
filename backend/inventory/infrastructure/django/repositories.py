@@ -1,5 +1,5 @@
 from django.db import IntegrityError, connection, transaction
-from django.db.models import QuerySet, Sum
+from django.db.models import Exists, OuterRef, QuerySet, Sum
 
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from inventory.application.dto.stock_balance import (
@@ -296,6 +296,14 @@ class DjangoStockMovementRepository:
     ) -> StockMovement | None:
         if stock_key.business_id != business_id:
             raise TenantMismatch("StockKey belongs to another Business.")
+        reversed_sources = InventoryV1StockMovement.objects.filter(
+            business_id=business_id,
+            movement_type="reversal",
+            reverses_source_type=OuterRef("source_type"),
+            reverses_source_document_id=OuterRef("source_document_id"),
+            reverses_source_line_id=OuterRef("source_line_id"),
+            reverses_operation_kind=OuterRef("operation_kind"),
+        )
         row = (
             _movement_rows()
             .filter(
@@ -304,6 +312,9 @@ class DjangoStockMovementRepository:
                 stock__warehouse_id=stock_key.warehouse_id,
                 stock__ingredient_id=stock_key.ingredient_id,
             )
+            .exclude(movement_type="reversal")
+            .annotate(_has_reversal=Exists(reversed_sources))
+            .filter(_has_reversal=False)
             .order_by("-pk")
             .first()
         )
