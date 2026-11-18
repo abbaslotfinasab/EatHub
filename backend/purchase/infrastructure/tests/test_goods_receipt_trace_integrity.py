@@ -310,7 +310,7 @@ class GoodsReceiptHistoricalIntegrityPostgreSQLTests(
         movement = self._movement(
             business=self.business, stock=stock, receipt=receipt, item=item
         )
-        wrong_receipt, wrong_item = self._unlinked_receipt_item()
+        _, wrong_item = self._unlinked_receipt_item()
 
         with self.assertRaises(DatabaseError):
             with transaction.atomic():
