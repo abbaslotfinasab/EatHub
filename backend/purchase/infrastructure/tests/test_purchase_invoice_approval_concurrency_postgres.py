@@ -65,7 +65,8 @@ class PurchaseInvoiceApprovalConcurrencyTests(TransactionTestCase):
         ))
 
     def test_approval_lock_prevents_draft_edit_from_slipping_between_read_and_transition(self):
-        barrier = Barrier(2)
+        lock_acquired = Barrier(2)
+        stale_read_complete = Barrier(2)
 
         class BarrierRepository(DjangoPurchaseInvoiceRepository):
             def lock_for_approval(inner_self, business_id, invoice_id):
@@ -73,7 +74,8 @@ class PurchaseInvoiceApprovalConcurrencyTests(TransactionTestCase):
                     business_id, invoice_id,
                 )
                 if locked:
-                    barrier.wait(timeout=15)
+                    lock_acquired.wait(timeout=15)
+                    stale_read_complete.wait(timeout=15)
                 return locked
 
         def approve():
@@ -95,12 +97,13 @@ class PurchaseInvoiceApprovalConcurrencyTests(TransactionTestCase):
         def edit():
             connections.close_all()
             try:
-                barrier.wait(timeout=15)
+                lock_acquired.wait(timeout=15)
                 repository = DjangoPurchaseInvoiceRepository()
                 candidate = repository.get_by_id_for_business(
                     self.invoice.id, self.business.id,
                 )
                 candidate.items[0].unit_price = Decimal("99.00")
+                stale_read_complete.wait(timeout=15)
                 return repository.save(candidate)
             except Exception as error:
                 return error
