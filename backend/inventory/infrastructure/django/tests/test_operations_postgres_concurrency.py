@@ -13,8 +13,11 @@ from inventory.infrastructure.django.models import (
     InventoryOperation, InventoryOperationLine, InventoryV1Stock,
     InventoryV1StockMovement,
 )
-from inventory.infrastructure.django.repositories import DjangoStockMovementRepository, DjangoStockRepository
 from inventory.domain.value_objects.stock_key import StockKey
+from inventory.infrastructure.django.repositories import (
+    DjangoStockMovementRepository,
+    DjangoStockRepository,
+)
 from inventory.infrastructure.django.operations_service import (
     approve_stocktake,
     create_opening_stock,
