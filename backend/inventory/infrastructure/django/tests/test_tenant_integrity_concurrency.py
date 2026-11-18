@@ -23,7 +23,10 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             business=self.business, name="Source warehouse"
         )
         self.destination_warehouse = Warehouse.objects.create(
-            business=self.business, name="Destination warehouse"
+            business=self.business, name="Existing destination warehouse"
+        )
+        self.new_destination_warehouse = Warehouse.objects.create(
+            business=self.business, name="New destination warehouse"
         )
         self.operation = InventoryOperation.objects.create(
             business=self.business,
@@ -46,6 +49,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
                 row = cursor.fetchone()
             if row and row[0] == "Lock" and row[1] > 0:
                 return
+            Event().wait(0.01)
         self.fail(f"PostgreSQL did not report a lock wait for {application_name}.")
 
     def test_destination_reference_lock_serializes_warehouse_tenant_change(self):
@@ -61,7 +65,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
                     )
                 with transaction.atomic():
                     InventoryOperation.objects.filter(pk=self.operation.pk).update(
-                        destination_warehouse_id=self.destination_warehouse.pk
+                        destination_warehouse_id=self.new_destination_warehouse.pk
                     )
                     destination_attached.set()
                     if not release_operation.wait(15):
@@ -80,7 +84,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
                         "SET application_name = %s", ["eathub-destination-tenant-change"]
                     )
                 with transaction.atomic():
-                    Warehouse.objects.filter(pk=self.destination_warehouse.pk).update(
+                    Warehouse.objects.filter(pk=self.new_destination_warehouse.pk).update(
                         business_id=self.other_business.pk
                     )
                 return None
@@ -106,9 +110,9 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             IntegrityError,
             msg=f"warehouse tenant change unexpectedly succeeded: {tenant_error!r}",
         )
-        self.destination_warehouse.refresh_from_db()
-        self.assertEqual(self.destination_warehouse.business_id, self.business.pk)
+        self.new_destination_warehouse.refresh_from_db()
+        self.assertEqual(self.new_destination_warehouse.business_id, self.business.pk)
         self.operation.refresh_from_db()
         self.assertEqual(
-            self.operation.destination_warehouse_id, self.destination_warehouse.pk
+            self.operation.destination_warehouse_id, self.new_destination_warehouse.pk
         )
