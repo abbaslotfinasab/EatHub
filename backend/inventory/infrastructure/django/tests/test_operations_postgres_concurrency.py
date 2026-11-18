@@ -99,7 +99,6 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
         )
 
         self.assertIsNotNone(latest)
-        self.assertEqual(latest.source_document_id, first.source_document_id)
         self.assertEqual(latest.source_identity.source_document_id, first.source_document_id)
 
     def test_concurrent_reversal_requests_append_only_one_reversal(self):
