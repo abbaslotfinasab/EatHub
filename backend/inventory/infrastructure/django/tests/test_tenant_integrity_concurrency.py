@@ -528,6 +528,37 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
         self.assertFalse(InventoryV1StockMovement.objects.filter(stock=stock).exists())
 
 
+    def test_operation_line_reference_update_lock_serializes_ingredient_tenant_change(self):
+        source_ingredient = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock operation line source",
+            unit="kg",
+        )
+        line = InventoryOperationLine.objects.create(
+            operation=self.operation,
+            ingredient=source_ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+
+        def assert_persisted():
+            line.refresh_from_db()
+            self.assertEqual(line.ingredient_id, self.ingredient.pk)
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: InventoryOperationLine.objects.filter(
+                pk=line.pk
+            ).update(ingredient_id=self.ingredient.pk),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-operation-line-reference-update",
+            parent_name="eathub-operation-line-ingredient-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
     def test_compound_parent_reference_lock_serializes_preparation_level_change(self):
         compound = Ingredient.objects.create(
             business=self.business,
