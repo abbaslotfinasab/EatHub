@@ -1,8 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from threading import Event
-from uuid import uuid4
 from time import monotonic
+from uuid import uuid4
 
 from django.db import IntegrityError, close_old_connections, connections, connection, transaction
 from django.test import TransactionTestCase, skipUnlessDBFeature
@@ -205,7 +205,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             ).exists()
         )
 
-    def _assert_stock_insert_serializes_parent_tenant_change(
+    def _assert_child_insert_serializes_parent_tenant_change(
         self, *, insert_stock, change_tenant, child_name, parent_name, assert_persisted
     ):
         stock_inserted = Event()
@@ -269,7 +269,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             self.ingredient.refresh_from_db()
             self.assertEqual(self.ingredient.business_id, self.business.pk)
 
-        self._assert_stock_insert_serializes_parent_tenant_change(
+        self._assert_child_insert_serializes_parent_tenant_change(
             insert_stock=lambda: Stock.objects.create(
                 warehouse=self.source_warehouse, ingredient=self.ingredient
             ),
@@ -293,7 +293,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             self.new_destination_warehouse.refresh_from_db()
             self.assertEqual(self.new_destination_warehouse.business_id, self.business.pk)
 
-        self._assert_stock_insert_serializes_parent_tenant_change(
+        self._assert_child_insert_serializes_parent_tenant_change(
             insert_stock=lambda: InventoryV1Stock.objects.create(
                 business=self.business,
                 warehouse=self.new_destination_warehouse,
@@ -331,7 +331,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             self.ingredient.refresh_from_db()
             self.assertEqual(self.ingredient.business_id, self.business.pk)
 
-        self._assert_stock_insert_serializes_parent_tenant_change(
+        self._assert_child_insert_serializes_parent_tenant_change(
             insert_stock=lambda: InventoryReservationLine.objects.create(
                 reservation=reservation,
                 ingredient=self.ingredient,
@@ -363,7 +363,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             self.ingredient.refresh_from_db()
             self.assertEqual(self.ingredient.preparation_level, "raw")
 
-        self._assert_stock_insert_serializes_parent_tenant_change(
+        self._assert_child_insert_serializes_parent_tenant_change(
             insert_stock=lambda: CompoundMaterialComponent.objects.create(
                 compound=compound,
                 ingredient=self.ingredient,
@@ -392,7 +392,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             recipe.refresh_from_db()
             self.assertEqual(recipe.business_id, self.business.pk)
 
-        self._assert_stock_insert_serializes_parent_tenant_change(
+        self._assert_child_insert_serializes_parent_tenant_change(
             insert_stock=lambda: RecipeInput.objects.create(
                 recipe=recipe,
                 ingredient=self.ingredient,
@@ -424,7 +424,7 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             stock.refresh_from_db()
             self.assertEqual(stock.business_id, self.business.pk)
 
-        self._assert_stock_insert_serializes_parent_tenant_change(
+        self._assert_child_insert_serializes_parent_tenant_change(
             insert_stock=lambda: InventoryV1StockMovement.objects.create(
                 business=self.business,
                 stock=stock,
