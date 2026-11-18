@@ -985,3 +985,50 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
             ).exists()
         )
 
+
+
+    def test_replaying_order_consumption_posts_one_issue_and_returns_same_ledger_identity(self):
+        from inventory.application.context import InventoryExecutionContext
+        from inventory.infrastructure.django.order_consumption_repository import (
+            DjangoOrderConsumptionPostingRepository,
+        )
+
+        repository = DjangoOrderConsumptionPostingRepository()
+        context = InventoryExecutionContext(self.business.pk, actor_id=81)
+        kwargs = {
+            "warehouse_id": self.warehouse.pk,
+            "order_id": 9001,
+            "consumption_id": 7001,
+            "lines": [{
+                "ingredient_id": self.ingredient.pk,
+                "quantity": "3",
+                "unit": "kg",
+            }],
+        }
+
+        first = repository.post_order_issue(context, **kwargs)
+        replay = repository.post_order_issue(context, **kwargs)
+
+        self.assertEqual(first.operation_id, replay.operation_id)
+        self.assertEqual(
+            first.movement_ids_by_ingredient,
+            replay.movement_ids_by_ingredient,
+        )
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))
+        self.assertEqual(
+            InventoryOperation.objects.filter(
+                business=self.business,
+                notes="OrderInventoryConsumption:7001",
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                business=self.business,
+                source_type="inventory_issue",
+                source_document_id=first.operation_id,
+                operation_kind="post",
+            ).count(),
+            1,
+        )
