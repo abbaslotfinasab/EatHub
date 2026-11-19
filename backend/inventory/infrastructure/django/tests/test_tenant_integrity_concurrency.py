@@ -887,3 +887,25 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             parent_name="eathub-recipe-output-ingredient-tenant-change",
             assert_persisted=assert_persisted,
         )
+
+    def test_legacy_stock_reference_lock_serializes_warehouse_tenant_change(self):
+        def assert_persisted():
+            self.assertTrue(
+                Stock.objects.filter(
+                    warehouse=self.source_warehouse, ingredient=self.ingredient
+                ).exists()
+            )
+            self.source_warehouse.refresh_from_db()
+            self.assertEqual(self.source_warehouse.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: Stock.objects.create(
+                warehouse=self.source_warehouse, ingredient=self.ingredient
+            ),
+            change_tenant=lambda: Warehouse.objects.filter(
+                pk=self.source_warehouse.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-legacy-stock-warehouse-insert",
+            parent_name="eathub-legacy-stock-warehouse-tenant-change",
+            assert_persisted=assert_persisted,
+        )
