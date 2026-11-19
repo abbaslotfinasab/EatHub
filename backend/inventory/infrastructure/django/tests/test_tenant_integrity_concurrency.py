@@ -827,3 +827,63 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             assert_persisted=assert_persisted,
         )
 
+
+
+    def test_recipe_input_reference_lock_serializes_ingredient_tenant_change(self):
+        recipe = Recipe.objects.create(
+            business=self.business, name="Tenant lock recipe input ingredient race"
+        )
+
+        def assert_persisted():
+            self.assertTrue(
+                RecipeInput.objects.filter(
+                    recipe=recipe, ingredient=self.ingredient
+                ).exists()
+            )
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: RecipeInput.objects.create(
+                recipe=recipe,
+                ingredient=self.ingredient,
+                quantity=Decimal("1"),
+                unit="kg",
+            ),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-recipe-input-ingredient-insert",
+            parent_name="eathub-recipe-input-ingredient-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
+    def test_recipe_output_reference_lock_serializes_ingredient_tenant_change(self):
+        recipe = Recipe.objects.create(
+            business=self.business, name="Tenant lock recipe output ingredient race"
+        )
+
+        def assert_persisted():
+            self.assertTrue(
+                RecipeOutput.objects.filter(
+                    recipe=recipe, ingredient=self.ingredient
+                ).exists()
+            )
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: RecipeOutput.objects.create(
+                recipe=recipe,
+                ingredient=self.ingredient,
+                quantity=Decimal("1"),
+                unit="kg",
+                is_primary=True,
+            ),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-recipe-output-ingredient-insert",
+            parent_name="eathub-recipe-output-ingredient-tenant-change",
+            assert_persisted=assert_persisted,
+        )
