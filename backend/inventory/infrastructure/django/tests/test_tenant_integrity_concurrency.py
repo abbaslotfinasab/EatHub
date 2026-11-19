@@ -909,3 +909,72 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             parent_name="eathub-legacy-stock-warehouse-tenant-change",
             assert_persisted=assert_persisted,
         )
+
+    def test_recipe_input_ingredient_reference_update_lock_serializes_tenant_change(self):
+        recipe = Recipe.objects.create(
+            business=self.business, name="Tenant lock recipe input update race"
+        )
+        source_ingredient = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock recipe input source",
+            unit="kg",
+        )
+        recipe_input = RecipeInput.objects.create(
+            recipe=recipe,
+            ingredient=source_ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+
+        def assert_persisted():
+            recipe_input.refresh_from_db()
+            self.assertEqual(recipe_input.ingredient_id, self.ingredient.pk)
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: RecipeInput.objects.filter(
+                pk=recipe_input.pk
+            ).update(ingredient_id=self.ingredient.pk),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-recipe-input-ingredient-reference-update",
+            parent_name="eathub-recipe-input-ingredient-update-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
+    def test_recipe_output_ingredient_reference_update_lock_serializes_tenant_change(self):
+        recipe = Recipe.objects.create(
+            business=self.business, name="Tenant lock recipe output update race"
+        )
+        source_ingredient = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock recipe output source",
+            unit="kg",
+        )
+        recipe_output = RecipeOutput.objects.create(
+            recipe=recipe,
+            ingredient=source_ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+            is_primary=True,
+        )
+
+        def assert_persisted():
+            recipe_output.refresh_from_db()
+            self.assertEqual(recipe_output.ingredient_id, self.ingredient.pk)
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: RecipeOutput.objects.filter(
+                pk=recipe_output.pk
+            ).update(ingredient_id=self.ingredient.pk),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-recipe-output-ingredient-reference-update",
+            parent_name="eathub-recipe-output-ingredient-update-tenant-change",
+            assert_persisted=assert_persisted,
+        )
