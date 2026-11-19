@@ -735,3 +735,95 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             parent_name="eathub-operation-parent-tenant-change",
             assert_persisted=assert_persisted,
         )
+
+    def test_operation_line_parent_reference_update_lock_serializes_operation_tenant_change(self):
+        target_operation = InventoryOperation.objects.create(
+            business=self.business,
+            operation_type=InventoryOperation.Type.TRANSFER,
+            status=InventoryOperation.Status.DRAFT,
+            warehouse=self.source_warehouse,
+            destination_warehouse=self.destination_warehouse,
+            created_by_id=1,
+        )
+        line = InventoryOperationLine.objects.create(
+            operation=self.operation,
+            ingredient=self.ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+
+        def assert_persisted():
+            line.refresh_from_db()
+            self.assertEqual(line.operation_id, target_operation.pk)
+            target_operation.refresh_from_db()
+            self.assertEqual(target_operation.business_id, self.business.pk)
+            self.assertEqual(target_operation.warehouse_id, self.source_warehouse.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: InventoryOperationLine.objects.filter(
+                pk=line.pk
+            ).update(operation_id=target_operation.pk),
+            change_tenant=lambda: InventoryOperation.objects.filter(
+                pk=target_operation.pk
+            ).update(
+                business_id=self.other_business.pk,
+                warehouse_id=self.other_warehouse.pk,
+                destination_warehouse_id=None,
+            ),
+            child_name="eathub-operation-line-parent-reference-update",
+            parent_name="eathub-operation-line-parent-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
+    def test_reservation_line_parent_reference_update_lock_serializes_reservation_tenant_change(self):
+        source_reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.source_warehouse,
+            source_type="manual",
+            source_id=None,
+            reason="Tenant integrity source reservation",
+            status=InventoryReservation.Status.ACTIVE,
+            idempotency_key=uuid4(),
+            payload_fingerprint="s" * 64,
+            created_by_id=1,
+        )
+        target_reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.source_warehouse,
+            source_type="manual",
+            source_id=None,
+            reason="Tenant integrity target reservation",
+            status=InventoryReservation.Status.ACTIVE,
+            idempotency_key=uuid4(),
+            payload_fingerprint="t" * 64,
+            created_by_id=1,
+        )
+        line = InventoryReservationLine.objects.create(
+            reservation=source_reservation,
+            ingredient=self.ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+
+        def assert_persisted():
+            line.refresh_from_db()
+            self.assertEqual(line.reservation_id, target_reservation.pk)
+            target_reservation.refresh_from_db()
+            self.assertEqual(target_reservation.business_id, self.business.pk)
+            self.assertEqual(target_reservation.warehouse_id, self.source_warehouse.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: InventoryReservationLine.objects.filter(
+                pk=line.pk
+            ).update(reservation_id=target_reservation.pk),
+            change_tenant=lambda: InventoryReservation.objects.filter(
+                pk=target_reservation.pk
+            ).update(
+                business_id=self.other_business.pk,
+                warehouse_id=self.other_warehouse.pk,
+            ),
+            child_name="eathub-reservation-line-parent-reference-update",
+            parent_name="eathub-reservation-line-parent-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
