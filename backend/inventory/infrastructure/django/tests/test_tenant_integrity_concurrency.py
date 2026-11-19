@@ -1161,3 +1161,59 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             parent_name="eathub-reservation-warehouse-tenant-change",
             assert_persisted=assert_persisted,
         )
+
+    def test_legacy_stock_ingredient_reference_update_lock_serializes_tenant_change(self):
+        source_ingredient = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock legacy stock ingredient source",
+            unit="kg",
+        )
+        stock = Stock.objects.create(
+            warehouse=self.source_warehouse,
+            ingredient=source_ingredient,
+        )
+
+        def assert_persisted():
+            stock.refresh_from_db()
+            self.assertEqual(stock.ingredient_id, self.ingredient.pk)
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: Stock.objects.filter(pk=stock.pk).update(
+                ingredient_id=self.ingredient.pk
+            ),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-legacy-stock-ingredient-reference-update",
+            parent_name="eathub-legacy-stock-ingredient-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
+    def test_v1_stock_warehouse_reference_update_lock_serializes_tenant_change(self):
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.source_warehouse,
+            ingredient=self.ingredient,
+            unit="kg",
+        )
+
+        def assert_persisted():
+            stock.refresh_from_db()
+            self.assertEqual(stock.warehouse_id, self.new_destination_warehouse.pk)
+            self.new_destination_warehouse.refresh_from_db()
+            self.assertEqual(self.new_destination_warehouse.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: InventoryV1Stock.objects.filter(pk=stock.pk).update(
+                warehouse_id=self.new_destination_warehouse.pk
+            ),
+            change_tenant=lambda: Warehouse.objects.filter(
+                pk=self.new_destination_warehouse.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-v1-stock-warehouse-reference-update",
+            parent_name="eathub-v1-stock-warehouse-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
