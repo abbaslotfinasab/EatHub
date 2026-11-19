@@ -393,6 +393,182 @@ class ReservationVersusIssuePostgreSQLTests(TransactionTestCase):
         )
 
 
+    def _prepare_multiline_issue(self):
+        second_ingredient = Ingredient.objects.create(
+            business=self.business, name="Sugar", unit="kg"
+        )
+        second_stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.warehouse,
+            ingredient=second_ingredient,
+            unit="kg",
+            quantity="10",
+            average_cost="2",
+        )
+        # Insert the document lines in reverse order; posting and reservation
+        # persistence must still acquire stock positions in canonical PK order.
+        self.issue.lines.all().delete()
+        InventoryOperationLine.objects.create(
+            operation=self.issue, ingredient=second_ingredient,
+            quantity="7", unit="kg",
+        )
+        InventoryOperationLine.objects.create(
+            operation=self.issue, ingredient=self.ingredient,
+            quantity="7", unit="kg",
+        )
+        return second_ingredient, second_stock
+
+    def test_multiline_reservation_first_serializes_issue_without_partial_consumption(self):
+        second_ingredient, second_stock = self._prepare_multiline_issue()
+        reservation_locked = Event()
+        release_reservation = Event()
+        repository = _HoldingReservationRepository(
+            DjangoReservationRepository(), reservation_locked, release_reservation
+        )
+        manager = ManageReservations(repository, DjangoInventoryUnitOfWork())
+        context = InventoryExecutionContext(self.business.pk, actor_id=1)
+        prefix = f"multiline_res_issue_{uuid4().hex[:8]}"
+
+        def reserve():
+            return manager.create(
+                context,
+                warehouse_id=self.warehouse.pk,
+                source_type=MANUAL_RESERVATION_SOURCE,
+                source_id=None,
+                reason="Reserve both ingredients before issue",
+                idempotency_key=uuid4(),
+                # Deliberately opposite to the sorted stock-lock order.
+                lines=[
+                    {"ingredient_id": second_ingredient.pk, "quantity": "7", "unit": "kg"},
+                    {"ingredient_id": self.ingredient.pk, "quantity": "7", "unit": "kg"},
+                ],
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            reservation_future = pool.submit(
+                self._worker, f"{prefix}_reservation", reserve
+            )
+            if not reservation_locked.wait(10):
+                release_reservation.set()
+                self.fail("multi-line reservation did not lock its stock positions")
+            issue_future = pool.submit(
+                self._worker,
+                f"{prefix}_issue",
+                lambda: post_issue(
+                    business_id=self.business.pk,
+                    actor_id=1,
+                    operation_id=self.issue.pk,
+                ),
+            )
+            try:
+                self._wait_until_blocked(f"{prefix}_issue")
+            finally:
+                release_reservation.set()
+            reservation_result = reservation_future.result(timeout=20)
+            issue_result = issue_future.result(timeout=20)
+
+        self.assertIsNone(reservation_result[2], repr(reservation_result[2]))
+        self.assertIsNotNone(reservation_result[0])
+        self.assertIsInstance(issue_result[2], OperationConflict)
+        self.stock.refresh_from_db()
+        second_stock.refresh_from_db()
+        self.issue.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 10)
+        self.assertEqual(second_stock.quantity, 10)
+        self.assertEqual(self.issue.status, InventoryOperation.Status.DRAFT)
+        self.assertEqual(
+            InventoryReservationLine.objects.filter(
+                reservation__business=self.business,
+                reservation__status=InventoryReservation.Status.ACTIVE,
+            ).count(),
+            2,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="inventory_issue", source_document_id=self.issue.pk
+            ).count(),
+            0,
+        )
+
+    def test_multiline_issue_first_serializes_reservation_without_deadlock(self):
+        second_ingredient, second_stock = self._prepare_multiline_issue()
+        issue_stock_locked = Event()
+        release_issue = Event()
+        original_save = DjangoStockRepository.save
+
+        def hold_first_stock_lock(repository, stock):
+            if not issue_stock_locked.is_set():
+                issue_stock_locked.set()
+                if not release_issue.wait(15):
+                    raise TimeoutError("test coordinator did not release multi-line issue")
+            return original_save(repository, stock)
+
+        manager = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+        )
+        context = InventoryExecutionContext(self.business.pk, actor_id=1)
+        prefix = f"multiline_issue_res_{uuid4().hex[:8]}"
+
+        def reserve():
+            return manager.create(
+                context,
+                warehouse_id=self.warehouse.pk,
+                source_type=MANUAL_RESERVATION_SOURCE,
+                source_id=None,
+                reason="Competing multi-line reservation",
+                idempotency_key=uuid4(),
+                lines=[
+                    {"ingredient_id": second_ingredient.pk, "quantity": "7", "unit": "kg"},
+                    {"ingredient_id": self.ingredient.pk, "quantity": "7", "unit": "kg"},
+                ],
+            )
+
+        with patch.object(DjangoStockRepository, "save", hold_first_stock_lock):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                issue_future = pool.submit(
+                    self._worker,
+                    f"{prefix}_issue",
+                    lambda: post_issue(
+                        business_id=self.business.pk,
+                        actor_id=1,
+                        operation_id=self.issue.pk,
+                    ),
+                )
+                if not issue_stock_locked.wait(10):
+                    release_issue.set()
+                    self.fail("multi-line issue did not acquire its first stock lock")
+                reservation_future = pool.submit(
+                    self._worker, f"{prefix}_reservation", reserve
+                )
+                try:
+                    self._wait_until_blocked(f"{prefix}_reservation")
+                finally:
+                    release_issue.set()
+                issue_result = issue_future.result(timeout=20)
+                reservation_result = reservation_future.result(timeout=20)
+
+        self.assertIsNone(issue_result[2], repr(issue_result[2]))
+        self.assertEqual(issue_result[0].status, InventoryOperation.Status.POSTED)
+        self.assertIsInstance(reservation_result[2], OperationConflict)
+        self.stock.refresh_from_db()
+        second_stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 3)
+        self.assertEqual(second_stock.quantity, 3)
+        self.assertEqual(
+            InventoryReservation.objects.filter(
+                business=self.business,
+                status=InventoryReservation.Status.ACTIVE,
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            InventoryV1StockMovement.objects.filter(
+                source_type="inventory_issue", source_document_id=self.issue.pk,
+                movement_type="issue",
+            ).count(),
+            2,
+        )
+
     def _stocktake_counted_at(self, quantity):
         stocktake = create_operation(
             business_id=self.business.pk,
