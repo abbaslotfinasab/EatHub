@@ -1,11 +1,17 @@
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from threading import Event
+from time import monotonic
 from uuid import uuid4
 
-from django.db import connection
+from django.db import close_old_connections, connection, connections
 from django.test import TransactionTestCase, skipUnlessDBFeature
+from unittest.mock import patch
 
 from accounts.models import Business
+from inventory.application.context import InventoryExecutionContext
 from inventory.application.exceptions import OperationConflict
+from inventory.application.use_cases.manage_reservations import ManageReservations
 from inventory.infrastructure.django.models import (
     InventoryOperation,
     InventoryReservation,
@@ -17,6 +23,9 @@ from inventory.infrastructure.django.operations_service import (
     approve_stocktake,
     create_operation,
 )
+from inventory.infrastructure.django.reservation_repository import DjangoReservationRepository
+from inventory.infrastructure.django.repositories import DjangoStockRepository
+from inventory.infrastructure.django.unit_of_work import DjangoInventoryUnitOfWork
 from inventory.models import Ingredient, Warehouse
 
 
@@ -120,4 +129,95 @@ class StocktakeReservationPostgreSQLTests(TransactionTestCase):
                 movement_type="adjustment",
             ).count(),
             1,
+        )
+
+    def test_stocktake_approval_serializes_before_new_reservation_and_revalidates_balance(self):
+        stocktake = self._stocktake("8")
+        stock_locked = Event()
+        release_stocktake = Event()
+        reservation_manager = ManageReservations(
+            DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+        )
+        original_save = DjangoStockRepository.save
+
+        def hold_stocktake_save(repository, stock):
+            stock_locked.set()
+            if not release_stocktake.wait(15):
+                raise TimeoutError("test coordinator did not release stocktake approval")
+            return original_save(repository, stock)
+
+        def create_reservation():
+            close_old_connections()
+            try:
+                return reservation_manager.create(
+                    InventoryExecutionContext(self.business.pk, actor_id=74),
+                    warehouse_id=self.warehouse.pk,
+                    source_type="manual",
+                    source_id=None,
+                    reason="Concurrent stocktake reservation",
+                    idempotency_key=uuid4(),
+                    lines=[{
+                        "ingredient_id": self.ingredient.pk,
+                        "quantity": "9",
+                        "unit": "kg",
+                    }],
+                ), None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        def wait_until_blocked(application_name):
+            deadline = monotonic() + 15
+            while monotonic() < deadline:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        """SELECT wait_event_type, cardinality(pg_blocking_pids(pid))
+                           FROM pg_stat_activity WHERE application_name = %s""",
+                        [application_name],
+                    )
+                    row = cursor.fetchone()
+                if row and row[0] == "Lock" and row[1] > 0:
+                    return
+            self.fail(f"PostgreSQL did not report a lock wait for {application_name}.")
+
+        def approve():
+            close_old_connections()
+            try:
+                return approve_stocktake(
+                    business_id=self.business.pk,
+                    actor_id=75,
+                    operation_id=stocktake.pk,
+                ), None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        with patch.object(DjangoStockRepository, "save", hold_stocktake_save):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                approval_future = pool.submit(approve)
+                try:
+                    self.assertTrue(
+                        stock_locked.wait(10),
+                        "stocktake approval did not reach the locked stock position",
+                    )
+                    reservation_future = pool.submit(create_reservation)
+                    wait_until_blocked("stocktake-reservation-race")
+                finally:
+                    release_stocktake.set()
+                approval_result = approval_future.result(timeout=20)
+                reservation_result = reservation_future.result(timeout=20)
+
+        self.assertIsNone(approval_result[1], repr(approval_result[1]))
+        self.assertEqual(approval_result[0].status, InventoryOperation.Status.APPROVED)
+        self.assertIsInstance(reservation_result[1], OperationConflict)
+        self.assertIn("Insufficient available stock", str(reservation_result[1]))
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, Decimal("8"))
+        self.assertEqual(
+            InventoryReservation.objects.filter(
+                business=self.business, status=InventoryReservation.Status.ACTIVE
+            ).count(),
+            0,
         )
