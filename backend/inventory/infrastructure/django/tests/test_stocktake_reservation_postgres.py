@@ -3,10 +3,10 @@ from decimal import Decimal
 from threading import Event
 from time import monotonic
 from uuid import uuid4
+from unittest.mock import patch
 
 from django.db import close_old_connections, connection, connections
 from django.test import TransactionTestCase, skipUnlessDBFeature
-from unittest.mock import patch
 
 from accounts.models import Business
 from inventory.application.context import InventoryExecutionContext
@@ -149,6 +149,10 @@ class StocktakeReservationPostgreSQLTests(TransactionTestCase):
         def create_reservation():
             close_old_connections()
             try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        "SET application_name = %s", ["stocktake-reservation-race"]
+                    )
                 return reservation_manager.create(
                     InventoryExecutionContext(self.business.pk, actor_id=74),
                     warehouse_id=self.warehouse.pk,
