@@ -559,6 +559,50 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             assert_persisted=assert_persisted,
         )
 
+
+    def test_reservation_line_reference_update_lock_serializes_ingredient_tenant_change(self):
+        reservation = InventoryReservation.objects.create(
+            business=self.business,
+            warehouse=self.source_warehouse,
+            source_type="manual",
+            source_id=None,
+            reason="Tenant integrity reservation-line update test",
+            status=InventoryReservation.Status.ACTIVE,
+            idempotency_key=uuid4(),
+            payload_fingerprint="r" * 64,
+            created_by_id=1,
+        )
+        source_ingredient = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock reservation line source",
+            unit="kg",
+        )
+        line = InventoryReservationLine.objects.create(
+            reservation=reservation,
+            ingredient=source_ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+
+        def assert_persisted():
+            line.refresh_from_db()
+            self.assertEqual(line.ingredient_id, self.ingredient.pk)
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: InventoryReservationLine.objects.filter(
+                pk=line.pk
+            ).update(ingredient_id=self.ingredient.pk),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-reservation-line-reference-update",
+            parent_name="eathub-reservation-line-ingredient-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
+
     def test_compound_parent_reference_lock_serializes_preparation_level_change(self):
         compound = Ingredient.objects.create(
             business=self.business,
