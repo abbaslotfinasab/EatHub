@@ -978,3 +978,135 @@ class InventoryTenantIntegrityConcurrencyTests(TransactionTestCase):
             parent_name="eathub-recipe-output-ingredient-update-tenant-change",
             assert_persisted=assert_persisted,
         )
+
+
+    def test_compound_component_ingredient_reference_update_lock_serializes_preparation_change(self):
+        compound = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock compound ingredient update",
+            unit="kg",
+            preparation_level="semi_prepared",
+        )
+        source_ingredient = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock compound ingredient source",
+            unit="kg",
+            preparation_level="raw",
+        )
+        component = CompoundMaterialComponent.objects.create(
+            compound=compound,
+            ingredient=source_ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+
+        def assert_persisted():
+            component.refresh_from_db()
+            self.assertEqual(component.ingredient_id, self.ingredient.pk)
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.preparation_level, "raw")
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: CompoundMaterialComponent.objects.filter(
+                pk=component.pk
+            ).update(ingredient_id=self.ingredient.pk),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(preparation_level="semi_prepared"),
+            child_name="eathub-compound-ingredient-reference-update",
+            parent_name="eathub-compound-ingredient-level-update",
+            assert_persisted=assert_persisted,
+        )
+
+    def test_compound_component_parent_reference_update_lock_serializes_preparation_change(self):
+        source_compound = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock compound parent source",
+            unit="kg",
+            preparation_level="semi_prepared",
+        )
+        target_compound = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock compound parent target",
+            unit="kg",
+            preparation_level="semi_prepared",
+        )
+        component = CompoundMaterialComponent.objects.create(
+            compound=source_compound,
+            ingredient=self.ingredient,
+            quantity=Decimal("1"),
+            unit="kg",
+        )
+
+        def assert_persisted():
+            component.refresh_from_db()
+            self.assertEqual(component.compound_id, target_compound.pk)
+            target_compound.refresh_from_db()
+            self.assertEqual(target_compound.preparation_level, "semi_prepared")
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: CompoundMaterialComponent.objects.filter(
+                pk=component.pk
+            ).update(compound_id=target_compound.pk),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=target_compound.pk
+            ).update(preparation_level="raw"),
+            child_name="eathub-compound-parent-reference-update",
+            parent_name="eathub-compound-parent-level-update",
+            assert_persisted=assert_persisted,
+        )
+
+    def test_legacy_stock_warehouse_reference_update_lock_serializes_tenant_change(self):
+        stock = Stock.objects.create(
+            warehouse=self.source_warehouse,
+            ingredient=self.ingredient,
+        )
+
+        def assert_persisted():
+            stock.refresh_from_db()
+            self.assertEqual(stock.warehouse_id, self.new_destination_warehouse.pk)
+            self.new_destination_warehouse.refresh_from_db()
+            self.assertEqual(self.new_destination_warehouse.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: Stock.objects.filter(pk=stock.pk).update(
+                warehouse_id=self.new_destination_warehouse.pk
+            ),
+            change_tenant=lambda: Warehouse.objects.filter(
+                pk=self.new_destination_warehouse.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-legacy-stock-warehouse-reference-update",
+            parent_name="eathub-legacy-stock-warehouse-reference-tenant-change",
+            assert_persisted=assert_persisted,
+        )
+
+    def test_v1_stock_ingredient_reference_update_lock_serializes_tenant_change(self):
+        source_ingredient = Ingredient.objects.create(
+            business=self.business,
+            name="Tenant lock V1 stock ingredient source",
+            unit="kg",
+        )
+        stock = InventoryV1Stock.objects.create(
+            business=self.business,
+            warehouse=self.source_warehouse,
+            ingredient=source_ingredient,
+            unit="kg",
+        )
+
+        def assert_persisted():
+            stock.refresh_from_db()
+            self.assertEqual(stock.ingredient_id, self.ingredient.pk)
+            self.ingredient.refresh_from_db()
+            self.assertEqual(self.ingredient.business_id, self.business.pk)
+
+        self._assert_child_insert_serializes_parent_tenant_change(
+            insert_stock=lambda: InventoryV1Stock.objects.filter(pk=stock.pk).update(
+                ingredient_id=self.ingredient.pk
+            ),
+            change_tenant=lambda: Ingredient.objects.filter(
+                pk=self.ingredient.pk
+            ).update(business_id=self.other_business.pk),
+            child_name="eathub-v1-stock-ingredient-reference-update",
+            parent_name="eathub-v1-stock-ingredient-reference-tenant-change",
+            assert_persisted=assert_persisted,
+        )
