@@ -1,11 +1,12 @@
 from django.db.models import Q
 from rest_framework import status
-from rest_framework.exceptions import NotFound, PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import ExplicitTenantAPIView
-from catalog.application.services import ProductCatalogService
+from catalog.application.exceptions import ProductNotFound, ProductSkuConflict
+from catalog.bootstrap import create_product, update_product
 from catalog.models import Product
 from catalog.presentation.serializers import (
     ProductCreateSerializer,
@@ -19,6 +20,14 @@ from core.enums import PermissionCode
 def _require_permission(request, permission):
     if permission.value not in request.permissions:
         raise PermissionDenied("You do not have permission to manage the Product Catalog.")
+
+
+def _translate_write_error(error):
+    if isinstance(error, ProductSkuConflict):
+        raise ValidationError({"sku": "This SKU is already used in this business."}) from error
+    if isinstance(error, ProductNotFound):
+        raise NotFound("Product does not exist in this business.") from error
+    raise error
 
 
 class ProductListCreateAPIView(ExplicitTenantAPIView):
@@ -51,10 +60,13 @@ class ProductListCreateAPIView(ExplicitTenantAPIView):
         _require_permission(request, PermissionCode.PRODUCTS_CREATE)
         serializer = ProductCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        product = ProductCatalogService.create(
-            business=request.business,
-            validated_data=serializer.validated_data,
-        )
+        try:
+            product = create_product(
+                business_id=request.business.pk,
+                data=serializer.validated_data,
+            )
+        except (ProductSkuConflict, ProductNotFound) as error:
+            _translate_write_error(error)
         return Response(ProductSerializer(product).data, status=status.HTTP_201_CREATED)
 
 
@@ -70,13 +82,17 @@ class ProductDetailAPIView(ExplicitTenantAPIView):
 
     def patch(self, request, pk):
         _require_permission(request, PermissionCode.PRODUCTS_UPDATE)
-        product = Product.objects.filter(business=request.business, pk=pk).first()
-        if product is None:
-            raise NotFound("Product does not exist in this business.")
         serializer = ProductUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        product = ProductCatalogService.update(
-            product=product,
-            validated_data=serializer.validated_data,
-        )
+        try:
+            product = update_product(
+                business_id=request.business.pk,
+                product_id=pk,
+                data=serializer.validated_data,
+            )
+        except (ProductSkuConflict, ProductNotFound) as error:
+            _translate_write_error(error)
+        product = Product.objects.filter(
+            business=request.business, pk=product.pk,
+        ).prefetch_related("allergen_declarations", "dietary_tags").get()
         return Response(ProductSerializer(product).data)
