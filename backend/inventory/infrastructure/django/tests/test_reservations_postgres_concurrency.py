@@ -417,5 +417,5 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertEqual(persisted.release_idempotency_key, keys[winner_index])
         self.assertEqual(persisted.release_reason, reasons[winner_index])
         self.assertEqual(persisted.released_by_id, 81)
-        self.assertEqual(InventoryReservationLine.objects.filter(reservation=reservation).count(), 1)
+        self.assertEqual(InventoryReservationLine.objects.filter(reservation_id=reservation.id).count(), 1)
 
