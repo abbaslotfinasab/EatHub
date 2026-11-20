@@ -360,3 +360,64 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertEqual(active.get().pk, create_result[0].id)
         self.stock.refresh_from_db()
         self.assertEqual(str(self.stock.quantity), "10.000000000000")
+
+    def test_concurrent_reservation_releases_preserve_the_winning_audit_identity(self):
+        reservation = self.reserve()
+        context = InventoryExecutionContext(self.business.pk, actor_id=81)
+        keys = (uuid4(), uuid4())
+        reasons = ("Release from operator A", "Release from operator B")
+        barrier = Barrier(2)
+
+        def release(index):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                manager = ManageReservations(
+                    DjangoReservationRepository(), DjangoInventoryUnitOfWork()
+                )
+                return manager.release(
+                    context, reservation.id, keys[index], reasons[index]
+                ), None
+            except Exception as error:
+                return None, error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [
+                future.result(timeout=20)
+                for future in (pool.submit(release, 0), pool.submit(release, 1))
+            ]
+
+        successes = [(index, result[0]) for index, result in enumerate(results) if result[0] is not None]
+        failures = [result[1] for result in results if result[1] is not None]
+        self.assertEqual(len(successes), 1)
+        self.assertEqual(len(failures), 1)
+        self.assertIsInstance(failures[0], OperationConflict)
+
+        winner_index, released = successes[0]
+        self.assertEqual(released.status.value, "released")
+        self.assertEqual(released.release_idempotency_key, str(keys[winner_index]))
+        self.assertEqual(released.release_reason, reasons[winner_index])
+        self.assertEqual(released.released_by_id, 81)
+
+        # A retry with the winning key is idempotent; the losing key cannot
+        # overwrite the audit metadata of the already committed release.
+        replay = self.use_case.release(
+            context, reservation.id, keys[winner_index], reasons[winner_index]
+        )
+        self.assertEqual(replay.id, released.id)
+        self.assertEqual(replay.release_idempotency_key, released.release_idempotency_key)
+        self.assertEqual(replay.release_reason, released.release_reason)
+        with self.assertRaises(OperationConflict):
+            self.use_case.release(
+                context, reservation.id, keys[1 - winner_index], reasons[1 - winner_index]
+            )
+
+        persisted = InventoryReservation.objects.get(pk=reservation.id)
+        self.assertEqual(persisted.status, InventoryReservation.Status.RELEASED)
+        self.assertEqual(persisted.release_idempotency_key, keys[winner_index])
+        self.assertEqual(persisted.release_reason, reasons[winner_index])
+        self.assertEqual(persisted.released_by_id, 81)
+        self.assertEqual(InventoryReservationLine.objects.filter(reservation=reservation).count(), 1)
+
