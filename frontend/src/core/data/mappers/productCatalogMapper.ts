@@ -11,6 +11,8 @@ export const productCatalogMapper = {
             description: dto.description,
             imageUrl: dto.image_url,
             status: dto.status,
+            allergens: dto.allergens ?? [],
+            dietaryTags: dto.dietary_tags ?? [],
             createdAt: dto.created_at,
             updatedAt: dto.updated_at,
         };
@@ -24,6 +26,8 @@ export const productCatalogMapper = {
             ...(input.description !== undefined ? { description: input.description } : {}),
             ...(input.imageUrl !== undefined ? { image_url: input.imageUrl } : {}),
             ...(input.status !== undefined ? { status: input.status } : {}),
+            ...(input.allergens !== undefined ? { allergens: input.allergens } : {}),
+            ...(input.dietaryTags !== undefined ? { dietary_tags: input.dietaryTags } : {}),
         };
     },
 
