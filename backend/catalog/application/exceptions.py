@@ -4,3 +4,7 @@ class ProductNotFound(Exception):
 
 class ProductSkuConflict(Exception):
     """A SKU is already used by another product in the same business."""
+
+
+class ProductsUnavailable(Exception):
+    """One or more requested products are inactive or outside the business."""
