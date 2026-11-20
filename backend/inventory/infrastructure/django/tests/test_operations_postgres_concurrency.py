@@ -1295,8 +1295,8 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
                 and not getattr(worker_state, "held", False)
             ):
                 worker_state.held = True
-                worker_state.locked.set()
-                if not worker_state.release.wait(15):
+                locked.set()
+                if not release.wait(15):
                     raise TimeoutError("test coordinator did not release outbound stock lock")
             return result
 
@@ -1367,8 +1367,6 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
 
                 locked = Event()
                 release = Event()
-                worker_state.locked = locked
-                worker_state.release = release
                 worker_state.held = False
                 winner_label = f"{prefix}_{winner}"
                 loser = "transfer" if winner == "issue" else "issue"
