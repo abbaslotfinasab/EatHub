@@ -2,7 +2,7 @@ from catalog.models import Product
 
 
 class DjangoProductReadRepository:
-    """Django ORM adapter for Catalog product read projections."""
+    """Django ORM adapter for Catalog product read projections and queries."""
 
     def get_read_model_for_business(self, *, business_id: int, product_id: int) -> dict | None:
         product = Product.objects.filter(
@@ -18,3 +18,11 @@ class DjangoProductReadRepository:
                 for item in product.allergen_declarations.all()
             ),
         }
+
+    def get_active_products_for_business(self, *, business_id: int, product_ids: set[int]) -> dict:
+        products = Product.objects.select_for_update().filter(
+            business_id=business_id,
+            status=Product.Status.ACTIVE,
+            pk__in=product_ids,
+        )
+        return {product.pk: product for product in products}
