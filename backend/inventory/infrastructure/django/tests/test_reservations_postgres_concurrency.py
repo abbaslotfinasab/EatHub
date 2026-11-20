@@ -420,7 +420,6 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertEqual(InventoryReservationLine.objects.filter(reservation_id=reservation.id).count(), 1)
 
 
-
     def _wait_for_lock_wait(self, application_name):
         deadline = monotonic() + 15
         while monotonic() < deadline:
@@ -436,7 +435,10 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.fail(f"PostgreSQL did not report a lock wait for {application_name}.")
 
     def _create_issue(self):
-        from inventory.infrastructure.django.models import InventoryOperation, InventoryOperationLine
+        from inventory.infrastructure.django.models import (
+            InventoryOperation,
+            InventoryOperationLine,
+        )
 
         operation = InventoryOperation.objects.create(
             business=self.business,
@@ -455,8 +457,6 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
         return operation
 
     def test_reservation_first_serializes_issue_and_protects_reserved_quantity(self):
-        from unittest.mock import patch
-
         from inventory.application.exceptions import OperationConflict
         from inventory.infrastructure.django import operations_service
         from inventory.infrastructure.django.models import InventoryOperation
