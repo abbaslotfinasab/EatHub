@@ -333,7 +333,7 @@ class StocktakeReservationPostgreSQLTests(TransactionTestCase):
         self.assertIsNone(opening_result[1], repr(opening_result[1]))
         self.assertEqual(opening_result[0].status, InventoryOperation.Status.POSTED)
         self.assertIsNone(reservation_result[1], repr(reservation_result[1]))
-        self.assertEqual(reservation_result[0].status, "active")
+        self.assertEqual(reservation_result[0].status.value, "active")
         self.stock.refresh_from_db()
         self.assertEqual(self.stock.quantity, Decimal("10"))
         self.assertEqual(
