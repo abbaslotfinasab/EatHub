@@ -72,9 +72,17 @@ class MenuItemSerializer(serializers.ModelSerializer):
         cache = getattr(self, "_product_read_models", {})
         key = (obj.business_id, obj.product_id)
         if key not in cache:
-            from catalog.application.services import ProductCatalogService, ProductNotFound
+            from catalog.application.use_cases.get_product_read_model import (
+                GetProductReadModel,
+                ProductNotFound,
+            )
+            from catalog.infrastructure.django.product_read_repository import (
+                DjangoProductReadRepository,
+            )
             try:
-                cache[key] = ProductCatalogService.get_product_read_model_for_business(
+                cache[key] = GetProductReadModel(
+                    DjangoProductReadRepository()
+                ).execute(
                     business_id=obj.business_id,
                     product_id=obj.product_id,
                 )
