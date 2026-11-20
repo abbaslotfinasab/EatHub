@@ -459,6 +459,8 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
 
         from inventory.application.exceptions import OperationConflict
         from inventory.infrastructure.django import operations_service
+        from inventory.infrastructure.django.models import InventoryOperation
+        from django.db.models import Sum
 
         issue = self._create_issue()
         reservation_locked = Event()
@@ -538,7 +540,7 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertEqual(
             InventoryReservationLine.objects.filter(
                 reservation__status="active", ingredient=self.ingredient
-            ).aggregate(total=__import__("django.db.models", fromlist=["Sum"]).Sum("quantity"))["total"],
+            ).aggregate(total=Sum("quantity"))["total"],
             7,
         )
         issue.refresh_from_db()
