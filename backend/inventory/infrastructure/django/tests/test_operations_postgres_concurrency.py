@@ -31,6 +31,7 @@ from inventory.infrastructure.django.operations_service import (
     approve_stocktake,
     create_opening_stock,
     create_operation,
+    cancel_operation,
     dispatch_transfer,
     receive_transfer,
     post_issue,
@@ -1146,3 +1147,53 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
             ).count(),
             1,
         )
+
+    def test_concurrent_cancel_and_issue_posting_allow_only_one_terminal_transition(self):
+        barrier = Barrier(2)
+
+        def transition(action):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                try:
+                    if action == "cancel":
+                        return cancel_operation(
+                            business_id=self.business.pk,
+                            operation_type=InventoryOperation.Type.ISSUE,
+                            operation_id=self.operation.pk,
+                        )
+                    return post_issue(
+                        business_id=self.business.pk,
+                        actor_id=91,
+                        operation_id=self.operation.pk,
+                    )
+                except Exception as error:
+                    return error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = (pool.submit(transition, "cancel"), pool.submit(transition, "post"))
+            results = [future.result(timeout=25) for future in futures]
+
+        successes = [result for result in results if not isinstance(result, Exception)]
+        conflicts = [result for result in results if isinstance(result, OperationConflict)]
+        self.assertEqual(len(successes), 1)
+        self.assertEqual(len(conflicts), 1)
+
+        self.operation.refresh_from_db()
+        movements = InventoryV1StockMovement.objects.filter(
+            business=self.business,
+            movement_type="issue",
+            source_document_id=self.operation.pk,
+        )
+        if self.operation.status == InventoryOperation.Status.CANCELLED:
+            self.assertEqual(movements.count(), 0)
+            self.stock.refresh_from_db()
+            self.assertEqual(self.stock.quantity, Decimal("10"))
+        else:
+            self.assertEqual(self.operation.status, InventoryOperation.Status.POSTED)
+            self.assertEqual(movements.count(), 1)
+            self.stock.refresh_from_db()
+            self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))
+
