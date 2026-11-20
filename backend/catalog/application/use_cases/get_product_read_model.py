@@ -1,8 +1,5 @@
+from catalog.application.exceptions import ProductNotFound
 from catalog.application.ports.product_read_repository import ProductReadRepository
-
-
-class ProductNotFound(Exception):
-    """A Product does not exist inside the requested business."""
 
 
 class GetProductReadModel:
