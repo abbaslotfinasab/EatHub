@@ -1,5 +1,8 @@
+from django.db import transaction
+
 from catalog.application.use_cases.create_product import CreateProduct
 from catalog.application.use_cases.get_product_read_model import GetProductReadModel
+from catalog.application.use_cases.resolve_active_products import ResolveActiveProducts
 from catalog.application.use_cases.update_product import UpdateProduct
 from catalog.infrastructure.django.product_read_repository import DjangoProductReadRepository
 from catalog.infrastructure.django.product_write_repository import DjangoProductWriteRepository
@@ -29,4 +32,13 @@ def get_product_read_model(*, business_id: int, product_id: int) -> dict:
     return GetProductReadModel(DjangoProductReadRepository()).execute(
         business_id=business_id,
         product_id=product_id,
+    )
+
+
+@transaction.atomic
+def resolve_active_products(*, business_id: int, product_ids: set[int]) -> dict:
+    """Resolve and lock active products through the Catalog application boundary."""
+    return ResolveActiveProducts(DjangoProductReadRepository()).execute(
+        business_id=business_id,
+        product_ids=product_ids,
     )
