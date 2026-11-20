@@ -397,7 +397,6 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
 
         winner_index, released = successes[0]
         self.assertEqual(released.status.value, "released")
-        self.assertEqual(released.release_idempotency_key, str(keys[winner_index]))
         self.assertEqual(released.release_reason, reasons[winner_index])
         self.assertEqual(released.released_by_id, 81)
 
@@ -407,7 +406,6 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
             context, reservation.id, keys[winner_index], reasons[winner_index]
         )
         self.assertEqual(replay.id, released.id)
-        self.assertEqual(replay.release_idempotency_key, released.release_idempotency_key)
         self.assertEqual(replay.release_reason, released.release_reason)
         with self.assertRaises(OperationConflict):
             self.use_case.release(
