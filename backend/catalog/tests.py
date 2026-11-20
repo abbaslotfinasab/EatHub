@@ -4,6 +4,11 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
 from catalog.models import Product, ProductAllergen, ProductDietaryTag
+from catalog.application.use_cases.get_product_read_model import (
+    GetProductReadModel,
+    ProductNotFound,
+)
+from catalog.infrastructure.django.product_read_repository import DjangoProductReadRepository
 from core.enums import PermissionCode
 
 
@@ -207,3 +212,27 @@ class ProductCatalogAPITests(APITestCase):
                 with self.assertRaises(IntegrityError):
                     with transaction.atomic():
                         create_invalid_row()
+
+    def test_product_read_use_case_returns_business_scoped_projection(self):
+        product = Product.objects.create(
+            business=self.business, name="Read model product"
+        )
+        ProductAllergen.objects.create(
+            product=product, code="milk", presence="may_contain"
+        )
+        use_case = GetProductReadModel(DjangoProductReadRepository())
+
+        result = use_case.execute(
+            business_id=self.business.pk,
+            product_id=product.pk,
+        )
+        self.assertEqual(result["name"], "Read model product")
+        self.assertEqual(
+            result["allergens"],
+            ({"code": "milk", "presence": "may_contain"},),
+        )
+        with self.assertRaises(ProductNotFound):
+            use_case.execute(
+                business_id=self.other_business.pk,
+                product_id=product.pk,
+            )
