@@ -547,6 +547,8 @@ class ReservationPostgreSQLConcurrencyTests(TransactionTestCase):
         self.assertEqual(issue.status, InventoryOperation.Status.DRAFT)
 
     def test_issue_first_serializes_reservation_and_rejects_insufficient_remainder(self):
+        from unittest.mock import patch
+
         from inventory.infrastructure.django import operations_service
         from inventory.infrastructure.django.models import InventoryOperation
 
