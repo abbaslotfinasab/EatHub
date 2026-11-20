@@ -1279,3 +1279,168 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
                     ingredient=self.ingredient,
                 ).exists()
             )
+
+
+    def test_issue_and_transfer_dispatch_serialize_on_shared_source_stock(self):
+        from inventory.infrastructure.django import operations_service
+
+        worker_state = local()
+        original_stock = operations_service._stock
+        prefix = f"issue_transfer_race_{self.business.pk}_{uuid4().hex[:6]}"
+
+        def hold_winner_after_stock_lock(*args, **kwargs):
+            result = original_stock(*args, **kwargs)
+            if (
+                worker_state.role == worker_state.winner
+                and not getattr(worker_state, "held", False)
+            ):
+                worker_state.held = True
+                worker_state.locked.set()
+                if not worker_state.release.wait(15):
+                    raise TimeoutError("test coordinator did not release outbound stock lock")
+            return result
+
+        def wait_until_blocked(application_name):
+            deadline = monotonic() + 15
+            while monotonic() < deadline:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute(
+                        """SELECT wait_event_type, cardinality(pg_blocking_pids(pid))
+                           FROM pg_stat_activity WHERE application_name = %s""",
+                        [application_name],
+                    )
+                    row = cursor.fetchone()
+                if row and row[0] == "Lock" and row[1] > 0:
+                    return
+                Event().wait(0.01)
+            self.fail(f"PostgreSQL did not report a lock wait for {application_name}.")
+
+        def run_worker(role, winner, label, operation):
+            close_old_connections()
+            worker_state.role = role
+            worker_state.winner = winner
+            try:
+                with connections["default"].cursor() as cursor:
+                    cursor.execute("SET application_name = %s", [label])
+                try:
+                    return operation(), None
+                except Exception as error:
+                    return None, error
+            finally:
+                connections.close_all()
+
+        for winner in ("issue", "transfer"):
+            with self.subTest(winner=winner):
+                self.stock.quantity = Decimal("10")
+                self.stock.average_cost = Decimal("4")
+                self.stock.save(update_fields=("quantity", "average_cost"))
+
+                destination = Warehouse.objects.create(
+                    business=self.business,
+                    name=f"Destination {winner}",
+                )
+                issue = create_operation(
+                    business_id=self.business.pk,
+                    actor_id=81,
+                    operation_type=InventoryOperation.Type.ISSUE,
+                    warehouse_id=self.warehouse.pk,
+                    reason=f"Issue competing with {winner}",
+                    lines=[{
+                        "ingredient_id": self.ingredient.pk,
+                        "quantity": "7",
+                        "unit": "kg",
+                    }],
+                )
+                transfer = create_operation(
+                    business_id=self.business.pk,
+                    actor_id=82,
+                    operation_type=InventoryOperation.Type.TRANSFER,
+                    warehouse_id=self.warehouse.pk,
+                    destination_warehouse_id=destination.pk,
+                    reason=f"Transfer competing with {winner}",
+                    lines=[{
+                        "ingredient_id": self.ingredient.pk,
+                        "quantity": "7",
+                        "unit": "kg",
+                    }],
+                )
+
+                locked = Event()
+                release = Event()
+                worker_state.locked = locked
+                worker_state.release = release
+                worker_state.held = False
+                winner_label = f"{prefix}_{winner}"
+                loser = "transfer" if winner == "issue" else "issue"
+                loser_label = f"{prefix}_{loser}"
+
+                def post_issue_winner():
+                    return post_issue(
+                        business_id=self.business.pk,
+                        actor_id=83,
+                        operation_id=issue.pk,
+                    )
+
+                def dispatch_winner():
+                    return dispatch_transfer(
+                        business_id=self.business.pk,
+                        actor_id=84,
+                        operation_id=transfer.pk,
+                    )
+
+                operations = {
+                    "issue": post_issue_winner,
+                    "transfer": dispatch_winner,
+                }
+
+                with patch.object(
+                    operations_service,
+                    "_stock",
+                    side_effect=hold_winner_after_stock_lock,
+                ):
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        winner_future = pool.submit(
+                            run_worker,
+                            winner,
+                            winner,
+                            winner_label,
+                            operations[winner],
+                        )
+                        try:
+                            self.assertTrue(
+                                locked.wait(10),
+                                f"{winner} did not acquire the shared source stock lock",
+                            )
+                            loser_future = pool.submit(
+                                run_worker,
+                                loser,
+                                winner,
+                                loser_label,
+                                operations[loser],
+                            )
+                            wait_until_blocked(loser_label)
+                        finally:
+                            release.set()
+                        winner_result = winner_future.result(timeout=20)
+                        loser_result = loser_future.result(timeout=20)
+
+                self.assertIsNone(winner_result[1], repr(winner_result[1]))
+                self.assertIsInstance(loser_result[1], NegativeStock)
+                self.stock.refresh_from_db()
+                self.assertEqual(self.stock.quantity, Decimal("3.000000000000"))
+
+                issue.refresh_from_db()
+                transfer.refresh_from_db()
+                if winner == "issue":
+                    self.assertEqual(issue.status, InventoryOperation.Status.POSTED)
+                    self.assertEqual(transfer.status, InventoryOperation.Status.DRAFT)
+                else:
+                    self.assertEqual(transfer.status, InventoryOperation.Status.IN_TRANSIT)
+                    self.assertEqual(issue.status, InventoryOperation.Status.DRAFT)
+
+                outbound = InventoryV1StockMovement.objects.filter(
+                    stock=self.stock,
+                    source_document_id__in=(issue.pk, transfer.pk),
+                    movement_type__in=("issue", "transfer_dispatch"),
+                )
+                self.assertEqual(outbound.count(), 1)
