@@ -1,59 +1,10 @@
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
-from catalog.models import Product, ProductAllergen, ProductDietaryTag
+from catalog.models import Product
 
 
 class ProductCatalogService:
-    @staticmethod
-    def _save_restrictions(*, product, validated_data, replace=False):
-        allergens = validated_data.pop("allergens", None)
-        dietary_tags = validated_data.pop("dietary_tags", None)
-
-        if replace or allergens is not None:
-            product.allergen_declarations.all().delete()
-            ProductAllergen.objects.bulk_create([
-                ProductAllergen(product=product, **item) for item in (allergens or [])
-            ])
-
-        if replace or dietary_tags is not None:
-            product.dietary_tags.all().delete()
-            ProductDietaryTag.objects.bulk_create([
-                ProductDietaryTag(product=product, code=code) for code in (dietary_tags or [])
-            ])
-
-    @staticmethod
-    def create(*, business, validated_data):
-        data = dict(validated_data)
-        try:
-            with transaction.atomic():
-                product = Product.objects.create(business=business, **{
-                    key: value for key, value in data.items()
-                    if key not in ("allergens", "dietary_tags")
-                })
-                ProductCatalogService._save_restrictions(
-                    product=product, validated_data=data, replace=True
-                )
-                return product
-        except IntegrityError as error:
-            raise ValidationError({"sku": "This SKU is already used in this business."}) from error
-
-    @staticmethod
-    def update(*, product, validated_data):
-        data = dict(validated_data)
-        try:
-            with transaction.atomic():
-                ProductCatalogService._save_restrictions(
-                    product=product, validated_data=data
-                )
-                for field, value in data.items():
-                    setattr(product, field, value)
-                if data:
-                    product.save(update_fields=(*data.keys(), "updated_at"))
-                return product
-        except IntegrityError as error:
-            raise ValidationError({"sku": "This SKU is already used in this business."}) from error
-
     @staticmethod
     @transaction.atomic
     def resolve_active_products(*, business, product_ids):
