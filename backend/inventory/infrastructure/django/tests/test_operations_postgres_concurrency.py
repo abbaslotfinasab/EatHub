@@ -1197,3 +1197,85 @@ class InventoryOperationPostgreSQLConcurrencyTests(TransactionTestCase):
             self.stock.refresh_from_db()
             self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))
 
+    def test_concurrent_cancel_and_transfer_dispatch_allow_only_one_transition(self):
+        destination = Warehouse.objects.create(
+            business=self.business, name="Transfer destination"
+        )
+        transfer = create_operation(
+            business_id=self.business.pk,
+            actor_id=92,
+            operation_type=InventoryOperation.Type.TRANSFER,
+            warehouse_id=self.warehouse.pk,
+            destination_warehouse_id=destination.pk,
+            reason="Race cancellation against dispatch",
+            lines=[{
+                "ingredient_id": self.ingredient.pk,
+                "quantity": "3",
+                "unit": "kg",
+            }],
+        )
+        barrier = Barrier(2)
+
+        def transition(action):
+            close_old_connections()
+            try:
+                barrier.wait(timeout=10)
+                try:
+                    if action == "cancel":
+                        return cancel_operation(
+                            business_id=self.business.pk,
+                            operation_type=InventoryOperation.Type.TRANSFER,
+                            operation_id=transfer.pk,
+                        )
+                    return dispatch_transfer(
+                        business_id=self.business.pk,
+                        actor_id=93,
+                        operation_id=transfer.pk,
+                    )
+                except Exception as error:
+                    return error
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = (
+                pool.submit(transition, "cancel"),
+                pool.submit(transition, "dispatch"),
+            )
+            results = [future.result(timeout=25) for future in futures]
+
+        successes = [result for result in results if not isinstance(result, Exception)]
+        conflicts = [result for result in results if isinstance(result, OperationConflict)]
+        self.assertEqual(len(successes), 1)
+        self.assertEqual(len(conflicts), 1)
+
+        transfer.refresh_from_db()
+        movements = InventoryV1StockMovement.objects.filter(
+            business=self.business,
+            source_type="inventory_transfer",
+            source_document_id=transfer.pk,
+            movement_type="transfer_dispatch",
+        )
+        if transfer.status == InventoryOperation.Status.CANCELLED:
+            self.assertEqual(movements.count(), 0)
+            self.stock.refresh_from_db()
+            self.assertEqual(self.stock.quantity, Decimal("10"))
+            self.assertFalse(
+                InventoryV1Stock.objects.filter(
+                    business=self.business,
+                    warehouse=destination,
+                    ingredient=self.ingredient,
+                ).exists()
+            )
+        else:
+            self.assertEqual(transfer.status, InventoryOperation.Status.IN_TRANSIT)
+            self.assertEqual(movements.count(), 1)
+            self.stock.refresh_from_db()
+            self.assertEqual(self.stock.quantity, Decimal("7.000000000000"))
+            self.assertFalse(
+                InventoryV1Stock.objects.filter(
+                    business=self.business,
+                    warehouse=destination,
+                    ingredient=self.ingredient,
+                ).exists()
+            )
