@@ -18,6 +18,7 @@ from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, 
     MenuItemCreateSerializer, MenuItemUpdateSerializer
 from products.services.menu_service import MenuService
 from products.infrastructure.django.menu_read_repository import DjangoMenuReadRepository
+from products.infrastructure.django.order_read_repository import DjangoOrderReadRepository
 from products.services.order_inventory_service import OrderInventoryService
 from products.models import (
     Menu,
@@ -311,11 +312,7 @@ class OrderCreateAPIView(ExplicitTenantAPIView):
 
 
 class OrderListAPIView(ExplicitTenantAPIView):
-
-    permission_classes = [
-        IsAuthenticated
-    ]
-
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         _require_permission(
@@ -323,227 +320,16 @@ class OrderListAPIView(ExplicitTenantAPIView):
             PermissionCode.ORDERS_VIEW,
             "You do not have permission to view orders.",
         )
-
-        filters = Q(
-            business=request.business
+        orders = DjangoOrderReadRepository().list_for_business(
+            request.business.id,
+            request.query_params,
         )
-
-
-        # =========================
-        # Search
-        # =========================
-
-        search = request.query_params.get(
-            "search",
-            ""
-        ).strip()
-
-
-        if search:
-
-            filters &= (
-
-                Q(
-                    id__icontains=search
-                )
-                |
-                Q(
-                    customer__name__icontains=search
-                )
-                |
-                Q(
-                    customer__phone__icontains=search
-                )
-
-            )
-
-
-
-        # =========================
-        # Status
-        # =========================
-
-        status = request.query_params.get(
-            "status"
-        )
-
-
-        if status:
-
-            filters &= Q(
-                status=status
-            )
-
-
-
-        # =========================
-        # Order Type
-        # =========================
-
-        order_type = request.query_params.get(
-            "order_type"
-        )
-
-
-        if order_type:
-
-            filters &= Q(
-                order_type=order_type
-            )
-
-
-
-        # =========================
-        # Payment Status
-        # =========================
-
-        payment_status = request.query_params.get(
-            "payment_status"
-        )
-
-
-        if payment_status:
-
-            filters &= Q(
-                payment_status=payment_status
-            )
-
-
-
-        # =========================
-        # Payment Method
-        # =========================
-
-        payment_method = request.query_params.get(
-            "payment_method"
-        )
-
-
-        if payment_method:
-
-            filters &= Q(
-                payment_method=payment_method
-            )
-
-
-
-        # =========================
-        # Date Range
-        # =========================
-
-        from_date = request.query_params.get(
-            "from_date"
-        )
-
-
-        to_date = request.query_params.get(
-            "to_date"
-        )
-
-
-        if from_date:
-
-            filters &= Q(
-                created_at__date__gte=from_date
-            )
-
-
-        if to_date:
-
-            filters &= Q(
-                created_at__date__lte=to_date
-            )
-
-
-
-        # =========================
-        # Amount
-        # =========================
-
-        min_total = request.query_params.get(
-            "min_total"
-        )
-
-
-        max_total = request.query_params.get(
-            "max_total"
-        )
-
-
-        if min_total:
-
-            filters &= Q(
-                total_amount__gte=Decimal(min_total)
-            )
-
-
-        if max_total:
-
-            filters &= Q(
-                total_amount__lte=Decimal(max_total)
-            )
-
-
-
-        # =========================
-        # Query
-        # =========================
-
-        orders = (
-
-            Order.objects
-            .filter(filters)
-            .select_related(
-                "customer",
-            )
-
-        )
-
-
-
-        # =========================
-        # Ordering
-        # =========================
-
-        ordering = request.query_params.get(
-            "ordering",
-            "-created_at"
-        )
-
-
-        allowed_ordering = {
-
-            "created_at",
-            "-created_at",
-
-            "total_amount",
-            "-total_amount",
-
-        }
-
-
-        if ordering in allowed_ordering:
-
-            secondary_ordering = "id" if not ordering.startswith("-") else "-id"
-            orders = orders.order_by(
-                ordering,
-                secondary_ordering,
-            )
-
-        else:
-
-            orders = orders.order_by(
-                "-created_at",
-                "-id",
-            )
-
-
-
         paginator = OrderListPagination()
         page = paginator.paginate_queryset(orders, request, view=self)
         serializer = OrderSerializer(page, many=True)
-
         return paginator.get_paginated_response(serializer.data)
+
+
 class OrderDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
@@ -553,12 +339,12 @@ class OrderDetailAPIView(ExplicitTenantAPIView):
             PermissionCode.ORDERS_VIEW,
             "You do not have permission to view orders.",
         )
-        order = get_object_or_404(
-            Order,
-            id=pk,
-            business=request.business,
+        order = DjangoOrderReadRepository().get_for_business(
+            request.business.id,
+            pk,
         )
-
+        if order is None:
+            raise Http404
         return Response(OrderSerializer(order).data)
 
 
