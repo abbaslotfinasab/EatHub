@@ -1,38 +1,33 @@
 from rest_framework import serializers
 
-from financial.models import CustomerAccount, CustomerTransaction
 
-
-class CustomerAccountSerializer(serializers.ModelSerializer):
+class CustomerAccountSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    customer = serializers.IntegerField(read_only=True)
     customer_name = serializers.CharField(source="customer.name", read_only=True)
     customer_phone = serializers.CharField(source="customer.phone", read_only=True)
-
-    class Meta:
-        model = CustomerAccount
-        fields = [
-            "id",
-            "customer",
-            "customer_name",
-            "customer_phone",
-            "balance",
-            "created_at",
-            "updated_at",
-        ]
+    balance = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
 
 
-class CustomerTransactionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CustomerTransaction
-        fields = [
-            "id",
-            "account",
-            "order",
-            "type",
-            "amount",
-            "balance_after",
-            "description",
-            "created_at",
-        ]
+class CustomerTransactionSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    account = serializers.IntegerField(read_only=True)
+    order = serializers.IntegerField(read_only=True, allow_null=True)
+    type = serializers.CharField(read_only=True)
+    amount = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    balance_after = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True
+    )
+    description = serializers.CharField(
+        read_only=True, allow_null=True, allow_blank=True
+    )
+    created_at = serializers.DateTimeField(read_only=True)
 
 
 class CustomerBalanceSerializer(serializers.Serializer):
