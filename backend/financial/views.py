@@ -1,12 +1,12 @@
-from django.shortcuts import get_object_or_404
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.views import ExplicitTenantAPIView
 from core.enums import PermissionCode
-from customer.models import Customer
-from financial.models import CustomerAccount
+from financial.infrastructure.django.customer_account_read_repository import (
+    DjangoCustomerAccountReadRepository,
+)
 from financial.serializers import (
     CustomerAccountSerializer,
     CustomerBalanceSerializer,
@@ -32,11 +32,11 @@ class CustomerAccountDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, customer_id):
-        account = get_object_or_404(
-            CustomerAccount.objects.select_related("customer"),
-            customer_id=customer_id,
-            business=request.business,
+        account = DjangoCustomerAccountReadRepository().get_account_for_business(
+            request.business.id, customer_id
         )
+        if account is None:
+            raise NotFound()
         return Response(CustomerAccountSerializer(account).data)
 
 
@@ -49,11 +49,11 @@ class CustomerCreditAPIView(ExplicitTenantAPIView):
         )
         serializer = CustomerBalanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        customer = get_object_or_404(
-            Customer,
-            pk=customer_id,
-            business=request.business,
+        customer = DjangoCustomerAccountReadRepository().get_customer_for_business(
+            request.business.id, customer_id
         )
+        if customer is None:
+            raise NotFound()
         WalletService.credit(
             business=request.business,
             customer=customer,
@@ -67,12 +67,13 @@ class CustomerTransactionListAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, customer_id):
-        account = get_object_or_404(
-            CustomerAccount.objects.select_related("customer"),
-            customer_id=customer_id,
-            business=request.business,
+        repository = DjangoCustomerAccountReadRepository()
+        account = repository.get_account_for_business(
+            request.business.id, customer_id
         )
-        transactions = account.transactions.all().order_by("-id")
+        if account is None:
+            raise NotFound()
+        transactions = repository.list_transactions_for_account(account)
         return Response(
             CustomerTransactionSerializer(transactions, many=True).data
         )
@@ -87,11 +88,11 @@ class CustomerDebitAPIView(ExplicitTenantAPIView):
         )
         serializer = CustomerBalanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        customer = get_object_or_404(
-            Customer,
-            pk=customer_id,
-            business=request.business,
+        customer = DjangoCustomerAccountReadRepository().get_customer_for_business(
+            request.business.id, customer_id
         )
+        if customer is None:
+            raise NotFound()
         WalletService.debit(
             business=request.business,
             customer=customer,
@@ -110,11 +111,11 @@ class CustomerAdjustAPIView(ExplicitTenantAPIView):
         )
         serializer = CustomerBalanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        customer = get_object_or_404(
-            Customer,
-            pk=customer_id,
-            business=request.business,
+        customer = DjangoCustomerAccountReadRepository().get_customer_for_business(
+            request.business.id, customer_id
         )
+        if customer is None:
+            raise NotFound()
         WalletService.adjust(
             business=request.business,
             customer=customer,
