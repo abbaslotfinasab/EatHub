@@ -1,5 +1,6 @@
 """Django-backed read queries for the Customer API."""
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Count, DecimalField, Q, Sum, Value
 from django.db.models.functions import Coalesce
 
@@ -61,7 +62,7 @@ class DjangoCustomerReadRepository:
             return None
         try:
             account = customer.account
-        except Customer.account.RelatedObjectDoesNotExist:
+        except ObjectDoesNotExist:
             account = None
         transactions = (
             account.transactions.all().order_by("-created_at", "-id")
