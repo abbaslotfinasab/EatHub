@@ -57,7 +57,27 @@ class DjangoCustomerReadRepository:
         )
 
     def get_detail_for_business(self, business_id, customer_id):
-        customer = self.get_for_business(business_id, customer_id)
+        customer = (
+            Customer.objects.filter(business_id=business_id)
+            .select_related("account")
+            .annotate(
+                total_orders=Count(
+                    "orders",
+                    filter=Q(orders__status=Order.Status.COMPLETED),
+                    distinct=True,
+                ),
+                total_spent=Coalesce(
+                    Sum(
+                        "orders__total_amount",
+                        filter=Q(orders__status=Order.Status.COMPLETED),
+                    ),
+                    Value(0),
+                    output_field=DecimalField(max_digits=12, decimal_places=2),
+                ),
+            )
+            .filter(pk=customer_id)
+            .first()
+        )
         if customer is None:
             return None
         try:
