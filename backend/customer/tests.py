@@ -95,8 +95,6 @@ class CustomerPresentationBoundaryTests(SimpleTestCase):
             )
 
     def test_customer_read_serializer_is_not_model_serializer(self):
-        self.assertFalse(
-            issubclass(CustomerReadSerializer, __import__(
-                "rest_framework", fromlist=["serializers"]
-            ).serializers.ModelSerializer)
-        )
+        from rest_framework.serializers import ModelSerializer
+
+        self.assertFalse(issubclass(CustomerReadSerializer, ModelSerializer))
