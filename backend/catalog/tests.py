@@ -1,3 +1,6 @@
+import ast
+from pathlib import Path
+
 from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -276,3 +279,21 @@ class ProductCatalogAPITests(APITestCase):
         response = self.client.get(f"/api/catalog/products/{foreign_product.pk}/")
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+    def test_presentation_serializers_do_not_import_orm_models(self):
+        serializer_path = Path(__file__).parent / "presentation" / "serializers.py"
+        syntax_tree = ast.parse(serializer_path.read_text(encoding="utf-8"))
+        imported_modules = {
+            alias.name
+            for node in ast.walk(syntax_tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        imported_modules.update(
+            node.module
+            for node in ast.walk(syntax_tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        )
+
+        self.assertNotIn("catalog.models", imported_modules)
