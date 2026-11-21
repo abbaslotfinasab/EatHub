@@ -65,7 +65,7 @@ class CustomerDetailAPIView(ExplicitTenantAPIView):
             request.business.id, pk
         )
         if detail is None:
-            raise NotFound("Customer does not exist in this business.")
+            raise NotFound()
         return Response(CustomerDetailReadSerializer(detail).data)
 
 
@@ -77,7 +77,7 @@ class CustomerUpdateAPIView(ExplicitTenantAPIView):
             request.business.id, pk
         )
         if customer is None:
-            raise NotFound("Customer does not exist in this business.")
+            raise NotFound()
         serializer = UpdateCustomerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         customer = CustomerService.update_customer(
@@ -95,6 +95,6 @@ class CustomerDeleteAPIView(ExplicitTenantAPIView):
             request.business.id, pk
         )
         if customer is None:
-            raise NotFound("Customer does not exist in this business.")
+            raise NotFound()
         CustomerService.delete_customer(customer=customer)
         return Response(status=status.HTTP_204_NO_CONTENT)
