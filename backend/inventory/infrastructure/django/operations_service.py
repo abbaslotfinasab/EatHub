@@ -4,7 +4,10 @@ The documents hold workflow/audit metadata only. Quantities and valuation are
 always changed through the existing V1 Stock aggregate and appended ledger.
 """
 from decimal import Decimal
+import hashlib
+import json
 
+from django.db import IntegrityError, transaction
 from django.db.models import Q, Subquery, Sum
 from django.utils import timezone
 
@@ -54,14 +57,18 @@ def _document(business_id, operation_type, operation_id, *, lock=False):
 
 
 def _stock(business_id, warehouse, ingredient, *, create=False):
+    # Share the same parent-lock protocol as DjangoStockRepository and the
+    # tenant-integrity trigger. Shared parent locks preserve Warehouse ->
+    # Ingredient -> Stock ordering without serializing unrelated stock keys.
+    if not DjangoStockRepository._lock_business_references(
+        business_id, warehouse.pk, ingredient.pk
+    ):
+        raise ResourceNotFound("Stock references were not found in this business.")
     if create:
         InventoryV1Stock.objects.get_or_create(
             business_id=business_id, warehouse=warehouse, ingredient=ingredient,
             defaults={"unit": ingredient.unit},
         )
-    # Tenant-scope joins are validation predicates, not part of the stock
-    # serialization boundary. Lock only the projection row so callers that
-    # already hold Ingredient/Warehouse locks cannot form a reverse lock cycle.
     row = InventoryV1Stock.objects.select_for_update(of=("self",)).filter(
         business_id=business_id, warehouse=warehouse, ingredient=ingredient,
         warehouse__business_id=business_id, ingredient__business_id=business_id,
@@ -78,14 +85,77 @@ def _identity(document, line, operation_kind):
     )
 
 
+def _operation_payload_fingerprint(*, operation_type, warehouse_id, destination_warehouse_id,
+                                    reference, reason, notes, lines):
+    def canonical_decimal(value):
+        if value is None:
+            return None
+        # Decimal.normalize() applies the active context precision (28 by
+        # default), which can round values accepted by our 36-digit API fields.
+        # Canonicalize the exact fixed-point representation without arithmetic.
+        rendered = format(Decimal(value), "f")
+        if "." in rendered:
+            rendered = rendered.rstrip("0").rstrip(".")
+        return rendered if rendered not in ("-0", "") else "0"
+
+    payload = {
+        "operation_type": operation_type,
+        "warehouse_id": warehouse_id,
+        "destination_warehouse_id": destination_warehouse_id,
+        "reference": reference.strip(),
+        "reason": reason.strip(),
+        "notes": notes.strip(),
+        "lines": [
+            {
+                "ingredient_id": item["ingredient_id"],
+                "material_type": item.get("material_type"),
+                "quantity": canonical_decimal(item["quantity"]),
+                "unit": item["unit"],
+                "counted_quantity": canonical_decimal(item.get("counted_quantity")),
+                "counted_unit_cost": canonical_decimal(item.get("counted_unit_cost")),
+            }
+            for item in sorted(lines, key=lambda entry: entry["ingredient_id"])
+        ],
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _existing_idempotent_operation(business_id, idempotency_key, fingerprint):
+    existing = InventoryOperation.objects.filter(
+        business_id=business_id, idempotency_key=idempotency_key
+    ).prefetch_related("lines__ingredient").first()
+    if existing is None:
+        return None
+    if existing.payload_fingerprint != fingerprint:
+        raise OperationConflict(
+            "This idempotency key has already been used with a different operation payload."
+        )
+    return existing
+
+
 def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
-                     destination_warehouse_id=None, reference="", reason="", notes="", lines):
+                     destination_warehouse_id=None, reference="", reason="", notes="", lines,
+                     idempotency_key=None):
     if operation_type not in InventoryOperation.Type.values:
         raise OperationInputError("Unsupported inventory operation type.")
     if not lines:
         raise OperationInputError("At least one item is required.")
     if len({line["ingredient_id"] for line in lines}) != len(lines):
         raise OperationInputError("Each item may appear only once per document.")
+    fingerprint = (
+        _operation_payload_fingerprint(
+            operation_type=operation_type, warehouse_id=warehouse_id,
+            destination_warehouse_id=destination_warehouse_id,
+            reference=reference, reason=reason, notes=notes, lines=lines,
+        )
+        if idempotency_key is not None else None
+    )
+    if idempotency_key is not None:
+        existing = _existing_idempotent_operation(business_id, idempotency_key, fingerprint)
+        if existing is not None:
+            return existing
+
     with _atomic():
         warehouse = Warehouse.objects.filter(pk=warehouse_id, business_id=business_id).first()
         if warehouse is None:
@@ -101,14 +171,31 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
                 raise OperationInputError("Choose a distinct active destination warehouse in this business.")
         elif destination_warehouse_id is not None:
             raise OperationInputError("Destination is only valid for transfers.")
-        document = InventoryOperation.objects.create(
-            business_id=business_id, operation_type=operation_type,
-            warehouse=warehouse, destination_warehouse=destination,
-            reference=reference.strip(), reason=reason.strip(), notes=notes.strip(),
-            created_by_id=actor_id,
-        )
+
+        is_stocktake = operation_type == InventoryOperation.Type.STOCKTAKE
+        prepared_lines = {}
+        # Lock all business references before inserting the document. This lets
+        # Warehouse deactivation serialize cleanly with operation creation and
+        # ensures every Ingredient is validated while its shared lock is held.
         for item in sorted(lines, key=lambda entry: entry["ingredient_id"]):
-            ingredient = Ingredient.objects.select_for_update().filter(
+            additional_warehouse_ids = (destination.pk,) if destination is not None else ()
+            if not DjangoStockRepository._lock_business_references(
+                business_id, warehouse.pk, item["ingredient_id"],
+                additional_warehouse_ids=additional_warehouse_ids,
+            ):
+                raise ResourceNotFound("An active item or warehouse was not found in this business.")
+            warehouse = Warehouse.objects.filter(
+                pk=warehouse.pk, business_id=business_id, is_active=True
+            ).first()
+            if warehouse is None:
+                raise OperationInputError("Inactive warehouses cannot be used.")
+            if destination is not None:
+                destination = Warehouse.objects.filter(
+                    pk=destination.pk, business_id=business_id, is_active=True
+                ).first()
+                if destination is None:
+                    raise OperationInputError("Inactive destination warehouses cannot be used.")
+            ingredient = Ingredient.objects.filter(
                 pk=item["ingredient_id"], business_id=business_id, is_active=True
             ).first()
             if ingredient is None:
@@ -119,32 +206,53 @@ def create_operation(*, business_id, actor_id, operation_type, warehouse_id,
                 raise OperationInputError("Selected material type does not match the ingredient.")
             unit = Unit(item["unit"])
             quantity = Quantity(item["quantity"], unit).convert_to(Unit(ingredient.unit))
-            is_stocktake = operation_type == InventoryOperation.Type.STOCKTAKE
             if not is_stocktake and quantity.amount <= 0:
                 raise OperationInputError("Operation quantities must be positive.")
-            snapshot = None
-            snapshot_movement_id = None
-            counted = None
-            if is_stocktake:
-                stock_row, _ = _stock(business_id, warehouse, ingredient, create=True)
-                snapshot = stock_row.quantity
-                counted_value = item.get("counted_quantity")
-                counted = (Quantity(counted_value, unit).convert_to(Unit(ingredient.unit)).amount
-                           if counted_value is not None else None)
-                counted_cost = item.get("counted_unit_cost")
-                latest = InventoryV1StockMovement.objects.filter(stock=stock_row).order_by("-pk").values_list("pk", flat=True).first()
-                snapshot_movement_id = latest
-            InventoryOperationLine.objects.create(
-                operation=document, ingredient=ingredient, quantity=quantity.amount,
-                unit=ingredient.unit, system_quantity=snapshot,
-                counted_quantity=counted,
-                counted_unit_cost=UnitCost(counted_cost).amount if is_stocktake and counted_cost is not None else None,
-                counted_by_id=actor_id if counted is not None else None,
-                counted_at=timezone.now() if counted is not None else None,
-                snapshot_movement_id=snapshot_movement_id,
-            )
-        return document
+            prepared_lines[ingredient.pk] = (ingredient, quantity)
 
+        try:
+            # A nested savepoint lets a concurrent request win the unique key
+            # without leaving the outer transaction unusable.
+            with transaction.atomic():
+                document = InventoryOperation.objects.create(
+                    business_id=business_id, operation_type=operation_type,
+                    warehouse=warehouse, destination_warehouse=destination,
+                    reference=reference.strip(), reason=reason.strip(), notes=notes.strip(),
+                    idempotency_key=idempotency_key,
+                    payload_fingerprint=fingerprint,
+                    created_by_id=actor_id,
+                )
+                for item in sorted(lines, key=lambda entry: entry["ingredient_id"]):
+                    ingredient, quantity = prepared_lines[item["ingredient_id"]]
+                    snapshot = None
+                    snapshot_movement_id = None
+                    counted = None
+                    if is_stocktake:
+                        stock_row, _ = _stock(business_id, warehouse, ingredient, create=True)
+                        snapshot = stock_row.quantity
+                        counted_value = item.get("counted_quantity")
+                        counted = (Quantity(counted_value, Unit(item["unit"])).convert_to(Unit(ingredient.unit)).amount
+                                   if counted_value is not None else None)
+                        counted_cost = item.get("counted_unit_cost")
+                        latest = InventoryV1StockMovement.objects.filter(stock=stock_row).order_by("-pk").values_list("pk", flat=True).first()
+                        snapshot_movement_id = latest
+                    InventoryOperationLine.objects.create(
+                        operation=document, ingredient=ingredient, quantity=quantity.amount,
+                        unit=ingredient.unit, system_quantity=snapshot,
+                        counted_quantity=counted,
+                        counted_unit_cost=UnitCost(counted_cost).amount if is_stocktake and counted_cost is not None else None,
+                        counted_by_id=actor_id if counted is not None else None,
+                        counted_at=timezone.now() if counted is not None else None,
+                        snapshot_movement_id=snapshot_movement_id,
+                    )
+        except IntegrityError:
+            if idempotency_key is None:
+                raise
+            existing = _existing_idempotent_operation(business_id, idempotency_key, fingerprint)
+            if existing is None:
+                raise
+            return existing
+        return document
 
 def create_opening_stock(*, business_id, actor_id, warehouse_id, reference="", reason="", notes="", lines):
     """Atomically initialize never-used V1 stock positions and append their ledger entries."""
@@ -238,8 +346,10 @@ def update_stocktake_counts(*, business_id, actor_id, operation_id, counts):
             if line is None:
                 raise ResourceNotFound("Stocktake line was not found.")
             line.counted_quantity = Quantity(values["counted_quantity"], Unit(line.unit)).amount
-            cost = values.get("counted_unit_cost")
-            line.counted_unit_cost = UnitCost(cost).amount if cost is not None else None
+            # PATCH semantics: an omitted optional cost leaves the previously
+            # recorded cost intact; the serializer does not accept explicit null.
+            if "counted_unit_cost" in values:
+                line.counted_unit_cost = UnitCost(values["counted_unit_cost"]).amount
             line.counted_by_id = actor_id
             line.counted_at = timezone.now()
             line.save(update_fields=("counted_quantity", "counted_unit_cost", "counted_by_id", "counted_at"))
@@ -396,6 +506,16 @@ def approve_stocktake(*, business_id, actor_id, operation_id):
             if row.quantity != line.system_quantity or latest_id != line.snapshot_movement_id:
                 raise OperationConflict("Stock changed after the count snapshot; cancel this draft and create a fresh stocktake before approval.")
             counted = Decimal(line.counted_quantity)
+            reserved = InventoryReservationLine.objects.filter(
+                reservation__business_id=business_id,
+                reservation__warehouse_id=document.warehouse_id,
+                reservation__status=InventoryReservation.Status.ACTIVE,
+                ingredient_id=line.ingredient_id,
+            ).aggregate(total=Sum("quantity"))["total"] or Decimal("0")
+            if counted < reserved:
+                raise OperationConflict(
+                    "Stocktake count cannot reduce physical stock below active reservations."
+                )
             snapshot = Decimal(line.system_quantity)
             delta = counted - snapshot
             if delta:

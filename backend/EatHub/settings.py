@@ -226,3 +226,7 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
+
+# Keep PostgreSQL's append-only ledger guard active in tests, but temporarily
+# disable it around Django's intentional TransactionTestCase database flush.
+TEST_RUNNER = "EatHub.test_runner.LedgerSafeDiscoverRunner"

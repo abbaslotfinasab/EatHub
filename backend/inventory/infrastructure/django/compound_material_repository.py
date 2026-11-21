@@ -202,7 +202,23 @@ class DjangoCompoundMaterialRepository:
 
         try:
             with transaction.atomic():
-                row = self._rows(business_id, lock=True).filter(pk=material_id).first()
+                if "components" in values:
+                    # Recipe mutations lock every referenced Ingredient in ascending
+                    # PK order. Acquire the Compound row and its incoming components
+                    # with that same global order to avoid cross-aggregate deadlocks.
+                    lock_ids = {material_id}
+                    lock_ids.update(
+                        line["ingredient_id"] for line in values["components"]
+                    )
+                    list(
+                        Ingredient.objects.select_for_update(of=("self",))
+                        .filter(business_id=business_id, pk__in=lock_ids)
+                        .order_by("pk")
+                        .values_list("pk", flat=True)
+                    )
+                    row = self._rows(business_id).filter(pk=material_id).first()
+                else:
+                    row = self._rows(business_id, lock=True).filter(pk=material_id).first()
                 if row is None:
                     return None
                 if "is_active" in header and header["is_active"] is False and InventoryReservationLine.objects.filter(

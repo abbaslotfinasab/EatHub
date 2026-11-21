@@ -1,5 +1,5 @@
 from django.db import IntegrityError, connection, transaction
-from django.db.models import QuerySet, Sum
+from django.db.models import Exists, OuterRef, QuerySet, Sum
 
 from inventory.application.exceptions import OperationConflict, ResourceNotFound
 from inventory.application.dto.stock_balance import (
@@ -85,6 +85,36 @@ class DjangoWarehouseRepository:
 
 class DjangoStockRepository:
     @staticmethod
+    def _lock_business_references(
+        business_id: int, warehouse_id: int, ingredient_id: int,
+        additional_warehouse_ids: tuple[int, ...] | list[int] = (),
+    ) -> bool:
+        # The database tenant trigger takes FOR SHARE on Warehouse then
+        # Ingredient. Lock every participating Warehouse in ascending PK order
+        # before Ingredient so transfers cannot invert the shared lock order.
+        if not connection.in_atomic_block or connection.vendor != "postgresql":
+            return True
+        warehouse_table = connection.ops.quote_name(LegacyWarehouse._meta.db_table)
+        ingredient_table = connection.ops.quote_name(LegacyIngredient._meta.db_table)
+        warehouse_ids = sorted({warehouse_id, *additional_warehouse_ids})
+        with connection.cursor() as cursor:
+            warehouse_found = True
+            for reference_warehouse_id in warehouse_ids:
+                cursor.execute(
+                    f"SELECT id FROM {warehouse_table} "
+                    "WHERE id = %s AND business_id = %s FOR SHARE",
+                    [reference_warehouse_id, business_id],
+                )
+                warehouse_found = cursor.fetchone() is not None and warehouse_found
+            cursor.execute(
+                f"SELECT id FROM {ingredient_table} "
+                "WHERE id = %s AND business_id = %s FOR SHARE",
+                [ingredient_id, business_id],
+            )
+            ingredient_found = cursor.fetchone() is not None
+        return warehouse_found and ingredient_found
+
+    @staticmethod
     def _require_business_references(
         business_id: int, warehouse_id: int, ingredient_id: int
     ) -> None:
@@ -105,6 +135,8 @@ class DjangoStockRepository:
         warehouse_id: int,
         ingredient_id: int,
     ) -> Stock | None:
+        if not self._lock_business_references(business_id, warehouse_id, ingredient_id):
+            return None
         row = _stock_rows(lock=True).filter(
             business_id=business_id,
             warehouse_id=warehouse_id,
@@ -130,6 +162,10 @@ class DjangoStockRepository:
         self._require_business_references(
             business_id, warehouse.id, ingredient.id
         )
+        if not self._lock_business_references(business_id, warehouse.id, ingredient.id):
+            raise ResourceNotFound(
+                "Stock Warehouse and Ingredient must exist in the requested Business."
+            )
         # The unique constraint on (business, warehouse, ingredient) resolves
         # simultaneous first-stock creation. Django's get_or_create handles
         # the insert race in a savepoint; the subsequent query locks and
@@ -152,6 +188,12 @@ class DjangoStockRepository:
         self._require_business_references(
             key.business_id, key.warehouse_id, key.ingredient_id
         )
+        if not self._lock_business_references(
+            key.business_id, key.warehouse_id, key.ingredient_id
+        ):
+            raise ResourceNotFound(
+                "Stock Warehouse and Ingredient must exist in the requested Business."
+            )
         row = _stock_rows(lock=True).filter(
             business_id=key.business_id,
             warehouse_id=key.warehouse_id,
@@ -254,6 +296,14 @@ class DjangoStockMovementRepository:
     ) -> StockMovement | None:
         if stock_key.business_id != business_id:
             raise TenantMismatch("StockKey belongs to another Business.")
+        reversed_sources = InventoryV1StockMovement.objects.filter(
+            business_id=business_id,
+            movement_type="reversal",
+            reverses_source_type=OuterRef("source_type"),
+            reverses_source_document_id=OuterRef("source_document_id"),
+            reverses_source_line_id=OuterRef("source_line_id"),
+            reverses_operation_kind=OuterRef("operation_kind"),
+        )
         row = (
             _movement_rows()
             .filter(
@@ -262,6 +312,9 @@ class DjangoStockMovementRepository:
                 stock__warehouse_id=stock_key.warehouse_id,
                 stock__ingredient_id=stock_key.ingredient_id,
             )
+            .exclude(movement_type="reversal")
+            .annotate(_has_reversal=Exists(reversed_sources))
+            .filter(_has_reversal=False)
             .order_by("-pk")
             .first()
         )

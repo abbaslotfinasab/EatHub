@@ -130,11 +130,12 @@ class DjangoRecipeRepository:
 
     def get_for_business(
         self, business_id: int, recipe_id: int, *, lock: bool = False,
+        lock_ingredients: bool = True,
     ) -> RecipeDTO | None:
         row = self._recipes(business_id, lock=lock).filter(pk=recipe_id).first()
         if row is None:
             return None
-        if lock and connection.in_atomic_block:
+        if lock and lock_ingredients and connection.in_atomic_block:
             ingredient_ids = set(RecipeInputModel.objects.filter(
                 recipe_id=row.pk
             ).values_list("ingredient_id", flat=True))

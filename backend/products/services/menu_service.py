@@ -1,21 +1,27 @@
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
-from catalog.application.services import ProductCatalogService
+from catalog.application.exceptions import ProductsUnavailable
+from catalog.bootstrap import resolve_active_products
 from composition.recipe_queries import RecipeUnavailable, get_recipe_for_business
 from products.models import Menu, MenuItem
 
 
 def _resolve_products(*, business, items_data):
-    product_ids = [
+    product_ids = {
         item["product_id"]
         for item in items_data
         if item.get("product_id") is not None
-    ]
-    return ProductCatalogService.resolve_active_products(
-        business=business,
-        product_ids=product_ids,
-    )
+    }
+    try:
+        return resolve_active_products(
+            business_id=business.pk,
+            product_ids=product_ids,
+        )
+    except ProductsUnavailable:
+        raise ValidationError({
+            "product_id": "Select an active product belonging to this business."
+        }) from None
 
 
 def _validate_recipe_ids(*, business, items_data):

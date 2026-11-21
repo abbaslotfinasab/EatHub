@@ -1,3 +1,5 @@
+from uuid import UUID, uuid5
+
 from inventory.application.dto.order_consumption_posting import OrderConsumptionPostingDTO
 from inventory.application.exceptions import InvalidApplicationInput, OperationConflict
 from inventory.infrastructure.django.models import (
@@ -10,6 +12,9 @@ from inventory.infrastructure.django.operations_service import (
     create_operation,
     post_issue,
 )
+
+
+_ORDER_CONSUMPTION_KEY_NAMESPACE = UUID("c13b2b58-76c4-4e8f-a8f5-b2b87e3f64d1")
 
 
 class DjangoOrderConsumptionPostingRepository:
@@ -32,6 +37,10 @@ class DjangoOrderConsumptionPostingRepository:
                 reason=f"Actual consumption for order {order_id}",
                 notes=f"OrderInventoryConsumption:{consumption_id}",
                 lines=lines,
+                idempotency_key=uuid5(
+                    _ORDER_CONSUMPTION_KEY_NAMESPACE,
+                    f"{context.business_id}:{order_id}:{consumption_id}",
+                ),
             )
             post_issue(
                 business_id=context.business_id,

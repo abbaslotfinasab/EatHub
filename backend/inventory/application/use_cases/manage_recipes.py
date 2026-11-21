@@ -67,6 +67,7 @@ class ManageRecipes:
         self._positive_id(business_id, "Business ID")
         recipe = Recipe(None, business_id, name, RecipeType(recipe_type))
         with self._unit_of_work.atomic():
+            self._lock_ingredients_for_update(business_id, [*inputs, *outputs])
             input_lines = [self._make_line(recipe, row, "input") for row in inputs]
             output_lines = [self._make_line(recipe, row, "output") for row in outputs]
             return self._recipes.create(
@@ -76,9 +77,21 @@ class ManageRecipes:
 
     def update(self, business_id: int, recipe_id: int, **changes) -> RecipeDTO:
         with self._unit_of_work.atomic():
-            current = self._recipes.get_for_business(business_id, recipe_id, lock=True)
+            current = self._recipes.get_for_business(
+                business_id, recipe_id, lock=True, lock_ingredients=False,
+            )
             if current is None:
                 raise RecipeNotFound("Recipe does not exist in this business.")
+            has_line_changes = "inputs" in changes or "outputs" in changes
+            changed_commands = [
+                command
+                for field in ("inputs", "outputs")
+                for command in changes.get(field, ())
+            ]
+            if has_line_changes:
+                self._lock_recipe_ingredients_for_update(
+                    business_id, current, changed_commands,
+                )
             recipe = Recipe(
                 current.id, business_id,
                 changes.get("name", current.name),
@@ -114,9 +127,14 @@ class ManageRecipes:
                  command: RecipeLineCommand) -> RecipeDTO:
         self._validate_kind(kind)
         with self._unit_of_work.atomic():
-            recipe_data = self._recipes.get_for_business(business_id, recipe_id, lock=True)
+            recipe_data = self._recipes.get_for_business(
+                business_id, recipe_id, lock=True, lock_ingredients=False,
+            )
             if recipe_data is None:
                 raise RecipeNotFound("Recipe does not exist in this business.")
+            self._lock_recipe_ingredients_for_update(
+                business_id, recipe_data, [command],
+            )
             aggregate = self._aggregate(recipe_data, business_id)
             line = self._make_line(aggregate, command, kind)
             result = self._recipes.save_line(business_id, recipe_id, kind, line)
@@ -128,13 +146,18 @@ class ManageRecipes:
                     line_id: int, command: RecipeLineCommand) -> RecipeDTO:
         self._validate_kind(kind)
         with self._unit_of_work.atomic():
-            recipe_data = self._recipes.get_for_business(business_id, recipe_id, lock=True)
+            recipe_data = self._recipes.get_for_business(
+                business_id, recipe_id, lock=True, lock_ingredients=False,
+            )
             if recipe_data is None:
                 raise RecipeNotFound("Recipe does not exist in this business.")
             rows = recipe_data.inputs if kind == "input" else recipe_data.outputs
             target = next((row for row in rows if row.id == line_id), None)
             if target is None:
                 raise RecipeNotFound("Recipe line does not exist in this business.")
+            self._lock_recipe_ingredients_for_update(
+                business_id, recipe_data, [command],
+            )
             aggregate = self._aggregate(
                 recipe_data, business_id,
                 excluded=(kind, line_id),
@@ -151,7 +174,9 @@ class ManageRecipes:
                    line_id: int, changes: dict) -> RecipeDTO:
         self._validate_kind(kind)
         with self._unit_of_work.atomic():
-            recipe_data = self._recipes.get_for_business(business_id, recipe_id, lock=True)
+            recipe_data = self._recipes.get_for_business(
+                business_id, recipe_id, lock=True, lock_ingredients=False,
+            )
             if recipe_data is None:
                 raise RecipeNotFound("Recipe does not exist in this business.")
             rows = recipe_data.inputs if kind == "input" else recipe_data.outputs
@@ -168,6 +193,9 @@ class ManageRecipes:
                     if kind == "output" else False
                 ),
             )
+            self._lock_recipe_ingredients_for_update(
+                business_id, recipe_data, [command],
+            )
             aggregate = self._aggregate(recipe_data, business_id, excluded=(kind, line_id))
             line = self._make_line(aggregate, command, kind)
             result = self._recipes.save_line(
@@ -180,10 +208,60 @@ class ManageRecipes:
     def delete_line(self, business_id: int, recipe_id: int, kind: str, line_id: int) -> None:
         self._validate_kind(kind)
         with self._unit_of_work.atomic():
-            if self._recipes.get_for_business(business_id, recipe_id, lock=True) is None:
+            if self._recipes.get_for_business(
+                business_id, recipe_id, lock=True, lock_ingredients=False,
+            ) is None:
                 raise RecipeNotFound("Recipe does not exist in this business.")
             if not self._recipes.delete_line(business_id, recipe_id, kind, line_id):
                 raise RecipeNotFound("Recipe line does not exist in this business.")
+
+    def _lock_ingredients_for_update(
+        self, business_id: int, commands: list[RecipeLineCommand],
+    ) -> None:
+        """Lock and validate command ingredients in deterministic PK order."""
+        self._lock_ingredient_ids_for_update(
+            business_id,
+            [command.ingredient_id for command in commands],
+            active_ingredient_ids={command.ingredient_id for command in commands},
+        )
+
+    def _lock_recipe_ingredients_for_update(
+        self, business_id: int, recipe: RecipeDTO,
+        commands: list[RecipeLineCommand],
+    ) -> None:
+        """Lock existing and replacement ingredients together, before any row is locked."""
+        existing_ids = [
+            line.ingredient_id for line in (*recipe.inputs, *recipe.outputs)
+        ]
+        command_ids = [command.ingredient_id for command in commands]
+        self._lock_ingredient_ids_for_update(
+            business_id,
+            [*existing_ids, *command_ids],
+            active_ingredient_ids=set(command_ids),
+        )
+
+    def _lock_ingredient_ids_for_update(
+        self, business_id: int, ingredient_ids: list[int], *,
+        active_ingredient_ids: set[int],
+    ) -> None:
+        """Acquire every required Ingredient lock in one global PK order."""
+        unique_ids = set()
+        for ingredient_id in ingredient_ids:
+            self._positive_id(ingredient_id, "Ingredient ID")
+            unique_ids.add(ingredient_id)
+
+        for ingredient_id in sorted(unique_ids):
+            ingredient = self._recipes.get_ingredient_for_update(
+                business_id, ingredient_id,
+            )
+            if ingredient is None:
+                raise RecipeIngredientNotFound(
+                    "Ingredient does not exist in this business."
+                )
+            if ingredient_id in active_ingredient_ids and not ingredient.is_active:
+                raise InactiveRecipeIngredient(
+                    "Inactive ingredients cannot be added to a recipe."
+                )
 
     def _make_line(self, recipe: Recipe, command: RecipeLineCommand, kind: str):
         self._positive_id(command.ingredient_id, "Ingredient ID")

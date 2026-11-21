@@ -1,9 +1,17 @@
+import ast
+from pathlib import Path
+
 from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
 from catalog.models import Product, ProductAllergen, ProductDietaryTag
+from catalog.application.use_cases.get_product_read_model import (
+    GetProductReadModel,
+    ProductNotFound,
+)
+from catalog.infrastructure.django.product_read_repository import DjangoProductReadRepository
 from core.enums import PermissionCode
 
 
@@ -207,3 +215,85 @@ class ProductCatalogAPITests(APITestCase):
                 with self.assertRaises(IntegrityError):
                     with transaction.atomic():
                         create_invalid_row()
+
+    def test_product_read_use_case_returns_business_scoped_projection(self):
+        product = Product.objects.create(
+            business=self.business, name="Read model product"
+        )
+        ProductAllergen.objects.create(
+            product=product, code="milk", presence="may_contain"
+        )
+        use_case = GetProductReadModel(DjangoProductReadRepository())
+
+        result = use_case.execute(
+            business_id=self.business.pk,
+            product_id=product.pk,
+        )
+        self.assertEqual(result["name"], "Read model product")
+        self.assertEqual(
+            result["allergens"],
+            ({"code": "milk", "presence": "may_contain"},),
+        )
+        with self.assertRaises(ProductNotFound):
+            use_case.execute(
+                business_id=self.other_business.pk,
+                product_id=product.pk,
+            )
+
+
+    def test_product_list_filters_and_paginates_through_application_boundary(self):
+        Product.objects.create(
+            business=self.business, name="Americano", category="Coffee",
+            status=Product.Status.ACTIVE,
+        )
+        Product.objects.create(
+            business=self.business, name="Cappuccino", category="Coffee",
+            status=Product.Status.ACTIVE,
+        )
+        Product.objects.create(
+            business=self.business, name="Lemonade", category="Drinks",
+            status=Product.Status.ACTIVE,
+        )
+        Product.objects.create(
+            business=self.other_business, name="Foreign Coffee", category="Coffee",
+            status=Product.Status.ACTIVE,
+        )
+
+        response = self.client.get(
+            "/api/catalog/products/?category=Coffee&status=active&page=2&page_size=1"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["page"], 2)
+        self.assertEqual(response.data["page_size"], 1)
+        self.assertEqual([item["name"] for item in response.data["results"]], ["Cappuccino"])
+
+    def test_product_detail_read_use_case_preserves_business_not_found(self):
+        foreign_product = Product.objects.create(
+            business=self.other_business,
+            name="Foreign detail",
+            status=Product.Status.ACTIVE,
+        )
+
+        response = self.client.get(f"/api/catalog/products/{foreign_product.pk}/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+    def test_presentation_serializers_do_not_import_orm_models(self):
+        serializer_path = Path(__file__).parent / "presentation" / "serializers.py"
+        syntax_tree = ast.parse(serializer_path.read_text(encoding="utf-8"))
+        imported_modules = {
+            alias.name
+            for node in ast.walk(syntax_tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        imported_modules.update(
+            node.module
+            for node in ast.walk(syntax_tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        )
+
+        self.assertNotIn("catalog.models", imported_modules)

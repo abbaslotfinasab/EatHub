@@ -72,9 +72,10 @@ class MenuItemSerializer(serializers.ModelSerializer):
         cache = getattr(self, "_product_read_models", {})
         key = (obj.business_id, obj.product_id)
         if key not in cache:
-            from catalog.application.services import ProductCatalogService, ProductNotFound
+            from catalog.application.use_cases.get_product_read_model import ProductNotFound
+            from catalog.bootstrap import get_product_read_model
             try:
-                cache[key] = ProductCatalogService.get_product_read_model_for_business(
+                cache[key] = get_product_read_model(
                     business_id=obj.business_id,
                     product_id=obj.product_id,
                 )

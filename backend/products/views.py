@@ -4,7 +4,6 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 
-from accounts.models import Business
 from accounts.views import ExplicitTenantAPIView, TenantAPIView
 from products.serializers.order_serializer import *
 from products.services.order_service import *
@@ -18,6 +17,7 @@ from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, 
     PublicRestaurantSerializer, PublicMenuSerializer, UpdateMenuSerializer, MenuItemSerializer, \
     MenuItemCreateSerializer, MenuItemUpdateSerializer
 from products.services.menu_service import MenuService
+from products.infrastructure.django.menu_read_repository import DjangoMenuReadRepository
 from products.services.order_inventory_service import OrderInventoryService
 from products.models import (
     Menu,
@@ -96,11 +96,8 @@ class MenuListAPIView(ExplicitTenantAPIView):
 
     def get(self, request):
 
-        menus = (
-            Menu.objects
-            .filter(business=request.business)
-            .prefetch_related("items__product")
-            .order_by("sort_order")
+        menus = DjangoMenuReadRepository().list_for_business(
+            request.business.id
         )
 
         return Response(MenuSerializer(menus, many=True).data)
@@ -111,11 +108,11 @@ class MenuDetailAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        menu = get_object_or_404(
-            Menu.objects.prefetch_related("items__product"),
-            pk=pk,
-            business=request.business
+        menu = DjangoMenuReadRepository().get_for_business(
+            request.business.id, pk
         )
+        if menu is None:
+            raise Http404
 
         return Response(MenuSerializer(menu).data)
 
@@ -175,24 +172,12 @@ class PublicRestaurantMenuAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
-        business = get_object_or_404(
-            Business,
-            slug=slug,
-            is_active=True,
-        )
+        repository = DjangoMenuReadRepository()
+        business = repository.get_active_business_by_slug(slug)
+        if business is None:
+            raise Http404
 
-        menus = (
-            Menu.objects
-            .filter(
-                business=business
-            )
-            .prefetch_related(
-                "items"
-            )
-            .order_by(
-                "sort_order"
-            )
-        )
+        menus = repository.list_public_for_business(business.id)
 
         return Response({
             "restaurant":

@@ -27,9 +27,41 @@ class PrepareOrderConfirmation:
             if len(defaults) != 1:
                 raise OperationConflict("Configure exactly one active default warehouse before confirming recipe-based orders.")
 
-            resolved = []
+            # Lock all Recipe headers first, in one stable order. Their Ingredient
+            # rows are deliberately not locked yet: locking them one Recipe at a
+            # time can invert the global Ingredient PK order across Recipes.
+            locked_recipes = []
             for recipe_id in sorted(set(recipe_ids)):
-                recipe = self._recipes.get_for_business(context.business_id, recipe_id, lock=True)
+                recipe = self._recipes.get_for_business(
+                    context.business_id, recipe_id,
+                    lock=True, lock_ingredients=False,
+                )
+                if recipe is None:
+                    raise ResourceNotFound("A linked recipe was not found in this business.")
+                locked_recipes.append(recipe)
+
+            ingredient_ids = sorted({
+                line.ingredient_id
+                for recipe in locked_recipes
+                for line in (*recipe.inputs, *recipe.outputs)
+            })
+            for ingredient_id in ingredient_ids:
+                ingredient = self._recipes.get_ingredient_for_update(
+                    context.business_id, ingredient_id,
+                )
+                if ingredient is None:
+                    raise ResourceNotFound(
+                        "A linked recipe ingredient was not found in this business."
+                    )
+
+            # Refresh DTO ingredient facts only after every Ingredient lock is
+            # held. Recipe rows remain locked, so their line membership is stable.
+            resolved = []
+            for locked_recipe in locked_recipes:
+                recipe = self._recipes.get_for_business(
+                    context.business_id, locked_recipe.id,
+                    lock=True, lock_ingredients=False,
+                )
                 if recipe is None:
                     raise ResourceNotFound("A linked recipe was not found in this business.")
                 if not recipe.is_active:

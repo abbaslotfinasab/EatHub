@@ -1,23 +1,61 @@
 import { useDeferredValue, useEffect, useState } from "react";
 import {
     Alert, Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent,
-    DialogTitle, IconButton, MenuItem, Paper, Table, TableBody, TableCell,
-    TableContainer, TableHead, TableRow, TextField, Typography,
+    DialogTitle, FormControl, IconButton, InputLabel, ListItemText, MenuItem,
+    OutlinedInput, Paper, Select, Table, TableBody, TableCell, TableContainer,
+    TableHead, TableRow, TextField, Typography,
 } from "@mui/material";
+import type { SelectChangeEvent } from "@mui/material/Select";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import { useCreateProduct, useProducts, useUpdateProduct } from "../../hooks/catalog/useProducts.ts";
-import type { Product, ProductInput, ProductStatus } from "../../../domain/entities/catalog/Product.ts";
+import type {
+    Product, ProductAllergenCode, ProductAllergenPresence, ProductDietaryTagCode,
+    ProductInput, ProductStatus,
+} from "../../../domain/entities/catalog/Product.ts";
 
-const emptyForm: ProductInput = { name: "", sku: "", category: "", description: "", status: "draft" };
+const emptyForm: ProductInput = {
+    name: "", sku: "", category: "", description: "", status: "draft",
+    allergens: [], dietaryTags: [],
+};
 
 const statusLabels: Record<ProductStatus, string> = {
     draft: "پیش‌نویس",
     active: "فعال",
     archived: "بایگانی‌شده",
 };
+
+const allergenLabels: Record<ProductAllergenCode, string> = {
+    celery: "کرفس",
+    cereals_gluten: "غلات حاوی گلوتن",
+    crustaceans: "سخت‌پوستان",
+    eggs: "تخم‌مرغ",
+    fish: "ماهی",
+    lupin: "لوپین",
+    milk: "شیر",
+    molluscs: "نرم‌تنان",
+    mustard: "خردل",
+    peanuts: "بادام‌زمینی",
+    sesame: "کنجد",
+    soybeans: "سویا",
+    sulphites: "دی‌اکسید گوگرد و سولفیت‌ها",
+    tree_nuts: "مغزهای درختی",
+};
+
+const dietaryLabels: Record<ProductDietaryTagCode, string> = {
+    vegan: "وگان",
+    vegetarian: "گیاه‌خواری",
+    gluten_free: "بدون گلوتن",
+    dairy_free: "بدون لبنیات",
+    halal: "حلال",
+    kosher: "کوشر",
+};
+
+const allergenOptions = Object.keys(allergenLabels) as ProductAllergenCode[];
+const dietaryOptions = Object.keys(dietaryLabels) as ProductDietaryTagCode[];
+const allergenValue = (code: ProductAllergenCode, presence: ProductAllergenPresence) => `${code}|${presence}`;
 
 export const ProductsPage = () => {
     const [search, setSearch] = useState("");
@@ -53,6 +91,8 @@ export const ProductsPage = () => {
             category: product.category ?? "",
             description: product.description ?? "",
             status: product.status,
+            allergens: product.allergens,
+            dietaryTags: product.dietaryTags,
         });
         setFormError("");
         setDialogOpen(true);
@@ -75,7 +115,7 @@ export const ProductsPage = () => {
             else await createProduct.mutateAsync(payload);
             setDialogOpen(false);
         } catch {
-            setFormError("ذخیره محصول انجام نشد. کد کالا را بررسی کنید یا دوباره تلاش کنید.");
+            setFormError("ذخیره محصول انجام نشد. کد کالا یا اطلاعات محدودیت‌های غذایی را بررسی کنید.");
         }
     };
 
@@ -87,6 +127,18 @@ export const ProductsPage = () => {
         }
     };
 
+    const handleAllergenChange = (event: SelectChangeEvent<string[]>) => {
+        const values = typeof event.target.value === "string" ? event.target.value.split(",") : event.target.value;
+        const next = values.map((value) => {
+            const [code, presence] = value.split("|") as [ProductAllergenCode, ProductAllergenPresence];
+            return { code, presence };
+        });
+        const uniqueByCode = new Map<ProductAllergenCode, { code: ProductAllergenCode; presence: ProductAllergenPresence }>();
+        next.forEach((item) => uniqueByCode.set(item.code, item));
+        setForm((old) => ({ ...old, allergens: [...uniqueByCode.values()] }));
+    };
+
+    const selectedAllergens = (form.allergens ?? []).map((item) => allergenValue(item.code, item.presence));
     const saving = createProduct.isPending || updateProduct.isPending;
 
     return (
@@ -184,6 +236,56 @@ export const ProductsPage = () => {
                             <MenuItem value="active">فعال</MenuItem>
                             <MenuItem value="archived">بایگانی‌شده</MenuItem>
                         </TextField>
+                        <FormControl>
+                            <InputLabel id="product-allergens-label">آلرژن‌ها</InputLabel>
+                            <Select
+                                labelId="product-allergens-label"
+                                multiple
+                                value={selectedAllergens}
+                                onChange={handleAllergenChange}
+                                input={<OutlinedInput label="آلرژن‌ها" />}
+                                renderValue={(values) => (
+                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                        {values.map((value) => {
+                                            const [code, presence] = value.split("|") as [ProductAllergenCode, ProductAllergenPresence];
+                                            return <Chip key={value} size="small" label={`${allergenLabels[code]} — ${presence === "contains" ? "حاوی" : "احتمال وجود"}`} />;
+                                        })}
+                                    </Box>
+                                )}
+                            >
+                                {allergenOptions.flatMap((code) => ([
+                                    <MenuItem key={allergenValue(code, "contains")} value={allergenValue(code, "contains")}>
+                                        <ListItemText primary={allergenLabels[code]} secondary="حاوی" />
+                                    </MenuItem>,
+                                    <MenuItem key={allergenValue(code, "may_contain")} value={allergenValue(code, "may_contain")}>
+                                        <ListItemText primary={allergenLabels[code]} secondary="احتمال وجود" />
+                                    </MenuItem>,
+                                ]))}
+                            </Select>
+                        </FormControl>
+                        <FormControl>
+                            <InputLabel id="product-dietary-label">برچسب‌های رژیمی</InputLabel>
+                            <Select
+                                labelId="product-dietary-label"
+                                multiple
+                                value={form.dietaryTags ?? []}
+                                onChange={(event) => setForm((old) => ({
+                                    ...old,
+                                    dietaryTags: (typeof event.target.value === "string" ? event.target.value.split(",") : event.target.value) as ProductDietaryTagCode[],
+                                }))}
+                                input={<OutlinedInput label="برچسب‌های رژیمی" />}
+                                renderValue={(values) => (
+                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                                        {values.map((value) => <Chip key={value} size="small" label={dietaryLabels[value]} />)}
+                                    </Box>
+                                )}
+                            >
+                                {dietaryOptions.map((code) => (
+                                    <MenuItem key={code} value={code}>{dietaryLabels[code]}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <Alert severity="info">این برچسب‌ها اطلاعات اعلام‌شده توسط کسب‌وکار هستند و جایگزین بررسی قانونی و تأیید آلرژن مواد اولیه نیستند.</Alert>
                     </Box>
                 </DialogContent>
                 <DialogActions sx={{ p: 2 }}>
