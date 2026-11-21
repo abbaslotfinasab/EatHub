@@ -40,6 +40,11 @@ class DomainImportBoundaryTests(unittest.TestCase):
         violations = []
         for domain_root in DOMAIN_ROOTS:
             for source_file in sorted(domain_root.rglob("*.py")):
+                # Test modules may use Django's test framework; the boundary
+                # applies to production Domain code, not its test harness.
+                if "tests" in source_file.relative_to(domain_root).parts:
+                    continue
+
                 try:
                     source = source_file.read_text(encoding="utf-8")
                     imports = _forbidden_imports(source)
