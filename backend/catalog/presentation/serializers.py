@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from catalog.models import Product, ProductAllergen, ProductDietaryTag
+from catalog.choices import (
+    ALLERGEN_CODE_CHOICES,
+    ALLERGEN_PRESENCE_CHOICES,
+    ALLERGEN_PRESENCE_CONTAINS,
+    DIETARY_TAG_CODE_CHOICES,
+    PRODUCT_STATUS_CHOICES,
+    PRODUCT_STATUS_DRAFT,
+)
 
 
 class StrictSerializer(serializers.Serializer):
@@ -19,12 +26,16 @@ class ProductQuerySerializer(StrictSerializer):
     page_size = serializers.IntegerField(min_value=1, max_value=100, required=False, default=20)
     search = serializers.CharField(required=False, allow_blank=True, max_length=200)
     category = serializers.CharField(required=False, allow_blank=True, max_length=120)
-    status = serializers.ChoiceField(choices=Product.Status.choices, required=False)
+    status = serializers.ChoiceField(choices=PRODUCT_STATUS_CHOICES, required=False)
 
 
 class ProductAllergenInputSerializer(StrictSerializer):
-    code = serializers.ChoiceField(choices=ProductAllergen.Code.choices)
-    presence = serializers.ChoiceField(choices=ProductAllergen.Presence.choices, required=False, default=ProductAllergen.Presence.CONTAINS)
+    code = serializers.ChoiceField(choices=ALLERGEN_CODE_CHOICES)
+    presence = serializers.ChoiceField(
+        choices=ALLERGEN_PRESENCE_CHOICES,
+        required=False,
+        default=ALLERGEN_PRESENCE_CONTAINS,
+    )
 
 
 class ProductCreateSerializer(StrictSerializer):
@@ -33,10 +44,14 @@ class ProductCreateSerializer(StrictSerializer):
     category = serializers.CharField(max_length=120, required=False, allow_blank=True, allow_null=True)
     description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     image_url = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
-    status = serializers.ChoiceField(choices=Product.Status.choices, required=False, default=Product.Status.DRAFT)
+    status = serializers.ChoiceField(
+        choices=PRODUCT_STATUS_CHOICES,
+        required=False,
+        default=PRODUCT_STATUS_DRAFT,
+    )
     allergens = ProductAllergenInputSerializer(many=True, required=False)
     dietary_tags = serializers.ListField(
-        child=serializers.ChoiceField(choices=ProductDietaryTag.Code.choices),
+        child=serializers.ChoiceField(choices=DIETARY_TAG_CODE_CHOICES),
         required=False,
         allow_empty=True,
     )
@@ -65,20 +80,21 @@ class ProductUpdateSerializer(ProductCreateSerializer):
     category = serializers.CharField(max_length=120, required=False, allow_blank=True, allow_null=True)
     description = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     image_url = serializers.CharField(max_length=500, required=False, allow_blank=True, allow_null=True)
-    status = serializers.ChoiceField(choices=Product.Status.choices, required=False)
+    status = serializers.ChoiceField(choices=PRODUCT_STATUS_CHOICES, required=False)
 
 
-class ProductSerializer(serializers.ModelSerializer):
+class ProductSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    sku = serializers.CharField(read_only=True, allow_null=True, allow_blank=True)
+    category = serializers.CharField(read_only=True, allow_null=True, allow_blank=True)
+    description = serializers.CharField(read_only=True, allow_null=True, allow_blank=True)
+    image_url = serializers.CharField(read_only=True, allow_null=True, allow_blank=True)
+    status = serializers.ChoiceField(choices=PRODUCT_STATUS_CHOICES, read_only=True)
     allergens = serializers.SerializerMethodField()
     dietary_tags = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Product
-        fields = (
-            "id", "name", "sku", "category", "description", "image_url",
-            "status", "allergens", "dietary_tags", "created_at", "updated_at",
-        )
-        read_only_fields = ("id", "created_at", "updated_at")
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
 
     def get_allergens(self, obj):
         return [

@@ -1,6 +1,33 @@
 from django.db import models
 
 from accounts.models import Business
+from catalog.choices import (
+    ALLERGEN_CELERY,
+    ALLERGEN_CEREALS_GLUTEN,
+    ALLERGEN_CRUSTACEANS,
+    ALLERGEN_EGGS,
+    ALLERGEN_FISH,
+    ALLERGEN_LUPIN,
+    ALLERGEN_MILK,
+    ALLERGEN_MOLLUSCS,
+    ALLERGEN_MUSTARD,
+    ALLERGEN_PEANUTS,
+    ALLERGEN_PRESENCE_CONTAINS,
+    ALLERGEN_PRESENCE_MAY_CONTAIN,
+    ALLERGEN_SESAME,
+    ALLERGEN_SOYBEANS,
+    ALLERGEN_SULPHITES,
+    ALLERGEN_TREE_NUTS,
+    DIETARY_TAG_DAIRY_FREE,
+    DIETARY_TAG_GLUTEN_FREE,
+    DIETARY_TAG_HALAL,
+    DIETARY_TAG_KOSHER,
+    DIETARY_TAG_VEGAN,
+    DIETARY_TAG_VEGETARIAN,
+    PRODUCT_STATUS_ACTIVE,
+    PRODUCT_STATUS_ARCHIVED,
+    PRODUCT_STATUS_DRAFT,
+)
 from core.models import BaseModel
 
 
@@ -8,9 +35,9 @@ class Product(BaseModel):
     """Business-scoped reusable sellable identity; pricing belongs to Sales."""
 
     class Status(models.TextChoices):
-        DRAFT = "draft", "Draft"
-        ACTIVE = "active", "Active"
-        ARCHIVED = "archived", "Archived"
+        DRAFT = PRODUCT_STATUS_DRAFT, "Draft"
+        ACTIVE = PRODUCT_STATUS_ACTIVE, "Active"
+        ARCHIVED = PRODUCT_STATUS_ARCHIVED, "Archived"
 
     business = models.ForeignKey(Business, on_delete=models.CASCADE, related_name="catalog_products")
     name = models.CharField(max_length=120)
@@ -36,24 +63,24 @@ class ProductAllergen(BaseModel):
     """Declared allergen presence; not a substitute for legal label review."""
 
     class Code(models.TextChoices):
-        CELERY = "celery", "Celery"
-        CEREALS_GLUTEN = "cereals_gluten", "Cereals containing gluten"
-        CRUSTACEANS = "crustaceans", "Crustaceans"
-        EGGS = "eggs", "Eggs"
-        FISH = "fish", "Fish"
-        LUPIN = "lupin", "Lupin"
-        MILK = "milk", "Milk"
-        MOLLUSCS = "molluscs", "Molluscs"
-        MUSTARD = "mustard", "Mustard"
-        PEANUTS = "peanuts", "Peanuts"
-        SESAME = "sesame", "Sesame"
-        SOYBEANS = "soybeans", "Soybeans"
-        SULPHITES = "sulphites", "Sulphur dioxide and sulphites"
-        TREE_NUTS = "tree_nuts", "Tree nuts"
+        CELERY = ALLERGEN_CELERY, "Celery"
+        CEREALS_GLUTEN = ALLERGEN_CEREALS_GLUTEN, "Cereals containing gluten"
+        CRUSTACEANS = ALLERGEN_CRUSTACEANS, "Crustaceans"
+        EGGS = ALLERGEN_EGGS, "Eggs"
+        FISH = ALLERGEN_FISH, "Fish"
+        LUPIN = ALLERGEN_LUPIN, "Lupin"
+        MILK = ALLERGEN_MILK, "Milk"
+        MOLLUSCS = ALLERGEN_MOLLUSCS, "Molluscs"
+        MUSTARD = ALLERGEN_MUSTARD, "Mustard"
+        PEANUTS = ALLERGEN_PEANUTS, "Peanuts"
+        SESAME = ALLERGEN_SESAME, "Sesame"
+        SOYBEANS = ALLERGEN_SOYBEANS, "Soybeans"
+        SULPHITES = ALLERGEN_SULPHITES, "Sulphur dioxide and sulphites"
+        TREE_NUTS = ALLERGEN_TREE_NUTS, "Tree nuts"
 
     class Presence(models.TextChoices):
-        CONTAINS = "contains", "Contains"
-        MAY_CONTAIN = "may_contain", "May contain"
+        CONTAINS = ALLERGEN_PRESENCE_CONTAINS, "Contains"
+        MAY_CONTAIN = ALLERGEN_PRESENCE_MAY_CONTAIN, "May contain"
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="allergen_declarations")
     code = models.CharField(max_length=32, choices=Code.choices)
@@ -62,8 +89,6 @@ class ProductAllergen(BaseModel):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=("product", "code"), name="catalog_product_allergen_uq"),
-            # Nested Meta classes cannot resolve sibling nested TextChoices classes.
-            # Keep the DB enum allow-lists explicit here, matching the model choices.
             models.CheckConstraint(condition=models.Q(code__in=("celery", "cereals_gluten", "crustaceans", "eggs", "fish", "lupin", "milk", "molluscs", "mustard", "peanuts", "sesame", "soybeans", "sulphites", "tree_nuts")), name="cat_prod_allergen_code_ck"),
             models.CheckConstraint(condition=models.Q(presence__in=("contains", "may_contain")), name="cat_prod_allergen_presence_ck"),
         ]
@@ -74,12 +99,12 @@ class ProductDietaryTag(BaseModel):
     """Business-entered dietary suitability tags; not certification claims."""
 
     class Code(models.TextChoices):
-        VEGAN = "vegan", "Vegan"
-        VEGETARIAN = "vegetarian", "Vegetarian"
-        GLUTEN_FREE = "gluten_free", "Gluten-free"
-        DAIRY_FREE = "dairy_free", "Dairy-free"
-        HALAL = "halal", "Halal"
-        KOSHER = "kosher", "Kosher"
+        VEGAN = DIETARY_TAG_VEGAN, "Vegan"
+        VEGETARIAN = DIETARY_TAG_VEGETARIAN, "Vegetarian"
+        GLUTEN_FREE = DIETARY_TAG_GLUTEN_FREE, "Gluten-free"
+        DAIRY_FREE = DIETARY_TAG_DAIRY_FREE, "Dairy-free"
+        HALAL = DIETARY_TAG_HALAL, "Halal"
+        KOSHER = DIETARY_TAG_KOSHER, "Kosher"
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="dietary_tags")
     code = models.CharField(max_length=24, choices=Code.choices)
