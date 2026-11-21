@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 class CustomerAccountSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
-    customer = serializers.IntegerField(read_only=True)
+    customer = serializers.IntegerField(source="customer_id", read_only=True)
     customer_name = serializers.CharField(source="customer.name", read_only=True)
     customer_phone = serializers.CharField(source="customer.phone", read_only=True)
     balance = serializers.DecimalField(
@@ -15,8 +15,8 @@ class CustomerAccountSerializer(serializers.Serializer):
 
 class CustomerTransactionSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
-    account = serializers.IntegerField(read_only=True)
-    order = serializers.IntegerField(read_only=True, allow_null=True)
+    account = serializers.IntegerField(source="account_id", read_only=True)
+    order = serializers.IntegerField(source="order_id", read_only=True, allow_null=True)
     type = serializers.CharField(read_only=True)
     amount = serializers.DecimalField(
         max_digits=12, decimal_places=2, read_only=True
