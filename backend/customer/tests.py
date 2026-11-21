@@ -60,3 +60,43 @@ class CustomerReadSerializerOwnershipTests(SimpleTestCase):
     def test_products_namespace_keeps_backward_compatible_aliases(self):
         self.assertIs(CustomerSerializer, CustomerReadSerializer)
         self.assertIs(CustomerDetailSerializer, CustomerDetailReadSerializer)
+
+
+
+class CustomerPresentationBoundaryTests(SimpleTestCase):
+    def test_customer_presentation_does_not_import_django_models(self):
+        import ast
+        from pathlib import Path
+
+        presentation = Path(__file__).parent / "presentation"
+        for filename in ("views.py", "read_serializers.py"):
+            syntax_tree = ast.parse(
+                (presentation / filename).read_text(encoding="utf-8")
+            )
+            imported_modules = {
+                alias.name
+                for node in ast.walk(syntax_tree)
+                if isinstance(node, ast.Import)
+                for alias in node.names
+            }
+            imported_modules.update(
+                node.module
+                for node in ast.walk(syntax_tree)
+                if isinstance(node, ast.ImportFrom) and node.module
+            )
+            self.assertFalse(
+                any(
+                    module == "customer.models"
+                    or module.startswith("django.db")
+                    or module.endswith(".models")
+                    for module in imported_modules
+                ),
+                msg=f"{filename} must not import Django ORM models",
+            )
+
+    def test_customer_read_serializer_is_not_model_serializer(self):
+        self.assertFalse(
+            issubclass(CustomerReadSerializer, __import__(
+                "rest_framework", fromlist=["serializers"]
+            ).serializers.ModelSerializer)
+        )
