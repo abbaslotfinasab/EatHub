@@ -236,3 +236,43 @@ class ProductCatalogAPITests(APITestCase):
                 business_id=self.other_business.pk,
                 product_id=product.pk,
             )
+
+
+    def test_product_list_filters_and_paginates_through_application_boundary(self):
+        Product.objects.create(
+            business=self.business, name="Americano", category="Coffee",
+            status=Product.Status.ACTIVE,
+        )
+        Product.objects.create(
+            business=self.business, name="Cappuccino", category="Coffee",
+            status=Product.Status.ACTIVE,
+        )
+        Product.objects.create(
+            business=self.business, name="Lemonade", category="Drinks",
+            status=Product.Status.ACTIVE,
+        )
+        Product.objects.create(
+            business=self.other_business, name="Foreign Coffee", category="Coffee",
+            status=Product.Status.ACTIVE,
+        )
+
+        response = self.client.get(
+            "/api/catalog/products/?category=Coffee&status=active&page=2&page_size=1"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 2)
+        self.assertEqual(response.data["page"], 2)
+        self.assertEqual(response.data["page_size"], 1)
+        self.assertEqual([item["name"] for item in response.data["results"]], ["Cappuccino"])
+
+    def test_product_detail_read_use_case_preserves_business_not_found(self):
+        foreign_product = Product.objects.create(
+            business=self.other_business,
+            name="Foreign detail",
+            status=Product.Status.ACTIVE,
+        )
+
+        response = self.client.get(f"/api/catalog/products/{foreign_product.pk}/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

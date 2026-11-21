@@ -1,4 +1,3 @@
-from django.db.models import Q
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -6,8 +5,7 @@ from rest_framework.response import Response
 
 from accounts.views import ExplicitTenantAPIView
 from catalog.application.exceptions import ProductNotFound, ProductSkuConflict
-from catalog.bootstrap import create_product, update_product
-from catalog.models import Product
+from catalog.bootstrap import create_product, get_product, list_products, update_product
 from catalog.presentation.serializers import (
     ProductCreateSerializer,
     ProductQuerySerializer,
@@ -38,22 +36,19 @@ class ProductListCreateAPIView(ExplicitTenantAPIView):
         query = ProductQuerySerializer(data=request.query_params)
         query.is_valid(raise_exception=True)
         params = query.validated_data
-        products = Product.objects.filter(business=request.business).prefetch_related("allergen_declarations", "dietary_tags")
-        if params.get("search"):
-            term = params["search"].strip()
-            products = products.filter(Q(name__icontains=term) | Q(sku__icontains=term))
-        if params.get("category"):
-            products = products.filter(category__iexact=params["category"].strip())
-        if params.get("status"):
-            products = products.filter(status=params["status"])
-        count = products.count()
-        start = (params["page"] - 1) * params["page_size"]
-        results = products.order_by("name", "id")[start:start + params["page_size"]]
+        result = list_products(
+            business_id=request.business.pk,
+            page=params["page"],
+            page_size=params["page_size"],
+            search=params.get("search"),
+            category=params.get("category"),
+            status=params.get("status"),
+        )
         return Response({
-            "count": count,
-            "page": params["page"],
-            "page_size": params["page_size"],
-            "results": ProductSerializer(results, many=True).data,
+            "count": result["count"],
+            "page": result["page"],
+            "page_size": result["page_size"],
+            "results": ProductSerializer(result["results"], many=True).data,
         })
 
     def post(self, request):
@@ -75,9 +70,13 @@ class ProductDetailAPIView(ExplicitTenantAPIView):
 
     def get(self, request, pk):
         _require_permission(request, PermissionCode.PRODUCTS_VIEW)
-        product = Product.objects.filter(business=request.business, pk=pk).prefetch_related("allergen_declarations", "dietary_tags").first()
-        if product is None:
-            raise NotFound("Product does not exist in this business.")
+        try:
+            product = get_product(
+                business_id=request.business.pk,
+                product_id=pk,
+            )
+        except ProductNotFound as error:
+            raise NotFound("Product does not exist in this business.") from error
         return Response(ProductSerializer(product).data)
 
     def patch(self, request, pk):
@@ -92,7 +91,8 @@ class ProductDetailAPIView(ExplicitTenantAPIView):
             )
         except (ProductSkuConflict, ProductNotFound) as error:
             _translate_write_error(error)
-        product = Product.objects.filter(
-            business=request.business, pk=product.pk,
-        ).prefetch_related("allergen_declarations", "dietary_tags").get()
+        product = get_product(
+            business_id=request.business.pk,
+            product_id=product.pk,
+        )
         return Response(ProductSerializer(product).data)
