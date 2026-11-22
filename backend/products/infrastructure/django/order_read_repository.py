@@ -2,9 +2,7 @@
 
 from decimal import Decimal
 
-from django.db.models import Q
-
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 
 from products.models import (
     Order, OrderItemIngredientRequirement, OrderInventoryConsumptionLine,
