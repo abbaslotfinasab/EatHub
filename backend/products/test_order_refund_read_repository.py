@@ -2,6 +2,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from django.db import connection, transaction
+from django.db.models import QuerySet
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
@@ -50,7 +51,7 @@ class DjangoOrderRefundReadRepositoryTests(TestCase):
         self.assertEqual(order.pk, self.order.pk)
         self.assertEqual([refund.pk for refund in refunds], [self.refund.pk])
         self.assertIsInstance(refunds, list)
-        self.assertFalse(any("SELECT" in str(type(value)) for value in refunds))
+        self.assertNotIsInstance(refunds, QuerySet)
         if connection.vendor == "postgresql":
             self.assertTrue(
                 any("FOR UPDATE" in query["sql"].upper() for query in queries),
