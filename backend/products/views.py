@@ -514,16 +514,13 @@ class OrderActualConsumptionAPIView(ExplicitTenantAPIView):
             "You do not have permission to view order inventory requirements.",
         )
 
-        order = get_object_or_404(
-            Order.objects.filter(business=request.business), pk=order_id,
-        )
+        repository = DjangoOrderReadRepository()
+        order = repository.get_for_business(request.business.id, order_id)
+        if order is None:
+            raise Http404
         requirements = list(
-            OrderItemIngredientRequirement.objects.filter(
-                snapshot__business_id=request.business.id,
-                snapshot__order_id=order.pk,
-                snapshot__order__business_id=request.business.id,
-            ).select_related("snapshot__order_item").order_by(
-                "snapshot__order_item_id", "pk",
+            repository.list_consumption_requirements_for_order(
+                request.business.id, order.pk,
             )
         )
         ingredient_ids = {item.ingredient_id for item in requirements}
@@ -538,20 +535,11 @@ class OrderActualConsumptionAPIView(ExplicitTenantAPIView):
                 raise Http404("An order requirement was not found in this business.") from error
             ingredients = {ingredient.id: ingredient for ingredient in ingredient_rows}
 
-        actual_totals = {
-            row["requirement_id"]: {
-                "quantity": row["total"] or 0,
-                "count": row["entries"],
-            }
-            for row in OrderInventoryConsumptionLine.objects.filter(
-                consumption__business_id=request.business.id,
-                consumption__order_id=order.pk,
-                requirement_id__in=[item.pk for item in requirements],
-            ).values("requirement_id").annotate(
-                total=Sum("actual_quantity"),
-                entries=Count("pk"),
-            )
-        }
+        actual_totals = repository.summarize_actual_consumption_for_order(
+            request.business.id,
+            order.pk,
+            [item.pk for item in requirements],
+        )
         return Response({
             "order_id": order.pk,
             "requirements": [
