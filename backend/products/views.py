@@ -18,12 +18,11 @@ from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, 
     MenuItemCreateSerializer, MenuItemUpdateSerializer
 from products.services.menu_service import MenuService
 from products.infrastructure.django.menu_read_repository import DjangoMenuReadRepository
+from products.infrastructure.django.menu_write_repository import DjangoMenuWriteRepository
 from products.infrastructure.django.order_read_repository import DjangoOrderReadRepository
 from products.infrastructure.django.order_refund_read_repository import DjangoOrderRefundReadRepository
 from products.services.order_inventory_service import OrderInventoryService
 from products.models import (
-    Menu,
-    MenuItem,
     Customer,
     Order,
     OrderStatusHistory,
@@ -75,7 +74,9 @@ class MenuCreateAPIView(ExplicitTenantAPIView):
                 business=request.business,
                 validated_data=serializer.validated_data
             )
-            menu = Menu.objects.prefetch_related("items__product").get(pk=menu.pk)
+            menu = DjangoMenuWriteRepository().get_menu_with_items_for_business(
+                request.business.id, menu.pk,
+            )
         except IntegrityError as error:
             raise ValidationError({
                 "recipe_id": "A recipe can only be assigned to one menu item."
@@ -120,7 +121,9 @@ class MenuUpdateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
-        menu = get_object_or_404(Menu, id=pk, business=request.business)
+        menu = DjangoMenuWriteRepository().get_menu_for_business(request.business.id, pk)
+        if menu is None:
+            raise Http404
 
         serializer = UpdateMenuSerializer(
             menu,
@@ -135,7 +138,9 @@ class MenuUpdateAPIView(ExplicitTenantAPIView):
                 menu,
                 serializer.validated_data
             )
-            menu = Menu.objects.prefetch_related("items__product").get(pk=menu.pk)
+            menu = DjangoMenuWriteRepository().get_menu_with_items_for_business(
+                request.business.id, menu.pk,
+            )
         except IntegrityError as error:
             raise ValidationError({
                 "recipe_id": "A recipe can only be assigned to one menu item."
@@ -150,11 +155,9 @@ class MenuDeleteAPIView(ExplicitTenantAPIView):
 
     def delete(self, request, pk):
 
-        menu = get_object_or_404(
-            Menu,
-            pk=pk,
-            business=request.business
-        )
+        menu = DjangoMenuWriteRepository().get_menu_for_business(request.business.id, pk)
+        if menu is None:
+            raise Http404
 
         MenuService.delete_menu(menu)
 
@@ -196,11 +199,9 @@ class MenuItemCreateAPIView(ExplicitTenantAPIView):
 
     def post(self, request, menu_id):
 
-        menu = get_object_or_404(
-            Menu,
-            pk=menu_id,
-            business=request.business,
-        )
+        menu = DjangoMenuWriteRepository().get_menu_for_business(request.business.id, menu_id)
+        if menu is None:
+            raise Http404
         serializer = MenuItemCreateSerializer(
             data=request.data,
             context={"business": request.business},
@@ -231,11 +232,9 @@ class MenuItemUpdateAPIView(ExplicitTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
-        item = get_object_or_404(
-            MenuItem.objects.select_related("product"),
-            pk=pk,
-            business=request.business,
-        )
+        item = DjangoMenuWriteRepository().get_menu_item_for_business(request.business.id, pk)
+        if item is None:
+            raise Http404
         serializer = MenuItemUpdateSerializer(
             data=request.data,
             partial=True,
@@ -266,11 +265,9 @@ class MenuItemDeleteAPIView(ExplicitTenantAPIView):
 
     def delete(self, request, pk):
 
-        item = get_object_or_404(
-            MenuItem,
-            pk=pk,
-            menu__business=request.business,
-        )
+        item = DjangoMenuWriteRepository().get_menu_item_for_menu_business(request.business.id, pk)
+        if item is None:
+            raise Http404
 
         MenuService.delete_item(item)
 
