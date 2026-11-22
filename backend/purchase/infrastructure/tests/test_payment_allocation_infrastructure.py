@@ -189,3 +189,39 @@ class PaymentAllocationInfrastructureTests(TestCase):
             'select_for_update(of=("self",))',
             inspect.getsource(DjangoSupplierPaymentRepository.lock_for_allocation),
         )
+
+    def test_grouped_supplier_payment_totals_are_single_query_and_tenant_scoped(self):
+        second_payment = self.create_payment(self.supplier, self.business, "50.00")
+        self.allocate(self.payable, self.payment, "12.50")
+        self.allocate(self.second_payable, second_payment, "7.25")
+        self.allocate(self.other_payable, self.other_payment, "9.99")
+
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as captured:
+            totals = self.allocations.allocated_amounts_for_supplier_payments(
+                self.business.id,
+                [self.payment.id, second_payment.id, self.other_payment.id],
+            )
+
+        self.assertEqual(len(captured), 1)
+        self.assertEqual(
+            totals,
+            {
+                self.payment.id: Decimal("12.50"),
+                second_payment.id: Decimal("7.25"),
+            },
+        )
+
+    def test_grouped_supplier_payment_totals_skip_empty_input(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as captured:
+            totals = self.allocations.allocated_amounts_for_supplier_payments(
+                self.business.id, []
+            )
+
+        self.assertEqual(totals, {})
+        self.assertEqual(len(captured), 0)
