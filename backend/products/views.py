@@ -19,6 +19,7 @@ from products.serializers.menu_serializer import CreateMenuWithItemsSerializer, 
 from products.services.menu_service import MenuService
 from products.infrastructure.django.menu_read_repository import DjangoMenuReadRepository
 from products.infrastructure.django.order_read_repository import DjangoOrderReadRepository
+from products.infrastructure.django.order_refund_read_repository import DjangoOrderRefundReadRepository
 from products.services.order_inventory_service import OrderInventoryService
 from products.models import (
     Menu,
@@ -27,7 +28,6 @@ from products.models import (
     Order,
     OrderStatusHistory,
     OrderPaymentEvent,
-    OrderRefund,
 )
 from django.db.models import (
     Q,
@@ -629,22 +629,20 @@ class OrderRefundAPIView(ExplicitTenantAPIView):
         # Acquiring the same order lock as refund_order makes a recovery lookup
         # wait for an in-flight refund transaction before deciding it is absent.
         with transaction.atomic():
-            order = get_object_or_404(
-                Order.objects.select_for_update(),
-                id=order_id,
-                business=request.business,
+            order, refunds = DjangoOrderRefundReadRepository().get_recovery_state_for_business(
+                request.business.id, order_id,
             )
-            refunds = OrderRefund.objects.filter(
-                order=order,
-                business=request.business,
-            )
-            if order.payment_status != Order.PaymentStatus.REFUNDED or not refunds.exists():
+            if (
+                order is None
+                or order.payment_status != Order.PaymentStatus.REFUNDED
+                or not refunds
+            ):
                 raise Http404("No completed refund exists for this order.")
-            if refunds.count() != 1:
+            if len(refunds) != 1:
                 raise ValidationError(
                     "Multiple refund records exist for this order; review its financial history."
                 )
-            refund = refunds.first()
+            refund = refunds[0]
             response = Response(self._refund_response(refund))
             response["Cache-Control"] = "no-store"
             return response
