@@ -26,6 +26,7 @@ from purchase.application.use_cases.purchase_invoice.create_purchase_invoice imp
 from purchase.application.use_cases.purchase_invoice.cancel_purchase_invoice import CancelPurchaseInvoice
 from purchase.application.use_cases.purchase_invoice.get_purchase_invoice import GetPurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.list_purchase_invoices import ListPurchaseInvoicesUseCase
+from purchase.application.use_cases.purchase_invoice.list_purchase_invoice_events import ListPurchaseInvoiceEventsUseCase
 from purchase.application.use_cases.purchase_invoice.match_purchase_invoice import MatchPurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.post_purchase_invoice import PostPurchaseInvoice
 from purchase.application.use_cases.purchase_invoice.update_purchase_invoice import UpdatePurchaseInvoiceUseCase
@@ -33,6 +34,7 @@ from purchase.infrastructure.persistence.transaction import DjangoTransactionMan
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_repository import DjangoPurchaseInvoiceRepository
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_matching_repository import DjangoPurchaseInvoiceMatchingRepository
 from purchase.infrastructure.persistence.django.repositories.accounts_payable_repository import DjangoAccountsPayableRepository
+from purchase.infrastructure.persistence.django.repositories.purchase_invoice_event_read_repository import DjangoPurchaseInvoiceEventReadRepository
 from purchase.presentation.api.serializers.purchase_invoice import (
     CreatePurchaseInvoiceSerializer,
     PurchaseInvoiceSerializer,
@@ -166,10 +168,12 @@ class PurchaseInvoiceEventListAPIView(TenantAPIView):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         if not _repository().get_by_id_for_business(pk, request.business.id):
             raise NotFound({"detail": "Purchase invoice does not exist in this business."})
-        events = PurchaseInvoiceEvent.objects.filter(
+        events = ListPurchaseInvoiceEventsUseCase(
+            DjangoPurchaseInvoiceEventReadRepository()
+        ).execute(
             business_id=request.business.id,
             purchase_invoice_id=pk,
-        ).select_related("actor").order_by("occurred_at", "id")
+        )
         return Response(PurchaseInvoiceEventSerializer(events, many=True).data)
 
 
