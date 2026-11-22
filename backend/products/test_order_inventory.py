@@ -38,6 +38,7 @@ from products.models import (
     Order,
     OrderInventoryConsumption,
     OrderItemIngredientRequirement,
+    OrderItemRecipeSnapshot,
     OrderItem,
     OrderRefund,
     OrderStatusHistory,
