@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.db.models import Q
 
-from products.models import Order
+from products.models import Order, OrderPaymentEvent, OrderStatusHistory
 
 
 class DjangoOrderReadRepository:
@@ -73,3 +73,19 @@ class DjangoOrderReadRepository:
             business_id=business_id,
             pk=order_id,
         ).first()
+
+    def list_status_history_for_business(self, business_id, order_id):
+        return (
+            OrderStatusHistory.objects
+            .filter(business_id=business_id, order_id_snapshot=order_id)
+            .select_related("actor")
+            .order_by("created_at", "pk")
+        )
+
+    def list_payment_events_for_business(self, business_id, order_id):
+        return (
+            OrderPaymentEvent.objects
+            .filter(business_id=business_id, order_id_snapshot=order_id)
+            .select_related("actor")
+            .order_by("created_at", "pk")
+        )
