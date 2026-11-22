@@ -2,9 +2,12 @@
 
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Count, Q, Sum
 
-from products.models import Order, OrderPaymentEvent, OrderStatusHistory
+from products.models import (
+    Order, OrderItemIngredientRequirement, OrderInventoryConsumptionLine,
+    OrderPaymentEvent, OrderStatusHistory,
+)
 
 
 class DjangoOrderReadRepository:
@@ -89,3 +92,34 @@ class DjangoOrderReadRepository:
             .select_related("actor")
             .order_by("created_at", "pk")
         )
+
+
+    def list_consumption_requirements_for_order(self, business_id, order_id):
+        return (
+            OrderItemIngredientRequirement.objects
+            .filter(
+                snapshot__business_id=business_id,
+                snapshot__order_id=order_id,
+                snapshot__order__business_id=business_id,
+            )
+            .select_related("snapshot__order_item")
+            .order_by("snapshot__order_item_id", "pk")
+        )
+
+    def summarize_actual_consumption_for_order(self, business_id, order_id, requirement_ids):
+        if not requirement_ids:
+            return {}
+        return {
+            row["requirement_id"]: {
+                "quantity": row["total"] or 0,
+                "count": row["entries"],
+            }
+            for row in OrderInventoryConsumptionLine.objects.filter(
+                consumption__business_id=business_id,
+                consumption__order_id=order_id,
+                requirement_id__in=requirement_ids,
+            ).values("requirement_id").annotate(
+                total=Sum("actual_quantity"),
+                entries=Count("pk"),
+            )
+        }
