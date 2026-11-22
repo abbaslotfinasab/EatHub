@@ -944,6 +944,41 @@ class OrderFinancialAuthorizationAndRefundApiTests(APITestCase):
         self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
 
 
+    def test_refund_recovery_returns_not_found_without_a_completed_refund(self):
+        user = self.user_for("ACCOUNTANT")
+        self.client.force_authenticate(user)
+
+        response = self.client.get(
+            f"/api/products/orders/{self.order.id}/refund/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_refund_recovery_rejects_multiple_refund_records(self):
+        user = self.user_for("ACCOUNTANT")
+        self.client.force_authenticate(user)
+        self.order.status = Order.Status.CANCELLED
+        self.order.payment_status = Order.PaymentStatus.REFUNDED
+        self.order.save(update_fields=["status", "payment_status"])
+        for reason in ("First refund", "Duplicate refund"):
+            OrderRefund.objects.create(
+                order=self.order,
+                business=self.business,
+                customer=self.customer,
+                payment_method=Order.PaymentMethod.CUSTOMER_ACCOUNT,
+                amount=Decimal("25.50"),
+                reason=reason,
+                idempotency_key=uuid4(),
+            )
+
+        response = self.client.get(
+            f"/api/products/orders/{self.order.id}/refund/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Multiple refund records", str(response.data))
+
+
 class HistoricalOrderItemTests(APITestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(
