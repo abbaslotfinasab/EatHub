@@ -4,7 +4,7 @@ from django.test import TestCase
 
 from accounts.models import Business
 from products.infrastructure.django.order_read_repository import DjangoOrderReadRepository
-from products.models import Order
+from products.models import Order, OrderPaymentEvent, OrderStatusHistory
 
 
 class DjangoOrderReadRepositoryTests(TestCase):
@@ -103,3 +103,60 @@ class DjangoOrderReadRepositoryTests(TestCase):
         self.assertIsNone(
             self.repository.get_for_business(self.business.pk, foreign.pk)
         )
+
+    def test_status_history_is_tenant_scoped_ordered_and_selects_actor(self):
+        first = OrderStatusHistory.objects.create(
+            business=self.business,
+            order_id_snapshot=101,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+        )
+        second = OrderStatusHistory.objects.create(
+            business=self.business,
+            order_id_snapshot=101,
+            from_status=Order.Status.PENDING,
+            to_status=Order.Status.CONFIRMED,
+        )
+        OrderStatusHistory.objects.create(
+            business=self.other_business,
+            order_id_snapshot=101,
+            from_status=None,
+            to_status=Order.Status.PENDING,
+        )
+
+        rows = self.repository.list_status_history_for_business(
+            self.business.pk, 101,
+        )
+
+        self.assertEqual(list(rows.values_list("pk", flat=True)), [first.pk, second.pk])
+        self.assertIn("actor", rows.query.select_related)
+
+    def test_payment_events_are_tenant_scoped_ordered_and_select_actor(self):
+        first = OrderPaymentEvent.objects.create(
+            business=self.business,
+            order_id_snapshot=202,
+            event_type=OrderPaymentEvent.EventType.PAYMENT_UPDATED,
+            from_payment_status=Order.PaymentStatus.PENDING,
+            to_payment_status=Order.PaymentStatus.FAILED,
+        )
+        second = OrderPaymentEvent.objects.create(
+            business=self.business,
+            order_id_snapshot=202,
+            event_type=OrderPaymentEvent.EventType.PAYMENT_SETTLED,
+            from_payment_status=Order.PaymentStatus.PENDING,
+            to_payment_status=Order.PaymentStatus.PAID,
+        )
+        OrderPaymentEvent.objects.create(
+            business=self.other_business,
+            order_id_snapshot=202,
+            event_type=OrderPaymentEvent.EventType.PAYMENT_UPDATED,
+            from_payment_status=Order.PaymentStatus.PENDING,
+            to_payment_status=Order.PaymentStatus.FAILED,
+        )
+
+        rows = self.repository.list_payment_events_for_business(
+            self.business.pk, 202,
+        )
+
+        self.assertEqual(list(rows.values_list("pk", flat=True)), [first.pk, second.pk])
+        self.assertIn("actor", rows.query.select_related)
