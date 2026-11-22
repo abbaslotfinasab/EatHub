@@ -1,7 +1,6 @@
 from datetime import date
 from decimal import Decimal
 
-from django.db.models import Sum
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -13,6 +12,9 @@ from purchase.application.dto.supplier_payment import (
     CreateSupplierPaymentDTO,
     ListSupplierPaymentsQuery,
 )
+from purchase.application.dto.supplier_payment_allocation import (
+    ListSupplierPaymentAllocationTotalsQuery,
+)
 from purchase.application.use_cases.supplier_payment.create_supplier_payment import (
     CreateSupplierPaymentUseCase,
 )
@@ -22,11 +24,16 @@ from purchase.application.use_cases.supplier_payment.get_supplier_payment import
 from purchase.application.use_cases.supplier_payment.list_supplier_payments import (
     ListSupplierPaymentsUseCase,
 )
+from purchase.application.use_cases.supplier_payment.list_supplier_payment_allocation_totals import (
+    ListSupplierPaymentAllocationTotalsUseCase,
+)
 from purchase.domain.enums.payment_method import PaymentMethod
+from purchase.infrastructure.persistence.django.repositories.payment_allocation_repository import (
+    DjangoPaymentAllocationRepository,
+)
 from purchase.infrastructure.persistence.django.repositories.supplier_payment_repository import (
     DjangoSupplierPaymentRepository,
 )
-from purchase.models import PaymentAllocation
 from purchase.infrastructure.persistence.django.repositories.supplier_repository import (
     DjangoSupplierRepository,
 )
@@ -103,20 +110,14 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
             _handle_payment_error(error)
 
         payment_ids = [payment.id for payment in payments if payment.id is not None]
-        allocated_by_payment = {}
-        if payment_ids:
-            allocations = (
-                PaymentAllocation.objects.filter(
-                    business_id=request.business.id,
-                    payment_id__in=payment_ids,
-                )
-                .values("payment_id")
-                .annotate(total=Sum("amount"))
+        allocated_by_payment = ListSupplierPaymentAllocationTotalsUseCase(
+            DjangoPaymentAllocationRepository()
+        ).execute(
+            ListSupplierPaymentAllocationTotalsQuery(
+                business_id=request.business.id,
+                supplier_payment_ids=payment_ids,
             )
-            allocated_by_payment = {
-                row["payment_id"]: row["total"] or Decimal("0.00")
-                for row in allocations
-            }
+        )
 
         data = SupplierPaymentSerializer(payments, many=True).data
         for payment, item in zip(payments, data):

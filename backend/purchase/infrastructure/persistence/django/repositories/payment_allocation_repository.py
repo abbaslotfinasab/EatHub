@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from decimal import Decimal
 from uuid import UUID
 
@@ -106,3 +108,21 @@ class DjangoPaymentAllocationRepository(PaymentAllocationRepository):
             payment_id=supplier_payment_id,
         ).aggregate(total=Sum("amount"))
         return result["total"] or Decimal("0.00")
+
+    def allocated_amounts_for_supplier_payments(
+        self, business_id: int, supplier_payment_ids: list[int]
+    ) -> dict[int, Decimal]:
+        if not supplier_payment_ids:
+            return {}
+        rows = (
+            DjangoPaymentAllocation.objects.filter(
+                business_id=business_id,
+                payment_id__in=supplier_payment_ids,
+            )
+            .values("payment_id")
+            .annotate(total=Sum("amount"))
+        )
+        return {
+            row["payment_id"]: row["total"] or Decimal("0.00")
+            for row in rows
+        }
