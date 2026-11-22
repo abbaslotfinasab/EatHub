@@ -747,6 +747,76 @@ class OrderConsumptionRequirementsReadTests(TestCase):
             "has_actual_record": True,
         }])
 
+    def test_repository_reads_requirements_and_actual_totals_with_tenant_scope(self):
+        requirement = self.requirement()
+        foreign_business = Business.objects.create(name="Foreign Consumption Business")
+        foreign_order = Order.objects.create(
+            business=foreign_business,
+            order_type=Order.OrderType.TAKEAWAY,
+            payment_method=Order.PaymentMethod.CASH,
+        )
+        foreign_snapshot = OrderItemRecipeSnapshot.objects.create(
+            business=foreign_business,
+            order=foreign_order,
+            order_item=OrderItem.objects.create(
+                order=foreign_order,
+                menu_item=self.menu_item,
+                menu_item_name="Foreign item",
+                quantity=1,
+                unit_price=Decimal("1"),
+                total_price=Decimal("1"),
+            ),
+            recipe=self.recipe,
+            recipe_output_ingredient=self.dish,
+            recipe_updated_at=self.recipe.updated_at,
+            output_quantity=Decimal("1"),
+            output_unit="pc",
+        )
+        foreign_requirement = OrderItemIngredientRequirement.objects.create(
+            snapshot=foreign_snapshot,
+            ingredient=self.flour,
+            recipe_input_id=self.input_line.pk,
+            standard_quantity=Decimal("1"),
+            unit="kg",
+        )
+        OrderInventoryService.record_consumption(
+            business_id=self.business.pk,
+            order_id=self.order.pk,
+            actor_id=self.actor.pk,
+            idempotency_key=uuid4(),
+            lines=[{"requirement_id": requirement.pk, "quantity": "0.5", "unit": "kg"}],
+        )
+        from products.infrastructure.django.order_read_repository import DjangoOrderReadRepository
+        repository = DjangoOrderReadRepository()
+
+        requirements = list(repository.list_consumption_requirements_for_order(
+            self.business.pk, self.order.pk,
+        ))
+        totals = repository.summarize_actual_consumption_for_order(
+            self.business.pk, self.order.pk, [row.pk for row in requirements],
+        )
+
+        self.assertEqual([row.pk for row in requirements], [requirement.pk])
+        self.assertEqual(requirements[0].snapshot.order_item_id, self.order_item.pk)
+        self.assertEqual(totals, {
+            requirement.pk: {"quantity": Decimal("0.500000000000"), "count": 1},
+        })
+        self.assertEqual(
+            repository.summarize_actual_consumption_for_order(
+                foreign_business.pk, self.order.pk, [requirement.pk, foreign_requirement.pk],
+            ),
+            {},
+        )
+
+    def test_repository_returns_empty_totals_without_requirement_ids(self):
+        from products.infrastructure.django.order_read_repository import DjangoOrderReadRepository
+        self.assertEqual(
+            DjangoOrderReadRepository().summarize_actual_consumption_for_order(
+                self.business.pk, self.order.pk, [],
+            ),
+            {},
+        )
+
     def test_read_contract_hides_another_business_order(self):
         other_business = Business.objects.create(name="Other Requirements Business")
         other_order = Order.objects.create(
