@@ -426,15 +426,12 @@ class OrderStatusHistoryAPIView(ExplicitTenantAPIView):
             PermissionCode.ORDERS_VIEW,
             "You do not have permission to view orders.",
         )
-        order = get_object_or_404(
-            Order.objects.filter(business=request.business),
-            pk=order_id,
-        )
-        history = (
-            OrderStatusHistory.objects
-            .filter(business=request.business, order_id_snapshot=order.pk)
-            .select_related("actor")
-            .order_by("created_at", "pk")
+        repository = DjangoOrderReadRepository()
+        order = repository.get_for_business(request.business.id, order_id)
+        if order is None:
+            raise Http404
+        history = repository.list_status_history_for_business(
+            request.business.id, order.pk,
         )
         return Response({
             "order_id": order.pk,
@@ -462,14 +459,12 @@ class OrderPaymentEventListAPIView(ExplicitTenantAPIView):
         _require_financial_access(
             request, "You do not have permission to view order payment history."
         )
-        order = get_object_or_404(
-            Order.objects.filter(business=request.business), pk=order_id,
-        )
-        events = (
-            OrderPaymentEvent.objects
-            .filter(business=request.business, order_id_snapshot=order.pk)
-            .select_related("actor")
-            .order_by("created_at", "pk")
+        repository = DjangoOrderReadRepository()
+        order = repository.get_for_business(request.business.id, order_id)
+        if order is None:
+            raise Http404
+        events = repository.list_payment_events_for_business(
+            request.business.id, order.pk,
         )
         response = Response({
             "order_id": order.pk,
