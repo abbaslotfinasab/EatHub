@@ -28,13 +28,9 @@ from products.models import (
     OrderStatusHistory,
     OrderPaymentEvent,
     OrderRefund,
-    OrderItemIngredientRequirement,
-    OrderInventoryConsumptionLine,
 )
 from django.db.models import (
     Q,
-    Count,
-    Sum,
     DecimalField,
     Value,
 )
