@@ -21,11 +21,10 @@ from purchase.application.use_cases.accounts_payable.list_accounts_payables impo
     ListAccountsPayablesUseCase,
 )
 from purchase.domain.enums.accounts_payable_status import AccountsPayableStatus
-from purchase.infrastructure.persistence.django.repositories.accounts_payable_repository import (
-    DjangoAccountsPayableRepository,
-)
-from purchase.infrastructure.persistence.django.repositories.payment_allocation_repository import (
-    DjangoPaymentAllocationRepository,
+from purchase.composition import (
+    accounts_payable_payment_eligibility_use_case,
+    get_accounts_payable_use_case,
+    list_accounts_payables_use_case,
 )
 from purchase.presentation.api.serializers.accounts_payable import (
     AccountsPayableListSerializer,
@@ -35,10 +34,6 @@ from purchase.presentation.api.serializers.accounts_payable_payment_eligibility 
     AccountsPayablePaymentEligibilitySerializer,
 )
 from purchase.presentation.api.permissions import require_purchase_permission
-
-
-def _repository() -> DjangoAccountsPayableRepository:
-    return DjangoAccountsPayableRepository()
 
 
 def _handle(error: ValueError) -> None:
@@ -80,7 +75,7 @@ class AccountsPayableListAPIView(TenantAPIView):
         except ValueError as error:
             raise ValidationError({"status": "Invalid accounts payable status."}) from error
         try:
-            payables = ListAccountsPayablesUseCase(_repository()).execute(
+            payables = list_accounts_payables_use_case().execute(
                 ListAccountsPayablesQuery(
                     business_id=request.business.id,
                     status=payable_status,
@@ -100,7 +95,7 @@ class AccountsPayableDetailAPIView(TenantAPIView):
     def get(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            payable = GetAccountsPayableUseCase(_repository()).execute(
+            payable = get_accounts_payable_use_case().execute(
                 pk,
                 request.business.id,
             )
@@ -115,10 +110,7 @@ class AccountsPayablePaymentEligibilityAPIView(TenantAPIView):
     def get(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            result = GetAccountsPayablePaymentEligibility(
-                _repository(),
-                DjangoPaymentAllocationRepository(),
-            ).execute(
+            result = accounts_payable_payment_eligibility_use_case().execute(
                 GetAccountsPayablePaymentEligibilityQuery(
                     business_id=request.business.id,
                     accounts_payable_id=pk,
