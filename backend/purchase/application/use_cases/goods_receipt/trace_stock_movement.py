@@ -1,4 +1,7 @@
-from purchase.application.exceptions import GoodsReceiptTraceUnavailable
+from purchase.application.exceptions import (
+    GoodsReceiptResourceNotFound,
+    GoodsReceiptTraceUnavailable,
+)
 from purchase.application.ports.goods_receipt_trace import (
     GoodsReceiptMovementLinkRecord,
     GoodsReceiptTraceReader,
@@ -18,7 +21,7 @@ class TraceGoodsReceiptStockMovementUseCase:
             movement_id, business_id
         )
         if movement is None:
-            raise ValueError("Stock movement does not exist in this business.")
+            raise GoodsReceiptResourceNotFound("Stock movement does not exist in this business.")
         if (
             movement.source_type != "goods_receipt"
             or movement.movement_type != "receipt"

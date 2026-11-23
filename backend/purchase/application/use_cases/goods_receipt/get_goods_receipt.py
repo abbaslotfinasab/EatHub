@@ -1,3 +1,4 @@
+from purchase.application.exceptions import GoodsReceiptResourceNotFound
 from purchase.domain.entities.goods_receipt import GoodsReceipt
 from purchase.domain.repositories.goods_receipt_repository import (
     GoodsReceiptRepository,
@@ -19,7 +20,7 @@ class GetGoodsReceiptUseCase:
             business_id,
         )
         if receipt is None:
-            raise ValueError("Goods receipt does not exist in this business.")
+            raise GoodsReceiptResourceNotFound("Goods receipt does not exist in this business.")
         return receipt
 
     @staticmethod

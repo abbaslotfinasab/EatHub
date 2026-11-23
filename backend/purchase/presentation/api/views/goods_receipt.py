@@ -20,6 +20,7 @@ from purchase.application.dto.goods_receipt import (
 )
 from purchase.application.exceptions import (
     GoodsReceiptIdempotencyPayloadMismatch,
+    GoodsReceiptResourceNotFound,
     GoodsReceiptTraceUnavailable,
 )
 from purchase.domain.enums.purchase_unit import PurchaseUnit
@@ -119,12 +120,15 @@ def _parse_optional_datetime(
 
 
 def _handle_goods_receipt_error(error: ValueError) -> None:
-    detail = str(error)
+    if isinstance(error, GoodsReceiptResourceNotFound):
+        raise NotFound(
+            {"detail": "The requested resource does not exist in this business."}
+        ) from None
 
-    if "does not exist" in detail:
-        raise NotFound({"detail": detail})
-
-    raise ValidationError({"detail": detail})
+    # Application exception messages are internal details; never echo them to clients.
+    raise ValidationError(
+        {"detail": "The goods receipt request is invalid."}
+    ) from None
 
 
 def _item_dtos(items: list[dict]) -> list[CreateGoodsReceiptItemDTO]:

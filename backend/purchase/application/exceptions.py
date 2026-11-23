@@ -40,3 +40,7 @@ class SupplierPaymentIdempotencyKeyRace(Exception):
 
 class GoodsReceiptTraceUnavailable(ValueError):
     """The movement cannot be safely resolved to a consistent receipt trace."""
+
+
+class GoodsReceiptResourceNotFound(ValueError):
+    """A requested purchase or receipt resource is not available in this business."""
