@@ -1,6 +1,4 @@
 from datetime import date, datetime
-from decimal import Decimal
-from enum import Enum
 
 from django.db import transaction
 
@@ -22,6 +20,10 @@ from purchase.application.dto.purchase_invoice import (
 )
 from purchase.application.dto.purchase_invoice_posting import PostPurchaseInvoiceDTO
 from purchase.application.dto.purchase_invoice_event import RecordPurchaseInvoiceEventDTO
+from purchase.application.purchase_invoice_audit_snapshot import (
+    build_purchase_invoice_snapshot,
+    json_safe,
+)
 from purchase.application.use_cases.purchase_invoice.approve_purchase_invoice import ApprovePurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.create_purchase_invoice import CreatePurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.cancel_purchase_invoice import CancelPurchaseInvoice
@@ -108,45 +110,6 @@ def _handle(error: ValueError) -> None:
     raise ValidationError({"detail": detail})
 
 
-def _json_safe(value):
-    if isinstance(value, Decimal):
-        return str(value)
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    if isinstance(value, Enum):
-        return value.value
-    if isinstance(value, dict):
-        return {str(key): _json_safe(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_safe(item) for item in value]
-    if hasattr(value, "items") and not isinstance(value, (str, bytes)):
-        return {str(key): _json_safe(item) for key, item in value.items()}
-    return value
-
-
-def _invoice_snapshot(invoice):
-    return _json_safe({
-        "invoice_number": invoice.invoice_number,
-        "invoice_date": invoice.invoice_date,
-        "supplier_id": invoice.supplier_id,
-        "purchase_order_id": invoice.purchase_order_id,
-        "status": invoice.status,
-        "subtotal": invoice.subtotal,
-        "total_price": invoice.total_price,
-        "items": [
-            {
-                "id": item.id,
-                "ingredient_id": item.ingredient_id,
-                "purchase_order_item_id": item.purchase_order_item_id,
-                "quantity": item.quantity,
-                "unit_price": item.unit_price,
-                "discount_percent": item.discount_percent,
-                "tax_percent": item.tax_percent,
-                "total_price": item.total_price,
-            }
-            for item in invoice.items
-        ],
-    })
 
 
 def _record_invoice_event(
@@ -162,7 +125,7 @@ def _record_invoice_event(
             event_type=event_type,
             previous_status=getattr(previous_status, "value", previous_status),
             resulting_status=getattr(invoice.status, "value", invoice.status),
-            metadata=_json_safe(metadata or {}),
+            metadata=json_safe(metadata or {}),
         )
     )
 
@@ -223,7 +186,7 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
                 )
                 _record_invoice_event(
                     result, request.user, 'created',
-                    metadata={"after": _invoice_snapshot(result)},
+                    metadata={"after": build_purchase_invoice_snapshot(result)},
                 )
         except ValueError as error:
             _handle(error)
@@ -270,8 +233,8 @@ class PurchaseInvoiceDetailAPIView(TenantAPIView):
                     result, request.user, 'updated',
                     previous_status=before.status if before else None,
                     metadata={
-                        "before": _invoice_snapshot(before) if before else None,
-                        "after": _invoice_snapshot(result),
+                        "before": build_purchase_invoice_snapshot(before) if before else None,
+                        "after": build_purchase_invoice_snapshot(result),
                     },
                 )
         except ValueError as error:
