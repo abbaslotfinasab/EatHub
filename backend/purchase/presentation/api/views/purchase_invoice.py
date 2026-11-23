@@ -345,11 +345,11 @@ class PurchaseInvoiceCancelAPIView(TenantAPIView):
                 before = purchase_invoice_repository().get_by_id_for_business(pk, request.business.id)
                 invoice = purchase_invoice_cancel_use_case().execute(
                     CancelPurchaseInvoiceDTO(
-                    business_id=request.business.id,
-                    purchase_invoice_id=pk,
-                    cancelled_by_id=request.user.id,
-                    cancelled_at=timezone.now(),
-                    reason=serializer.validated_data["reason"],
+                        business_id=request.business.id,
+                        purchase_invoice_id=pk,
+                        cancelled_by_id=request.user.id,
+                        cancelled_at=timezone.now(),
+                        reason=serializer.validated_data["reason"],
                     )
                 )
                 _record_invoice_event(

@@ -34,7 +34,9 @@ from purchase.infrastructure.persistence.django.repositories.purchase_invoice_ma
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_repository import (
     DjangoPurchaseInvoiceRepository,
 )
-from purchase.infrastructure.persistence.transaction import DjangoTransactionManager
+from purchase.infrastructure.persistence.transaction import (
+    DjangoTransactionManager,
+)
 
 
 def purchase_invoice_repository():
