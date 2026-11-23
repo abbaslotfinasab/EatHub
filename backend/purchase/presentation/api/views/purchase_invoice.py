@@ -21,12 +21,14 @@ from purchase.application.dto.purchase_invoice import (
     UpdatePurchaseInvoiceDTO,
 )
 from purchase.application.dto.purchase_invoice_posting import PostPurchaseInvoiceDTO
+from purchase.application.dto.purchase_invoice_event import RecordPurchaseInvoiceEventDTO
 from purchase.application.use_cases.purchase_invoice.approve_purchase_invoice import ApprovePurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.create_purchase_invoice import CreatePurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.cancel_purchase_invoice import CancelPurchaseInvoice
 from purchase.application.use_cases.purchase_invoice.get_purchase_invoice import GetPurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.list_purchase_invoices import ListPurchaseInvoicesUseCase
 from purchase.application.use_cases.purchase_invoice.list_purchase_invoice_events import ListPurchaseInvoiceEventsUseCase
+from purchase.application.use_cases.purchase_invoice.record_purchase_invoice_event import RecordPurchaseInvoiceEventUseCase
 from purchase.application.use_cases.purchase_invoice.match_purchase_invoice import MatchPurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.post_purchase_invoice import PostPurchaseInvoice
 from purchase.application.use_cases.purchase_invoice.update_purchase_invoice import UpdatePurchaseInvoiceUseCase
@@ -35,6 +37,7 @@ from purchase.infrastructure.persistence.django.repositories.purchase_invoice_re
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_matching_repository import DjangoPurchaseInvoiceMatchingRepository
 from purchase.infrastructure.persistence.django.repositories.accounts_payable_repository import DjangoAccountsPayableRepository
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_event_read_repository import DjangoPurchaseInvoiceEventReadRepository
+from purchase.infrastructure.persistence.django.repositories.purchase_invoice_event_write_repository import DjangoPurchaseInvoiceEventWriteRepository
 from purchase.presentation.api.serializers.purchase_invoice import (
     CreatePurchaseInvoiceSerializer,
     PurchaseInvoiceSerializer,
@@ -46,7 +49,6 @@ from purchase.presentation.api.serializers.purchase_invoice_posting import (
     PostPurchaseInvoiceResponseSerializer,
 )
 from purchase.presentation.api.permissions import require_purchase_permission
-from purchase.models import PurchaseInvoiceEvent
 from purchase.presentation.api.serializers.purchase_invoice_event import PurchaseInvoiceEventSerializer
 
 
@@ -150,14 +152,18 @@ def _invoice_snapshot(invoice):
 def _record_invoice_event(
     invoice, actor, event_type, *, previous_status=None, metadata=None,
 ):
-    return PurchaseInvoiceEvent.objects.create(
-        business_id=invoice.business_id,
-        purchase_invoice_id=invoice.id,
-        actor=actor,
-        event_type=event_type,
-        previous_status=getattr(previous_status, "value", previous_status),
-        resulting_status=getattr(invoice.status, "value", invoice.status),
-        metadata=_json_safe(metadata or {}),
+    return RecordPurchaseInvoiceEventUseCase(
+        DjangoPurchaseInvoiceEventWriteRepository()
+    ).execute(
+        RecordPurchaseInvoiceEventDTO(
+            business_id=invoice.business_id,
+            purchase_invoice_id=invoice.id,
+            actor_id=actor.id if actor else None,
+            event_type=event_type,
+            previous_status=getattr(previous_status, "value", previous_status),
+            resulting_status=getattr(invoice.status, "value", invoice.status),
+            metadata=_json_safe(metadata or {}),
+        )
     )
 
 
@@ -216,7 +222,7 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
                     )
                 )
                 _record_invoice_event(
-                    result, request.user, PurchaseInvoiceEvent.EventType.CREATED,
+                    result, request.user, 'created',
                     metadata={"after": _invoice_snapshot(result)},
                 )
         except ValueError as error:
@@ -261,7 +267,7 @@ class PurchaseInvoiceDetailAPIView(TenantAPIView):
                     )
                 )
                 _record_invoice_event(
-                    result, request.user, PurchaseInvoiceEvent.EventType.UPDATED,
+                    result, request.user, 'updated',
                     previous_status=before.status if before else None,
                     metadata={
                         "before": _invoice_snapshot(before) if before else None,
@@ -294,7 +300,7 @@ class PurchaseInvoiceApproveAPIView(TenantAPIView):
                     )
                 )
                 _record_invoice_event(
-                    result, request.user, PurchaseInvoiceEvent.EventType.APPROVED,
+                    result, request.user, 'approved',
                     previous_status=before.status if before else None,
                     metadata={"approved_at": result.approved_at},
                 )
@@ -327,7 +333,7 @@ class PurchaseInvoiceMatchAPIView(TenantAPIView):
                 )
                 invoice = repository.get_by_id_for_business(pk, request.business.id)
                 _record_invoice_event(
-                    invoice, request.user, PurchaseInvoiceEvent.EventType.MATCH_PERSISTED,
+                    invoice, request.user, 'match_persisted',
                     previous_status=invoice.status if invoice else None,
                     metadata={
                         "previous_matching_status": getattr(before.matching_status, "value", before.matching_status) if before else None,
@@ -359,7 +365,7 @@ class PurchaseInvoicePostAPIView(TenantAPIView):
                     )
                 )
                 _record_invoice_event(
-                    result.invoice, request.user, PurchaseInvoiceEvent.EventType.POSTED,
+                    result.invoice, request.user, 'posted',
                     previous_status=before.status if before else None,
                     metadata={
                         "accounts_payable_id": result.accounts_payable.id,
@@ -408,7 +414,7 @@ class PurchaseInvoiceCancelAPIView(TenantAPIView):
                     reason=serializer.validated_data["reason"],
                 ))
                 _record_invoice_event(
-                    invoice, request.user, PurchaseInvoiceEvent.EventType.CANCELLED,
+                    invoice, request.user, 'cancelled',
                     previous_status=before.status if before else None,
                     metadata={"reason": invoice.cancellation_reason},
                 )
