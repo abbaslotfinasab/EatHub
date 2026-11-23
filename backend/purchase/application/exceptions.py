@@ -36,3 +36,7 @@ class SupplierPaymentIdempotencyKeyRace(Exception):
     def __init__(self, original_error: Exception) -> None:
         super().__init__("A supplier payment idempotency key was claimed concurrently.")
         self.original_error = original_error
+
+
+class GoodsReceiptTraceUnavailable(ValueError):
+    """The movement cannot be safely resolved to a consistent receipt trace."""
