@@ -222,7 +222,7 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
                     )
                 )
                 _record_invoice_event(
-                    result, request.user, PurchaseInvoiceEvent.EventType.CREATED,
+                    result, request.user, 'created',
                     metadata={"after": _invoice_snapshot(result)},
                 )
         except ValueError as error:
@@ -267,7 +267,7 @@ class PurchaseInvoiceDetailAPIView(TenantAPIView):
                     )
                 )
                 _record_invoice_event(
-                    result, request.user, PurchaseInvoiceEvent.EventType.UPDATED,
+                    result, request.user, 'updated',
                     previous_status=before.status if before else None,
                     metadata={
                         "before": _invoice_snapshot(before) if before else None,
@@ -300,7 +300,7 @@ class PurchaseInvoiceApproveAPIView(TenantAPIView):
                     )
                 )
                 _record_invoice_event(
-                    result, request.user, PurchaseInvoiceEvent.EventType.APPROVED,
+                    result, request.user, 'approved',
                     previous_status=before.status if before else None,
                     metadata={"approved_at": result.approved_at},
                 )
@@ -333,7 +333,7 @@ class PurchaseInvoiceMatchAPIView(TenantAPIView):
                 )
                 invoice = repository.get_by_id_for_business(pk, request.business.id)
                 _record_invoice_event(
-                    invoice, request.user, PurchaseInvoiceEvent.EventType.MATCH_PERSISTED,
+                    invoice, request.user, 'match_persisted',
                     previous_status=invoice.status if invoice else None,
                     metadata={
                         "previous_matching_status": getattr(before.matching_status, "value", before.matching_status) if before else None,
@@ -365,7 +365,7 @@ class PurchaseInvoicePostAPIView(TenantAPIView):
                     )
                 )
                 _record_invoice_event(
-                    result.invoice, request.user, PurchaseInvoiceEvent.EventType.POSTED,
+                    result.invoice, request.user, 'posted',
                     previous_status=before.status if before else None,
                     metadata={
                         "accounts_payable_id": result.accounts_payable.id,
@@ -414,7 +414,7 @@ class PurchaseInvoiceCancelAPIView(TenantAPIView):
                     reason=serializer.validated_data["reason"],
                 ))
                 _record_invoice_event(
-                    invoice, request.user, PurchaseInvoiceEvent.EventType.CANCELLED,
+                    invoice, request.user, 'cancelled',
                     previous_status=before.status if before else None,
                     metadata={"reason": invoice.cancellation_reason},
                 )
