@@ -10,6 +10,7 @@ from purchase.application.dto.goods_receipt import (
 from purchase.application.exceptions import (
     GoodsReceiptIdempotencyKeyRace,
     GoodsReceiptIdempotencyPayloadMismatch,
+    GoodsReceiptResourceNotFound,
 )
 from purchase.application.use_cases.goods_receipt.canonicalization import (
     CANONICALIZATION_VERSION,
@@ -96,7 +97,7 @@ class CreateGoodsReceiptUseCase:
                     )
                 )
                 if purchase_order is None:
-                    raise ValueError("Purchase order does not exist in this business.")
+                    raise GoodsReceiptResourceNotFound("Purchase order does not exist in this business.")
                 if purchase_order.business_id != business_id:
                     raise ValueError("Purchase order does not belong to this business.")
 
