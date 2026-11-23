@@ -103,7 +103,9 @@ class PurchaseInvoiceEventListAPIView(TenantAPIView):
 
     def get(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
-        if not purchase_invoice_repository().get_by_id_for_business(pk, request.business.id):
+        if not purchase_invoice_repository().get_by_id_for_business(
+            pk, request.business.id
+        ):
             raise NotFound({"detail": "Purchase invoice does not exist in this business."})
         events = purchase_invoice_event_read_use_case().execute(
             business_id=request.business.id,
@@ -118,7 +120,9 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
     def get(self, request):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            result = ListPurchaseInvoicesUseCase(purchase_invoice_repository()).execute(
+            result = ListPurchaseInvoicesUseCase(
+                purchase_invoice_repository()
+            ).execute(
                 ListPurchaseInvoicesQuery(
                     business_id=request.business.id,
                     supplier_id=_optional_id(request.query_params.get("supplier_id"), "supplier_id"),
@@ -138,7 +142,9 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
         data = serializer.validated_data
         try:
             with transaction.atomic():
-                result = CreatePurchaseInvoiceUseCase(purchase_invoice_repository()).execute(
+                result = CreatePurchaseInvoiceUseCase(
+                    purchase_invoice_repository()
+                ).execute(
                     CreatePurchaseInvoiceDTO(
                         business_id=request.business.id,
                         supplier_id=data["supplier_id"],
@@ -165,7 +171,9 @@ class PurchaseInvoiceDetailAPIView(TenantAPIView):
     def get(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            result = GetPurchaseInvoiceUseCase(purchase_invoice_repository()).execute(pk, request.business.id)
+            result = GetPurchaseInvoiceUseCase(
+                purchase_invoice_repository()
+            ).execute(pk, request.business.id)
         except ValueError as error:
             _handle(error)
         return Response(PurchaseInvoiceSerializer(result).data)
@@ -283,7 +291,9 @@ class PurchaseInvoicePostAPIView(TenantAPIView):
         serializer.is_valid(raise_exception=True)
         try:
             with transaction.atomic():
-                before = purchase_invoice_repository().get_by_id_for_business(pk, request.business.id)
+                before = purchase_invoice_repository().get_by_id_for_business(
+                    pk, request.business.id
+                )
                 result = purchase_invoice_posting_use_case().execute(
                     PostPurchaseInvoiceDTO(
                         business_id=request.business.id,
@@ -333,13 +343,15 @@ class PurchaseInvoiceCancelAPIView(TenantAPIView):
         try:
             with transaction.atomic():
                 before = purchase_invoice_repository().get_by_id_for_business(pk, request.business.id)
-                invoice = purchase_invoice_cancel_use_case().execute(CancelPurchaseInvoiceDTO(
+                invoice = purchase_invoice_cancel_use_case().execute(
+                    CancelPurchaseInvoiceDTO(
                     business_id=request.business.id,
                     purchase_invoice_id=pk,
                     cancelled_by_id=request.user.id,
                     cancelled_at=timezone.now(),
                     reason=serializer.validated_data["reason"],
-                ))
+                    )
+                )
                 _record_invoice_event(
                     invoice, request.user, 'cancelled',
                     previous_status=before.status if before else None,
