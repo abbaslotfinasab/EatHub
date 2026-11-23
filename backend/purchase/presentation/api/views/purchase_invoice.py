@@ -26,20 +26,18 @@ from purchase.application.purchase_invoice_audit_snapshot import (
 )
 from purchase.application.use_cases.purchase_invoice.approve_purchase_invoice import ApprovePurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.create_purchase_invoice import CreatePurchaseInvoiceUseCase
-from purchase.application.use_cases.purchase_invoice.cancel_purchase_invoice import CancelPurchaseInvoice
 from purchase.application.use_cases.purchase_invoice.get_purchase_invoice import GetPurchaseInvoiceUseCase
 from purchase.application.use_cases.purchase_invoice.list_purchase_invoices import ListPurchaseInvoicesUseCase
-from purchase.application.use_cases.purchase_invoice.list_purchase_invoice_events import ListPurchaseInvoiceEventsUseCase
-from purchase.application.use_cases.purchase_invoice.record_purchase_invoice_event import RecordPurchaseInvoiceEventUseCase
-from purchase.application.use_cases.purchase_invoice.match_purchase_invoice import MatchPurchaseInvoiceUseCase
-from purchase.application.use_cases.purchase_invoice.post_purchase_invoice import PostPurchaseInvoice
 from purchase.application.use_cases.purchase_invoice.update_purchase_invoice import UpdatePurchaseInvoiceUseCase
-from purchase.infrastructure.persistence.transaction import DjangoTransactionManager
-from purchase.infrastructure.persistence.django.repositories.purchase_invoice_repository import DjangoPurchaseInvoiceRepository
-from purchase.infrastructure.persistence.django.repositories.purchase_invoice_matching_repository import DjangoPurchaseInvoiceMatchingRepository
-from purchase.infrastructure.persistence.django.repositories.accounts_payable_repository import DjangoAccountsPayableRepository
-from purchase.infrastructure.persistence.django.repositories.purchase_invoice_event_read_repository import DjangoPurchaseInvoiceEventReadRepository
-from purchase.infrastructure.persistence.django.repositories.purchase_invoice_event_write_repository import DjangoPurchaseInvoiceEventWriteRepository
+from purchase.composition import (
+    purchase_invoice_cancel_use_case,
+    purchase_invoice_event_read_use_case,
+    purchase_invoice_event_write_use_case,
+    purchase_invoice_matching_use_case,
+    purchase_invoice_posting_use_case,
+    purchase_invoice_repository,
+    purchase_invoice_transaction_manager,
+)
 from purchase.presentation.api.serializers.purchase_invoice import (
     CreatePurchaseInvoiceSerializer,
     PurchaseInvoiceSerializer,
@@ -52,34 +50,6 @@ from purchase.presentation.api.serializers.purchase_invoice_posting import (
 )
 from purchase.presentation.api.permissions import require_purchase_permission
 from purchase.presentation.api.serializers.purchase_invoice_event import PurchaseInvoiceEventSerializer
-
-
-def _repository() -> DjangoPurchaseInvoiceRepository:
-    return DjangoPurchaseInvoiceRepository()
-
-
-def _transaction_manager() -> DjangoTransactionManager:
-    return DjangoTransactionManager()
-
-
-def _matching_use_case() -> MatchPurchaseInvoiceUseCase:
-    return MatchPurchaseInvoiceUseCase(
-        DjangoPurchaseInvoiceMatchingRepository(),
-        _transaction_manager(),
-    )
-
-
-def _posting_use_case() -> PostPurchaseInvoice:
-    transaction_manager = _transaction_manager()
-    return PostPurchaseInvoice(
-        _repository(),
-        DjangoAccountsPayableRepository(),
-        MatchPurchaseInvoiceUseCase(
-            DjangoPurchaseInvoiceMatchingRepository(),
-            transaction_manager,
-        ),
-        transaction_manager,
-    )
 
 
 def _optional_id(value: str | None, name: str) -> int | None:
@@ -115,9 +85,7 @@ def _handle(error: ValueError) -> None:
 def _record_invoice_event(
     invoice, actor, event_type, *, previous_status=None, metadata=None,
 ):
-    return RecordPurchaseInvoiceEventUseCase(
-        DjangoPurchaseInvoiceEventWriteRepository()
-    ).execute(
+    return purchase_invoice_event_write_use_case().execute(
         RecordPurchaseInvoiceEventDTO(
             business_id=invoice.business_id,
             purchase_invoice_id=invoice.id,
@@ -135,11 +103,9 @@ class PurchaseInvoiceEventListAPIView(TenantAPIView):
 
     def get(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
-        if not _repository().get_by_id_for_business(pk, request.business.id):
+        if not purchase_invoice_repository().get_by_id_for_business(pk, request.business.id):
             raise NotFound({"detail": "Purchase invoice does not exist in this business."})
-        events = ListPurchaseInvoiceEventsUseCase(
-            DjangoPurchaseInvoiceEventReadRepository()
-        ).execute(
+        events = purchase_invoice_event_read_use_case().execute(
             business_id=request.business.id,
             purchase_invoice_id=pk,
         )
@@ -152,7 +118,7 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
     def get(self, request):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            result = ListPurchaseInvoicesUseCase(_repository()).execute(
+            result = ListPurchaseInvoicesUseCase(purchase_invoice_repository()).execute(
                 ListPurchaseInvoicesQuery(
                     business_id=request.business.id,
                     supplier_id=_optional_id(request.query_params.get("supplier_id"), "supplier_id"),
@@ -172,7 +138,7 @@ class PurchaseInvoiceListCreateAPIView(TenantAPIView):
         data = serializer.validated_data
         try:
             with transaction.atomic():
-                result = CreatePurchaseInvoiceUseCase(_repository()).execute(
+                result = CreatePurchaseInvoiceUseCase(purchase_invoice_repository()).execute(
                     CreatePurchaseInvoiceDTO(
                         business_id=request.business.id,
                         supplier_id=data["supplier_id"],
@@ -199,7 +165,7 @@ class PurchaseInvoiceDetailAPIView(TenantAPIView):
     def get(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            result = GetPurchaseInvoiceUseCase(_repository()).execute(pk, request.business.id)
+            result = GetPurchaseInvoiceUseCase(purchase_invoice_repository()).execute(pk, request.business.id)
         except ValueError as error:
             _handle(error)
         return Response(PurchaseInvoiceSerializer(result).data)
@@ -211,7 +177,7 @@ class PurchaseInvoiceDetailAPIView(TenantAPIView):
         data = serializer.validated_data
         try:
             with transaction.atomic():
-                repository = _repository()
+                repository = purchase_invoice_repository()
                 before = repository.get_by_id_for_business(pk, request.business.id)
                 result = UpdatePurchaseInvoiceUseCase(repository).execute(
                     UpdatePurchaseInvoiceDTO(
@@ -249,11 +215,11 @@ class PurchaseInvoiceApproveAPIView(TenantAPIView):
         require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_APPROVE)
         try:
             with transaction.atomic():
-                repository = _repository()
+                repository = purchase_invoice_repository()
                 before = repository.get_by_id_for_business(pk, request.business.id)
                 result = ApprovePurchaseInvoiceUseCase(
                     repository,
-                    _transaction_manager(),
+                    purchase_invoice_transaction_manager(),
                 ).execute(
                     ApprovePurchaseInvoiceDTO(
                         business_id=request.business.id,
@@ -278,7 +244,7 @@ class PurchaseInvoiceMatchAPIView(TenantAPIView):
     def get(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            result = _matching_use_case().execute(
+            result = purchase_invoice_matching_use_case().execute(
                 request.business.id, pk, persist=False,
             )
         except ValueError as error:
@@ -289,9 +255,9 @@ class PurchaseInvoiceMatchAPIView(TenantAPIView):
         require_purchase_permission(request, PermissionCode.PURCHASE_INVOICE_MATCH)
         try:
             with transaction.atomic():
-                repository = _repository()
+                repository = purchase_invoice_repository()
                 before = repository.get_by_id_for_business(pk, request.business.id)
-                result = _matching_use_case().execute(
+                result = purchase_invoice_matching_use_case().execute(
                     request.business.id, pk, persist=True,
                 )
                 invoice = repository.get_by_id_for_business(pk, request.business.id)
@@ -317,8 +283,8 @@ class PurchaseInvoicePostAPIView(TenantAPIView):
         serializer.is_valid(raise_exception=True)
         try:
             with transaction.atomic():
-                before = _repository().get_by_id_for_business(pk, request.business.id)
-                result = _posting_use_case().execute(
+                before = purchase_invoice_repository().get_by_id_for_business(pk, request.business.id)
+                result = purchase_invoice_posting_use_case().execute(
                     PostPurchaseInvoiceDTO(
                         business_id=request.business.id,
                         purchase_invoice_id=pk,
@@ -366,10 +332,8 @@ class PurchaseInvoiceCancelAPIView(TenantAPIView):
         serializer.is_valid(raise_exception=True)
         try:
             with transaction.atomic():
-                before = _repository().get_by_id_for_business(pk, request.business.id)
-                invoice = CancelPurchaseInvoice(
-                    _repository(), DjangoAccountsPayableRepository(), _transaction_manager(),
-                ).execute(CancelPurchaseInvoiceDTO(
+                before = purchase_invoice_repository().get_by_id_for_business(pk, request.business.id)
+                invoice = purchase_invoice_cancel_use_case().execute(CancelPurchaseInvoiceDTO(
                     business_id=request.business.id,
                     purchase_invoice_id=pk,
                     cancelled_by_id=request.user.id,
