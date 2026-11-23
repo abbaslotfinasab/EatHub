@@ -249,8 +249,9 @@ class GoodsReceiptStockMovementTraceAPIView(TenantAPIView):
                 movement_id=movement_id,
                 business_id=request.business.id,
             )
-        except GoodsReceiptTraceUnavailable as error:
-            raise GoodsReceiptTraceUnavailableAPIException(str(error)) from error
+        except GoodsReceiptTraceUnavailable:
+            # Keep internal exception details and traceback out of the API response.
+            raise GoodsReceiptTraceUnavailableAPIException() from None
         except ValueError as error:
             _handle_goods_receipt_error(error)
 
