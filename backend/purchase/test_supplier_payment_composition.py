@@ -10,7 +10,10 @@ class SupplierPaymentCompositionTests(SimpleTestCase):
     @patch("purchase.composition.DjangoSupplierPaymentRepository")
     @patch("purchase.composition.CreateSupplierPaymentUseCase")
     def test_create_use_case_wires_payment_and_supplier_repositories(
-        self, use_case_class, payment_repository_class, supplier_repository_class,
+        self,
+        use_case_class,
+        payment_repository_class,
+        supplier_repository_class,
     ):
         result = composition.create_supplier_payment_use_case()
 

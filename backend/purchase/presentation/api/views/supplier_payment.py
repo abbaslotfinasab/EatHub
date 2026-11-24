@@ -29,7 +29,6 @@ from purchase.presentation.api.serializers.supplier_payment import (
 from purchase.presentation.api.permissions import require_purchase_permission
 
 
-
 def _handle_payment_error(error: ValueError) -> None:
     detail = str(error)
     if "does not exist" in detail:
@@ -92,10 +91,12 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
             _handle_payment_error(error)
 
         payment_ids = [payment.id for payment in payments if payment.id is not None]
-        allocated_by_payment = list_supplier_payment_allocation_totals_use_case().execute(
-            ListSupplierPaymentAllocationTotalsQuery(
-                business_id=request.business.id,
-                supplier_payment_ids=payment_ids,
+        allocated_by_payment = (
+            list_supplier_payment_allocation_totals_use_case().execute(
+                ListSupplierPaymentAllocationTotalsQuery(
+                    business_id=request.business.id,
+                    supplier_payment_ids=payment_ids,
+                )
             )
         )
 
