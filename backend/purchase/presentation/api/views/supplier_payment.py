@@ -15,37 +15,18 @@ from purchase.application.dto.supplier_payment import (
 from purchase.application.dto.supplier_payment_allocation import (
     ListSupplierPaymentAllocationTotalsQuery,
 )
-from purchase.application.use_cases.supplier_payment.create_supplier_payment import (
-    CreateSupplierPaymentUseCase,
-)
-from purchase.application.use_cases.supplier_payment.get_supplier_payment import (
-    GetSupplierPaymentUseCase,
-)
-from purchase.application.use_cases.supplier_payment.list_supplier_payments import (
-    ListSupplierPaymentsUseCase,
-)
-from purchase.application.use_cases.supplier_payment.list_supplier_payment_allocation_totals import (
-    ListSupplierPaymentAllocationTotalsUseCase,
-)
 from purchase.domain.enums.payment_method import PaymentMethod
-from purchase.infrastructure.persistence.django.repositories.payment_allocation_repository import (
-    DjangoPaymentAllocationRepository,
-)
-from purchase.infrastructure.persistence.django.repositories.supplier_payment_repository import (
-    DjangoSupplierPaymentRepository,
-)
-from purchase.infrastructure.persistence.django.repositories.supplier_repository import (
-    DjangoSupplierRepository,
+from purchase.composition import (
+    create_supplier_payment_use_case,
+    get_supplier_payment_use_case,
+    list_supplier_payment_allocation_totals_use_case,
+    list_supplier_payments_use_case,
 )
 from purchase.presentation.api.serializers.supplier_payment import (
     CreateSupplierPaymentSerializer,
     SupplierPaymentSerializer,
 )
 from purchase.presentation.api.permissions import require_purchase_permission
-
-
-def _payment_repository() -> DjangoSupplierPaymentRepository:
-    return DjangoSupplierPaymentRepository()
 
 
 def _handle_payment_error(error: ValueError) -> None:
@@ -88,7 +69,7 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
             raise ValidationError({"method": "Invalid payment method."}) from error
 
         try:
-            payments = ListSupplierPaymentsUseCase(_payment_repository()).execute(
+            payments = list_supplier_payments_use_case().execute(
                 ListSupplierPaymentsQuery(
                     business_id=request.business.id,
                     supplier_id=_optional_id(
@@ -110,12 +91,12 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
             _handle_payment_error(error)
 
         payment_ids = [payment.id for payment in payments if payment.id is not None]
-        allocated_by_payment = ListSupplierPaymentAllocationTotalsUseCase(
-            DjangoPaymentAllocationRepository()
-        ).execute(
-            ListSupplierPaymentAllocationTotalsQuery(
-                business_id=request.business.id,
-                supplier_payment_ids=payment_ids,
+        allocated_by_payment = (
+            list_supplier_payment_allocation_totals_use_case().execute(
+                ListSupplierPaymentAllocationTotalsQuery(
+                    business_id=request.business.id,
+                    supplier_payment_ids=payment_ids,
+                )
             )
         )
 
@@ -138,10 +119,7 @@ class SupplierPaymentListCreateAPIView(TenantAPIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         try:
-            payment_result = CreateSupplierPaymentUseCase(
-                _payment_repository(),
-                DjangoSupplierRepository(),
-            ).execute(
+            payment_result = create_supplier_payment_use_case().execute(
                 CreateSupplierPaymentDTO(
                     business_id=request.business.id,
                     supplier_id=data["supplier_id"],
@@ -166,7 +144,7 @@ class SupplierPaymentDetailAPIView(TenantAPIView):
     def get(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            payment = GetSupplierPaymentUseCase(_payment_repository()).execute(
+            payment = get_supplier_payment_use_case().execute(
                 pk,
                 request.business.id,
             )

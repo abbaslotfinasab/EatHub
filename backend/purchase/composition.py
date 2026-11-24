@@ -23,6 +23,18 @@ from purchase.application.use_cases.accounts_payable.get_accounts_payable_paymen
 from purchase.application.use_cases.accounts_payable.list_accounts_payables import (
     ListAccountsPayablesUseCase,
 )
+from purchase.application.use_cases.supplier_payment.create_supplier_payment import (
+    CreateSupplierPaymentUseCase,
+)
+from purchase.application.use_cases.supplier_payment.get_supplier_payment import (
+    GetSupplierPaymentUseCase,
+)
+from purchase.application.use_cases.supplier_payment.list_supplier_payments import (
+    ListSupplierPaymentsUseCase,
+)
+from purchase.application.use_cases.supplier_payment.list_supplier_payment_allocation_totals import (
+    ListSupplierPaymentAllocationTotalsUseCase,
+)
 from purchase.application.use_cases.purchase_invoice.cancel_purchase_invoice import (
     CancelPurchaseInvoice,
 )
@@ -46,6 +58,9 @@ from purchase.infrastructure.persistence.django.repositories.payment_allocation_
 )
 from purchase.infrastructure.persistence.django.repositories.supplier_payment_repository import (
     DjangoSupplierPaymentRepository,
+)
+from purchase.infrastructure.persistence.django.repositories.supplier_repository import (
+    DjangoSupplierRepository,
 )
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_event_read_repository import (
     DjangoPurchaseInvoiceEventReadRepository,
@@ -150,3 +165,28 @@ def list_payment_allocations_use_case():
 
 def get_payment_allocation_use_case():
     return GetPaymentAllocation(payment_allocation_repository())
+
+
+def supplier_payment_repository():
+    return DjangoSupplierPaymentRepository()
+
+
+def create_supplier_payment_use_case():
+    return CreateSupplierPaymentUseCase(
+        supplier_payment_repository(),
+        DjangoSupplierRepository(),
+    )
+
+
+def list_supplier_payments_use_case():
+    return ListSupplierPaymentsUseCase(supplier_payment_repository())
+
+
+def get_supplier_payment_use_case():
+    return GetSupplierPaymentUseCase(supplier_payment_repository())
+
+
+def list_supplier_payment_allocation_totals_use_case():
+    return ListSupplierPaymentAllocationTotalsUseCase(
+        payment_allocation_repository()
+    )
