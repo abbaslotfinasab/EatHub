@@ -86,7 +86,7 @@ export const PurchaseSuppliersPage = () => {
     });
     const updateMutation = useMutation({
         mutationFn: ({ id, input }: { id: string; input: PurchaseSupplierInput }) => updatePurchaseSupplier.execute(id, input),
-        onSuccess: async () => { await refresh(); closeDialog(); },
+        onSuccess: async () => { await refresh(); closeDialog(); setPage(0); },
         onError: (error) => setFormError(errorMessage(error)),
     });
 
