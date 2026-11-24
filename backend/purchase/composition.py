@@ -5,6 +5,15 @@ adapters. Presentation modules should depend on these factories rather than
 constructing infrastructure adapters directly.
 """
 
+from purchase.application.use_cases.payment_allocation.create_payment_allocation import (
+    CreatePaymentAllocation,
+)
+from purchase.application.use_cases.payment_allocation.get_payment_allocation import (
+    GetPaymentAllocation,
+)
+from purchase.application.use_cases.payment_allocation.list_payment_allocations import (
+    ListPaymentAllocations,
+)
 from purchase.application.use_cases.accounts_payable.get_accounts_payable import (
     GetAccountsPayableUseCase,
 )
@@ -34,6 +43,9 @@ from purchase.infrastructure.persistence.django.repositories.accounts_payable_re
 )
 from purchase.infrastructure.persistence.django.repositories.payment_allocation_repository import (
     DjangoPaymentAllocationRepository,
+)
+from purchase.infrastructure.persistence.django.repositories.supplier_payment_repository import (
+    DjangoSupplierPaymentRepository,
 )
 from purchase.infrastructure.persistence.django.repositories.purchase_invoice_event_read_repository import (
     DjangoPurchaseInvoiceEventReadRepository,
@@ -117,3 +129,24 @@ def accounts_payable_payment_eligibility_use_case():
         accounts_payable_repository(),
         DjangoPaymentAllocationRepository(),
     )
+
+
+def payment_allocation_repository():
+    return DjangoPaymentAllocationRepository()
+
+
+def create_payment_allocation_use_case():
+    return CreatePaymentAllocation(
+        accounts_payable_repository(),
+        DjangoSupplierPaymentRepository(),
+        payment_allocation_repository(),
+        DjangoTransactionManager(),
+    )
+
+
+def list_payment_allocations_use_case():
+    return ListPaymentAllocations(payment_allocation_repository())
+
+
+def get_payment_allocation_use_case():
+    return GetPaymentAllocation(payment_allocation_repository())
