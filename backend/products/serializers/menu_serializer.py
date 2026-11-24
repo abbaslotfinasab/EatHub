@@ -268,9 +268,24 @@ class PublicMenuSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Menu
-        fields = "__all__"
+        fields = [
+            "id",
+            "name",
+            "category",
+            "description",
+            "sort_order",
+            "items",
+        ]
+
 
 class PublicRestaurantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Business
-        fields = "__all__"
+        fields = [
+            "id",
+            "name",
+            "slug",
+            "description",
+            "logo",
+            "address",
+        ]
