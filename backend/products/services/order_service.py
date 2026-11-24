@@ -101,7 +101,7 @@ class OrderService:
         # Validate the complete cart before creating any order records.
         menu_item_ids = [item["menu_item_id"] for item in items_data]
         menu_items = (
-            MenuItem.objects.select_for_update()
+            MenuItem.objects.select_for_update(of=("self",))
             .filter(id__in=menu_item_ids, business=business)
             .select_related("menu", "product")
             .in_bulk()
