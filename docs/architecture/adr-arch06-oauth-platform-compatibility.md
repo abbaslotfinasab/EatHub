@@ -157,7 +157,7 @@ The provider must demonstrate, with captured test evidence:
 - OpenAI, Authentication for MCP plugins: https://developers.openai.com/plugins/build/auth
 - OpenAI, Build an MCP server: https://developers.openai.com/plugins/build/mcp-server
 - OpenAI, Add custom MCP server: https://developers.openai.com/api/docs/guides/custom-mcp-server
-- Anthropic, MCP Connector: https://docs.anthropic.com/en/docs/agents-and-tools/mcp-connector
+- Anthropic, MCP Connector: https://platform.claude.com/docs/en/agents-and-tools/mcp-connector
 
 Platform behavior can change. Re-run this compatibility checklist against the exact target product and account/workspace configuration immediately before implementation and release.
 
