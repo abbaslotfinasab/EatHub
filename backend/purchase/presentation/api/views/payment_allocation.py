@@ -10,25 +10,11 @@ from purchase.application.dto.payment_allocation import (
     CreatePaymentAllocationCommand,
     ListPaymentAllocationsQuery,
 )
-from purchase.application.use_cases.payment_allocation.create_payment_allocation import (
-    CreatePaymentAllocation,
+from purchase.composition import (
+    create_payment_allocation_use_case,
+    get_payment_allocation_use_case,
+    list_payment_allocations_use_case,
 )
-from purchase.application.use_cases.payment_allocation.get_payment_allocation import (
-    GetPaymentAllocation,
-)
-from purchase.application.use_cases.payment_allocation.list_payment_allocations import (
-    ListPaymentAllocations,
-)
-from purchase.infrastructure.persistence.django.repositories.accounts_payable_repository import (
-    DjangoAccountsPayableRepository,
-)
-from purchase.infrastructure.persistence.django.repositories.payment_allocation_repository import (
-    DjangoPaymentAllocationRepository,
-)
-from purchase.infrastructure.persistence.django.repositories.supplier_payment_repository import (
-    DjangoSupplierPaymentRepository,
-)
-from purchase.infrastructure.persistence.transaction import DjangoTransactionManager
 from purchase.presentation.api.serializers.payment_allocation import (
     CreatePaymentAllocationSerializer,
     PaymentAllocationSerializer,
@@ -43,24 +29,13 @@ def _handle(error: ValueError) -> None:
     raise ValidationError({"detail": detail})
 
 
-def _use_case() -> CreatePaymentAllocation:
-    return CreatePaymentAllocation(
-        DjangoAccountsPayableRepository(),
-        DjangoSupplierPaymentRepository(),
-        DjangoPaymentAllocationRepository(),
-        DjangoTransactionManager(),
-    )
-
-
 class PaymentAllocationListCreateAPIView(TenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            allocations = ListPaymentAllocations(
-                DjangoPaymentAllocationRepository(),
-            ).execute(ListPaymentAllocationsQuery(
+            allocations = list_payment_allocations_use_case().execute(ListPaymentAllocationsQuery(
                 business_id=request.business.id,
                 accounts_payable_id=self._optional_id(request.query_params.get("accounts_payable_id")),
                 supplier_payment_id=self._optional_id(request.query_params.get("supplier_payment_id")),
@@ -75,7 +50,7 @@ class PaymentAllocationListCreateAPIView(TenantAPIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         try:
-            result = _use_case().execute(CreatePaymentAllocationCommand(
+            result = create_payment_allocation_use_case().execute(CreatePaymentAllocationCommand(
                 business_id=request.business.id,
                 accounts_payable_id=data["accounts_payable_id"],
                 supplier_payment_id=data["supplier_payment_id"],
@@ -111,9 +86,7 @@ class PaymentAllocationDetailAPIView(TenantAPIView):
     def get(self, request, pk):
         require_purchase_permission(request, PermissionCode.PURCHASE_VIEW)
         try:
-            allocation = GetPaymentAllocation(
-                DjangoPaymentAllocationRepository(),
-            ).execute(pk, request.business.id)
+            allocation = get_payment_allocation_use_case().execute(pk, request.business.id)
         except ValueError as error:
             _handle(error)
         return Response(PaymentAllocationSerializer(allocation).data)
