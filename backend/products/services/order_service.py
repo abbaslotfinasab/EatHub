@@ -97,6 +97,29 @@ class OrderService:
         if customer and customer.business_id != business.id:
             raise ValidationError("Customer does not belong to this business.")
 
+        # Lock the selected items and their parent menus while validating availability.
+        # Validate the complete cart before creating any order records.
+        menu_item_ids = [item["menu_item_id"] for item in items_data]
+        menu_items = (
+            MenuItem.objects.select_for_update(of=("self",))
+            .filter(id__in=menu_item_ids, business=business)
+            .select_related("menu", "product")
+            .in_bulk()
+        )
+
+        for item in items_data:
+            menu_item = menu_items.get(item["menu_item_id"])
+            if menu_item is None:
+                raise ValidationError({"items": "Invalid menu item for this business."})
+            if menu_item.business_id != menu_item.menu.business_id:
+                raise ValidationError({"items": "Menu item and parent menu business do not match."})
+            if menu_item.menu.business_id != business.id:
+                raise ValidationError({"items": "Menu item does not belong to an active menu for this business."})
+            if not menu_item.menu.is_active:
+                raise ValidationError({"items": "One or more selected menu items belong to an inactive menu."})
+            if not menu_item.is_available:
+                raise ValidationError({"items": "One or more selected menu items are unavailable."})
+
         order = Order.objects.create(
             business=business,
             customer=customer,
@@ -122,21 +145,8 @@ class OrderService:
 
         subtotal = Decimal("0")
 
-        # 🔥 FIX: batch fetch (avoid N+1)
-        menu_item_ids = [i["menu_item_id"] for i in items_data]
-
-        menu_items = MenuItem.objects.filter(
-            id__in=menu_item_ids,
-            business=business
-        ).select_related("product").in_bulk()
-
         for item in items_data:
-
-            menu_item = menu_items.get(item["menu_item_id"])
-
-            if not menu_item:
-                raise ValidationError({"items": "Invalid menu item for this business."})
-
+            menu_item = menu_items[item["menu_item_id"]]
             quantity = item["quantity"]
             unit_price = menu_item.price
             total_price = unit_price * quantity

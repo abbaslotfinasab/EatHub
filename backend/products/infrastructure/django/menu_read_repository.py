@@ -1,7 +1,9 @@
 """Django-backed read queries for tenant and public restaurant menus."""
 
 from accounts.models import Business
-from products.models import Menu
+from django.db.models import Prefetch
+
+from products.models import Menu, MenuItem
 
 
 class DjangoMenuReadRepository:
@@ -27,7 +29,9 @@ class DjangoMenuReadRepository:
 
     def list_public_for_business(self, business_id):
         return (
-            Menu.objects.filter(business_id=business_id)
-            .prefetch_related("items")
+            Menu.objects.filter(business_id=business_id, is_active=True)
+            .prefetch_related(
+                Prefetch("items", queryset=MenuItem.objects.filter(is_available=True))
+            )
             .order_by("sort_order")
         )
