@@ -2,8 +2,8 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Alert, Box, Button, CircularProgress, Container, Dialog, DialogActions, DialogContent,
-    DialogTitle, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow,
-    TextField, Typography,
+    DialogTitle, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableHead, TablePagination,
+    TableRow, TextField, Typography,
 } from '@mui/material';
 import { listPurchaseSuppliersManagement, createPurchaseSupplier, updatePurchaseSupplier } from '../../../data/di/purchaseSupplier.ts';
 import type { PurchaseSupplier, PurchaseSupplierInput } from '../../../domain/entities/inventory/PurchaseSupplier.ts';
@@ -28,6 +28,8 @@ export const PurchaseSuppliersPage = () => {
     const canManage = permissions.includes('purchase.supplier.manage');
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState('active');
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<PurchaseSupplier | null>(null);
     const [form, setForm] = useState<PurchaseSupplierInput>(emptyForm);
@@ -43,6 +45,10 @@ export const PurchaseSuppliersPage = () => {
         queryFn: () => listPurchaseSuppliersManagement.execute(filters),
         enabled: Boolean(canView && userId && businessId),
     });
+    const visibleSuppliers = useMemo(
+        () => (suppliers.data ?? []).slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
+        [suppliers.data, page, rowsPerPage],
+    );
 
     const closeDialog = () => {
         setDialogOpen(false);
@@ -75,12 +81,12 @@ export const PurchaseSuppliersPage = () => {
     };
     const createMutation = useMutation({
         mutationFn: (input: PurchaseSupplierInput) => createPurchaseSupplier.execute(input),
-        onSuccess: async () => { await refresh(); closeDialog(); },
+        onSuccess: async () => { await refresh(); closeDialog(); setPage(0); },
         onError: (error) => setFormError(errorMessage(error)),
     });
     const updateMutation = useMutation({
         mutationFn: ({ id, input }: { id: string; input: PurchaseSupplierInput }) => updatePurchaseSupplier.execute(id, input),
-        onSuccess: async () => { await refresh(); closeDialog(); },
+        onSuccess: async () => { await refresh(); closeDialog(); setPage(0); },
         onError: (error) => setFormError(errorMessage(error)),
     });
 
@@ -108,8 +114,19 @@ export const PurchaseSuppliersPage = () => {
                     دریافت فهرست تأمین‌کنندگان ناموفق بود. {errorMessage(suppliers.error)}
                 </Alert>}
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                    <TextField fullWidth label="جستجو بر اساس نام، تلفن یا اطلاعات تماس" value={search} onChange={(event) => setSearch(event.target.value)} />
-                    <TextField select label="وضعیت" value={status} onChange={(event) => setStatus(event.target.value)} sx={{ minWidth: { sm: 200 } }}>
+                    <TextField
+                        fullWidth
+                        label="جستجو بر اساس نام، تلفن یا اطلاعات تماس"
+                        value={search}
+                        onChange={(event) => { setSearch(event.target.value); setPage(0); }}
+                    />
+                    <TextField
+                        select
+                        label="وضعیت"
+                        value={status}
+                        onChange={(event) => { setStatus(event.target.value); setPage(0); }}
+                        sx={{ minWidth: { sm: 200 } }}
+                    >
                         <MenuItem value="active">فعال</MenuItem>
                         <MenuItem value="inactive">غیرفعال</MenuItem>
                         <MenuItem value="all">همه</MenuItem>
@@ -124,7 +141,7 @@ export const PurchaseSuppliersPage = () => {
                             <TableCell>شماره مالیاتی</TableCell><TableCell>وضعیت</TableCell>
                             {canManage && <TableCell>عملیات</TableCell>}
                         </TableRow></TableHead>
-                        <TableBody>{suppliers.data.map((supplier) => <TableRow key={supplier.id} hover>
+                        <TableBody>{visibleSuppliers.map((supplier) => <TableRow key={supplier.id} hover>
                             <TableCell>{supplier.name}</TableCell>
                             <TableCell>{supplier.phone || '—'}</TableCell>
                             <TableCell>{supplier.email || '—'}</TableCell>
@@ -135,6 +152,20 @@ export const PurchaseSuppliersPage = () => {
                             </TableCell>}
                         </TableRow>)}</TableBody>
                     </Table>
+                    <TablePagination
+                        component="div"
+                        count={suppliers.data.length}
+                        page={page}
+                        onPageChange={(_event, nextPage) => setPage(nextPage)}
+                        rowsPerPage={rowsPerPage}
+                        onRowsPerPageChange={(event) => {
+                            setRowsPerPage(Number.parseInt(event.target.value, 10));
+                            setPage(0);
+                        }}
+                        rowsPerPageOptions={[10, 25, 50]}
+                        labelRowsPerPage="تعداد در هر صفحه:"
+                        labelDisplayedRows={({ from, to, count }) => `${from}–${to} از ${count}`}
+                    />
                 </Paper>}
             </Stack>
 
