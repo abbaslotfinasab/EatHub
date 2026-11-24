@@ -141,3 +141,82 @@ No AI provider receives database credentials, ORM access, unrestricted API token
 - No change to `main` or `production`.
 - No direct ORM or database access from AI tools.
 - No write or financial tool is approved by this matrix.
+
+
+## 11. Customer ordering and order tracking — deeper As-Is audit
+
+Audit source: current `develop` after merge commit `ed7f5446e0d59313205c05584dfa9bfcd50d3a3a`. Findings below describe existing code, not approved AI exposure.
+
+### 11.1 Customer identity and ownership
+
+- The `Customer` model has an optional nullable FK to the authenticated EatHub `User` model. This is a potential identity-link primitive only; it is not sufficient proof of a customer account/ownership workflow.
+- The inspected `CustomerService.create_customer` creates or reuses a customer by `(business, phone)` and updates the name. It does not bind `Customer.user` to an authenticated user.
+- Customer list/detail/create/update/delete endpoints use `ExplicitTenantAPIView` and `IsAuthenticated`; no customer-self-scoped endpoint was found in the inspected customer and products routes.
+- Customer read DTOs include name, phone, balance, total orders, total spent and creation date. Detail additionally includes account and transaction history. These are restaurant CRM views, not customer self-service contracts.
+- Therefore a ChatGPT customer identity must not be inferred from a phone number, prompt, order payload or model-supplied customer ID. Identity linking, verified ownership and account recovery must be designed explicitly.
+
+### 11.2 Existing order creation
+
+- `POST /api/products/orders/` is `OrderCreateAPIView(ExplicitTenantAPIView)`, requires an authenticated principal and `ORDERS_CREATE`, and resolves the business from the authenticated membership plus `X-Business-Id`.
+- Input includes a UUID idempotency key, optional `customer_id`, order type, menu item IDs, quantities, and optional notes/table.
+- The service checks that a supplied customer belongs to the resolved business; menu items are loaded with a business filter. This prevents cross-business customer/menu-item references at the service boundary.
+- Idempotency is scoped to `(business, idempotency_key)` with a canonical payload fingerprint. Reusing the same key with a different payload is rejected; concurrent duplicate creation is recovered by checking the existing row after the unique-constraint conflict.
+- The endpoint returns the broad `OrderSerializer`, including customer, business, payment method/status, subtotal, discount, tax, total, customer balance, notes, and item details. This response must not be reused as an AI customer response.
+- The current create service query filters menu items by business but does not itself filter out items with `is_available=False` or require the parent menu's `is_active=True`. This is a release-blocking validation gap for public/AI ordering unless enforced by another verified layer; none was found in the inspected create path.
+
+### 11.3 Public discovery and menu correctness
+
+- `GET /api/products/{slug}/menu/` is anonymous and rejects inactive businesses.
+- `DjangoMenuReadRepository.list_public_for_business` filters only by business ID and orders menus; it does not filter `Menu.is_active` and does not pre-filter related `MenuItem.is_available`.
+- `PublicMenuSerializer` and `PublicRestaurantSerializer` both declare `fields = "__all__"`. The item serializer is allowlisted, but the menu and business envelopes are not.
+- Existing public-menu tests verify active-business rejection and payload shape, but do not verify exclusion of inactive menus or unavailable items.
+- Before an AI menu-search tool is enabled, public query semantics must be corrected and regression-tested: active business, active/published menus, available items only, explicit allowlisted fields, verified allergens, price/currency semantics and availability freshness.
+
+### 11.4 Order reads and lifecycle
+
+- Restaurant order list/detail are authenticated tenant endpoints requiring `ORDERS_VIEW`; repository reads filter by `business_id`. Tests cover missing business context, unauthorized membership, permission denial, and tenant-scoped list/detail repository behavior.
+- The list endpoint accepts operator filters including customer name/phone search, status, order type, payment state/method, date and amount. This is an operator query, not a customer-owned order-history query.
+- The order serializer exposes PII and financial fields, so a new minimal operator DTO and a separate customer DTO are required.
+- Status changes require operation-specific permissions: `ORDERS_UPDATE`; cancellation additionally requires `ORDERS_CANCEL`; selected inventory-sensitive transitions require `INVENTORY_ORDER_FULFILL`; payment fields require a financial role and `PAYMENTS_MANAGE`.
+- Status history is append-only and tenant-scoped. Payment events are append-only and restricted to financial access. These are useful audit foundations but do not create customer authorization or customer tracking endpoints.
+- No customer-facing status subscription, notification contract, or order lookup by verified customer identity was found in the inspected routes.
+
+### 11.5 Recommended customer flow for EatHub ChatGPT app and Claude
+
+1. **Discover:** anonymous `restaurant.search` and `restaurant.get_public_menu` over strictly public, filtered DTOs.
+2. **Build cart:** platform conversation state holds a draft cart; server revalidates restaurant, menu item availability, price and quantity at every checkout attempt. Do not trust model-held prices or totals.
+3. **Authenticate/link:** user signs in through an explicit OAuth authorization flow; server maps provider subject to an EatHub principal. Customer ownership is verified and linked to the selected business only through a deliberate account-linking process.
+4. **Prepare order:** server creates a short-lived order quote/draft with authoritative item snapshots, calculated totals, taxes/fees and expiry. The quote is bound to the authenticated principal, business, and a version/fingerprint.
+5. **Confirm:** ChatGPT/Claude presents the exact restaurant, items, quantities, fulfilment type, address/table details and final amount. No order write occurs before explicit user confirmation.
+6. **Place:** a dedicated customer-order application use case validates quote expiry, current availability/prices, actor ownership and business policy; it uses idempotency bound to actor + business + checkout attempt. It must not call the operator-only `OrderCreateAPIView` with a fabricated operator context.
+7. **Track:** return a minimal customer-owned tracking DTO; every read checks order ownership against the authenticated EatHub principal and tenant. Do not accept a raw order ID as authorization.
+8. **Cancel/support:** only expose permitted transitions with explicit confirmation and policy checks; refunds/payment changes remain a separate, later financial capability.
+
+### 11.6 Customer-order capability disposition
+
+| Proposed tool | Actor | Required authorization | Side effect | Current readiness |
+|---|---|---|---|---|
+| `restaurant.search` | Anonymous customer | Public visibility policy | Read | Blocked on discovery implementation and public DTO policy |
+| `restaurant.get_public_menu` | Anonymous customer | Active business + active menu/item policy | Read | Blocked on query filtering and serializer allowlist |
+| `cart.prepare` | Anonymous or authenticated customer | Server-validated public catalog; cart bound to session/principal | Draft only | Not implemented; safe to design |
+| `checkout.quote` | Authenticated customer | OAuth identity + verified customer/business relationship | Quote creation only | Not implemented |
+| `order.place` | Authenticated customer | Customer-order permission, confirmed quote, fresh validation, idempotency | Write | Not available; requires dedicated use case |
+| `order.track` | Authenticated customer | Verified ownership + tenant scope | Read | Not available; no self-scoped route |
+| `order.cancel` | Authenticated customer | Ownership + cancellable-state policy + confirmation | Write | Not available as customer capability |
+| Operator `orders.list` / `orders.get` | Restaurant operator | `ORDERS_VIEW` and active business membership | Read | Existing API; do not expose current broad serializer |
+
+### 11.7 Required tests before customer ordering exposure
+
+- Unauthenticated and unlinked user cannot quote, place, or track an order.
+- A linked customer cannot read or mutate another customer's order, even within the same business.
+- A customer cannot cross business boundaries by changing business, menu, menu-item, customer, quote or order IDs.
+- Inactive business, inactive menu, unavailable item, changed price and expired quote are rejected at checkout.
+- Replaying the same idempotency key and same payload returns the same order; replay with changed payload is rejected; concurrent requests do not create duplicate orders.
+- Client/model-supplied prices, totals, discounts, payment states, customer IDs and tenant IDs are ignored or rejected.
+- Confirmation is bound to the exact quote version and final total; any material change requires a new confirmation.
+- Customer response DTO excludes other customer data, operator notes, internal cost, wallet balance, payment event metadata and unrelated business details.
+- Operator permissions remain independent; the customer path must not inherit `ORDERS_CREATE` or `ORDERS_VIEW` merely because it uses the same order aggregate.
+
+### 11.8 Audit conclusion
+
+Current code provides useful restaurant-operator order creation, tenant-scoped operator reads, business-scoped menu-item lookup, UUID idempotency and append-only order/payment audit. It does **not** yet provide a verified customer identity-linking journey, customer-owned order history/tracking, customer checkout quote, customer cancellation contract, or public-menu correctness guarantees. The ChatGPT app and Claude connector must wait for these dedicated customer capabilities rather than exposing operator APIs.
