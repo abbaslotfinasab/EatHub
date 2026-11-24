@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from accounts.models import Membership, User
+from accounts.models import User
 from accounts.serializers.auth_serializer import (
     ChangePasswordSerializer,
     RegisterSerializer,
@@ -21,7 +21,12 @@ from accounts.serializers.business_serializer import (
 )
 from accounts.services.business_service import BusinessService
 from accounts.services.me_service import MeService
-from accounts.tenant_context import resolve_tenant_context
+from accounts.tenant_context import (
+    get_active_membership,
+    get_role_permission_codes,
+    list_active_memberships,
+    resolve_tenant_context,
+)
 
 
 class TenantAPIView(APIView):
@@ -47,11 +52,7 @@ class TenantAPIView(APIView):
             request.permissions = list(context.permissions)
             return
 
-        memberships = list(
-            Membership.objects.select_related("business", "role")
-            .filter(user=request.user, is_active=True, business__is_active=True)
-            .order_by("id")[:2]
-        )
+        memberships = list_active_memberships(user=request.user, limit=2)
         if not memberships:
             raise PermissionDenied("No active business.")
         if len(memberships) > 1:
@@ -65,8 +66,7 @@ class TenantAPIView(APIView):
         request.membership = membership
         request.role = membership.role
         request.permissions = list(
-            membership.role.role_permissions.select_related("permission")
-            .values_list("permission__code", flat=True)
+            get_role_permission_codes(role_id=membership.role_id)
         )
 
 
@@ -136,16 +136,11 @@ class SelectBusinessAPIView(APIView):
         if not business_id:
             raise ValidationError({"business_id": "This field is required."})
 
-        try:
-            new_membership = Membership.objects.select_related(
-                "business", "role"
-            ).get(
-                user=request.user,
-                business_id=business_id,
-                is_active=True,
-                business__is_active=True,
-            )
-        except Membership.DoesNotExist:
+        new_membership = get_active_membership(
+            user=request.user,
+            business_id=business_id,
+        )
+        if new_membership is None:
             return Response({"detail": "Invalid or inactive business membership"}, status=400)
 
         return Response({

@@ -1,20 +1,12 @@
-from dataclasses import dataclass
-
-from rest_framework.exceptions import APIException
 from rest_framework import status
+from rest_framework.exceptions import APIException
 
-from accounts.models import Membership
-
-
-@dataclass(frozen=True)
-class TenantContext:
-    user_id: int
-    business_id: int
-    membership_id: int
-    role_id: int
-    permissions: tuple[str, ...]
-    business: object
-    membership: object
+from accounts.application.tenant_context import (
+    BusinessAccessDeniedError,
+    BusinessContextRequiredError,
+    TenantContext,
+)
+from accounts.composition import tenant_context_resolver
 
 
 class BusinessContextRequired(APIException):
@@ -36,33 +28,31 @@ class BusinessAccessDenied(APIException):
 
 
 def resolve_tenant_context(*, user, business_id):
-    """Resolve and validate one explicit business context for an authenticated request."""
-    if not business_id:
-        raise BusinessContextRequired()
-
+    """Compatibility facade translating application errors into DRF exceptions."""
     try:
-        membership = (
-            Membership.objects.select_related("business", "role")
-            .get(
-                user=user,
-                business_id=business_id,
-                is_active=True,
-                business__is_active=True,
-            )
+        return tenant_context_resolver().resolve(
+            user_id=user.pk,
+            business_id=business_id,
         )
-    except (Membership.DoesNotExist, ValueError, TypeError):
+    except BusinessContextRequiredError:
+        raise BusinessContextRequired()
+    except BusinessAccessDeniedError:
         raise BusinessAccessDenied()
 
-    permissions = tuple(
-        membership.role.role_permissions.select_related("permission")
-        .values_list("permission__code", flat=True)
-    )
-    return TenantContext(
+
+def list_active_memberships(*, user, limit=2):
+    return tenant_context_resolver().list_active_memberships(
         user_id=user.pk,
-        business_id=membership.business_id,
-        membership_id=membership.pk,
-        role_id=membership.role_id,
-        permissions=permissions,
-        business=membership.business,
-        membership=membership,
+        limit=limit,
     )
+
+
+def get_active_membership(*, user, business_id):
+    return tenant_context_resolver().get_active_membership(
+        user_id=user.pk,
+        business_id=business_id,
+    )
+
+
+def get_role_permission_codes(*, role_id):
+    return tenant_context_resolver().list_role_permission_codes(role_id=role_id)
