@@ -1,4 +1,4 @@
-from accounts.models import Membership, User
+from accounts.models import User
 from accounts.services.auth_service import AuthService
 from rest_framework import serializers
 
@@ -48,14 +48,10 @@ class MembershipBusinessSerializer(serializers.Serializer):
     role = serializers.CharField(source="role.code")
 
 
-class MembershipSerializer(serializers.ModelSerializer):
-    business_id = serializers.IntegerField(source="business.id")
-    business_name = serializers.CharField(source="business.name")
-    role = serializers.CharField(source="role.code")
-
-    class Meta:
-        model = Membership
-        fields = ("business_id", "business_name", "role")
+class MembershipSerializer(serializers.Serializer):
+    business_id = serializers.IntegerField()
+    business_name = serializers.CharField()
+    role = serializers.CharField()
 
 
 class LoginResponseSerializer(serializers.Serializer):
