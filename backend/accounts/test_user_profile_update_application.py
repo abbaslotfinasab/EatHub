@@ -1,14 +1,15 @@
+from unittest.mock import Mock, patch
 from unittest import TestCase as UnitTestCase
-from unittest.mock import Mock
 
 from django.test import TestCase
 from rest_framework.test import APIClient
-from unittest.mock import patch
 
 from accounts.application.update_user_profile import (
     UpdateUserProfile,
     UserProfileNotFoundError,
     UserProfileNumberAlreadyInUseError,
+)
+from accounts.application.user_profile_update_result import (
     UserProfileUpdatePersistenceResult,
 )
 from accounts.infrastructure.django.user_profile_update_repository import (
@@ -144,17 +145,19 @@ class DjangoUserProfileUpdateRepositoryTests(TestCase):
         self.assertEqual(self.other_user.name, "Other User")
 
     def test_update_avatar_returns_previous_path_and_sets_new_path(self):
-        self.user.avatar = "uploads/avatars/1/old.png"
+        old_path = f"uploads/avatars/{self.user.pk}/old.png"
+        new_path = f"uploads/avatars/{self.user.pk}/new.png"
+        self.user.avatar = old_path
         self.user.save(update_fields=["avatar"])
 
         result = self.repository.update_profile(
             user_id=self.user.pk,
-            changes={"avatar_path": "uploads/avatars/1/new.png"},
+            changes={"avatar_path": new_path},
         )
 
         self.user.refresh_from_db()
-        self.assertEqual(result.previous_avatar_path, "uploads/avatars/1/old.png")
-        self.assertEqual(self.user.avatar.name, "uploads/avatars/1/new.png")
+        self.assertEqual(result.previous_avatar_path, old_path)
+        self.assertEqual(self.user.avatar.name, new_path)
 
     def test_missing_user_returns_none(self):
         self.assertIsNone(
@@ -191,7 +194,8 @@ class UserProfileUpdateAPITests(TestCase):
         self.assertEqual(self.user.number, "profile-update-api-phone")
 
     def test_avatar_clear_updates_profile_and_deletes_previous_file(self):
-        self.user.avatar = "uploads/avatars/1/current.png"
+        old_path = f"uploads/avatars/{self.user.pk}/current.png"
+        self.user.avatar = old_path
         self.user.save(update_fields=["avatar"])
 
         with patch(
@@ -206,7 +210,7 @@ class UserProfileUpdateAPITests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.user.refresh_from_db()
         self.assertFalse(self.user.avatar)
-        delete_avatar.assert_called_once_with("uploads/avatars/1/current.png")
+        delete_avatar.assert_called_once_with(old_path)
 
     def test_profile_update_cannot_target_another_user(self):
         other = User.objects.create_user(

@@ -33,6 +33,7 @@ class DjangoUserProfileUpdateRepository:
             update_fields.append("avatar")
 
         if update_fields:
+            update_fields.append("updated_at")
             user.save(update_fields=update_fields)
 
         return UserProfileUpdatePersistenceResult(
