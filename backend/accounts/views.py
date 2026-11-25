@@ -3,12 +3,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from accounts.models import User
 from accounts.serializers.auth_serializer import (
     ChangePasswordSerializer,
     RegisterSerializer,
     UserMeSerializer,
-    UserListSerializer,
     UserProfileUpdateSerializer,
 )
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -221,15 +219,6 @@ class BusinessCreateAPIView(APIView):
                 "role": "owner",
             },
         })
-
-
-class UserListAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        users = User.objects.all().order_by("-id")
-        serializer = UserListSerializer(users, many=True, context={"request": request})
-        return Response(serializer.data)
 
 
 class BusinessProfileAPIView(TenantAPIView):

@@ -13,6 +13,12 @@ BUSINESS_CREATE_URL = "/api/accounts/create/business/"
 REGISTER_URL = "/api/accounts/auth/register/"
 
 
+class LegacyGlobalUserListEndpointTests(TestCase):
+    def test_legacy_global_user_list_route_is_not_exposed(self):
+        response = APIClient().get("/api/accounts/users/")
+        self.assertEqual(response.status_code, 404)
+
+
 def expected_role_permissions(role_code):
     return {
         permission.value if isinstance(permission, PermissionCode) else permission
