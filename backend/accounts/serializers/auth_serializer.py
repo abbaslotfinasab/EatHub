@@ -137,9 +137,3 @@ class ChangePasswordSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("رمز عبور فعلی صحیح نیست.")
         return value
-
-
-class UserListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ["id", "name", "email", "number", "avatar", "created_at"]
