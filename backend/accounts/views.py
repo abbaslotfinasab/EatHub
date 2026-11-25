@@ -17,10 +17,11 @@ from accounts.serializers.business_serializer import (
     BusinessProfileUpdateSerializer,
     BusinessSerializer,
 )
-from accounts.services.me_service import MeService
+from accounts.application.me_read_model import MeBusinessAccessDeniedError
 from accounts.application.business_inventory_settings import BusinessInventoryBusinessNotFoundError
-from accounts.composition import create_business, update_business_inventory_settings
+from accounts.composition import create_business, get_me_read_model, update_business_inventory_settings
 from accounts.tenant_context import (
+    BusinessAccessDenied,
     get_active_membership,
     get_role_permission_codes,
     list_active_memberships,
@@ -150,22 +151,33 @@ class SelectBusinessAPIView(APIView):
             "role": new_membership.role.code,
         })
 
+
 class MeAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _serialize(self, request):
-        context = MeService.get_user_context(request.user, request=request)
-        user = context["user"]
+        try:
+            context = get_me_read_model().execute(
+                user_id=request.user.pk,
+                business_id=request.headers.get("X-Business-Id"),
+            )
+        except MeBusinessAccessDeniedError:
+            raise BusinessAccessDenied()
+
+        user = request.user
         return UserMeSerializer({
             "id": user.id,
             "email": user.email,
             "name": user.name,
             "number": user.number,
             "avatar": user.avatar,
-            "has_business": context["has_business"],
-            "active_business": context["active_business"],
-            "memberships": context["memberships"],
-            "meta": context["meta"],
+            "has_business": context.has_business,
+            "active_business": context.active_business,
+            "memberships": context.memberships,
+            "meta": {
+                "needs_onboarding": context.needs_onboarding,
+                "business_count": context.business_count,
+            },
         }, context={"request": request}).data
 
     def get(self, request):

@@ -1,5 +1,7 @@
 from typing import Protocol
 
+from accounts.application.me_read_model import ActiveBusiness, MeMembership
+
 
 class MembershipReadRepository(Protocol):
     """Read-only persistence contract for resolving an authenticated user's tenant."""
@@ -11,4 +13,12 @@ class MembershipReadRepository(Protocol):
         ...
 
     def list_role_permission_codes(self, *, role_id: int) -> tuple[str, ...]:
+        ...
+
+    def list_me_memberships(self, *, user_id: int) -> tuple[MeMembership, ...]:
+        ...
+
+    def get_active_business_summary(
+        self, *, user_id: int, business_id: int | str
+    ) -> ActiveBusiness | None:
         ...
