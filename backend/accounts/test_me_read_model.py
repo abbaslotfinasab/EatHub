@@ -108,7 +108,7 @@ class MeReadModelAPITests(TestCase):
 
     def test_multiple_memberships_are_ordered_and_require_explicit_selection(self):
         zulu = self.create_business("Zulu Cafe")
-        alpha = self.create_business("Alpha Cafe")
+        self.create_business("Alpha Cafe")
 
         response = self.client.get("/api/accounts/auth/me/")
 

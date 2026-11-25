@@ -1,4 +1,4 @@
-from accounts.models import Membership, User
+from accounts.models import User
 from accounts.services.auth_service import AuthService
 from rest_framework import serializers
 
