@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from accounts.application.business_onboarding import CreatedBusiness
+from accounts.application.business_onboarding_result import CreatedBusiness
 
 
 class BusinessOnboardingRepository(Protocol):
