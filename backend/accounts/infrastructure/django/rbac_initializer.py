@@ -1,6 +1,5 @@
 """Django persistence adapter for provisioning a business' default RBAC graph."""
 
-from accounts.constants import ALL_PERMISSIONS
 from accounts.enums import RoleCode
 from accounts.models import Role, Permission, RolePermission
 from core.enums import PermissionCode
