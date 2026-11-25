@@ -10,7 +10,6 @@ from accounts.views import (
     ChangePasswordAPIView,
     BusinessCreateAPIView,
     BusinessProfileAPIView,
-    UserListAPIView,
 )
 
 app_name = "accounts"
@@ -25,5 +24,4 @@ urlpatterns = [
     path("business/profile/", BusinessProfileAPIView.as_view(), name="business-profile"),
     path("business/inventory-settings/", BusinessInventorySettingsAPIView.as_view(), name="business-inventory-settings"),
     path("auth/refresh/", TokenRefreshView.as_view()),
-    path("users/", UserListAPIView.as_view(), name="users"),
 ]
