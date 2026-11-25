@@ -1,4 +1,4 @@
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -260,9 +260,10 @@ class BusinessInventorySettingsAPIView(ExplicitTenantAPIView):
         try:
             inventory_enabled = update_business_inventory_settings().execute(
                 business_id=request.business.id,
-                inventory_enabled=serializer.validated_data["inventory_enabled"],
+                inventory_enabled=serializer.validated_data.get(
+                    "inventory_enabled", request.business.inventory_enabled
+                ),
             )
         except BusinessInventoryBusinessNotFoundError:
-            from rest_framework.exceptions import NotFound
             raise NotFound("Business not found.")
         return Response({"inventory_enabled": inventory_enabled})
