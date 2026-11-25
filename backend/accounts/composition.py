@@ -3,6 +3,7 @@
 from accounts.application.business_inventory_settings import UpdateBusinessInventorySettings
 from accounts.application.business_onboarding import CreateBusiness
 from accounts.application.get_me_read_model import GetMeReadModel
+from accounts.application.list_login_memberships import ListLoginMemberships
 from accounts.application.tenant_context import TenantContextResolver
 from accounts.infrastructure.django.business_inventory_settings_repository import DjangoBusinessInventorySettingsRepository
 from accounts.infrastructure.django.business_onboarding_repository import DjangoBusinessOnboardingRepository
@@ -23,3 +24,7 @@ def create_business() -> CreateBusiness:
 
 def get_me_read_model() -> GetMeReadModel:
     return GetMeReadModel(DjangoMembershipReadRepository())
+
+
+def list_login_memberships() -> ListLoginMemberships:
+    return ListLoginMemberships(DjangoMembershipReadRepository())
