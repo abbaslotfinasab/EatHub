@@ -11,6 +11,22 @@ class DjangoBusinessOnboardingRepository:
     def create_business_with_owner(
         self, *, user_id: int, name: str, number: str, address: str, logo: str | None
     ) -> CreatedBusiness:
+        business = self._create_business_with_owner_model(
+            user_id=user_id, name=name, number=number, address=address, logo=logo,
+        )
+        return CreatedBusiness(business_id=business.pk, business_name=business.name)
+
+    @transaction.atomic
+    def create_business_with_owner_model(
+        self, *, user_id: int, name: str, number: str = "", address: str = "", logo: str | None = None
+    ) -> Business:
+        """Compatibility adapter for legacy internal callers requiring the ORM model."""
+        return self._create_business_with_owner_model(
+            user_id=user_id, name=name, number=number, address=address, logo=logo,
+        )
+
+    @staticmethod
+    def _create_business_with_owner_model(*, user_id, name, number, address, logo):
         # Serialize onboarding for one user; membership eligibility is independent
         # from the business selected by any particular browser tab.
         user = User.objects.select_for_update().get(pk=user_id)
@@ -20,4 +36,4 @@ class DjangoBusinessOnboardingRepository:
         DjangoRBACInitializer.initialize(business)
         owner_role = Role.objects.get(business=business, code=RoleCode.OWNER)
         Membership.objects.create(user=user, business=business, role=owner_role, is_active=True)
-        return CreatedBusiness(business_id=business.pk, business_name=business.name)
+        return business
