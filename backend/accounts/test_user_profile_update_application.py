@@ -107,13 +107,13 @@ class DjangoUserProfileUpdateRepositoryTests(TestCase):
             email="profile-update@example.test",
             password="test-password",
             name="Profile User",
-            number="profile-update-phone",
+            number="prof-phone-01",
         )
         self.other_user = User.objects.create_user(
             email="profile-update-other@example.test",
             password="test-password",
             name="Other User",
-            number="profile-update-other-phone",
+            number="prof-phone-02",
         )
         self.repository = DjangoUserProfileUpdateRepository()
 
@@ -141,7 +141,7 @@ class DjangoUserProfileUpdateRepositoryTests(TestCase):
         self.user.refresh_from_db()
         self.other_user.refresh_from_db()
         self.assertEqual(self.user.name, "Changed Name")
-        self.assertEqual(self.user.number, "profile-update-phone")
+        self.assertEqual(self.user.number, "prof-phone-01")
         self.assertEqual(self.other_user.name, "Other User")
 
     def test_update_avatar_returns_previous_path_and_sets_new_path(self):
@@ -175,7 +175,7 @@ class UserProfileUpdateAPITests(TestCase):
             email="profile-update-api@example.test",
             password="test-password",
             name="API Profile User",
-            number="profile-update-api-phone",
+            number="prof-api-phone",
         )
         self.client.force_authenticate(user=self.user)
         self.url = "/api/accounts/auth/me/"
@@ -191,7 +191,7 @@ class UserProfileUpdateAPITests(TestCase):
         self.assertEqual(response.data["name"], "API Updated Name")
         self.assertEqual(response.data["email"], "profile-update-api@example.test")
         self.user.refresh_from_db()
-        self.assertEqual(self.user.number, "profile-update-api-phone")
+        self.assertEqual(self.user.number, "prof-api-phone")
 
     def test_avatar_clear_updates_profile_and_deletes_previous_file(self):
         old_path = f"uploads/avatars/{self.user.pk}/current.png"
@@ -217,7 +217,7 @@ class UserProfileUpdateAPITests(TestCase):
             email="profile-update-target@example.test",
             password="test-password",
             name="Target User",
-            number="profile-update-target-phone",
+            number="prof-target-phone",
         )
 
         response = self.client.patch(
