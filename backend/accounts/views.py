@@ -17,10 +17,10 @@ from accounts.serializers.business_serializer import (
     BusinessProfileUpdateSerializer,
     BusinessSerializer,
 )
-from accounts.services.business_service import BusinessService
+from accounts.composition import create_business
 from accounts.services.me_service import MeService
 from accounts.application.business_inventory_settings import BusinessInventoryBusinessNotFoundError
-from accounts.composition import update_business_inventory_settings
+from accounts.composition import create_business, update_business_inventory_settings
 from accounts.tenant_context import (
     get_active_membership,
     get_role_permission_codes,
@@ -204,20 +204,19 @@ class BusinessCreateAPIView(APIView):
     def post(self, request):
         serializer = BusinessCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        business = BusinessService.create_business(
-            user=request.user,
+        business = create_business().execute(
+            user_id=request.user.pk,
             name=serializer.validated_data["name"],
             number=serializer.validated_data.get("number", ""),
             address=serializer.validated_data.get("address", ""),
             logo=serializer.validated_data.get("logo"),
-            request=request,
         )
         return Response({
-            "id": business.id,
-            "name": business.name,
+            "id": business.business_id,
+            "name": business.business_name,
             "active_business": {
-                "id": business.id,
-                "name": business.name,
+                "id": business.business_id,
+                "name": business.business_name,
                 "role": "owner",
             },
         })
