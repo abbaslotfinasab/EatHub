@@ -23,19 +23,5 @@ class AuthService:
         return authenticate(username=identifier, password=password)
 
     @staticmethod
-    def get_profile(user):
-        memberships = (
-            user.memberships
-            .select_related("business", "role")
-            .filter(is_active=True, business__is_active=True)
-            .order_by("business__name")
-        )
-        return {"user": user, "memberships": memberships}
-
-    @staticmethod
-    def has_business(user) -> bool:
-        return user.memberships.filter(is_active=True, business__is_active=True).exists()
-
-    @staticmethod
     def create_first_business(user, name: str):
         return BusinessService.create_business(user=user, name=name)
