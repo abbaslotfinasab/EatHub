@@ -17,7 +17,6 @@ from accounts.serializers.business_serializer import (
     BusinessProfileUpdateSerializer,
     BusinessSerializer,
 )
-from accounts.composition import create_business
 from accounts.services.me_service import MeService
 from accounts.application.business_inventory_settings import BusinessInventoryBusinessNotFoundError
 from accounts.composition import create_business, update_business_inventory_settings
