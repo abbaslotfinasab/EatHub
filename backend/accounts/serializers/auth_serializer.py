@@ -1,7 +1,8 @@
-from accounts.composition import list_login_memberships
-from accounts.models import User
-from accounts.services.auth_service import AuthService
+from django.core.files.storage import default_storage
 from rest_framework import serializers
+
+from accounts.composition import list_login_memberships
+from accounts.services.auth_service import AuthService
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -11,11 +12,13 @@ class RegisterSerializer(serializers.Serializer):
     number = serializers.CharField()
 
     def validate_email(self, value):
+        from accounts.models import User
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already exists")
         return value
 
     def validate_number(self, value):
+        from accounts.models import User
         if User.objects.filter(number=value).exists():
             raise serializers.ValidationError("Number already exists")
         return value
@@ -91,39 +94,26 @@ class UserMeSerializer(serializers.Serializer):
         return obj.get("meta", {})
 
 
-class UserProfileUpdateSerializer(serializers.ModelSerializer):
+class UserProfileUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(required=False, max_length=200)
+    number = serializers.CharField(required=False, allow_blank=True, max_length=20)
     avatar = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
-    class Meta:
-        model = User
-        fields = ("name", "number", "avatar")
-        extra_kwargs = {
-            "name": {"required": False},
-            "number": {"required": False, "allow_blank": True},
-        }
+    def validate_number(self, value):
+        from accounts.models import User
+        if User.objects.filter(number=value).exclude(pk=self.context["request"].user.pk).exists():
+            raise serializers.ValidationError("This field must be unique.")
+        return value
 
     def validate_avatar(self, value):
         if value in (None, ""):
-            return value
-        if not value.startswith(f"uploads/avatars/{self.context['request'].user.pk}/") or ".." in value.split("/"):
+            return None
+        user_id = self.context["request"].user.pk
+        if not value.startswith(f"uploads/avatars/{user_id}/") or ".." in value.split("/"):
             raise serializers.ValidationError("مسیر تصویر پروفایل معتبر نیست.")
-        from django.core.files.storage import default_storage
         if not default_storage.exists(value):
             raise serializers.ValidationError("تصویر آپلودشده پیدا نشد.")
         return value
-
-    def update(self, instance, validated_data):
-        avatar = validated_data.pop("avatar", serializers.empty)
-        old_avatar = instance.avatar.name if instance.avatar else None
-        for field, value in validated_data.items():
-            setattr(instance, field, value)
-        if avatar is not serializers.empty:
-            instance.avatar = avatar or None
-        instance.save()
-        if avatar is not serializers.empty and old_avatar and old_avatar != instance.avatar.name:
-            from core.services.UploadService import UploadService
-            UploadService.delete(old_avatar)
-        return instance
 
 
 class ChangePasswordSerializer(serializers.Serializer):
