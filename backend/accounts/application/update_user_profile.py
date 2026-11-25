@@ -1,5 +1,7 @@
-from dataclasses import dataclass
-from typing import Protocol
+from accounts.application.ports.user_avatar_storage import UserAvatarStorage
+from accounts.application.ports.user_profile_update_repository import (
+    UserProfileUpdateRepository,
+)
 
 
 _UNSET = object()
@@ -11,26 +13,6 @@ class UserProfileNotFoundError(Exception):
 
 class UserProfileNumberAlreadyInUseError(Exception):
     """Raised when another user already owns the requested phone number."""
-
-
-@dataclass(frozen=True)
-class UserProfileUpdatePersistenceResult:
-    previous_avatar_path: str | None
-
-
-class UserProfileUpdateRepository(Protocol):
-    def is_number_in_use(self, *, number: str, exclude_user_id: int) -> bool:
-        ...
-
-    def update_profile(
-        self, *, user_id: int, changes: dict[str, object]
-    ) -> UserProfileUpdatePersistenceResult | None:
-        ...
-
-
-class UserAvatarStorage(Protocol):
-    def delete(self, path: str) -> None:
-        ...
 
 
 class UpdateUserProfile:

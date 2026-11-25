@@ -220,6 +220,7 @@ class MeAPIView(APIView):
             raise ValidationError({"number": "This field must be unique."})
         except UserProfileNotFoundError:
             raise NotFound("User not found.")
+        request.user.refresh_from_db(fields=["name", "number", "avatar"])
         return Response(self._serialize(request))
 
 

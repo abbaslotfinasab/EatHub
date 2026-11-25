@@ -99,12 +99,6 @@ class UserProfileUpdateSerializer(serializers.Serializer):
     number = serializers.CharField(required=False, allow_blank=True, max_length=20)
     avatar = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
-    def validate_number(self, value):
-        from accounts.models import User
-        if User.objects.filter(number=value).exclude(pk=self.context["request"].user.pk).exists():
-            raise serializers.ValidationError("This field must be unique.")
-        return value
-
     def validate_avatar(self, value):
         if value in (None, ""):
             return None

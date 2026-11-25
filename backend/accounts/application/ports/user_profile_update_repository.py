@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from accounts.application.update_user_profile import (
+from accounts.application.user_profile_update_result import (
     UserProfileUpdatePersistenceResult,
 )
 
