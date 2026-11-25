@@ -54,8 +54,8 @@ class UpdateBusinessInventorySettingsTests(SimpleTestCase):
 
 class DjangoBusinessInventorySettingsRepositoryTests(TestCase):
     def test_update_is_scoped_to_the_requested_business(self):
-        first = Business.objects.create(name="Inventory First")
-        second = Business.objects.create(name="Inventory Second")
+        first = Business.objects.create(name="Inventory First", inventory_enabled=False)
+        second = Business.objects.create(name="Inventory Second", inventory_enabled=False)
 
         repository = DjangoBusinessInventorySettingsRepository()
         self.assertTrue(repository.set_inventory_enabled(business_id=first.pk, enabled=True))
@@ -78,7 +78,7 @@ class BusinessInventorySettingsApplicationAPITests(TestCase):
             email="inventory-application-owner@example.test",
             password="test-password",
             name="Inventory Application Owner",
-            number="inventory-application-owner",
+            number="inv-owner-01",
         )
         self.first_business = BusinessService.create_business(self.owner, "Application First")
         self.second_business = BusinessService.create_business(self.owner, "Application Second")
