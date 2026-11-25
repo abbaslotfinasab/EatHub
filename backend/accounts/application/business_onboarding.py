@@ -1,14 +1,7 @@
 """Application use case for creating a business and its initial owner context."""
 
-from dataclasses import dataclass
-
+from accounts.application.business_onboarding_result import CreatedBusiness
 from accounts.application.ports.business_onboarding_repository import BusinessOnboardingRepository
-
-
-@dataclass(frozen=True)
-class CreatedBusiness:
-    business_id: int
-    business_name: str
 
 
 class CreateBusiness:
