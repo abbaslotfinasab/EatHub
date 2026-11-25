@@ -94,7 +94,7 @@ class DjangoMembershipReadRepository:
                 is_active=True,
                 business__is_active=True,
             )
-            .order_by("id")
+            .order_by("business__name")
         )
         return tuple(
             LoginMembership(

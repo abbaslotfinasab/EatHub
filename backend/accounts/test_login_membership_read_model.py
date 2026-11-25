@@ -59,7 +59,7 @@ class LoginMembershipsAPITests(TestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data["businesses"], [])
 
-    def test_login_returns_active_businesses_in_membership_id_order(self):
+    def test_login_returns_active_businesses_in_business_name_order(self):
         second = self.create_business("Alpha Cafe")
         first = self.create_business("Zulu Cafe")
 
