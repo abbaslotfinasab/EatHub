@@ -1,39 +1,17 @@
-from django.db import transaction
+"""Deprecated compatibility facade for existing internal callers.
 
-from accounts.enums import RoleCode
-from accounts.models import Business, Membership, Role, User
-from accounts.services.rbac_initializer import RBACInitializer
+New presentation code must depend on the Accounts application use case.
+"""
+
+from accounts.composition import create_business
+from accounts.models import Business
 
 
 class BusinessService:
-
     @staticmethod
-    @transaction.atomic
     def create_business(user, name, number="", address="", logo=None, request=None):
-        # Serialize onboarding for one user; membership eligibility is independent
-        # from the business selected by any particular browser tab.
-        User.objects.select_for_update().get(pk=user.pk)
-
-        business = Business.objects.create(
-            name=name,
-            number=number,
-            address=address,
-            logo=logo,
-            inventory_enabled=False,
+        result = create_business().execute(
+            user_id=user.pk, name=name, number=number, address=address, logo=logo,
         )
-
-        RBACInitializer.initialize(business)
-
-        owner_role = Role.objects.get(
-            business=business,
-            code=RoleCode.OWNER
-        )
-
-        Membership.objects.create(
-            user=user,
-            business=business,
-            role=owner_role,
-            is_active=True
-        )
-
-        return business
+        # Preserve the historical model return type for legacy test/support callers.
+        return Business.objects.get(pk=result.business_id)
