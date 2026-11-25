@@ -1,0 +1,16 @@
+"""Application use case for creating a business and its initial owner context."""
+
+from accounts.application.business_onboarding_result import CreatedBusiness
+from accounts.application.ports.business_onboarding_repository import BusinessOnboardingRepository
+
+
+class CreateBusiness:
+    def __init__(self, repository: BusinessOnboardingRepository) -> None:
+        self._repository = repository
+
+    def execute(
+        self, *, user_id: int, name: str, number: str = "", address: str = "", logo: str | None = None
+    ) -> CreatedBusiness:
+        return self._repository.create_business_with_owner(
+            user_id=user_id, name=name, number=number, address=address, logo=logo
+        )

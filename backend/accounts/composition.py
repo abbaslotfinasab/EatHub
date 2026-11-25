@@ -1,15 +1,11 @@
 """Composition root for Accounts application services."""
 
-from accounts.application.business_inventory_settings import (
-    UpdateBusinessInventorySettings,
-)
+from accounts.application.business_inventory_settings import UpdateBusinessInventorySettings
+from accounts.application.business_onboarding import CreateBusiness
 from accounts.application.tenant_context import TenantContextResolver
-from accounts.infrastructure.django.business_inventory_settings_repository import (
-    DjangoBusinessInventorySettingsRepository,
-)
-from accounts.infrastructure.django.membership_read_repository import (
-    DjangoMembershipReadRepository,
-)
+from accounts.infrastructure.django.business_inventory_settings_repository import DjangoBusinessInventorySettingsRepository
+from accounts.infrastructure.django.business_onboarding_repository import DjangoBusinessOnboardingRepository
+from accounts.infrastructure.django.membership_read_repository import DjangoMembershipReadRepository
 
 
 def tenant_context_resolver() -> TenantContextResolver:
@@ -18,3 +14,7 @@ def tenant_context_resolver() -> TenantContextResolver:
 
 def update_business_inventory_settings() -> UpdateBusinessInventorySettings:
     return UpdateBusinessInventorySettings(DjangoBusinessInventorySettingsRepository())
+
+
+def create_business() -> CreateBusiness:
+    return CreateBusiness(DjangoBusinessOnboardingRepository())
