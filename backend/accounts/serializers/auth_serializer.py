@@ -1,3 +1,4 @@
+from accounts.composition import list_login_memberships
 from accounts.models import User
 from accounts.services.auth_service import AuthService
 from rest_framework import serializers
@@ -33,13 +34,14 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        result = AuthService.login(
+        user = AuthService.login(
             identifier=attrs["identifier"],
             password=attrs["password"],
         )
-        if not result:
+        if not user:
             raise serializers.ValidationError("Invalid credentials")
-        return result
+        memberships = list_login_memberships().execute(user_id=user.pk)
+        return {"user": user, "memberships": memberships}
 
 
 class MembershipBusinessSerializer(serializers.Serializer):

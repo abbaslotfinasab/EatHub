@@ -1,5 +1,5 @@
-from django.db import transaction
 from django.contrib.auth import authenticate
+from django.db import transaction
 
 from accounts.models import User
 from accounts.services.business_service import BusinessService
@@ -20,18 +20,7 @@ class AuthService:
 
     @staticmethod
     def login(identifier: str, password: str):
-        user = authenticate(username=identifier, password=password)
-        if not user:
-            return None
-
-        # Return every business the user belongs to, not only the active one.
-        memberships = (
-            user.memberships
-            .select_related("business", "role")
-            .filter(is_active=True, business__is_active=True)
-            .order_by("business__name")
-        )
-        return {"user": user, "memberships": memberships}
+        return authenticate(username=identifier, password=password)
 
     @staticmethod
     def get_profile(user):

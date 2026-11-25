@@ -122,8 +122,12 @@ class LoginAPIView(APIView):
             "access": str(refresh.access_token),
             "refresh": str(refresh),
             "businesses": [
-                {"id": m.business.id, "name": m.business.name, "role": m.role.code}
-                for m in memberships
+                {
+                    "id": membership.business_id,
+                    "name": membership.business_name,
+                    "role": membership.role,
+                }
+                for membership in memberships
             ],
         })
 

@@ -1,5 +1,6 @@
 from django.core.exceptions import ObjectDoesNotExist
 
+from accounts.application.login_membership_read_model import LoginMembership
 from accounts.application.me_read_model import ActiveBusiness, MeMembership
 from accounts.models import Membership, RolePermission
 
@@ -83,4 +84,23 @@ class DjangoMembershipReadRepository:
             logo=business.logo.url if business.logo else None,
             permissions=self.list_role_permission_codes(role_id=membership.role_id),
             inventory_enabled=business.inventory_enabled,
+        )
+
+    def list_login_memberships(self, *, user_id: int) -> tuple[LoginMembership, ...]:
+        memberships = (
+            Membership.objects.select_related("business", "role")
+            .filter(
+                user_id=user_id,
+                is_active=True,
+                business__is_active=True,
+            )
+            .order_by("business__name")
+        )
+        return tuple(
+            LoginMembership(
+                business_id=membership.business_id,
+                business_name=membership.business.name,
+                role=membership.role.code,
+            )
+            for membership in memberships
         )
