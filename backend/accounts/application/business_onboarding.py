@@ -1,19 +1,14 @@
 """Application use case for creating a business and its initial owner context."""
 
 from dataclasses import dataclass
-from typing import Protocol
+
+from accounts.application.ports.business_onboarding_repository import BusinessOnboardingRepository
 
 
 @dataclass(frozen=True)
 class CreatedBusiness:
     business_id: int
     business_name: str
-
-
-class BusinessOnboardingRepository(Protocol):
-    def create_business_with_owner(
-        self, *, user_id: int, name: str, number: str, address: str, logo: str | None
-    ) -> CreatedBusiness: ...
 
 
 class CreateBusiness:
