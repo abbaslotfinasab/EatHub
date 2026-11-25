@@ -19,6 +19,8 @@ from accounts.serializers.business_serializer import (
 )
 from accounts.services.business_service import BusinessService
 from accounts.services.me_service import MeService
+from accounts.application.business_inventory_settings import BusinessInventoryBusinessNotFoundError
+from accounts.composition import update_business_inventory_settings
 from accounts.tenant_context import (
     get_active_membership,
     get_role_permission_codes,
@@ -253,7 +255,14 @@ class BusinessInventorySettingsAPIView(ExplicitTenantAPIView):
     def patch(self, request):
         if request.role.code != "OWNER":
             raise PermissionDenied("Only the business owner can change inventory settings.")
-        serializer = BusinessInventorySettingsSerializer(request.business, data=request.data, partial=True)
+        serializer = BusinessInventorySettingsSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response({"inventory_enabled": request.business.inventory_enabled})
+        try:
+            inventory_enabled = update_business_inventory_settings().execute(
+                business_id=request.business.id,
+                inventory_enabled=serializer.validated_data["inventory_enabled"],
+            )
+        except BusinessInventoryBusinessNotFoundError:
+            from rest_framework.exceptions import NotFound
+            raise NotFound("Business not found.")
+        return Response({"inventory_enabled": inventory_enabled})
