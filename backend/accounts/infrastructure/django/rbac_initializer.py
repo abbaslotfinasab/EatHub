@@ -1,5 +1,7 @@
 """Django persistence adapter for provisioning a business' default RBAC graph."""
 
+from django.db import transaction
+
 from accounts.enums import RoleCode
 from accounts.models import Role, Permission, RolePermission
 from core.enums import PermissionCode
@@ -36,6 +38,7 @@ ROLE_PERMISSIONS = {
 
 class DjangoRBACInitializer:
     @staticmethod
+    @transaction.atomic
     def initialize(business):
         reserved_role_codes = [role_code.value for role_code in ROLE_PERMISSIONS]
         conflicting_roles = list(Role.objects.filter(
