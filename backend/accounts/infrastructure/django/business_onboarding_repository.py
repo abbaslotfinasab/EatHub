@@ -1,9 +1,9 @@
 from django.db import transaction
 
-from accounts.application.business_onboarding import CreatedBusiness
-from accounts.models import Business, Membership, Role, User
+from accounts.application.business_onboarding_result import CreatedBusiness
 from accounts.enums import RoleCode
 from accounts.infrastructure.django.rbac_initializer import DjangoRBACInitializer
+from accounts.models import Business, Membership, Role, User
 
 
 class DjangoBusinessOnboardingRepository:
