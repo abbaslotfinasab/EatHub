@@ -1,11 +1,17 @@
 from unittest.mock import Mock
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
+from rest_framework.test import APIClient
 
 from accounts.application.business_inventory_settings import (
     BusinessInventoryBusinessNotFoundError,
     UpdateBusinessInventorySettings,
 )
+from accounts.infrastructure.django.business_inventory_settings_repository import (
+    DjangoBusinessInventorySettingsRepository,
+)
+from accounts.models import Business, User
+from accounts.services.business_service import BusinessService
 
 
 class UpdateBusinessInventorySettingsTests(SimpleTestCase):
@@ -44,15 +50,6 @@ class UpdateBusinessInventorySettingsTests(SimpleTestCase):
             business_id=99,
             enabled=True,
         )
-
-from rest_framework.test import APIClient
-from django.test import TestCase
-
-from accounts.infrastructure.django.business_inventory_settings_repository import (
-    DjangoBusinessInventorySettingsRepository,
-)
-from accounts.models import Business, User
-from accounts.services.business_service import BusinessService
 
 
 class DjangoBusinessInventorySettingsRepositoryTests(TestCase):
