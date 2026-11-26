@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from accounts.application.user_registration import RegisteredUser
+from accounts.application.registered_user import RegisteredUser
 
 
 class UserRegistrationRepository(Protocol):
