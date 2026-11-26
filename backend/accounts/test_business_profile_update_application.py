@@ -222,6 +222,19 @@ class BusinessProfileUpdateAPITests(TestCase):
         self.business.refresh_from_db()
         self.assertEqual(self.business.name, "Original Business")
 
+    def test_non_member_cannot_select_or_update_another_business(self):
+        other_business = Business.objects.create(name="Unrelated Business")
+        response = self.client.patch(
+            self.url,
+            {"name": "Cross Business Rename"},
+            format="json",
+            HTTP_X_BUSINESS_ID=str(other_business.pk),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        other_business.refresh_from_db()
+        self.assertEqual(other_business.name, "Unrelated Business")
+
     def test_logo_path_must_be_scoped_to_authenticated_owner_upload_directory(self):
         invalid_path = "uploads/businesses/logos/another-user/logo.png"
         response = self.client.patch(
