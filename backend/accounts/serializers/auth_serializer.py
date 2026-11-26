@@ -5,8 +5,7 @@ from accounts.application.user_registration import (
     RegistrationEmailAlreadyExistsError,
     RegistrationNumberAlreadyExistsError,
 )
-from accounts.composition import list_login_memberships, register_user
-from accounts.services.auth_service import AuthService
+from accounts.composition import list_login_memberships, login_user, register_user
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -34,13 +33,13 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        user = AuthService.login(
+        user = login_user().execute(
             identifier=attrs["identifier"],
             password=attrs["password"],
         )
-        if not user:
+        if user is None:
             raise serializers.ValidationError("Invalid credentials")
-        memberships = list_login_memberships().execute(user_id=user.pk)
+        memberships = list_login_memberships().execute(user_id=user.user_id)
         return {"user": user, "memberships": memberships}
 
 
