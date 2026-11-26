@@ -18,6 +18,7 @@ from accounts.infrastructure.django.password_change_repository import DjangoPass
 from accounts.infrastructure.django.user_avatar_storage import DjangoUserAvatarStorage
 from accounts.infrastructure.django.user_profile_update_repository import DjangoUserProfileUpdateRepository
 from accounts.infrastructure.django.user_registration_repository import DjangoUserRegistrationRepository
+from accounts.infrastructure.django.registration_token_issuer import DjangoRegistrationTokenIssuer
 
 
 def tenant_context_resolver() -> TenantContextResolver:
@@ -60,3 +61,7 @@ def change_password() -> ChangePassword:
 
 def register_user() -> RegisterUser:
     return RegisterUser(DjangoUserRegistrationRepository())
+
+
+def registration_token_pair(*, user_id: int) -> tuple[str, str]:
+    return DjangoRegistrationTokenIssuer().issue(user_id=user_id)
