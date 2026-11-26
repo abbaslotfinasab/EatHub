@@ -224,11 +224,11 @@ class BusinessProfileUpdateAPITests(TestCase):
 
     def test_non_member_cannot_select_or_update_another_business(self):
         other_business = Business.objects.create(name="Unrelated Business")
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(other_business.pk))
         response = self.client.patch(
             self.url,
             {"name": "Cross Business Rename"},
             format="json",
-            HTTP_X_BUSINESS_ID=str(other_business.pk),
         )
 
         self.assertEqual(response.status_code, 403)
