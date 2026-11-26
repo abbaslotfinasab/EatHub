@@ -29,39 +29,21 @@ class BusinessSerializer(serializers.ModelSerializer):
         fields = ("id", "name", "slug", "logo", "number", "address")
 
 
-class BusinessProfileUpdateSerializer(serializers.ModelSerializer):
+class BusinessProfileUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(required=False, max_length=255)
+    number = serializers.CharField(required=False, allow_blank=True, max_length=20)
+    address = serializers.CharField(required=False, allow_blank=True)
     logo = serializers.CharField(required=False, allow_null=True, allow_blank=True)
-
-    class Meta:
-        model = Business
-        fields = ("name", "number", "address", "logo")
-        extra_kwargs = {
-            "name": {"required": False},
-            "number": {"required": False, "allow_blank": True},
-            "address": {"required": False, "allow_blank": True},
-        }
 
     def validate_logo(self, value):
         if value in (None, ""):
-            return value
-        if not value.startswith(f"uploads/businesses/logos/{self.context['request'].user.pk}/") or ".." in value.split("/"):
+            return None
+        user_id = self.context["request"].user.pk
+        if not value.startswith(f"uploads/businesses/logos/{user_id}/") or ".." in value.split("/"):
             raise serializers.ValidationError("مسیر لوگوی کسب‌وکار معتبر نیست.")
         if not default_storage.exists(value):
             raise serializers.ValidationError("لوگوی آپلودشده پیدا نشد.")
         return value
-
-    def update(self, instance, validated_data):
-        logo = validated_data.pop("logo", serializers.empty)
-        old_logo = instance.logo.name if instance.logo else None
-        for field, value in validated_data.items():
-            setattr(instance, field, value)
-        if logo is not serializers.empty:
-            instance.logo = logo or None
-        instance.save()
-        if logo is not serializers.empty and old_logo and old_logo != instance.logo.name:
-            from core.services.UploadService import UploadService
-            UploadService.delete(old_logo)
-        return instance
 
 
 class BusinessInventorySettingsSerializer(serializers.ModelSerializer):
