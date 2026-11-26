@@ -18,6 +18,7 @@ from accounts.serializers.business_serializer import (
     BusinessSerializer,
 )
 from accounts.application.me_read_model import MeBusinessAccessDeniedError
+from accounts.application.select_business import SelectedBusinessNotFoundError
 from accounts.application.business_inventory_settings import BusinessInventoryBusinessNotFoundError
 from accounts.application.update_business_profile import BusinessProfileNotFoundError
 from accounts.application.update_user_profile import (
@@ -31,6 +32,7 @@ from accounts.application.change_password import (
 from accounts.composition import (
     create_business,
     get_me_read_model,
+    select_business,
     update_business_inventory_settings,
     update_business_profile,
     update_user_profile,
@@ -39,7 +41,6 @@ from accounts.composition import (
 )
 from accounts.tenant_context import (
     BusinessAccessDenied,
-    get_active_membership,
     get_role_permission_codes,
     list_active_memberships,
     resolve_tenant_context,
@@ -157,19 +158,20 @@ class SelectBusinessAPIView(APIView):
         if not business_id:
             raise ValidationError({"business_id": "This field is required."})
 
-        new_membership = get_active_membership(
-            user=request.user,
-            business_id=business_id,
-        )
-        if new_membership is None:
+        try:
+            selected = select_business().execute(
+                user_id=request.user.pk,
+                business_id=business_id,
+            )
+        except SelectedBusinessNotFoundError:
             return Response({"detail": "Invalid or inactive business membership"}, status=400)
 
         return Response({
             "business": {
-                "id": new_membership.business.id,
-                "name": new_membership.business.name,
+                "id": selected.business_id,
+                "name": selected.business_name,
             },
-            "role": new_membership.role.code,
+            "role": selected.role,
         })
 
 
