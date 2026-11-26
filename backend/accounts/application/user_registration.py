@@ -1,8 +1,7 @@
-from dataclasses import dataclass
-
 from accounts.application.ports.user_registration_repository import (
     UserRegistrationRepository,
 )
+from accounts.application.registered_user import RegisteredUser
 
 
 class RegistrationEmailAlreadyExistsError(Exception):
@@ -11,14 +10,6 @@ class RegistrationEmailAlreadyExistsError(Exception):
 
 class RegistrationNumberAlreadyExistsError(Exception):
     """Raised when the requested phone number is already registered."""
-
-
-@dataclass(frozen=True)
-class RegisteredUser:
-    user_id: int
-    email: str
-    name: str
-    number: str
 
 
 class RegisterUser:
