@@ -130,7 +130,7 @@ class RegisterUserAPITests(TestCase):
         self.assertEqual(
             response.data["user"],
             {
-                "id": str(user.id),
+                "id": user.id,
                 "email": user.email,
                 "name": user.name,
                 "number": user.number,
@@ -140,11 +140,11 @@ class RegisterUserAPITests(TestCase):
         self.assertNotEqual(user.password, "secret-pass")
         self.assertEqual(
             AccessToken(response.data["access"])[api_settings.USER_ID_CLAIM],
-            user.pk,
+            str(user.pk),
         )
         self.assertEqual(
             RefreshToken(response.data["refresh"])[api_settings.USER_ID_CLAIM],
-            user.pk,
+            str(user.pk),
         )
 
     def test_duplicate_email_keeps_existing_validation_message(self):
