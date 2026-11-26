@@ -1,22 +1,9 @@
 from django.contrib.auth import authenticate
-from django.db import transaction
 
-from accounts.models import User
 from accounts.services.business_service import BusinessService
 
 
 class AuthService:
-
-    @staticmethod
-    @transaction.atomic
-    def register(email: str, password: str, name: str, number: str):
-        user = User.objects.create_user(
-            email=email,
-            password=password,
-            name=name,
-            number=number,
-        )
-        return user
 
     @staticmethod
     def login(identifier: str, password: str):

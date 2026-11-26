@@ -2,6 +2,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.serializers.auth_serializer import (
     ChangePasswordSerializer,
@@ -9,7 +10,6 @@ from accounts.serializers.auth_serializer import (
     UserMeSerializer,
     UserProfileUpdateSerializer,
 )
-from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.serializers.auth_serializer import LoginSerializer
 from accounts.serializers.business_serializer import (
     BusinessCreateSerializer,
@@ -35,6 +35,7 @@ from accounts.composition import (
     update_business_profile,
     update_user_profile,
     change_password,
+    registration_token_pair,
 )
 from accounts.tenant_context import (
     BusinessAccessDenied,
@@ -107,16 +108,16 @@ class RegisterAPIView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        refresh = RefreshToken.for_user(user)
+        access, refresh = registration_token_pair(user_id=user.user_id)
         return Response({
             "user": {
-                "id": user.id,
+                "id": user.user_id,
                 "email": user.email,
                 "name": user.name,
                 "number": user.number,
             },
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
+            "access": access,
+            "refresh": refresh,
         })
 
 

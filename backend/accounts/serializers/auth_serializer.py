@@ -1,7 +1,11 @@
 from django.core.files.storage import default_storage
 from rest_framework import serializers
 
-from accounts.composition import list_login_memberships
+from accounts.application.user_registration import (
+    RegistrationEmailAlreadyExistsError,
+    RegistrationNumberAlreadyExistsError,
+)
+from accounts.composition import list_login_memberships, register_user
 from accounts.services.auth_service import AuthService
 
 
@@ -11,25 +15,18 @@ class RegisterSerializer(serializers.Serializer):
     name = serializers.CharField()
     number = serializers.CharField()
 
-    def validate_email(self, value):
-        from accounts.models import User
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("Email already exists")
-        return value
-
-    def validate_number(self, value):
-        from accounts.models import User
-        if User.objects.filter(number=value).exists():
-            raise serializers.ValidationError("Number already exists")
-        return value
-
     def create(self, validated_data):
-        return AuthService.register(
-            email=validated_data["email"],
-            password=validated_data["password"],
-            name=validated_data["name"],
-            number=validated_data["number"],
-        )
+        try:
+            return register_user().execute(
+                email=validated_data["email"],
+                password=validated_data["password"],
+                name=validated_data["name"],
+                number=validated_data["number"],
+            )
+        except RegistrationEmailAlreadyExistsError:
+            raise serializers.ValidationError({"email": "Email already exists"})
+        except RegistrationNumberAlreadyExistsError:
+            raise serializers.ValidationError({"number": "Number already exists"})
 
 
 class LoginSerializer(serializers.Serializer):
@@ -113,4 +110,3 @@ class UserProfileUpdateSerializer(serializers.Serializer):
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(write_only=True)
     new_password = serializers.CharField(write_only=True, min_length=8)
-
