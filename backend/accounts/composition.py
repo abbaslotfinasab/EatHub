@@ -5,6 +5,7 @@ from accounts.application.business_inventory_settings import UpdateBusinessInven
 from accounts.application.business_onboarding import CreateBusiness
 from accounts.application.get_me_read_model import GetMeReadModel
 from accounts.application.list_login_memberships import ListLoginMemberships
+from accounts.application.select_business import SelectBusiness
 from accounts.application.tenant_context import TenantContextResolver
 from accounts.application.update_business_profile import UpdateBusinessProfile
 from accounts.application.update_user_profile import UpdateUserProfile
@@ -39,6 +40,10 @@ def get_me_read_model() -> GetMeReadModel:
 
 def list_login_memberships() -> ListLoginMemberships:
     return ListLoginMemberships(DjangoMembershipReadRepository())
+
+
+def select_business() -> SelectBusiness:
+    return SelectBusiness(DjangoMembershipReadRepository())
 
 
 def update_user_profile() -> UpdateUserProfile:
