@@ -9,8 +9,6 @@ from accounts.serializers.auth_serializer import (
     UserMeSerializer,
     UserProfileUpdateSerializer,
 )
-from rest_framework_simplejwt.settings import api_settings
-from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.serializers.auth_serializer import LoginSerializer
 from accounts.serializers.business_serializer import (
     BusinessCreateSerializer,
@@ -36,6 +34,7 @@ from accounts.composition import (
     update_business_profile,
     update_user_profile,
     change_password,
+    registration_token_pair,
 )
 from accounts.tenant_context import (
     BusinessAccessDenied,
@@ -108,8 +107,7 @@ class RegisterAPIView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        refresh = RefreshToken()
-        refresh[api_settings.USER_ID_CLAIM] = user.user_id
+        access, refresh = registration_token_pair(user_id=user.user_id)
         return Response({
             "user": {
                 "id": user.user_id,
@@ -117,8 +115,8 @@ class RegisterAPIView(APIView):
                 "name": user.name,
                 "number": user.number,
             },
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
+            "access": access,
+            "refresh": refresh,
         })
 
 
