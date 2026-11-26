@@ -2,15 +2,14 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.serializers.auth_serializer import (
     ChangePasswordSerializer,
+    LoginSerializer,
     RegisterSerializer,
     UserMeSerializer,
     UserProfileUpdateSerializer,
 )
-from accounts.serializers.auth_serializer import LoginSerializer
 from accounts.serializers.business_serializer import (
     BusinessCreateSerializer,
     BusinessInventorySettingsSerializer,
@@ -30,14 +29,15 @@ from accounts.application.change_password import (
     PasswordChangeUserNotFoundError,
 )
 from accounts.composition import (
+    change_password,
     create_business,
     get_me_read_model,
+    login_token_pair,
+    registration_token_pair,
     select_business,
     update_business_inventory_settings,
     update_business_profile,
     update_user_profile,
-    change_password,
-    registration_token_pair,
 )
 from accounts.tenant_context import (
     BusinessAccessDenied,
@@ -129,16 +129,16 @@ class LoginAPIView(APIView):
         data = serializer.validated_data
         user = data["user"]
         memberships = data["memberships"]
-        refresh = RefreshToken.for_user(user)
+        access, refresh = login_token_pair(user_id=user.user_id)
         return Response({
             "user": {
-                "id": user.id,
+                "id": user.user_id,
                 "name": user.name,
                 "number": user.number,
                 "email": user.email,
             },
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
+            "access": access,
+            "refresh": refresh,
             "businesses": [
                 {
                     "id": membership.business_id,
