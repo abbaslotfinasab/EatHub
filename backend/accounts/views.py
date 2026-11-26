@@ -19,6 +19,7 @@ from accounts.serializers.business_serializer import (
 )
 from accounts.application.me_read_model import MeBusinessAccessDeniedError
 from accounts.application.business_inventory_settings import BusinessInventoryBusinessNotFoundError
+from accounts.application.update_business_profile import BusinessProfileNotFoundError
 from accounts.application.update_user_profile import (
     UserProfileNotFoundError,
     UserProfileNumberAlreadyInUseError,
@@ -27,6 +28,7 @@ from accounts.composition import (
     create_business,
     get_me_read_model,
     update_business_inventory_settings,
+    update_business_profile,
     update_user_profile,
 )
 from accounts.tenant_context import (
@@ -275,14 +277,30 @@ class BusinessProfileAPIView(TenantAPIView):
     def patch(self, request):
         self._ensure_owner(request)
         serializer = BusinessProfileUpdateSerializer(
-            request.business,
             data=request.data,
             partial=True,
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
-        business = serializer.save()
-        return Response(BusinessSerializer(business, context={"request": request}).data)
+        changes = serializer.validated_data
+        update_kwargs = {}
+        if "name" in changes:
+            update_kwargs["name"] = changes["name"]
+        if "number" in changes:
+            update_kwargs["number"] = changes["number"]
+        if "address" in changes:
+            update_kwargs["address"] = changes["address"]
+        if "logo" in changes:
+            update_kwargs["logo_path"] = changes["logo"] or None
+        try:
+            update_business_profile().execute(
+                business_id=request.business.pk,
+                **update_kwargs,
+            )
+        except BusinessProfileNotFoundError:
+            raise NotFound("Business not found.")
+        request.business.refresh_from_db(fields=["name", "number", "address", "logo"])
+        return Response(BusinessSerializer(request.business, context={"request": request}).data)
 
 
 class BusinessInventorySettingsAPIView(ExplicitTenantAPIView):

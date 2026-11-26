@@ -48,7 +48,7 @@ class ProductCatalogAPITests(APITestCase):
             RolePermission.objects.get_or_create(role=role, permission=permission)
         user = User.objects.create_user(
             email=f"{suffix}@example.test", password="not-used-in-test",
-            name=suffix, number=f"88{len(suffix)}{business.pk}{suffix}",
+            name=suffix, number=f"88{business.pk % 100000:05d}{suffix[-8:]}",
         )
         Membership.objects.create(user=user, business=business, role=role, is_active=True)
         return user
