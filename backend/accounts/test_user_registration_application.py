@@ -66,14 +66,6 @@ class DjangoUserRegistrationRepositoryTests(TestCase):
         self.assertEqual(user.email, "new-user@example.test")
         self.assertTrue(user.check_password("secret-pass"))
         self.assertNotEqual(user.password, "secret-pass")
-        self.assertEqual(
-            AccessToken(response.data["access"])[api_settings.USER_ID_CLAIM],
-            user.pk,
-        )
-        self.assertEqual(
-            RefreshToken(response.data["refresh"])[api_settings.USER_ID_CLAIM],
-            user.pk,
-        )
         self.assertEqual(result.name, "New User")
         self.assertEqual(result.number, "09120000001")
 
@@ -146,6 +138,14 @@ class RegisterUserAPITests(TestCase):
         )
         self.assertTrue(user.check_password("secret-pass"))
         self.assertNotEqual(user.password, "secret-pass")
+        self.assertEqual(
+            AccessToken(response.data["access"])[api_settings.USER_ID_CLAIM],
+            user.pk,
+        )
+        self.assertEqual(
+            RefreshToken(response.data["refresh"])[api_settings.USER_ID_CLAIM],
+            user.pk,
+        )
 
     def test_duplicate_email_keeps_existing_validation_message(self):
         User.objects.create_user(
