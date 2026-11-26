@@ -8,6 +8,7 @@ from accounts.application.list_login_memberships import ListLoginMemberships
 from accounts.application.tenant_context import TenantContextResolver
 from accounts.application.update_business_profile import UpdateBusinessProfile
 from accounts.application.update_user_profile import UpdateUserProfile
+from accounts.application.user_registration import RegisterUser
 from accounts.infrastructure.django.business_inventory_settings_repository import DjangoBusinessInventorySettingsRepository
 from accounts.infrastructure.django.business_logo_storage import DjangoBusinessLogoStorage
 from accounts.infrastructure.django.business_onboarding_repository import DjangoBusinessOnboardingRepository
@@ -16,6 +17,7 @@ from accounts.infrastructure.django.membership_read_repository import DjangoMemb
 from accounts.infrastructure.django.password_change_repository import DjangoPasswordChangeRepository
 from accounts.infrastructure.django.user_avatar_storage import DjangoUserAvatarStorage
 from accounts.infrastructure.django.user_profile_update_repository import DjangoUserProfileUpdateRepository
+from accounts.infrastructure.django.user_registration_repository import DjangoUserRegistrationRepository
 
 
 def tenant_context_resolver() -> TenantContextResolver:
@@ -54,3 +56,7 @@ def update_business_profile() -> UpdateBusinessProfile:
 
 def change_password() -> ChangePassword:
     return ChangePassword(DjangoPasswordChangeRepository())
+
+
+def register_user() -> RegisterUser:
+    return RegisterUser(DjangoUserRegistrationRepository())
