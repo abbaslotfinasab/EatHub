@@ -3,6 +3,8 @@ from unittest.mock import Mock
 
 from django.test import TestCase
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.settings import api_settings
+from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 from accounts.application.user_registration import (
     RegisterUser,
@@ -64,6 +66,14 @@ class DjangoUserRegistrationRepositoryTests(TestCase):
         self.assertEqual(user.email, "new-user@example.test")
         self.assertTrue(user.check_password("secret-pass"))
         self.assertNotEqual(user.password, "secret-pass")
+        self.assertEqual(
+            AccessToken(response.data["access"])[api_settings.USER_ID_CLAIM],
+            user.pk,
+        )
+        self.assertEqual(
+            RefreshToken(response.data["refresh"])[api_settings.USER_ID_CLAIM],
+            user.pk,
+        )
         self.assertEqual(result.name, "New User")
         self.assertEqual(result.number, "09120000001")
 
