@@ -1,3 +1,4 @@
+from django.contrib.auth.base_user import BaseUserManager
 from django.db import IntegrityError, transaction
 
 from accounts.application.user_registration import (
@@ -19,6 +20,7 @@ class DjangoUserRegistrationRepository:
         name: str,
         number: str,
     ) -> RegisteredUser:
+        email = BaseUserManager.normalize_email(email)
         if User.objects.filter(email=email).exists():
             raise RegistrationEmailAlreadyExistsError()
         if User.objects.filter(number=number).exists():
