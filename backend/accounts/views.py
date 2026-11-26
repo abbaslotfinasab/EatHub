@@ -19,7 +19,16 @@ from accounts.serializers.business_serializer import (
 )
 from accounts.application.me_read_model import MeBusinessAccessDeniedError
 from accounts.application.business_inventory_settings import BusinessInventoryBusinessNotFoundError
-from accounts.composition import create_business, get_me_read_model, update_business_inventory_settings
+from accounts.application.update_user_profile import (
+    UserProfileNotFoundError,
+    UserProfileNumberAlreadyInUseError,
+)
+from accounts.composition import (
+    create_business,
+    get_me_read_model,
+    update_business_inventory_settings,
+    update_user_profile,
+)
 from accounts.tenant_context import (
     BusinessAccessDenied,
     get_active_membership,
@@ -189,13 +198,29 @@ class MeAPIView(APIView):
 
     def patch(self, request):
         serializer = UserProfileUpdateSerializer(
-            request.user,
             data=request.data,
             partial=True,
             context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        changes = serializer.validated_data
+        update_kwargs = {}
+        if "name" in changes:
+            update_kwargs["name"] = changes["name"]
+        if "number" in changes:
+            update_kwargs["number"] = changes["number"]
+        if "avatar" in changes:
+            update_kwargs["avatar_path"] = changes["avatar"]
+        try:
+            update_user_profile().execute(
+                user_id=request.user.pk,
+                **update_kwargs,
+            )
+        except UserProfileNumberAlreadyInUseError:
+            raise ValidationError({"number": "This field must be unique."})
+        except UserProfileNotFoundError:
+            raise NotFound("User not found.")
+        request.user.refresh_from_db(fields=["name", "number", "avatar"])
         return Response(self._serialize(request))
 
 
