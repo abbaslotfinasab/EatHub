@@ -48,3 +48,11 @@ def update_business_profile() -> UpdateBusinessProfile:
         DjangoBusinessProfileUpdateRepository(),
         DjangoBusinessLogoStorage(),
     )
+
+
+from accounts.application.change_password import ChangePassword
+from accounts.infrastructure.django.password_change_repository import DjangoPasswordChangeRepository
+
+
+def change_password() -> ChangePassword:
+    return ChangePassword(DjangoPasswordChangeRepository())

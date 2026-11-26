@@ -24,12 +24,17 @@ from accounts.application.update_user_profile import (
     UserProfileNotFoundError,
     UserProfileNumberAlreadyInUseError,
 )
+from accounts.application.change_password import (
+    CurrentPasswordInvalidError,
+    PasswordChangeUserNotFoundError,
+)
 from accounts.composition import (
     create_business,
     get_me_read_model,
     update_business_inventory_settings,
     update_business_profile,
     update_user_profile,
+    change_password,
 )
 from accounts.tenant_context import (
     BusinessAccessDenied,
@@ -230,13 +235,20 @@ class ChangePasswordAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer = ChangePasswordSerializer(
-            data=request.data,
-            context={"request": request},
-        )
+        serializer = ChangePasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        request.user.set_password(serializer.validated_data["new_password"])
-        request.user.save(update_fields=["password"])
+        try:
+            change_password().execute(
+                user_id=request.user.pk,
+                old_password=serializer.validated_data["old_password"],
+                new_password=serializer.validated_data["new_password"],
+            )
+        except CurrentPasswordInvalidError:
+            raise ValidationError({
+                "old_password": "رمز عبور فعلی صحیح نیست."
+            })
+        except PasswordChangeUserNotFoundError:
+            raise NotFound("User not found.")
         return Response({"detail": "رمز عبور با موفقیت تغییر کرد."})
 
 
