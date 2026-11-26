@@ -233,3 +233,20 @@ class BusinessProfileUpdateAPITests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.business.refresh_from_db()
         self.assertFalse(self.business.logo)
+
+    def test_blank_logo_clears_existing_logo_and_deletes_old_file(self):
+        old_path = f"uploads/businesses/logos/{self.owner.pk}/old.png"
+        self.business.logo = old_path
+        self.business.save(update_fields=["logo"])
+
+        with patch("accounts.infrastructure.django.business_logo_storage.UploadService.delete") as delete:
+            response = self.client.patch(
+                self.url,
+                {"logo": ""},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.business.refresh_from_db()
+        self.assertFalse(self.business.logo)
+        delete.assert_called_once_with(old_path)

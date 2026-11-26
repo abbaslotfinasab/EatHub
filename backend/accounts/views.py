@@ -291,7 +291,7 @@ class BusinessProfileAPIView(TenantAPIView):
         if "address" in changes:
             update_kwargs["address"] = changes["address"]
         if "logo" in changes:
-            update_kwargs["logo_path"] = changes["logo"]
+            update_kwargs["logo_path"] = changes["logo"] or None
         try:
             update_business_profile().execute(
                 business_id=request.business.pk,
