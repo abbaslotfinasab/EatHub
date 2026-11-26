@@ -100,7 +100,7 @@ class SelectBusinessAPITests(TestCase):
             email="select-business-other@example.test",
             password="test-password",
             name="Other User",
-            number="select-business-other",
+            number="other-user",
         )
         foreign_business = self.create_business(other, "Foreign Cafe")
 
