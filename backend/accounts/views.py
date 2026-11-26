@@ -9,6 +9,7 @@ from accounts.serializers.auth_serializer import (
     UserMeSerializer,
     UserProfileUpdateSerializer,
 )
+from rest_framework_simplejwt.settings import api_settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.serializers.auth_serializer import LoginSerializer
 from accounts.serializers.business_serializer import (
@@ -107,10 +108,11 @@ class RegisterAPIView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        refresh = RefreshToken.for_user(user)
+        refresh = RefreshToken()
+        refresh[api_settings.USER_ID_CLAIM] = user.user_id
         return Response({
             "user": {
-                "id": user.id,
+                "id": user.user_id,
                 "email": user.email,
                 "name": user.name,
                 "number": user.number,
