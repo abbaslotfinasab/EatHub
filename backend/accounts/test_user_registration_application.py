@@ -130,7 +130,7 @@ class RegisterUserAPITests(TestCase):
         self.assertEqual(
             response.data["user"],
             {
-                "id": user.id,
+                "id": str(user.id),
                 "email": user.email,
                 "name": user.name,
                 "number": user.number,
