@@ -1,5 +1,6 @@
 """Composition root for Accounts application services."""
 
+from accounts.application.change_password import ChangePassword
 from accounts.application.business_inventory_settings import UpdateBusinessInventorySettings
 from accounts.application.business_onboarding import CreateBusiness
 from accounts.application.get_me_read_model import GetMeReadModel
@@ -12,6 +13,7 @@ from accounts.infrastructure.django.business_logo_storage import DjangoBusinessL
 from accounts.infrastructure.django.business_onboarding_repository import DjangoBusinessOnboardingRepository
 from accounts.infrastructure.django.business_profile_update_repository import DjangoBusinessProfileUpdateRepository
 from accounts.infrastructure.django.membership_read_repository import DjangoMembershipReadRepository
+from accounts.infrastructure.django.password_change_repository import DjangoPasswordChangeRepository
 from accounts.infrastructure.django.user_avatar_storage import DjangoUserAvatarStorage
 from accounts.infrastructure.django.user_profile_update_repository import DjangoUserProfileUpdateRepository
 
@@ -48,3 +50,7 @@ def update_business_profile() -> UpdateBusinessProfile:
         DjangoBusinessProfileUpdateRepository(),
         DjangoBusinessLogoStorage(),
     )
+
+
+def change_password() -> ChangePassword:
+    return ChangePassword(DjangoPasswordChangeRepository())
