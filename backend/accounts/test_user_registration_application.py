@@ -145,7 +145,8 @@ class RegisterUserAPITests(TestCase):
             number="09120000006",
         )
 
-        response = self.client.post(self.url, self.payload, format="json")
+        payload = {**self.payload, "email": "registration@EXAMPLE.TEST"}
+        response = self.client.post(self.url, payload, format="json")
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Email already exists", str(response.data))
