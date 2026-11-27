@@ -281,6 +281,32 @@ class ProductCatalogAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+
+    def test_catalog_presentation_uses_scalar_tenant_context_only(self):
+        view_path = Path(__file__).parent / "presentation" / "views.py"
+        syntax_tree = ast.parse(view_path.read_text(encoding="utf-8"))
+        classes = {
+            node.name: node
+            for node in ast.walk(syntax_tree)
+            if isinstance(node, ast.ClassDef)
+        }
+        for class_name in ("ProductListCreateAPIView", "ProductDetailAPIView"):
+            base_names = {
+                base.id for base in classes[class_name].bases
+                if isinstance(base, ast.Name)
+            }
+            self.assertIn("ExplicitApplicationTenantAPIView", base_names)
+
+        legacy_request_attributes = {
+            node.attr
+            for node in ast.walk(syntax_tree)
+            if isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "request"
+            and node.attr in {"business", "membership", "role"}
+        }
+        self.assertEqual(legacy_request_attributes, set())
+
     def test_presentation_serializers_do_not_import_orm_models(self):
         serializer_path = Path(__file__).parent / "presentation" / "serializers.py"
         syntax_tree = ast.parse(serializer_path.read_text(encoding="utf-8"))
