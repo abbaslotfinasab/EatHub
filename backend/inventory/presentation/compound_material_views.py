@@ -3,7 +3,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import ExplicitTenantAPIView
+from accounts.views import ExplicitApplicationTenantAPIView
 from core.enums import PermissionCode
 from inventory.application.exceptions import MasterDataConflict
 from inventory.infrastructure.django.compound_material_repository import DjangoCompoundMaterialRepository
@@ -28,7 +28,7 @@ def _save_or_validate(call):
         raise ValidationError({error.field: str(error)}) from error
 
 
-class CompoundMaterialListCreateAPIView(ExplicitTenantAPIView):
+class CompoundMaterialListCreateAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -37,7 +37,7 @@ class CompoundMaterialListCreateAPIView(ExplicitTenantAPIView):
         serializer.is_valid(raise_exception=True)
         params = serializer.validated_data
         page = DjangoCompoundMaterialRepository.list_for_business(
-            request.membership.business_id,
+            request.business_id,
             page=params["page"],
             page_size=params["page_size"],
             search=params.get("search"),
@@ -50,17 +50,17 @@ class CompoundMaterialListCreateAPIView(ExplicitTenantAPIView):
         serializer = CompoundMaterialCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         material = _save_or_validate(lambda: DjangoCompoundMaterialRepository().create(
-            request.membership.business_id, serializer.validated_data,
+            request.business_id, serializer.validated_data,
         ))
         return Response(CompoundMaterialSerializer(material).data, status=status.HTTP_201_CREATED)
 
 
-class CompoundMaterialDetailAPIView(ExplicitTenantAPIView):
+class CompoundMaterialDetailAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         _require_permission(request, PermissionCode.INVENTORY_VIEW)
-        material = DjangoCompoundMaterialRepository.get_for_business(request.membership.business_id, pk)
+        material = DjangoCompoundMaterialRepository.get_for_business(request.business_id, pk)
         if material is None:
             raise NotFound("Compound material does not exist in this business.")
         return Response(CompoundMaterialSerializer(material).data)
@@ -70,7 +70,7 @@ class CompoundMaterialDetailAPIView(ExplicitTenantAPIView):
         serializer = CompoundMaterialUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         material = _save_or_validate(lambda: DjangoCompoundMaterialRepository().update(
-            request.membership.business_id, pk, serializer.validated_data,
+            request.business_id, pk, serializer.validated_data,
         ))
         if material is None:
             raise NotFound("Compound material does not exist in this business.")
