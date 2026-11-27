@@ -41,55 +41,86 @@ from accounts.composition import (
 )
 from accounts.tenant_context import (
     BusinessAccessDenied,
-    get_role_permission_codes,
+    get_legacy_membership,
     list_active_memberships,
     resolve_tenant_context,
 )
 
 
 class TenantAPIView(APIView):
-    """Compatibility tenant base with explicit selection for multi-business users.
+    """Legacy tenant base retained for domain endpoints not yet migrated to DTOs.
 
-    Existing single-business clients remain compatible during the route migration.
-    Multi-business users must send X-Business-Id; it is always validated server-side.
-    New endpoints should use ExplicitTenantAPIView directly.
+    Existing single-business clients remain compatible. Multi-business users must
+    send X-Business-Id; all selection is validated by the application resolver.
+    The isolated legacy adapter supplies ORM models only to these unmigrated views.
     """
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         business_id = request.headers.get("X-Business-Id")
-        if business_id:
-            context = resolve_tenant_context(
-                user=request.user,
-                business_id=business_id,
-            )
-            request.tenant_context = context
-            request.business = context.business
-            request.membership = context.membership
-            request.role = context.membership.role
-            request.permissions = list(context.permissions)
-            return
+        if not business_id:
+            memberships = list_active_memberships(user=request.user, limit=2)
+            if not memberships:
+                raise PermissionDenied("No active business.")
+            if len(memberships) > 1:
+                raise ValidationError({
+                    "code": "BUSINESS_CONTEXT_REQUIRED",
+                    "detail": "X-Business-Id is required when the user has multiple active businesses.",
+                })
+            business_id = memberships[0].business_id
 
-        memberships = list_active_memberships(user=request.user, limit=2)
-        if not memberships:
-            raise PermissionDenied("No active business.")
-        if len(memberships) > 1:
-            raise ValidationError({
-                "code": "BUSINESS_CONTEXT_REQUIRED",
-                "detail": "X-Business-Id is required when the user has multiple active businesses.",
-            })
-
-        membership = memberships[0]
+        context = resolve_tenant_context(user=request.user, business_id=business_id)
+        membership = get_legacy_membership(user=request.user, business_id=context.business_id)
+        request.tenant_context = context
         request.business = membership.business
         request.membership = membership
         request.role = membership.role
-        request.permissions = list(
-            get_role_permission_codes(role_id=membership.role_id)
-        )
+        request.permissions = list(context.permissions)
 
 
 class ExplicitTenantAPIView(APIView):
-    """Require an explicit, authorized business context from X-Business-Id."""
+    """Legacy explicit tenant base for domain endpoints awaiting DTO migration."""
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        context = resolve_tenant_context(
+            user=request.user,
+            business_id=request.headers.get("X-Business-Id"),
+        )
+        membership = get_legacy_membership(user=request.user, business_id=context.business_id)
+        request.tenant_context = context
+        request.business = membership.business
+        request.membership = membership
+        request.role = membership.role
+        request.permissions = list(context.permissions)
+
+
+class ApplicationTenantAPIView(APIView):
+    """DTO-only tenant base with legacy single-business selection behavior."""
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        business_id = request.headers.get("X-Business-Id")
+        if not business_id:
+            memberships = list_active_memberships(user=request.user, limit=2)
+            if not memberships:
+                raise PermissionDenied("No active business.")
+            if len(memberships) > 1:
+                raise ValidationError({
+                    "code": "BUSINESS_CONTEXT_REQUIRED",
+                    "detail": "X-Business-Id is required when the user has multiple active businesses.",
+                })
+            business_id = memberships[0].business_id
+
+        context = resolve_tenant_context(user=request.user, business_id=business_id)
+        request.tenant_context = context
+        request.business_id = context.business_id
+        request.role_code = context.role_code
+        request.permissions = list(context.permissions)
+
+
+class ExplicitApplicationTenantAPIView(APIView):
+    """Require explicit tenant selection and expose only scalar DTO context."""
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
@@ -98,9 +129,8 @@ class ExplicitTenantAPIView(APIView):
             business_id=request.headers.get("X-Business-Id"),
         )
         request.tenant_context = context
-        request.business = context.business
-        request.membership = context.membership
-        request.role = context.membership.role
+        request.business_id = context.business_id
+        request.role_code = context.role_code
         request.permissions = list(context.permissions)
 
 
@@ -279,15 +309,18 @@ class BusinessCreateAPIView(APIView):
         })
 
 
-class BusinessProfileAPIView(TenantAPIView):
+class BusinessProfileAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def _ensure_owner(self, request):
-        if request.role.code != "OWNER":
+        if request.role_code != "OWNER":
             raise PermissionDenied("Only the business owner can update business details.")
 
     def get(self, request):
-        return Response(BusinessSerializer(request.business, context={"request": request}).data)
+        return Response(BusinessSerializer(
+            request.tenant_context.business,
+            context={"request": request},
+        ).data)
 
     def patch(self, request):
         self._ensure_owner(request)
@@ -309,31 +342,42 @@ class BusinessProfileAPIView(TenantAPIView):
             update_kwargs["logo_path"] = changes["logo"] or None
         try:
             update_business_profile().execute(
-                business_id=request.business.pk,
+                business_id=request.business_id,
                 **update_kwargs,
             )
         except BusinessProfileNotFoundError:
             raise NotFound("Business not found.")
-        request.business.refresh_from_db(fields=["name", "number", "address", "logo"])
-        return Response(BusinessSerializer(request.business, context={"request": request}).data)
+
+        context = resolve_tenant_context(
+            user=request.user,
+            business_id=request.business_id,
+        )
+        request.tenant_context = context
+        return Response(BusinessSerializer(
+            context.business,
+            context={"request": request},
+        ).data)
 
 
-class BusinessInventorySettingsAPIView(ExplicitTenantAPIView):
+class BusinessInventorySettingsAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({"inventory_enabled": request.business.inventory_enabled})
+        return Response({
+            "inventory_enabled": request.tenant_context.business.inventory_enabled
+        })
 
     def patch(self, request):
-        if request.role.code != "OWNER":
+        if request.role_code != "OWNER":
             raise PermissionDenied("Only the business owner can change inventory settings.")
         serializer = BusinessInventorySettingsSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         try:
             inventory_enabled = update_business_inventory_settings().execute(
-                business_id=request.business.id,
+                business_id=request.business_id,
                 inventory_enabled=serializer.validated_data.get(
-                    "inventory_enabled", request.business.inventory_enabled
+                    "inventory_enabled",
+                    request.tenant_context.business.inventory_enabled,
                 ),
             )
         except BusinessInventoryBusinessNotFoundError:
