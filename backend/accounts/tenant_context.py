@@ -6,7 +6,7 @@ from accounts.application.tenant_context import (
     BusinessContextRequiredError,
     TenantContext,
 )
-from accounts.composition import tenant_context_resolver
+from accounts.composition import legacy_tenant_context_adapter, tenant_context_resolver
 
 
 class BusinessContextRequired(APIException):
@@ -27,8 +27,8 @@ class BusinessAccessDenied(APIException):
     default_code = "BUSINESS_ACCESS_DENIED"
 
 
-def resolve_tenant_context(*, user, business_id):
-    """Compatibility facade translating application errors into DRF exceptions."""
+def resolve_tenant_context(*, user, business_id) -> TenantContext:
+    """Translate application errors while keeping the returned context DTO-only."""
     try:
         return tenant_context_resolver().resolve(
             user_id=user.pk,
@@ -52,6 +52,17 @@ def get_active_membership(*, user, business_id):
         user_id=user.pk,
         business_id=business_id,
     )
+
+
+def get_legacy_membership(*, user, business_id):
+    """Explicit compatibility bridge for endpoints still consuming Django models."""
+    membership = legacy_tenant_context_adapter().get_active_membership(
+        user_id=user.pk,
+        business_id=business_id,
+    )
+    if membership is None:
+        raise BusinessAccessDenied()
+    return membership
 
 
 def get_role_permission_codes(*, role_id):

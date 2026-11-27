@@ -10,14 +10,13 @@ from accounts.application.tenant_context import (
 
 class FakeMembershipReadRepository:
     def __init__(self):
-        self.business = SimpleNamespace(pk=12, is_active=True)
-        self.role = SimpleNamespace(pk=8, code="OWNER")
+        self.business = SimpleNamespace(id=12, name="Test Business")
         self.membership = SimpleNamespace(
-            pk=31,
+            id=31,
             business_id=12,
             role_id=8,
+            role_code="OWNER",
             business=self.business,
-            role=self.role,
         )
         self.memberships = [self.membership]
         self.permission_codes = ("orders.view", "orders.create")
