@@ -4,7 +4,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import ExplicitTenantAPIView
+from accounts.views import ExplicitApplicationTenantAPIView
 from core.enums import PermissionCode
 from inventory.application.use_cases.manage_recipes import (
     InactiveRecipeIngredient,
@@ -65,7 +65,7 @@ def _line_command(data: dict, *, output: bool = False) -> RecipeLineCommand:
     )
 
 
-class RecipeListCreateAPIView(ExplicitTenantAPIView):
+class RecipeListCreateAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -74,7 +74,7 @@ class RecipeListCreateAPIView(ExplicitTenantAPIView):
         query.is_valid(raise_exception=True)
         values = query.validated_data
         page = _run(lambda: _use_case().list(
-            request.business.id,
+            request.business_id,
             page=values["page"],
             page_size=values["page_size"],
             search=values.get("search"),
@@ -89,7 +89,7 @@ class RecipeListCreateAPIView(ExplicitTenantAPIView):
         serializer.is_valid(raise_exception=True)
         values = serializer.validated_data
         recipe = _run(lambda: _use_case().create(
-            request.business.id,
+            request.business_id,
             name=values["name"],
             recipe_type=values["type"],
             code=values.get("code"),
@@ -101,12 +101,12 @@ class RecipeListCreateAPIView(ExplicitTenantAPIView):
         return Response(RecipeSerializer(recipe).data, status=status.HTTP_201_CREATED)
 
 
-class RecipeDetailAPIView(ExplicitTenantAPIView):
+class RecipeDetailAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         _permission(request, PermissionCode.INVENTORY_VIEW)
-        recipe = _run(lambda: _use_case().get(request.business.id, pk))
+        recipe = _run(lambda: _use_case().get(request.business_id, pk))
         return Response(RecipeSerializer(recipe).data)
 
     def patch(self, request, pk):
@@ -121,12 +121,12 @@ class RecipeDetailAPIView(ExplicitTenantAPIView):
                 _line_command(row, output=True) for row in values["outputs"]
             ]
         recipe = _run(lambda: _use_case().update(
-            request.business.id, pk, **values,
+            request.business_id, pk, **values,
         ))
         return Response(RecipeSerializer(recipe).data)
 
 
-class RecipeLineCollectionAPIView(ExplicitTenantAPIView):
+class RecipeLineCollectionAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
     line_kind = "input"
 
@@ -138,7 +138,7 @@ class RecipeLineCollectionAPIView(ExplicitTenantAPIView):
         )(data=request.data)
         line_serializer.is_valid(raise_exception=True)
         recipe = _run(lambda: _use_case().add_line(
-            request.business.id,
+            request.business_id,
             recipe_id,
             self.line_kind,
             _line_command(line_serializer.validated_data, output=self.line_kind == "output"),
@@ -154,7 +154,7 @@ class RecipeOutputCollectionAPIView(RecipeLineCollectionAPIView):
     line_kind = "output"
 
 
-class RecipeLineDetailAPIView(ExplicitTenantAPIView):
+class RecipeLineDetailAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
     line_kind = "input"
 
@@ -166,7 +166,7 @@ class RecipeLineDetailAPIView(ExplicitTenantAPIView):
         )(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated = _run(lambda: _use_case().patch_line(
-            request.business.id, recipe_id, self.line_kind, line_id,
+            request.business_id, recipe_id, self.line_kind, line_id,
             serializer.validated_data,
         ))
         return Response(RecipeSerializer(updated).data)
@@ -174,7 +174,7 @@ class RecipeLineDetailAPIView(ExplicitTenantAPIView):
     def delete(self, request, recipe_id, line_id):
         _permission(request, PermissionCode.INVENTORY_RECIPE_MANAGE)
         _run(lambda: _use_case().delete_line(
-            request.business.id, recipe_id, self.line_kind, line_id,
+            request.business_id, recipe_id, self.line_kind, line_id,
         ))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
