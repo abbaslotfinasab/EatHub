@@ -3,6 +3,10 @@ from dataclasses import dataclass
 from accounts.application.ports.membership_read_repository import (
     MembershipReadRepository,
 )
+from accounts.application.tenant_context_read_model import (
+    BusinessTenantSummary,
+    MembershipTenantSummary,
+)
 
 
 @dataclass(frozen=True)
@@ -11,9 +15,10 @@ class TenantContext:
     business_id: int
     membership_id: int
     role_id: int
+    role_code: str
     permissions: tuple[str, ...]
-    business: object
-    membership: object
+    business: BusinessTenantSummary
+    membership: MembershipTenantSummary
 
 
 class BusinessContextRequiredError(Exception):
@@ -25,7 +30,7 @@ class BusinessAccessDeniedError(Exception):
 
 
 class TenantContextResolver:
-    """Application service for resolving authorized business context."""
+    """Application service for resolving an authenticated user's tenant as DTOs."""
 
     def __init__(self, membership_repository: MembershipReadRepository):
         self._membership_repository = membership_repository
@@ -47,20 +52,25 @@ class TenantContextResolver:
         return TenantContext(
             user_id=user_id,
             business_id=membership.business_id,
-            membership_id=membership.pk,
+            membership_id=membership.id,
             role_id=membership.role_id,
+            role_code=membership.role_code,
             permissions=permissions,
             business=membership.business,
             membership=membership,
         )
 
-    def list_active_memberships(self, *, user_id: int, limit: int):
+    def list_active_memberships(
+        self, *, user_id: int, limit: int
+    ) -> tuple[MembershipTenantSummary, ...]:
         return self._membership_repository.list_active_memberships(
             user_id=user_id,
             limit=limit,
         )
 
-    def get_active_membership(self, *, user_id: int, business_id: int | str):
+    def get_active_membership(
+        self, *, user_id: int, business_id: int | str
+    ) -> MembershipTenantSummary | None:
         return self._membership_repository.get_active_membership(
             user_id=user_id,
             business_id=business_id,
