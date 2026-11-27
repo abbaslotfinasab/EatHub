@@ -1,12 +1,15 @@
 from decimal import Decimal
+import inspect
 
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Business, Membership, Permission, Role, RolePermission, User
+from accounts.views import ExplicitApplicationTenantAPIView, ExplicitTenantAPIView
 from core.enums import PermissionCode
 from inventory.infrastructure.django.models import InventoryV1StockMovement
 from inventory.models import CompoundMaterialComponent, Ingredient, IngredientAllergen, Recipe, RecipeInput, RecipeOutput
+from inventory.presentation import recipe_views
 
 
 class RecipeAPITests(APITestCase):
@@ -294,3 +297,22 @@ class RecipeAPITests(APITestCase):
                 {"code": "tree_nuts", "presence": "contains"},
             ],
         )
+
+
+class RecipeTenantContextArchitectureTests(APITestCase):
+    def test_recipe_endpoints_use_dto_only_tenant_context(self):
+        endpoint_bases = (
+            recipe_views.RecipeListCreateAPIView,
+            recipe_views.RecipeDetailAPIView,
+            recipe_views.RecipeLineCollectionAPIView,
+            recipe_views.RecipeLineDetailAPIView,
+        )
+        for endpoint in endpoint_bases:
+            with self.subTest(endpoint=endpoint.__name__):
+                self.assertTrue(issubclass(endpoint, ExplicitApplicationTenantAPIView))
+                self.assertFalse(issubclass(endpoint, ExplicitTenantAPIView))
+
+        source = inspect.getsource(recipe_views)
+        self.assertNotIn("request.business", source)
+        self.assertNotIn("request.membership", source)
+        self.assertNotIn("request.role", source)
