@@ -790,6 +790,28 @@ class SupplierTenantContextArchitectureTests(TestCase):
             _purchase_permissions(request)
 
 
+class PurchaseOrderTenantContextArchitectureTests(TestCase):
+    def test_purchase_order_endpoints_use_dto_only_tenant_context(self) -> None:
+        from accounts.views import ApplicationTenantAPIView, TenantAPIView
+        from purchase.presentation.api.views import purchase_order as purchase_order_views
+
+        endpoint_classes = (
+            purchase_order_views.PurchaseOrderListCreateAPIView,
+            purchase_order_views.PurchaseOrderDetailAPIView,
+            purchase_order_views.PurchaseOrderSendAPIView,
+            purchase_order_views.PurchaseOrderCancelAPIView,
+        )
+        for endpoint_class in endpoint_classes:
+            self.assertTrue(issubclass(endpoint_class, ApplicationTenantAPIView))
+            self.assertFalse(issubclass(endpoint_class, TenantAPIView))
+
+        source = inspect.getsource(purchase_order_views)
+        self.assertNotRegex(source, r"request\\.business\\b")
+        self.assertNotRegex(source, r"request\\.membership\\b")
+        self.assertNotRegex(source, r"request\\.role\\b")
+
+
+
 class DjangoPurchaseOrderRepositoryTests(TestCase):
     def setUp(self) -> None:
         self.business_1 = Business.objects.create(name="Business One")
