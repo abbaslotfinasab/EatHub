@@ -3,7 +3,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import TenantAPIView
+from accounts.views import ApplicationTenantAPIView
 from core.enums import PermissionCode
 from purchase.application.dto.requisition import (
     CreateRequisitionDTO,
@@ -91,7 +91,7 @@ def _get_readable_requisition(request, requisition_id: int):
             _requisition_repository()
         ).execute(
             requisition_id=requisition_id,
-            business_id=request.business.id,
+            business_id=request.business_id,
         )
     except ValueError as error:
         _handle_requisition_error(error)
@@ -104,7 +104,7 @@ def _get_readable_requisition(request, requisition_id: int):
     return requisition
 
 
-class RequisitionListCreateAPIView(TenantAPIView):
+class RequisitionListCreateAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -123,7 +123,7 @@ class RequisitionListCreateAPIView(TenantAPIView):
                 _requisition_repository()
             ).execute(
                 ListRequisitionsQuery(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     status=_parse_status(request.query_params.get("status")),
                     requested_by_id=requested_by_id,
                 )
@@ -145,7 +145,7 @@ class RequisitionListCreateAPIView(TenantAPIView):
                 _requisition_repository()
             ).execute(
                 CreateRequisitionDTO(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     requested_by_id=request.user.id,
                     reason=data.get("reason", ""),
                     items=[
@@ -167,7 +167,7 @@ class RequisitionListCreateAPIView(TenantAPIView):
         )
 
 
-class RequisitionDetailAPIView(TenantAPIView):
+class RequisitionDetailAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -175,7 +175,7 @@ class RequisitionDetailAPIView(TenantAPIView):
         return Response(RequisitionSerializer(requisition).data)
 
 
-class RequisitionSubmitAPIView(TenantAPIView):
+class RequisitionSubmitAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -183,7 +183,7 @@ class RequisitionSubmitAPIView(TenantAPIView):
         try:
             requisition = SubmitRequisitionUseCase(_requisition_repository()).execute(
                 requisition_id=pk,
-                business_id=request.business.id,
+                business_id=request.business_id,
                 requester_id=request.user.id,
             )
         except ValueError as error:
@@ -191,7 +191,7 @@ class RequisitionSubmitAPIView(TenantAPIView):
         return Response(RequisitionSerializer(requisition).data)
 
 
-class RequisitionApproveAPIView(TenantAPIView):
+class RequisitionApproveAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -199,7 +199,7 @@ class RequisitionApproveAPIView(TenantAPIView):
         try:
             requisition = ApproveRequisitionUseCase(_requisition_repository()).execute(
                 requisition_id=pk,
-                business_id=request.business.id,
+                business_id=request.business_id,
                 actor_id=request.user.id,
             )
         except ValueError as error:
@@ -207,7 +207,7 @@ class RequisitionApproveAPIView(TenantAPIView):
         return Response(RequisitionSerializer(requisition).data)
 
 
-class RequisitionRejectAPIView(TenantAPIView):
+class RequisitionRejectAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -219,7 +219,7 @@ class RequisitionRejectAPIView(TenantAPIView):
                 _requisition_repository()
             ).execute(
                 requisition_id=pk,
-                business_id=request.business.id,
+                business_id=request.business_id,
                 actor_id=request.user.id,
                 reason=serializer.validated_data["reason"],
             )
@@ -228,7 +228,7 @@ class RequisitionRejectAPIView(TenantAPIView):
         return Response(RequisitionSerializer(requisition).data)
 
 
-class RequisitionDecisionHistoryAPIView(TenantAPIView):
+class RequisitionDecisionHistoryAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -237,12 +237,12 @@ class RequisitionDecisionHistoryAPIView(TenantAPIView):
             _requisition_repository()
         ).execute(
             requisition_id=requisition.id,
-            business_id=request.business.id,
+            business_id=request.business_id,
         )
         return Response(RequisitionDecisionSerializer(decisions, many=True).data)
 
 
-class RequisitionOrderSummaryAPIView(TenantAPIView):
+class RequisitionOrderSummaryAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -252,6 +252,6 @@ class RequisitionOrderSummaryAPIView(TenantAPIView):
             DjangoPurchaseOrderRepository(),
         ).execute(
             requisition_id=requisition.id,
-            business_id=request.business.id,
+            business_id=request.business_id,
         )
         return Response(RequisitionOrderSummarySerializer(summary).data)
