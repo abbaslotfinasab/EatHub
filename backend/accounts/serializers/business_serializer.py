@@ -26,7 +26,7 @@ class BusinessSerializer(serializers.Serializer):
     name = serializers.CharField()
     slug = serializers.CharField()
     logo = serializers.SerializerMethodField()
-    number = serializers.CharField(allow_blank=True)
+    number = serializers.CharField(allow_blank=True, allow_null=True)
     address = serializers.CharField(allow_blank=True)
 
     def get_logo(self, obj):
