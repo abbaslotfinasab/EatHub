@@ -2,10 +2,22 @@ from rest_framework.exceptions import PermissionDenied
 
 
 def _purchase_permissions(request) -> list[str]:
-    membership = getattr(request, "membership", None)
-    business = getattr(request, "business", None)
+    context = getattr(request, "tenant_context", None)
+    business_id = getattr(request, "business_id", None)
     permissions = getattr(request, "permissions", None)
 
+    if context is not None and business_id is not None:
+        if (
+            context.user_id != request.user.id
+            or context.business_id != business_id
+            or permissions is None
+            or tuple(context.permissions) != tuple(permissions)
+        ):
+            raise PermissionDenied("An active business membership is required.")
+        return list(context.permissions)
+
+    membership = getattr(request, "membership", None)
+    business = getattr(request, "business", None)
     if (
         membership is None
         or business is None
