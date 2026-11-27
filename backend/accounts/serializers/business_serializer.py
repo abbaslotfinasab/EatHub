@@ -21,12 +21,20 @@ class BusinessCreateSerializer(serializers.ModelSerializer):
         return value
 
 
-class BusinessSerializer(serializers.ModelSerializer):
-    logo = serializers.ImageField(read_only=True)
+class BusinessSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    slug = serializers.CharField()
+    logo = serializers.SerializerMethodField()
+    number = serializers.CharField(allow_blank=True)
+    address = serializers.CharField(allow_blank=True)
 
-    class Meta:
-        model = Business
-        fields = ("id", "name", "slug", "logo", "number", "address")
+    def get_logo(self, obj):
+        logo_url = obj.logo_url
+        request = self.context.get("request")
+        if logo_url and request is not None:
+            return request.build_absolute_uri(logo_url)
+        return logo_url
 
 
 class BusinessProfileUpdateSerializer(serializers.Serializer):
@@ -46,7 +54,5 @@ class BusinessProfileUpdateSerializer(serializers.Serializer):
         return value
 
 
-class BusinessInventorySettingsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Business
-        fields = ("inventory_enabled",)
+class BusinessInventorySettingsSerializer(serializers.Serializer):
+    inventory_enabled = serializers.BooleanField(required=False)
