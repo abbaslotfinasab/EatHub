@@ -7,7 +7,7 @@ class BusinessTenantSummary:
     name: str
     slug: str
     logo_url: str | None
-    number: str
+    number: str | None
     address: str
     inventory_enabled: bool
 
