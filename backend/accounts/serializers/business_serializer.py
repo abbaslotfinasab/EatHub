@@ -30,7 +30,10 @@ class BusinessSerializer(serializers.Serializer):
     address = serializers.CharField(allow_blank=True)
 
     def get_logo(self, obj):
-        logo_url = obj.logo_url
+        logo_url = getattr(obj, "logo_url", None)
+        if logo_url is None:
+            logo = getattr(obj, "logo", None)
+            logo_url = logo.url if logo else None
         request = self.context.get("request")
         if logo_url and request is not None:
             return request.build_absolute_uri(logo_url)
