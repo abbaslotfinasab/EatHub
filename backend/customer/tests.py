@@ -98,3 +98,93 @@ class CustomerPresentationBoundaryTests(SimpleTestCase):
         from rest_framework.serializers import ModelSerializer
 
         self.assertFalse(issubclass(CustomerReadSerializer, ModelSerializer))
+
+
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from accounts.enums import RoleCode
+from accounts.models import Membership, Role, User
+from accounts.views import ExplicitApplicationTenantAPIView, ExplicitTenantAPIView
+from customer.presentation import views as customer_views
+
+
+class CustomerTenantContextAPITests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="customer-tenant@example.com",
+            password="password",
+            name="Customer Tenant",
+            number="9501",
+        )
+        self.business = Business.objects.create(name="Customer Tenant Business")
+        self.other_business = Business.objects.create(name="Other Customer Business")
+        role = Role.objects.create(
+            business=self.business,
+            name="Owner",
+            code=RoleCode.OWNER,
+            is_system=True,
+        )
+        Membership.objects.create(
+            user=self.user,
+            business=self.business,
+            role=role,
+            is_active=True,
+        )
+        self.client.force_authenticate(self.user)
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.business.pk))
+
+    def test_customer_endpoints_require_explicit_business_context(self):
+        self.client.credentials()
+        response = self.client.get("/api/products/customers/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["code"], "BUSINESS_CONTEXT_REQUIRED")
+
+    def test_customer_reads_and_writes_are_scoped_to_resolved_business(self):
+        created = self.client.post(
+            "/api/products/customers/create",
+            {"name": "Local Customer", "phone": "09121112222"},
+            format="json",
+        )
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        customer_id = created.data["id"]
+
+        listed = self.client.get("/api/products/customers/")
+        self.assertEqual(listed.status_code, status.HTTP_200_OK)
+        self.assertEqual([row["id"] for row in listed.data], [customer_id])
+
+        self.client.credentials(HTTP_X_BUSINESS_ID=str(self.other_business.pk))
+        foreign = self.client.get(f"/api/products/customers/{customer_id}/")
+        self.assertEqual(foreign.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(foreign.data["code"], "BUSINESS_ACCESS_DENIED")
+
+
+class CustomerTenantContextArchitectureTests(TestCase):
+    def test_customer_endpoints_use_dto_only_tenant_context(self):
+        endpoints = (
+            customer_views.CustomerListAPIView,
+            customer_views.CustomerCreateAPIView,
+            customer_views.CustomerDetailAPIView,
+            customer_views.CustomerUpdateAPIView,
+            customer_views.CustomerDeleteAPIView,
+        )
+        for endpoint in endpoints:
+            with self.subTest(endpoint=endpoint.__name__):
+                self.assertTrue(issubclass(endpoint, ExplicitApplicationTenantAPIView))
+                self.assertFalse(issubclass(endpoint, ExplicitTenantAPIView))
+
+        import inspect
+
+        source = inspect.getsource(customer_views)
+        self.assertNotRegex(source, r"request\\.business\\b")
+        self.assertNotRegex(source, r"request\\.membership\\b")
+        self.assertNotRegex(source, r"request\\.role\\b")
+
+    def test_customer_create_service_accepts_business_id_not_business_orm(self):
+        import inspect
+
+        parameters = inspect.signature(
+            CustomerService.create_customer
+        ).parameters
+        self.assertIn("business_id", parameters)
+        self.assertNotIn("business", parameters)
