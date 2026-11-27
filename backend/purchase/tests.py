@@ -733,6 +733,63 @@ class SupplierAPITests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+class SupplierTenantContextArchitectureTests(TestCase):
+    def test_supplier_endpoints_use_dto_only_tenant_context(self) -> None:
+        from accounts.views import ApplicationTenantAPIView, TenantAPIView
+        from purchase.presentation.api.views import supplier as supplier_views
+
+        endpoint_classes = (
+            supplier_views.SupplierListCreateAPIView,
+            supplier_views.SupplierDetailAPIView,
+        )
+        for endpoint_class in endpoint_classes:
+            self.assertTrue(issubclass(endpoint_class, ApplicationTenantAPIView))
+            self.assertFalse(issubclass(endpoint_class, TenantAPIView))
+
+        source = inspect.getsource(supplier_views)
+        self.assertNotIn("request.business.", source)
+        self.assertNotIn("request.membership.", source)
+        self.assertNotIn("request.role.", source)
+
+    def test_purchase_permission_helper_accepts_server_resolved_tenant_dto(self) -> None:
+        from types import SimpleNamespace
+        from purchase.presentation.api.permissions import _purchase_permissions
+
+        context = SimpleNamespace(
+            user_id=7,
+            business_id=11,
+            permissions=("purchase.view", "purchase.supplier.manage"),
+        )
+        request = SimpleNamespace(
+            user=SimpleNamespace(id=7),
+            tenant_context=context,
+            business_id=11,
+            permissions=list(context.permissions),
+        )
+
+        self.assertEqual(_purchase_permissions(request), list(context.permissions))
+
+    def test_purchase_permission_helper_rejects_mismatched_tenant_dto(self) -> None:
+        from types import SimpleNamespace
+        from rest_framework.exceptions import PermissionDenied
+        from purchase.presentation.api.permissions import _purchase_permissions
+
+        context = SimpleNamespace(
+            user_id=7,
+            business_id=11,
+            permissions=("purchase.view",),
+        )
+        request = SimpleNamespace(
+            user=SimpleNamespace(id=7),
+            tenant_context=context,
+            business_id=12,
+            permissions=["purchase.view"],
+        )
+
+        with self.assertRaises(PermissionDenied):
+            _purchase_permissions(request)
+
+
 class DjangoPurchaseOrderRepositoryTests(TestCase):
     def setUp(self) -> None:
         self.business_1 = Business.objects.create(name="Business One")

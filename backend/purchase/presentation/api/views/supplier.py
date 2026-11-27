@@ -3,7 +3,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import TenantAPIView
+from accounts.views import ApplicationTenantAPIView
 from core.enums import PermissionCode
 from purchase.application.dto.supplier import (
     CreateSupplierDTO,
@@ -61,7 +61,7 @@ def _handle_supplier_error(error: ValueError) -> None:
     raise ValidationError({"detail": detail})
 
 
-class SupplierListCreateAPIView(TenantAPIView):
+class SupplierListCreateAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -69,7 +69,7 @@ class SupplierListCreateAPIView(TenantAPIView):
         try:
             suppliers = ListSuppliersUseCase(_supplier_repository()).execute(
                 ListSuppliersQuery(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     is_active=_parse_is_active(
                         request.query_params.get("is_active")
                     ),
@@ -93,7 +93,7 @@ class SupplierListCreateAPIView(TenantAPIView):
         try:
             supplier = CreateSupplierUseCase(_supplier_repository()).execute(
                 CreateSupplierDTO(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     name=data["name"],
                     phone=data.get("phone", ""),
                     email=data.get("email", ""),
@@ -111,7 +111,7 @@ class SupplierListCreateAPIView(TenantAPIView):
         )
 
 
-class SupplierDetailAPIView(TenantAPIView):
+class SupplierDetailAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -119,7 +119,7 @@ class SupplierDetailAPIView(TenantAPIView):
         try:
             supplier = GetSupplierUseCase(_supplier_repository()).execute(
                 supplier_id=pk,
-                business_id=request.business.id,
+                business_id=request.business_id,
             )
         except ValueError as error:
             _handle_supplier_error(error)
@@ -136,7 +136,7 @@ class SupplierDetailAPIView(TenantAPIView):
         try:
             supplier = UpdateSupplierUseCase(_supplier_repository()).execute(
                 UpdateSupplierDTO(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     supplier_id=pk,
                     name=data["name"],
                     phone=data.get("phone", ""),
