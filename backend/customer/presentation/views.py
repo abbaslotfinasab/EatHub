@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.exceptions import NotFound
 
-from accounts.views import ExplicitTenantAPIView
+from accounts.views import ExplicitApplicationTenantAPIView
 from customer.infrastructure.django.customer_read_repository import (
     DjangoCustomerReadRepository,
 )
@@ -18,7 +18,7 @@ from customer.presentation.read_serializers import (
 )
 
 
-class CustomerListAPIView(ExplicitTenantAPIView):
+class CustomerListAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -35,7 +35,7 @@ class CustomerListAPIView(ExplicitTenantAPIView):
                 pass
 
         customers = DjangoCustomerReadRepository().list_for_business(
-            request.business.id,
+            request.business_id,
             search=search,
             balance=balance,
             min_orders=min_orders,
@@ -44,37 +44,37 @@ class CustomerListAPIView(ExplicitTenantAPIView):
         return Response(CustomerReadSerializer(customers, many=True).data)
 
 
-class CustomerCreateAPIView(ExplicitTenantAPIView):
+class CustomerCreateAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         serializer = CreateCustomerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         customer = CustomerService.create_customer(
-            business=request.business,
+            business_id=request.business_id,
             validated_data=serializer.validated_data,
         )
         return Response(CustomerReadSerializer(customer).data, status=status.HTTP_201_CREATED)
 
 
-class CustomerDetailAPIView(ExplicitTenantAPIView):
+class CustomerDetailAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         detail = DjangoCustomerReadRepository().get_detail_for_business(
-            request.business.id, pk
+            request.business_id, pk
         )
         if detail is None:
             raise NotFound()
         return Response(CustomerDetailReadSerializer(detail).data)
 
 
-class CustomerUpdateAPIView(ExplicitTenantAPIView):
+class CustomerUpdateAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
         customer = DjangoCustomerReadRepository().get_for_business(
-            request.business.id, pk
+            request.business_id, pk
         )
         if customer is None:
             raise NotFound()
@@ -87,12 +87,12 @@ class CustomerUpdateAPIView(ExplicitTenantAPIView):
         return Response(CustomerReadSerializer(customer).data)
 
 
-class CustomerDeleteAPIView(ExplicitTenantAPIView):
+class CustomerDeleteAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
         customer = DjangoCustomerReadRepository().get_for_business(
-            request.business.id, pk
+            request.business_id, pk
         )
         if customer is None:
             raise NotFound()

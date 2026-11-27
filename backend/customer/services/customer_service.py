@@ -8,10 +8,10 @@ class CustomerService:
 
     @staticmethod
     @transaction.atomic
-    def create_customer(*, business, validated_data):
+    def create_customer(*, business_id, validated_data):
 
         customer, created = Customer.objects.get_or_create(
-            business=business,
+            business_id=business_id,
             phone=validated_data["phone"],
             defaults={
                 "name": validated_data["name"],
