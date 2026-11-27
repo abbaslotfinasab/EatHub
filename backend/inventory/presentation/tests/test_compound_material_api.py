@@ -267,3 +267,36 @@ class CompoundMaterialAPITests(APITestCase):
         self.assertEqual(created.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(Ingredient.objects.get(pk=self.tomato.pk).is_active)
+
+
+class CompoundMaterialTenantBoundaryTests(APITestCase):
+    def test_compound_material_presentation_uses_scalar_tenant_context(self):
+        from pathlib import Path
+        import ast
+
+        view_path = Path(__file__).parents[1] / "compound_material_views.py"
+        syntax_tree = ast.parse(view_path.read_text(encoding="utf-8"))
+        classes = {
+            node.name: node
+            for node in ast.walk(syntax_tree)
+            if isinstance(node, ast.ClassDef)
+        }
+        for class_name in (
+            "CompoundMaterialListCreateAPIView",
+            "CompoundMaterialDetailAPIView",
+        ):
+            base_names = {
+                base.id for base in classes[class_name].bases
+                if isinstance(base, ast.Name)
+            }
+            self.assertIn("ExplicitApplicationTenantAPIView", base_names)
+
+        legacy_request_attributes = {
+            node.attr
+            for node in ast.walk(syntax_tree)
+            if isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "request"
+            and node.attr in {"business", "membership", "role"}
+        }
+        self.assertEqual(legacy_request_attributes, set())
