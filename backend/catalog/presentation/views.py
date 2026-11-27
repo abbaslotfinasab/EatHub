@@ -3,7 +3,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import ExplicitTenantAPIView
+from accounts.views import ExplicitApplicationTenantAPIView
 from catalog.application.exceptions import ProductNotFound, ProductSkuConflict
 from catalog.bootstrap import create_product, get_product, list_products, update_product
 from catalog.presentation.serializers import (
@@ -28,7 +28,7 @@ def _translate_write_error(error):
     raise error
 
 
-class ProductListCreateAPIView(ExplicitTenantAPIView):
+class ProductListCreateAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -37,7 +37,7 @@ class ProductListCreateAPIView(ExplicitTenantAPIView):
         query.is_valid(raise_exception=True)
         params = query.validated_data
         result = list_products(
-            business_id=request.business.pk,
+            business_id=request.business_id,
             page=params["page"],
             page_size=params["page_size"],
             search=params.get("search"),
@@ -57,7 +57,7 @@ class ProductListCreateAPIView(ExplicitTenantAPIView):
         serializer.is_valid(raise_exception=True)
         try:
             product = create_product(
-                business_id=request.business.pk,
+                business_id=request.business_id,
                 data=serializer.validated_data,
             )
         except (ProductSkuConflict, ProductNotFound) as error:
@@ -65,14 +65,14 @@ class ProductListCreateAPIView(ExplicitTenantAPIView):
         return Response(ProductSerializer(product).data, status=status.HTTP_201_CREATED)
 
 
-class ProductDetailAPIView(ExplicitTenantAPIView):
+class ProductDetailAPIView(ExplicitApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         _require_permission(request, PermissionCode.PRODUCTS_VIEW)
         try:
             product = get_product(
-                business_id=request.business.pk,
+                business_id=request.business_id,
                 product_id=pk,
             )
         except ProductNotFound as error:
@@ -85,14 +85,14 @@ class ProductDetailAPIView(ExplicitTenantAPIView):
         serializer.is_valid(raise_exception=True)
         try:
             product = update_product(
-                business_id=request.business.pk,
+                business_id=request.business_id,
                 product_id=pk,
                 data=serializer.validated_data,
             )
         except (ProductSkuConflict, ProductNotFound) as error:
             _translate_write_error(error)
         product = get_product(
-            business_id=request.business.pk,
+            business_id=request.business_id,
             product_id=product.pk,
         )
         return Response(ProductSerializer(product).data)
