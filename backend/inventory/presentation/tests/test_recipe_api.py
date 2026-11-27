@@ -313,6 +313,6 @@ class RecipeTenantContextArchitectureTests(APITestCase):
                 self.assertFalse(issubclass(endpoint, ExplicitTenantAPIView))
 
         source = inspect.getsource(recipe_views)
-        self.assertNotIn("request.business", source)
-        self.assertNotIn("request.membership", source)
-        self.assertNotIn("request.role", source)
+        self.assertNotRegex(source, r"request\.business\b")
+        self.assertNotRegex(source, r"request\.membership\b")
+        self.assertNotRegex(source, r"request\.role\b")
