@@ -15,6 +15,7 @@ from accounts.infrastructure.django.business_inventory_settings_repository impor
 from accounts.infrastructure.django.business_logo_storage import DjangoBusinessLogoStorage
 from accounts.infrastructure.django.business_onboarding_repository import DjangoBusinessOnboardingRepository
 from accounts.infrastructure.django.business_profile_update_repository import DjangoBusinessProfileUpdateRepository
+from accounts.infrastructure.django.legacy_tenant_context_adapter import DjangoLegacyTenantContextAdapter
 from accounts.infrastructure.django.login_token_issuer import DjangoLoginTokenIssuer
 from accounts.infrastructure.django.membership_read_repository import DjangoMembershipReadRepository
 from accounts.infrastructure.django.password_change_repository import DjangoPasswordChangeRepository
@@ -27,6 +28,10 @@ from accounts.infrastructure.django.registration_token_issuer import DjangoRegis
 
 def tenant_context_resolver() -> TenantContextResolver:
     return TenantContextResolver(DjangoMembershipReadRepository())
+
+
+def legacy_tenant_context_adapter() -> DjangoLegacyTenantContextAdapter:
+    return DjangoLegacyTenantContextAdapter()
 
 
 def update_business_inventory_settings() -> UpdateBusinessInventorySettings:
