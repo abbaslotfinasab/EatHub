@@ -747,9 +747,9 @@ class SupplierTenantContextArchitectureTests(TestCase):
             self.assertFalse(issubclass(endpoint_class, TenantAPIView))
 
         source = inspect.getsource(supplier_views)
-        self.assertNotRegex(source, r"request\\.business\\b")
-        self.assertNotRegex(source, r"request\\.membership\\b")
-        self.assertNotRegex(source, r"request\\.role\\b")
+        self.assertNotIn("request.business.", source)
+        self.assertNotIn("request.membership.", source)
+        self.assertNotIn("request.role.", source)
 
     def test_purchase_permission_helper_accepts_server_resolved_tenant_dto(self) -> None:
         from types import SimpleNamespace
