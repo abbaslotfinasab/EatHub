@@ -5,7 +5,7 @@ from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import TenantAPIView
+from accounts.views import ApplicationTenantAPIView
 from core.enums import PermissionCode
 from purchase.application.dto.purchase_order import (
     CreatePurchaseOrderDTO,
@@ -126,7 +126,7 @@ def _item_dtos(items: list[dict]) -> list[CreatePurchaseOrderItemDTO]:
     ]
 
 
-class PurchaseOrderListCreateAPIView(TenantAPIView):
+class PurchaseOrderListCreateAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -136,7 +136,7 @@ class PurchaseOrderListCreateAPIView(TenantAPIView):
                 _purchase_order_repository()
             ).execute(
                 ListPurchaseOrdersQuery(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     status=_parse_status(request.query_params.get("status")),
                     supplier_id=_parse_optional_id(
                         request.query_params.get("supplier_id"),
@@ -174,7 +174,7 @@ class PurchaseOrderListCreateAPIView(TenantAPIView):
                 _requisition_repository(),
             ).execute(
                 CreatePurchaseOrderDTO(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     supplier_id=data["supplier_id"],
                     requisition_id=data.get("requisition_id"),
                     order_date=data["order_date"],
@@ -193,7 +193,7 @@ class PurchaseOrderListCreateAPIView(TenantAPIView):
         )
 
 
-class PurchaseOrderDetailAPIView(TenantAPIView):
+class PurchaseOrderDetailAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -203,7 +203,7 @@ class PurchaseOrderDetailAPIView(TenantAPIView):
                 _purchase_order_repository()
             ).execute(
                 purchase_order_id=pk,
-                business_id=request.business.id,
+                business_id=request.business_id,
             )
         except ValueError as error:
             _handle_purchase_order_error(error)
@@ -222,7 +222,7 @@ class PurchaseOrderDetailAPIView(TenantAPIView):
                 _transaction_manager(),
             ).execute(
                 UpdatePurchaseOrderDTO(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     purchase_order_id=pk,
                     items=_item_dtos(data["items"]),
                     discount=data.get("discount"),
@@ -235,7 +235,7 @@ class PurchaseOrderDetailAPIView(TenantAPIView):
         return Response(PurchaseOrderSerializer(order).data)
 
 
-class PurchaseOrderSendAPIView(TenantAPIView):
+class PurchaseOrderSendAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -243,7 +243,7 @@ class PurchaseOrderSendAPIView(TenantAPIView):
         return _transition_response(SendPurchaseOrderUseCase, request, pk)
 
 
-class PurchaseOrderCancelAPIView(TenantAPIView):
+class PurchaseOrderCancelAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -258,7 +258,7 @@ def _transition_response(use_case_type, request, purchase_order_id: int):
             _transaction_manager(),
         ).execute(
             purchase_order_id=purchase_order_id,
-            business_id=request.business.id,
+            business_id=request.business_id,
         )
     except ValueError as error:
         _handle_purchase_order_error(error)
