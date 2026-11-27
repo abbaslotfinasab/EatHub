@@ -11,6 +11,7 @@ from accounts.infrastructure.django.membership_read_repository import (
 )
 from accounts.models import Business, Membership, User
 from accounts.services.business_service import BusinessService
+from accounts.serializers.business_serializer import BusinessSerializer
 
 
 class TenantContextDtoRepositoryTests(TestCase):
@@ -94,6 +95,13 @@ class DtoTenantBusinessApiTests(TestCase):
         self.client.force_authenticate(user=self.user)
         self.profile_url = "/api/accounts/business/profile/"
         self.inventory_url = "/api/accounts/business/inventory-settings/"
+
+    def test_business_serializer_remains_compatible_with_orm_backed_order_models(self):
+        serialized = BusinessSerializer(self.business).data
+
+        self.assertEqual(serialized["id"], self.business.pk)
+        self.assertEqual(serialized["name"], self.business.name)
+        self.assertEqual(serialized["slug"], self.business.slug)
 
     def test_profile_endpoint_uses_dto_context_and_preserves_response_shape(self):
         response = self.client.get(self.profile_url)
