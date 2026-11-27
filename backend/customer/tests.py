@@ -107,6 +107,7 @@ from accounts.enums import RoleCode
 from accounts.models import Membership, Role, User
 from accounts.views import ExplicitApplicationTenantAPIView, ExplicitTenantAPIView
 from customer.presentation import views as customer_views
+from customer.services.customer_service import CustomerService
 
 
 class CustomerTenantContextAPITests(APITestCase):
@@ -176,9 +177,9 @@ class CustomerTenantContextArchitectureTests(TestCase):
         import inspect
 
         source = inspect.getsource(customer_views)
-        self.assertNotRegex(source, r"request\\.business\\b")
-        self.assertNotRegex(source, r"request\\.membership\\b")
-        self.assertNotRegex(source, r"request\\.role\\b")
+        self.assertNotRegex(source, r"request\.business\b")
+        self.assertNotRegex(source, r"request\.membership\b")
+        self.assertNotRegex(source, r"request\.role\b")
 
     def test_customer_create_service_accepts_business_id_not_business_orm(self):
         import inspect
