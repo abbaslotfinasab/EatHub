@@ -2,15 +2,40 @@ from django.core.exceptions import ObjectDoesNotExist
 
 from accounts.application.login_membership_read_model import LoginMembership
 from accounts.application.me_read_model import ActiveBusiness, MeMembership
+from accounts.application.tenant_context_read_model import (
+    BusinessTenantSummary,
+    MembershipTenantSummary,
+)
 from accounts.models import Membership, RolePermission
 
 
 class DjangoMembershipReadRepository:
-    """Django ORM adapter for authenticated membership and role-permission reads."""
+    """Django ORM adapter; only scalar DTOs cross the application boundary."""
 
-    def get_active_membership(self, *, user_id: int, business_id: int):
+    @staticmethod
+    def _to_tenant_summary(membership: Membership) -> MembershipTenantSummary:
+        business = membership.business
+        return MembershipTenantSummary(
+            id=membership.pk,
+            business_id=membership.business_id,
+            role_id=membership.role_id,
+            role_code=membership.role.code,
+            business=BusinessTenantSummary(
+                id=business.pk,
+                name=business.name,
+                slug=business.slug,
+                logo_url=business.logo.url if business.logo else None,
+                number=business.number,
+                address=business.address,
+                inventory_enabled=business.inventory_enabled,
+            ),
+        )
+
+    def get_active_membership(
+        self, *, user_id: int, business_id: int | str
+    ) -> MembershipTenantSummary | None:
         try:
-            return (
+            membership = (
                 Membership.objects.select_related("business", "role")
                 .get(
                     user_id=user_id,
@@ -21,9 +46,12 @@ class DjangoMembershipReadRepository:
             )
         except (ObjectDoesNotExist, ValueError, TypeError):
             return None
+        return self._to_tenant_summary(membership)
 
-    def list_active_memberships(self, *, user_id: int, limit: int):
-        return list(
+    def list_active_memberships(
+        self, *, user_id: int, limit: int
+    ) -> tuple[MembershipTenantSummary, ...]:
+        memberships = (
             Membership.objects.select_related("business", "role")
             .filter(
                 user_id=user_id,
@@ -32,11 +60,11 @@ class DjangoMembershipReadRepository:
             )
             .order_by("id")[:limit]
         )
+        return tuple(self._to_tenant_summary(membership) for membership in memberships)
 
     def list_role_permission_codes(self, *, role_id: int) -> tuple[str, ...]:
         return tuple(
             RolePermission.objects.filter(role_id=role_id)
-            .select_related("permission")
             .values_list("permission__code", flat=True)
         )
 
