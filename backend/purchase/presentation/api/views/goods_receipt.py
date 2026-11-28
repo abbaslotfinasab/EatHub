@@ -3,7 +3,7 @@ from rest_framework.exceptions import APIException, NotFound, ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from accounts.views import TenantAPIView
+from accounts.views import ApplicationTenantAPIView
 from core.enums import PermissionCode
 from inventory.application.use_cases.receive_stock import ReceiveStockUseCase
 from inventory.infrastructure.django.repositories import (
@@ -143,7 +143,7 @@ def _item_dtos(items: list[dict]) -> list[CreateGoodsReceiptItemDTO]:
     ]
 
 
-class GoodsReceiptListCreateAPIView(TenantAPIView):
+class GoodsReceiptListCreateAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -153,7 +153,7 @@ class GoodsReceiptListCreateAPIView(TenantAPIView):
                 _goods_receipt_repository()
             ).execute(
                 ListGoodsReceiptsQuery(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     purchase_order_id=_parse_optional_id(
                         request.query_params.get("purchase_order_id"),
                         "purchase_order_id",
@@ -186,7 +186,7 @@ class GoodsReceiptListCreateAPIView(TenantAPIView):
         try:
             result = _create_goods_receipt_use_case().execute(
                 CreateGoodsReceiptDTO(
-                    business_id=request.business.id,
+                    business_id=request.business_id,
                     purchase_order_id=data["purchase_order_id"],
                     received_by_id=request.user.id,
                     received_date=data["received_date"],
@@ -211,7 +211,7 @@ class GoodsReceiptListCreateAPIView(TenantAPIView):
         )
 
 
-class GoodsReceiptDetailAPIView(TenantAPIView):
+class GoodsReceiptDetailAPIView(ApplicationTenantAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -221,7 +221,7 @@ class GoodsReceiptDetailAPIView(TenantAPIView):
                 _goods_receipt_repository()
             ).execute(
                 goods_receipt_id=pk,
-                business_id=request.business.id,
+                business_id=request.business_id,
             )
         except ValueError as error:
             _handle_goods_receipt_error(error)
@@ -238,7 +238,7 @@ class GoodsReceiptTraceUnavailableAPIException(APIException):
     default_code = "goods_receipt_trace_unavailable"
 
 
-class GoodsReceiptStockMovementTraceAPIView(TenantAPIView):
+class GoodsReceiptStockMovementTraceAPIView(ApplicationTenantAPIView):
     """Resolve a receipt movement through its protected link to its supplier."""
 
     permission_classes = [IsAuthenticated]
@@ -251,7 +251,7 @@ class GoodsReceiptStockMovementTraceAPIView(TenantAPIView):
                 DjangoGoodsReceiptTraceRepository()
             ).execute(
                 movement_id=movement_id,
-                business_id=request.business.id,
+                business_id=request.business_id,
             )
         except GoodsReceiptTraceUnavailable:
             # Keep internal exception details and traceback out of the API response.
