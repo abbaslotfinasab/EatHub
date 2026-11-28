@@ -2258,6 +2258,6 @@ class PurchaseInvoiceTenantContextArchitectureTests(TestCase):
             self.assertFalse(issubclass(endpoint_class, TenantAPIView))
 
         source = inspect.getsource(invoice_views)
-        self.assertNotRegex(source, r"request\\.business\\b")
-        self.assertNotRegex(source, r"request\\.membership\\b")
-        self.assertNotRegex(source, r"request\\.role\\b")
+        self.assertNotRegex(source, r"request\.business\b")
+        self.assertNotRegex(source, r"request\.membership\b")
+        self.assertNotRegex(source, r"request\.role\b")
