@@ -2217,3 +2217,23 @@ class RequisitionAPITests(APITestCase):
         response = self.client.get(self.endpoint)
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class GoodsReceiptTenantContextArchitectureTests(TestCase):
+    def test_goods_receipt_endpoints_use_dto_only_tenant_context(self) -> None:
+        from accounts.views import ApplicationTenantAPIView, TenantAPIView
+        from purchase.presentation.api.views import goods_receipt as goods_receipt_views
+
+        endpoint_classes = (
+            goods_receipt_views.GoodsReceiptListCreateAPIView,
+            goods_receipt_views.GoodsReceiptDetailAPIView,
+            goods_receipt_views.GoodsReceiptStockMovementTraceAPIView,
+        )
+        for endpoint_class in endpoint_classes:
+            self.assertTrue(issubclass(endpoint_class, ApplicationTenantAPIView))
+            self.assertFalse(issubclass(endpoint_class, TenantAPIView))
+
+        source = inspect.getsource(goods_receipt_views)
+        self.assertNotRegex(source, r"request\.business\b")
+        self.assertNotRegex(source, r"request\.membership\b")
+        self.assertNotRegex(source, r"request\.role\b")
