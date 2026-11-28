@@ -2237,3 +2237,27 @@ class GoodsReceiptTenantContextArchitectureTests(TestCase):
         self.assertNotRegex(source, r"request\.business\b")
         self.assertNotRegex(source, r"request\.membership\b")
         self.assertNotRegex(source, r"request\.role\b")
+
+
+class PurchaseInvoiceTenantContextArchitectureTests(TestCase):
+    def test_purchase_invoice_endpoints_use_dto_only_tenant_context(self) -> None:
+        from accounts.views import ApplicationTenantAPIView, TenantAPIView
+        from purchase.presentation.api.views import purchase_invoice as invoice_views
+
+        endpoint_classes = (
+            invoice_views.PurchaseInvoiceEventListAPIView,
+            invoice_views.PurchaseInvoiceListCreateAPIView,
+            invoice_views.PurchaseInvoiceDetailAPIView,
+            invoice_views.PurchaseInvoiceApproveAPIView,
+            invoice_views.PurchaseInvoiceMatchAPIView,
+            invoice_views.PurchaseInvoicePostAPIView,
+            invoice_views.PurchaseInvoiceCancelAPIView,
+        )
+        for endpoint_class in endpoint_classes:
+            self.assertTrue(issubclass(endpoint_class, ApplicationTenantAPIView))
+            self.assertFalse(issubclass(endpoint_class, TenantAPIView))
+
+        source = inspect.getsource(invoice_views)
+        self.assertNotRegex(source, r"request\\.business\\b")
+        self.assertNotRegex(source, r"request\\.membership\\b")
+        self.assertNotRegex(source, r"request\\.role\\b")
